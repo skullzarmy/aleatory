@@ -21,17 +21,17 @@ Five contracts. The split between them is the design.
 - **Factory** — deploys collections. Holds no tokens, which is what makes its `admin_lambda` escape hatch safe.
 - **Marketplace** — secondary listings and offers, both escrowed. Deliberately has *no* escape hatch, because it holds other people's property.
 - **Collection** — one generator, one edition, owned by the artist from origination. No lambda, no upgrade path, no authority retained by anyone else. A bug in it is permanent; that is the price of the guarantee.
-- **Resolver** — backend minting keys, rotatable in one place.
-- **Provider** — a renderer's price and endpoint. Any contract exposing `get_render_gas` is a provider. That view is the entire membership test.
+- **Resolver** — our own render-provider keys, rotatable in one place. Any artist can sever it.
+- **Provider** — a renderer's price, working key and endpoint. Any contract exposing `get_render_gas` and `get_agent` is a provider. Those views are the entire membership test.
 - **Registry** — the list of providers. Permissionless, no fee.
 
 ## How a piece happens
 
 1. The artist deploys a collection. One signature. They own the contract; nothing passes through anyone else's hands.
-2. A collector sets parameters and signs once. **The token is minted in that operation** — code, params, royalties, owner, name — showing a placeholder image. The operation's hash is the seed.
-3. A render provider produces the image, pins it, and writes the two image URIs. Once, and never again.
+2. A collector sets parameters and signs once. **The token is minted in that operation**, owned and tradeable immediately, carrying the collection's "not revealed yet" metadata. The operation's hash is the seed.
+3. A render provider renders the piece, pins it, and publishes that token's metadata document. Once, and never again.
 
-An unrevealed piece is a complete artwork with a pending thumbnail, not a promise of a future token.
+An unrevealed piece is a real token, not a promise of one. What it *is* comes from chain state — immutable code, the seed from the buy operation, and the parameters in that same operation — not from the metadata.
 
 ## The secondary market
 
@@ -48,7 +48,8 @@ The contract template is a reference implementation, not a requirement — the s
 ## Contracts
 
 ```
-SMARTPY_OUTPUT_DIR=contract/output python3 contract/aleatory.py
+SMARTPY_OUTPUT_DIR=contract/output     python3 contract/aleatory.py
+SMARTPY_OUTPUT_DIR=contract/output-mkt python3 contract/marketplace.py
 ```
 
 Exit 0 means the test scenarios passed; the suite runs inline, no CLI needed. Always set `SMARTPY_OUTPUT_DIR` or SmartPy writes a folder per scenario into the repo root.
