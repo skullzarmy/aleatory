@@ -39,9 +39,9 @@ The last three rows are the ones that matter: once a piece is minted on mainnet 
 
 ## Economics
 
-- **Primary fee rate.** Needs to cover indexer hosting and pinning without being a tax on experimentation. Reference points: HEN/Teia sat in the low single digits. Recommendation: pick the smallest number that plausibly covers costs, publish the arithmetic, and revisit annually in public. Never retroactive.
-- **Who pays storage burn for a publish?** Default is the artist (it is their code, on chain, forever). Open: whether the treasury subsidizes first-time artists, and whether shared library uploads are always treasury-funded as a public good. Leaning yes on libraries — that is the clearest case of a commons expenditure with compounding return.
-- **Secondary royalties.** Standard TZIP-21 royalties, honored by objkt/Teia. We take nothing on secondary. Confirm.
+- ~~**Primary fee rate.**~~ Resolved 2026-08-23: **there is no fee on sales.** Not on primary, not on secondary, not on deploys, not on provider registration. Income is the render service — compute and pinning sold to people who would otherwise run both themselves — which is a real recurring cost rather than a toll on other people's work. See [decisions.md](decisions.md) §10.
+- **Who pays storage burn for a publish?** The artist, and it is charged to their wallet directly by the protocol — we never front it. Open: whether shared library uploads are funded as a public good once a Deps contract exists. Leaning yes on libraries; that is the clearest case of a commons expenditure with compounding return.
+- ~~**Secondary royalties.**~~ Resolved 2026-08-23. We take nothing on secondary. Royalties follow the **objkt convention** — *not* TZIP-21, which defines no royalties field at all — and the contract composes the JSON itself so no client can mis-encode it. An optional platform share exists as an explicit, unchecked, absent-by-default ask; because royalties are immutable, that choice is permanent for the collection.
 - **Treasury runway.** What does v1 actually cost per month — indexer host, pinning, domain — and how many months of it should be banked before mainnet? Unanswered, and it should be answered before the first real sale, not after.
 
 ---
@@ -56,29 +56,19 @@ The last three rows are the ones that matter: once a piece is minted on mainnet 
 
 ## Technical
 
-- **Where the JS render runtime lives.** ⬅ **the open decision.** Undecided as of 2026-08-13.
+- ~~**Where the JS render runtime lives.**~~ Resolved 2026-08-23: **Cloudflare Browser Rendering, behind a Netlify function.** The worker is stateless — code, seed and params in, image bytes out — with no chain access, no wallet key, no pinning credentials and no database, so a compromised worker leaks nothing and moving to another vendor is a one-URL change. Netlify keeps the privileged side: pinning, keys, queue.
 
-  The backend minter must execute the generator's JavaScript to produce a raster for `displayUri`. p5 and canvas need a real browser engine, so a rasteriser like `@resvg/resvg-js` alone is not enough — that is the one thing that does not transfer from Zolturd, which composes its own SVG and never runs untrusted JS.
+  This also stopped being a single decision. Rendering is a *provider* role now, and anyone can run one ([decisions.md](decisions.md) §7) — so the question is only where *our* provider runs, not where rendering happens for everyone.
 
-  Everything else about the minter is already settled and already in this stack: the chain work, the idempotency handling, and the Pinata pin function all have working precedent. This is the only genuinely new infrastructure in the design.
-
-  | Option | For | Against |
-  |---|---|---|
-  | **Netlify** background function + `@sparticuz/chromium` | One vendor, same shape as `zolturd-mint.mts`, 15-minute budget is ample | Chromium sits near Lambda's unzipped bundle ceiling before our own code; multi-second cold starts; fails quietly under pressure |
-  | **Cloudflare Browser Rendering** | Purpose-built; Cloudflare operates the browsers; no Chromium in our bundle | Second vendor; priced (already checked); leaving Netlify for one job |
-  | **Hosted Chrome endpoint** (Browserless or similar) | Function stays on Netlify and just POSTs generator + seed; no Chromium in the bundle; swappable | A third party in the mint path; another bill |
-
-  Stated preference: Netlify, with Cloudflare as the fallback and not loved.
-
-  **Why this is safe to defer.** Because `artifactUri` is composed on chain and the raster is only a thumbnail ([architecture.md](architecture.md) §4a), a wrong or dead choice here costs thumbnails, not artworks. It is reversible, it needs no contract change, and it can be tried on shadownet before it is decided. Nothing else is blocked on it.
-
-- ~~**Who mints, and who may write a token's image URI.**~~ Resolved 2026-08-13: a `minters` whitelist of backend soft wallets, with a swappable two-step administrator holding the whitelist and nothing else. A multisig admin was considered and set aside — admin is just an address, so pointing it at one later is a transfer, not a migration. See [architecture.md](architecture.md) §4a.
+- ~~**Who mints, and who may write a token's image URI.**~~ Resolved 2026-08-23, and the two halves separated. **Minting** is the collector, in their own `buy` operation. **Writing the image** is an authorised render provider through `set_media`, which reaches two URI fields of one token, once. A multisig admin was considered and set aside — admin is just an address, so pointing it at one later is a transfer, not a migration. See [decisions.md](decisions.md).
 
 - ~~**Math.random attribution.**~~ Resolved 2026-08-02, by deleting the question rather than answering it. Attribution needed stack-frame parsing, which is brittle across engines. Instead: the harness still substitutes the seeded stream (so the run stays reproducible) but no longer reports the call as a violation, and the standalone "seed-bound" check row is gone. The count rides on the ready message and is surfaced in one place — as a likely cause when two runs of one seed actually differ. A cause is only worth reporting when there is a symptom.
-- **Default seed policy.** Architecture recommends op-hash (Policy A) as default with commit-reveal (Policy B) available. Alternative: make commit-reveal the default and accept the extra operation. Decide after v0 exercises both — the answer probably depends on how bad the UX of two operations actually feels.
-- ~~**Parameterized mints in v1 or later?**~~ Resolved 2026-08-23, earlier than planned: v0 ships them. The deciding argument was that reserving room is not free — `params_schema` was already a field in an immutable record, and leaving it `null` while guessing at its shape risked getting the shape wrong at v1, when it can no longer be changed. Shipped shape: up to five, always optional, artist-named with artist-set ranges, resolution specified so every renderer agrees, and the declaration readable from contract storage so another platform can build a mint UI for our generators without our source. See [params.md](params.md). What is still open is the buy → mint path (§4a): the collector's chosen values have to survive the reservation, and that is not exercised end to end yet.
+- ~~**Default seed policy.**~~ Resolved 2026-08-23: the operation hash is always the seed. Commit-reveal is not offered, because it needs a second collector signature and a mint separate from the payment — and `buy` now does both at once. The grinding weakness is accepted and documented rather than engineered around.
+- ~~**Parameterized mints in v1 or later?**~~ Resolved 2026-08-23, earlier than planned: v0 ships them. The deciding argument was that reserving room is not free — `params_schema` was already a field in an immutable record, and leaving it `null` while guessing at its shape risked getting the shape wrong at v1, when it can no longer be changed. Shipped shape: up to five, always optional, artist-named with artist-set ranges, resolution specified so every renderer agrees, and the declaration readable from contract storage so another platform can build a mint UI for our generators without our source. See [params.md](params.md). What is still open is exercising it end to end on a testnet: `buy` writes the collector's resolved values into the token in their own operation, so there is no handoff to survive, but the path has not been run.
 - **WASM generators.** Determinism across engines is not free (floating point, threading). Worth supporting eventually; needs a conformance answer first.
-- **Multi-deployment identity.** If the same generator exists on L1 and on a rollup, is that one work or two? Affects seed derivation and provenance display. Must be answered before v1 contracts are immutable, even though v2 is only a position ([roadmap.md](roadmap.md) §3).
+- ~~**Multi-deployment identity.**~~ Resolved 2026-08-23: **two works.** One contract, one chain, one edition. Sharing supply across chains needs bridging and cross-chain messaging, which is not something to put in a contract that can never be fixed. UI filters can show that an artist has an edition elsewhere without coupling the contracts. Copyminting is neither detected nor expected; a policy against it belongs in front-end and community rules, never chain state.
+
+  Left open deliberately: because a piece is code plus a seed plus params, the same work *is* reproducible on another chain by construction. A multichain-mint conversation with Teia and objkt becomes worth having once there are artists and a working standard to point at.
 - **Rescue mirror legality/etiquette.** Archiving public generator code from other platforms is defensible, but the artist relationship matters more than the legal question. Opt-out on request, at minimum. Ask a few artists before shipping it.
 
 ---

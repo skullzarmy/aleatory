@@ -99,13 +99,13 @@ Declaration order because it is the only ordering a third party can reconstruct 
 
 ## 4. Where it all lives on chain
 
-v0 publishes one contract per generator: a stock FA2 whose metadata big_map carries the record and the code.
+One contract per generator, deployed by the factory. Its metadata big_map carries the record and the code; `params_schema` is also an immutable storage field, set at deploy and never changed.
 
 | What | Where |
 |---|---|
 | The declaration | `params_schema` inside `aleatory:record`, **and** verbatim under the metadata key `aleatory:params` |
 | The resolution rule | `params_resolution` inside `aleatory:record` |
-| One piece's values | that token's TZIP-21 `token_info`, key `aleaParams`, canonical JSON |
+| One piece's values | that token's `token_info`, key `aleaParams`, canonical JSON |
 | Where to find the declaration, from a token | `token_info` key `aleaParamsSchema` = `tezos-storage:aleatory%3Aparams` |
 
 The duplication of the declaration is a few hundred bytes and it is worth them: a platform building a mint UI needs one value, and making it fetch and parse a whole generator record to find one field is how an integration gets skipped.
@@ -166,7 +166,9 @@ Locally, outside the sandbox, the dev harness reads values from the URL: `?p.den
 
 ## 8. Known limits in v0
 
-- **Params are set by whoever mints.** In the v0 lab, that is the artist minting their own pieces on a testnet. Under the §4a buy → mint flow the value has to travel with the `buy` reservation so the backend minter writes what the collector chose; the contract carries a `params` field for exactly this, and the end-to-end path is not yet exercised.
-- **`artifactUri` does not carry the values.** It points at the code in contract storage; a renderer applies `aleaParams` through the harness per §6. Baking values into the URI is a v1 question and depends on how the harness itself gets served.
+- **Params are set by whoever buys.** `buy` takes the resolved values and writes them into the token in that same operation, so what the collector chose is committed by their own signature and nobody downstream can alter it. There is no backend in this path — the render provider reads `aleaParams` off the token like any other reader. The end-to-end path is not yet exercised on a testnet.
+- **`artifactUri` does not carry the values.** It points at the code; a renderer applies `aleaParams` through the harness per §6. Baking values into the URI is a later question and depends on how the harness itself gets served.
+
+- **A wrong `aleaParams` is detectable, not preventable.** The values are on the token and the code is immutable, so anyone can re-render and compare — but nothing on chain forces a provider's image to match the parameters it was minted with. Same posture as the seed.
 - **No string or free-numeric type.** A free-text input is a caption, not a dimension of a piece. Imported fxhash `string` params are dropped, and said so out loud at import time.
 - **The ceiling is five,** enforced at declaration time and at import.

@@ -26,17 +26,19 @@ The token is not a picture. The token is a pointer into a possibility space, and
 
 ## 2. Contracts
 
-Three contracts, and the split between them is the design.
+Five contracts, and the split between them is the design.
 
 | Contract | Owns | Who controls it |
 |---|---|---|
-| **Factory** | Deploy fee, the collection template, a registry of what it deployed | Us. Two-step transferable admin, plus `admin_lambda`. |
+| **Factory** | The collection template and a registry of what it deployed | Us. Two-step transferable admin, plus `admin_lambda`. |
 | **Collection** (FA2) | One project: one generator, one edition, its tokens | The artist, from the moment it exists. |
 | **Resolver** | The set of backend minting keys | Us. One flip rotates a leaked key across every collection. |
+| **Provider** | One render provider's price and push endpoint | Whoever runs it. Any contract exposing `get_render_gas` is a provider. |
+| **Registry** | The list of providers | Nobody. Permissionless, no fee. |
 
 **The factory holds no tokens.** That is what makes its escape hatch safe: `admin_lambda` transforms factory storage, and there is nothing of anyone else's in factory storage to reach. The contract that needs to be upgradable holds nothing; the contract that holds everything cannot be touched.
 
-**A collection has no escape hatch at all.** No `admin_lambda`, no upgrade path, no platform fee, and no authority retained by us. `code_uri`, `code_hash`, `edition_size` and `royalties` have no setter anywhere in it — editions are immutable to the artist, to the factory, and to us. The artist administers only what established Tezos NFT contracts let an artist administer: pause the sale, reprice the unsold remainder, retire, and hand the contract to another address in two steps.
+**A collection has no escape hatch at all.** No `admin_lambda`, no upgrade path, no platform fee, and no authority retained by us. `code_uri`, `code_hash`, `params_schema` and `royalties` have no setter anywhere in it. The artist administers only what established Tezos NFT contracts let an artist administer: pause the sale, reprice the unsold remainder, reduce or close the edition, switch render provider, and hand the contract to another address in two steps (§4).
 
 The price of that guarantee is real: a bug in the template is frozen into every collection already deployed, with no remedy. Which is why the collection stays boring, and why it needs to be audited before the first one ships.
 
@@ -46,7 +48,7 @@ The artist calls `deploy` with the fee. The factory originates the collection in
 
 Storage burn and gas are charged to the operation's source, which is the artist's wallet, as Tezos charges all storage to the payer including for internal originations. The factory fronts nothing.
 
-**The fee is charged once, at deploy, and never again.** Sales carry no platform cut: the entire mint price goes to the artist. The fee is changeable and applies only to deployments made after the change.
+**There is no deploy fee.** It is zero: the artist's own origination burn and gas are the only cost, which is already a real floor against spam. `deploy_price` exists as an admin-settable field starting at 0 so an anti-spam lever remains possible without a new factory, and any change would be visible on chain. Sales carry no platform cut either — the mint price goes to the artist and the render gas to the provider. Our income is the render service.
 
 ### Changing the template means a new factory
 
@@ -158,9 +160,7 @@ This is what makes "custom code" a first-class kind rather than an escape hatch.
 
 This is not a preference, it is what makes the seed honest: the seed comes from the buy operation's hash, so a preminted piece would be one whose seed the artist saw before deciding to sell it. On-demand minting and unpredictable seeds are the same mechanism.
 
-An artist who wants pieces of their own buys them like anyone else — **batch buying is supported**, so it is one operation for however many — and lists them wherever they like. The platform has no "put these finished pieces up for sale" flow, because that is the thing on-demand minting exists to avoid.
-
-Batching works with the seed formula as written: `token_id` is in the preimage, so N pieces from one operation get N different seeds. It does slightly sharpen Policy A's known weakness — one ground operation hash now yields several outcomes to inspect rather than one — which is another reason a project that cares reaches for commit-reveal (§5).
+An artist who wants pieces of their own buys them like anyone else and lists them wherever they like. The platform has no "put these finished pieces up for sale" flow, because that is the thing on-demand minting exists to avoid.
 
 ### Artist controls
 
@@ -168,20 +168,28 @@ Established Tezos NFT behaviour, not invented here. The artist controls the supp
 
 | | |
 |---|---|
-| Pause minting | Yes, any time. Pauses the **sale**, never transfers — a paused project still trades on the secondary market. |
-| Change price | Yes, for unminted pieces. Never retroactively. |
-| Change edition size | **No.** Fixed at publish. Edition size carries collectibility meaning and moving it after the fact rewrites what people bought into. Enforced by the contract, not by a disabled button. |
-| Retire the project | Only when **circulating supply is zero** — either nothing was ever minted, or the artist burned every piece they still held. It cannot be reached while someone else owns one. |
+| Pause / unpause the sale | Any time. Never affects transfers — a paused collection still trades on secondary. |
+| Start paused | Chosen at deploy, so a collection can be deployed, checked, announced, then opened. |
+| Change price | Any time, for future mints only. Never retroactive. |
+| Reduce the edition | Any time, never below what is already minted. Reducing supply only makes existing pieces scarcer, so no holder is harmed. |
+| Increase the edition | **Never.** No entrypoint exists. |
+| Close the edition | Set the edition size to the number already minted. One-way, and it replaces a separate `retire`. |
+| Switch render provider | Any time. |
+| Hand over the collection | Two-step propose/accept. |
 | Burn a piece | The holder's own, by transfer to the burn address, as everywhere else on Tezos. There is no admin burn entrypoint. |
 | Touch a collector's token | Never. No entrypoint exists for it. |
 
-"Retire" is a tombstone, not an erasure: a flag every reader honours, and optionally removal of the code from the metadata big_map so the contract stops serving it. The bytes remain in the origination operation forever. Nothing on a chain is deleted, and the UI should not use a word that claims otherwise.
+Open editions are `edition_size = 0`. Open → finite is a valid reduction provided the new size is at or above what is minted; finite → open is never allowed.
+
+Reductions and price changes emit events, so a cut from 100 to 50 is visible rather than silent.
+
+Closing an edition is a tombstone, not an erasure. Nothing on a chain is deleted, and the UI should not use a word that claims otherwise.
 
 ---
 
 ## 4a. Who mints, and who writes the image
 
-**Decided 2026-08-13.** This section replaces an earlier assumption that the collector's wallet both pays and mints in one operation.
+**Decided 2026-08-13, revised 2026-08-23.** The collector's wallet both pays and mints, in one operation. What it cannot do is produce the image.
 
 ### The problem
 
@@ -189,11 +197,11 @@ A token's `displayUri` is a raster of the piece. Producing it means *executing t
 
 If any address may write a token's URIs, then anyone can point a token at any CID. Our own client would notice, because the render is deterministic and we can check it. That does not help: the damage lands on objkt, and objkt renders whatever the metadata says. Verifiability is worthless on the surface where the harm actually occurs. This is the same reasoning that led fxhash to run a signer, arrived at independently.
 
-### The decision: authorised backend minters, resolved centrally
+### The decision: authorised render providers
 
 Modelled on `zolturd_nft.py` in tezoshitcoin.xyz, which already solves this and is in production.
 
-Only an authorised backend soft wallet may call `mint`. Authorisation is resolved from the Resolver contract (§2), with the artist's local override checked first. A minter cannot pause, cannot reprice, cannot retire, and cannot mint without a payment.
+Only an authorised address may call `set_media`. Authorisation is the collection's own provider, an address the artist authorised locally, or one the Resolver contract (§2) vouches for. Such an address cannot pause, cannot reprice, cannot change the edition, and cannot mint anything — minting happens in `buy`, by the collector.
 
 Because no open URI-writing entrypoint exists, the arbitrary-CID hole never exists to be defended against.
 
@@ -203,51 +211,48 @@ Because no open URI-writing entrypoint exists, the arbitrary-CID hole never exis
 
 | | Who signs | What happens |
 |---|---|---|
-| 1. **`buy`** | the collector, once | Pays the artist the full price and writes a **reservation** recording buyer and level. **This operation's hash is the seed.** |
-| 2. *(render)* | nobody | A backend minter picks up the event, renders the piece for that seed, pins it. |
-| 3. **`mint`** | a whitelisted soft wallet | Consumes the reservation by id and mints **to the buyer recorded there**, with complete TZIP-21 metadata. |
+| 1. **`buy`** | the collector, once | Pays `price + render_gas`, split in that same operation — price to the artist, render gas to the provider. **Mints the token**: code, parameters, royalties, owner and name, showing the collection's placeholder image. **This operation's hash is the seed.** |
+| 2. **`set_media`** | a render provider | Writes `displayUri` and `thumbnailUri`, once, for that token. |
 
-The reservation is what binds a mint to the payment that funded it. `mint` has no `owner` parameter, so a stolen minting key cannot redirect a paid piece to itself; consuming the reservation makes a retried backend job fail rather than double-mint; and the recorded buyer and level let an indexer locate the funding operation and check the seed independently, instead of taking our word for the pairing.
+**The token is minted in the collector's own operation.** An unrevealed piece is a complete artwork with a pending thumbnail, not a promise of a future token — which is why there is no reservation to strand, no refund to argue about, and nothing a failed provider can take away. It is also why the seed needs no extra record: a token's seed derives from the hash of the operation that created it.
 
-A related consequence: `retire` closes new sales without requiring outstanding reservations to be filled, so a backend that dies mid-flow cannot permanently trap an artist. On the factory side the deploy fee **accrues in storage** and is swept by a permissionless `withdraw_fees`, because forwarding it inline would let one bad treasury address break deploys entirely.
+The contract's balance is zero when `buy` returns. Nothing is escrowed, nothing is held, there is no withdraw entrypoint.
 
-The collector signs exactly once. The seed is fixed by their own operation before anything renders, so it cannot be chosen by the artist, the backend, or us. The contract never holds funds between operations: there is nothing to drain and no withdraw entrypoint.
+**The reveal is a UI moment, not a transaction for the collector.** The wrapped-present framing is presentation over the window while a provider works, and it costs the buyer no second signature.
 
-**This does not make grinding expensive.** An earlier draft claimed a payment per attempt; that was wrong. The operation hash covers fields the sender controls — counter, fee, gas and storage limits — so candidates are enumerated offline, seeds derived, pieces rendered locally, and only the chosen one is ever injected. One payment, arbitrarily many attempts. Moving the seed source from `mint` to `buy` changed nothing here. This is Policy A's known weakness as documented in §5, and commit-reveal (Policy B) remains the answer for anyone who cares.
+**This does not make grinding expensive.** The operation hash covers fields the sender controls — counter, fee, gas and storage limits — so candidates are enumerated offline, seeds derived, pieces rendered locally, and only the chosen one is ever injected. One payment, arbitrarily many attempts. Documented, accepted, not hidden.
 
-**The reveal is UI, not a transaction.** The wrapped-present moment — the piece arriving sealed and being opened — is presentation over the window while the backend works. It costs the collector no second signature.
+### `set_media` is the narrowest entrypoint that can do the job
 
-### `artifactUri` is composed on chain; the raster is a cache
+It is the only entrypoint in the contract that modifies an existing token. It reaches two URI fields of one token, once. It cannot touch the artwork, the parameters, the royalties, the owner, or any other token.
 
-`artifactUri` is the generator's immutable `code_uri` plus the token's seed. That is string concatenation, which Michelson does fine, so it is written at mint from chain state and needs no rendering at all.
+Authorised means the collection's provider, an address the artist authorised directly, or one the resolver vouches for. The resolver is consulted through a view that may fail: if it is gone or broken the call falls through to the artist's local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
 
-Only `displayUri` / `thumbnailUri` need a rasteriser, and they exist so a grid on objkt has a picture in it.
+**Collectors cannot self-reveal.** Pinning requires an account, and the only ways to give a collector one are lending them ours or asking every buyer to configure their own IPFS provider. Neither is acceptable — so only providers write images, which also means an artist's grid is protected by default with no flag needed.
 
-"The piece is the code and the seed; the image is a cache" is doing structural work here rather than being a slogan. **If the render service dies, new pieces arrive without a thumbnail. They do not arrive without art.** That downgrades the signer from existence infrastructure to convenience infrastructure, and it is why the hosting question below is reversible rather than load-bearing.
+Writing an image that does not match the piece is possible and not preventable on chain. It is detectable by anyone: the seed comes from the mint operation, the parameters are in the token, the code is immutable, so the correct image is reproducible. Detection and key rotation, not a guarantee we cannot make.
 
-Consequences worth stating:
+### `artifactUri` is written on chain; the raster is a cache
 
-- A missing thumbnail heals whenever any minter comes back. The gap is not permanent damage.
-- Multiple independent minters can be whitelisted at once, so "what if you disappear" answers with "someone else runs it."
-- The front end and the resurrection kit render from chain state on demand, which is already how the v0 gallery works.
+`artifactUri` is the generator's immutable `code_uri`, written into the token by `buy`. The seed is the hash of that same operation, so the artwork is fully addressable from chain state with no rendering involved.
 
-One caution for the UI: unopened-as-a-designed-state is good, but unopened-because-the-server-is-down is the same state reached by accident. Keep the aesthetic; do not let it launder an outage.
+Only `displayUri` / `thumbnailUri` need a rasteriser, and they exist so a grid on a marketplace has a picture in it.
+
+"The piece is the code and the seed; the image is a cache" is doing structural work here rather than being a slogan. **If every render provider disappeared, new pieces would arrive without thumbnails. They would not arrive without art.**
 
 ### Royalties
 
-TZIP-21 shares, defined by the artist at deploy and written into every token at mint. The collection takes nothing on secondary.
+The **objkt convention** — not TZIP-21, which defines no royalties field at all. objkt and Teia read `{"decimals": n, "shares": {address: value}}`, where each share is an **absolute** fraction of the sale price.
 
-An optional platform share is offered in the deploy UI — an explicit, unchecked ask above the royalty settings, never a default. One thing that ask has to say out loud: **royalty shares are baked into each token permanently.** Opting in and changing your mind later drops it from future mints only; pieces already minted keep paying forever. An opt-in that quietly is not reversible is not an honest one.
+Set once at deploy, immutable, written into every token in the collection.
 
-Still to decide: whether the platform share is a slice of the artist's percentage or added on top. Added-on-top raises the collector's total royalty burden, which marketplaces cap and collectors notice.
+The UI works in relative terms — a total percentage, then recipients splitting it — and the **contract composes the JSON itself** from that structured input. No client ever writes the field, so mistaking relative shares for absolute ones becomes impossible rather than something a test has to catch. Enforced on chain: total at most 25%, shares summing to 100%, at most ten recipients, remainder to the first.
+
+An optional platform share is a recipient row that starts absent — an explicit, unchecked ask, never a default. Because royalties are immutable, that choice is permanent for every piece the collection will ever mint, and the UI has to say so at the moment of asking.
 
 ### Implementation status
 
-`contract/aleatory.py` implements all three contracts — resolver, collection, factory — with tests. Not yet compiled or deployed.
-
-Still to build: the backend minter itself. Copy `zolturd-mint.mts`'s idempotency work wholesale rather than reinventing it — conditional-`UPDATE` row claim so exactly one attempt wins, **persist the operation hash at injection before confirmation** (the linchpin that makes a crashed process recoverable instead of double-minting), three-outcome chain reconciliation that refuses to retry the indeterminate case, a unique partial index so one payment backs exactly one mint, and the contract address stored beside `token_id` so a redeploy does not rewrite old links.
-
-`src/lib/aleatory/publish.ts` and `record.ts` still encode the superseded model — single-step client mint, artist-set `cover_seed` cover image, seed from the collector's own mint operation. They are what this replaces.
+`contract/aleatory.py` implements the factory, collection, resolver and provider contracts with tests. Not yet deployed. The full settled model is in [decisions.md](decisions.md), which wins wherever this document has not caught up.
 
 ---
 
@@ -269,14 +274,7 @@ seed = blake2b(buy_op_hash ‖ token_id ‖ generator_id)
 
 Honest limitation: the op hash is computable before submission, so a determined minter can grind counters and fees offline to fish for a seed. This is a known, real, and historically tolerated weakness — it costs effort and gets much worse for the sniper as demand rises. Document it, don't hide it.
 
-**Policy B — commit-reveal seed.**
-```
-commit:  blake2b(nonce ‖ minter)         # minter commits
-reveal:  seed = blake2b(nonce ‖ level ‖ token_id ‖ generator_id)
-```
-Two operations and a minimum block gap between them, so the seed can't be known when the commitment is made. Slower and more expensive per mint; genuinely resistant to grinding. Projects that care about fairness — big drops, long-form work with a wide quality spread — pick this.
-
-We already run this pattern in production: the hack.tez registrar uses commit-reveal with a minimum commit age (`contract/hack_tez_registrar.py`). The mechanism is proven in-house, which is a real reason to prefer it over inventing something.
+~~**Policy B — commit-reveal seed.**~~ Dropped 2026-08-23: the operation hash is always the seed, so `seed_policy` is a constant in the spec rather than a field in the record. Commit-reveal would have meant two collector signatures and a contract that mints separately from the one that pays — both of which the settled model removes. The grinding weakness above is accepted and documented instead.
 
 **Not doing:** artist-chosen seeds, curated seed lists, or any mechanism where the platform can influence which seed a collector receives. If we can pick, we can be corrupted, and eventually someone will ask.
 
@@ -358,7 +356,7 @@ Wallet stack reuses what hack.tez already runs (octez.connect / Beacon), which i
 
 | Risk | Mitigation |
 |---|---|
-| Seed sniping on Policy A | Documented plainly; Policy B available and recommended for high-demand drops |
+| Seed grinding on the op-hash seed | Documented plainly and accepted; the cost of one signature and no separate mint step |
 | On-chain storage costs deter artists | Shared Deps contract; treasury funds library uploads; publish a cost estimator before anyone signs |
 | IPFS rot | Public pin set, multiple pinners, class shown on every piece |
 | A runtime we didn't anticipate | Append-only Runtimes catalogue + `custom` kind; no contract replacement needed (§3) |
