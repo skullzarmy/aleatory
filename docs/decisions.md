@@ -40,9 +40,11 @@ Set at deploy and immutable thereafter: `code_uri`, `code_hash`, `params_schema`
 
 One signature. Pays `price + render_gas`, split in that same operation: price to the artist, render gas to the provider. The contract's balance is zero when it returns — nothing to drain, no withdraw entrypoint.
 
-**The token is minted here, in the collector's own operation.** Code, parameters, royalties, owner, name — all written now. The only thing missing is a raster image, and until a provider supplies one the token shows the collection's `placeholder_uri`.
+**The token is minted here, in the collector's own operation.** It exists, is owned, and is tradeable the moment `buy` returns, carrying the collection's "not revealed yet" metadata document until a provider publishes the piece's own.
 
-An unrevealed piece is a complete artwork with a pending thumbnail, not a promise of a future token. That is why there is no reservation to strand, no refund to argue about, and nothing a failed provider can take away.
+An unrevealed piece is a real token, not a promise of one. That is why there is nothing to strand, nothing to refund, and nothing a failed provider can take away.
+
+What the artwork *is* does not depend on that metadata: the code is immutable in contract storage, the seed is the buy operation's hash, and the parameters are in that operation. Metadata is where a marketplace reads *about* a piece, not where the piece is defined.
 
 **The seed is the hash of this operation.** Always — commit-reveal is not offered. Since `buy` both pays and mints, the binding needs no extra record: a token's seed derives from the hash of the operation that created it.
 
@@ -52,17 +54,23 @@ This does not make grinding expensive. The operation hash covers sender-controll
 
 ---
 
-## 4. Reveal — `set_media`
+## 4. Reveal — `set_token_metadata`
 
-An authorised writer supplies `displayUri` and `thumbnailUri`, once, for one token.
+An authorised writer publishes one token's metadata URI, once, replacing the collection's pending document.
 
-This is the only entrypoint in the contract that modifies an existing token, and it is the narrowest one that can do the job. It cannot touch the artwork, the parameters, the royalties, the owner, or any other token. Write-once: a second attempt fails.
+**This follows the ordinary Tezos arrangement rather than inventing one.** `token_info[""]` holds an `ipfs://` pointer to a JSON document carrying name, `artifactUri`, `displayUri`, royalties and attributes — the same shape objkt, Teia and fxhash all use. Nothing is composed on chain.
+
+The consequence, stated plainly: a provider writes a token's **whole** metadata, not two fields of it. That is a real grant of trust, and it is the same one every platform doing generative art on Tezos already makes — there is no way to produce a rendered image without executing the artwork, and no way to publish one without saying where it lives.
+
+What bounds it: once per token, only by someone the artist authorised, and never for a token whose metadata is already published. Write-once — a second attempt fails.
 
 Authorised means the collection's provider, an address the artist authorised directly, or one the resolver vouches for. The resolver is consulted through a view that may fail — if it is gone or broken the call falls through to the local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
 
 **Collectors cannot self-reveal.** Pinning requires an account, and the only two ways to give collectors that are lending them ours or asking every buyer to configure their own IPFS provider. Neither is acceptable, so only providers write images — which also means an artist's grid is protected by default, with no flag needed.
 
-Writing an image that does not match the piece is possible and not preventable on chain. It is detectable by anyone: the seed comes from the mint operation, the parameters are in the token, and the code is immutable, so the correct image is reproducible. Detection and key rotation, not a guarantee we cannot make.
+Publishing metadata that does not match the piece is possible and not preventable on chain. It is detectable by anyone: the seed comes from the mint operation, the parameters are in that same operation, and the code is immutable, so the correct output is reproducible. Detection and key rotation, not a guarantee we cannot make.
+
+**The artist can sever our access entirely.** `trust_resolver` starts on, so our provider works out of the box, and `set_trust_resolver(false)` removes the resolver as an authorisation path — otherwise an artist who moved to a rival provider would still leave us able to publish into their collection forever.
 
 ---
 
@@ -92,13 +100,13 @@ Reductions and price changes emit events, so a cut from 100 to 50 is visible rat
 
 The objkt convention — **not** TZIP-21, which defines no royalties field at all. objkt and Teia read `{"decimals": n, "shares": {address: value}}` where each share is an **absolute** fraction of the sale price.
 
-Set once at deploy, immutable, written into every token in the collection.
+Royalties live in the token's metadata JSON, like everything else, and are built off chain by whoever pins that document. **The contract does not compose or validate them.**
 
-**The UI works in relative terms** because that is how people think: a total percentage, then recipients splitting it. 25% total, two wallets at 50% each. **The chain stores absolute:** `decimals: 4`, shares `1250` and `1250`. Getting that conversion backwards pays out wrong forever.
+An earlier draft had the contract composing the JSON so a client could never mis-encode it. That was abandoned once the metadata moved to a CID — and it was never as cheap as it sounded, because rendering a recipient as `tz1…` text requires base58check encoding, which Michelson has no instruction for.
 
-**The contract composes the JSON itself**, from a structured map of recipients and relative shares. No client ever writes that field, so the absolute-versus-relative mistake becomes impossible rather than something a test has to catch. Needs a nat-to-decimal-string helper — there is no `NAT_TO_STRING` in Michelson — which is an `ediv` loop and a digit lookup, bounded by ten recipients and five digits.
+**The UI still works in relative terms** because that is how people think: a total percentage, then recipients splitting it. 25% total, two wallets at 50% each becomes `decimals: 4` with shares `1250` and `1250`. Getting that conversion backwards pays out wrong forever, so the deploy preview shows the decoded result the way objkt will read it — "tz1abc… receives 12.5% of each sale" — before anything is signed.
 
-Rules enforced on chain: total at most 25%, shares sum to 100%, at most ten recipients, remainder to the first recipient.
+Conventions kept in the UI rather than the contract: total at most 25%, shares summing to 100%, remainder to the first recipient.
 
 **The platform share** is a recipient row that starts absent. An explicit, unchecked ask above the royalty settings — never pre-added. Its copy must say what is true: the split is permanent for every piece this collection will ever mint, and there is no later removal.
 
@@ -121,7 +129,7 @@ Providers are paid at `buy`, before delivering. If one takes fees and stops rend
 The chain is the authoritative work queue. Any push notification is a latency optimisation, never the mechanism.
 
 - **Which collections a provider serves** — `set_provider` events naming their address.
-- **Which pieces need rendering** — `buy` events, plus a sweep for pieces whose `displayUri` still equals the collection's `placeholder_uri`. That rule covers backlogs, restarts, and collections inherited from another provider, with no state of the provider's own.
+- **Which pieces need rendering** — `buy` events, plus a sweep for pieces whose `token_info[""]` still equals the collection's pending document. That rule covers backlogs, restarts, and collections inherited from another provider, with no state of the provider's own.
 - **Where to push** — the provider's TZIP-16 contract metadata, not storage. URLs rot; metadata is free to update and a provider who advertises nothing still works by polling.
 
 This works identically for collections our factory did not deploy. Anything emitting those two events and honouring the placeholder rule is servable by any provider, which is the openness actually paying off: the standard is events and a view, not our contracts.
@@ -130,7 +138,7 @@ This works identically for collections our factory did not deploy. Anything emit
 
 ## 9. Ranking providers
 
-Every trust signal an artist needs is derivable from events we already index: pieces delivered, median reveal time as a block delta from `buy` to `set_media`, failure rate from pieces still on placeholder past a window, time in service.
+Every trust signal an artist needs is derivable from events we already index: pieces delivered, median reveal time as a block delta from `buy` to `set_token_metadata`, failure rate from pieces still holding the pending document past a window, time in service.
 
 Precomputed hourly into a small JSON so the UI loads instantly, with a TzKT fallback for when our API is down. Same numbers, slower.
 
@@ -156,7 +164,9 @@ We are not in the mandatory path of any mint. Anyone can run a provider, a facto
 
 ## 11. Names and identity
 
-Token names are `[collection name] #[n]`, composed on chain at mint. `token_id` is 0-based; the displayed number is `token_id + 1`, so the first mint is token 0 named "Collection #1". This is the convention everywhere and objkt expects it.
+Token names are `[collection name] #[n]`, written into each piece's metadata JSON by whoever publishes it. `token_id` is 0-based; the displayed number is `token_id + 1`, so the first mint is token 0 named "Collection #1". This is the convention everywhere and objkt expects it.
+
+An earlier draft composed names on chain, which needed a nat-to-decimal helper since Michelson has no `NAT_TO_STRING`. Gone with the rest of the on-chain metadata.
 
 **Each deployment is its own work.** The same generator on L1 and on a rollup is two pieces, not one — sharing supply across chains needs bridging, and that is not something to put in an immutable contract. Copyminting is not detected or expected; a stated policy against it belongs in front-end and community rules, never chain state.
 

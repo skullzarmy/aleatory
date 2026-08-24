@@ -201,7 +201,7 @@ If any address may write a token's URIs, then anyone can point a token at any CI
 
 Modelled on `zolturd_nft.py` in tezoshitcoin.xyz, which already solves this and is in production.
 
-Only an authorised address may call `set_media`. Authorisation is the collection's own provider, an address the artist authorised locally, or one the Resolver contract (§2) vouches for. Such an address cannot pause, cannot reprice, cannot change the edition, and cannot mint anything — minting happens in `buy`, by the collector.
+Only an authorised address may call `set_token_metadata`. Authorisation is the collection's provider — asked live, so rotating a leaked key revokes it everywhere at once — or an address the artist authorised locally, or one the Resolver contract (§2) vouches for while `trust_resolver` is on. Such an address cannot pause, cannot reprice, cannot change the edition, and cannot mint anything: minting happens in `buy`, by the collector.
 
 Because no open URI-writing entrypoint exists, the arbitrary-CID hole never exists to be defended against.
 
@@ -212,7 +212,7 @@ Because no open URI-writing entrypoint exists, the arbitrary-CID hole never exis
 | | Who signs | What happens |
 |---|---|---|
 | 1. **`buy`** | the collector, once | Pays `price + render_gas`, split in that same operation — price to the artist, render gas to the provider. **Mints the token**: code, parameters, royalties, owner and name, showing the collection's placeholder image. **This operation's hash is the seed.** |
-| 2. **`set_media`** | a render provider | Writes `displayUri` and `thumbnailUri`, once, for that token. |
+| 2. **`set_token_metadata`** | a render provider | Publishes that piece's metadata URI, once, replacing the collection's pending document. |
 
 **The token is minted in the collector's own operation.** An unrevealed piece is a complete artwork with a pending thumbnail, not a promise of a future token — which is why there is no reservation to strand, no refund to argue about, and nothing a failed provider can take away. It is also why the seed needs no extra record: a token's seed derives from the hash of the operation that created it.
 
@@ -222,9 +222,11 @@ The contract's balance is zero when `buy` returns. Nothing is escrowed, nothing 
 
 **This does not make grinding expensive.** The operation hash covers fields the sender controls — counter, fee, gas and storage limits — so candidates are enumerated offline, seeds derived, pieces rendered locally, and only the chosen one is ever injected. One payment, arbitrarily many attempts. Documented, accepted, not hidden.
 
-### `set_media` is the narrowest entrypoint that can do the job
+### `set_token_metadata`, and what it grants
 
-It is the only entrypoint in the contract that modifies an existing token. It reaches two URI fields of one token, once. It cannot touch the artwork, the parameters, the royalties, the owner, or any other token.
+It is the only entrypoint in the contract that modifies an existing token, and it modifies exactly one field of one token, once — but that field is the metadata pointer, so a provider publishes the piece's **whole** metadata document.
+
+That is the conventional Tezos arrangement, and the same trust every generative platform here already extends. It is bounded by being write-once, artist-authorised, and reproducible after the fact by anyone.
 
 Authorised means the collection's provider, an address the artist authorised directly, or one the resolver vouches for. The resolver is consulted through a view that may fail: if it is gone or broken the call falls through to the artist's local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
 
@@ -232,21 +234,23 @@ Authorised means the collection's provider, an address the artist authorised dir
 
 Writing an image that does not match the piece is possible and not preventable on chain. It is detectable by anyone: the seed comes from the mint operation, the parameters are in the token, the code is immutable, so the correct image is reproducible. Detection and key rotation, not a guarantee we cannot make.
 
-### `artifactUri` is written on chain; the raster is a cache
+### The artwork is on chain; the metadata is a description of it
 
-`artifactUri` is the generator's immutable `code_uri`, written into the token by `buy`. The seed is the hash of that same operation, so the artwork is fully addressable from chain state with no rendering involved.
+`code_uri` and `code_hash` are immutable collection storage, the seed is the buy operation's hash, and the parameters are in that same operation. So a piece is fully determined by chain state — before any metadata is published and regardless of what is published.
 
-Only `displayUri` / `thumbnailUri` need a rasteriser, and they exist so a grid on a marketplace has a picture in it.
+The metadata JSON is where a marketplace reads *about* the piece: its name, its `displayUri`, its royalties. Useful, and not the artwork.
 
-"The piece is the code and the seed; the image is a cache" is doing structural work here rather than being a slogan. **If every render provider disappeared, new pieces would arrive without thumbnails. They would not arrive without art.**
+"The piece is the code and the seed; the image is a cache" is doing structural work here rather than being a slogan. **If every render provider disappeared, new pieces would arrive undescribed. They would not arrive without art.**
 
 ### Royalties
 
 The **objkt convention** — not TZIP-21, which defines no royalties field at all. objkt and Teia read `{"decimals": n, "shares": {address: value}}`, where each share is an **absolute** fraction of the sale price.
 
-Set once at deploy, immutable, written into every token in the collection.
+Set once at deploy and written into every piece's metadata document.
 
-The UI works in relative terms — a total percentage, then recipients splitting it — and the **contract composes the JSON itself** from that structured input. No client ever writes the field, so mistaking relative shares for absolute ones becomes impossible rather than something a test has to catch. Enforced on chain: total at most 25%, shares summing to 100%, at most ten recipients, remainder to the first.
+Royalties live in the token's metadata JSON and are built off chain, like every other Tezos NFT. The contract neither composes nor validates them.
+
+The UI works in relative terms — a total percentage, then recipients splitting it — and converts to absolute shares before encoding. Mistaking one for the other pays out wrong forever, so the deploy preview shows the decoded result the way objkt will read it before anything is signed. Conventions kept in the UI: total at most 25%, shares summing to 100%, remainder to the first recipient.
 
 An optional platform share is a recipient row that starts absent — an explicit, unchecked ask, never a default. Because royalties are immutable, that choice is permanent for every piece the collection will ever mint, and the UI has to say so at the moment of asking.
 

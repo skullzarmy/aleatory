@@ -60,24 +60,19 @@ def aleatory():
         provider_agent=sp.address,
         render_gas=sp.mutez,
         code_uri=sp.string,
-        # The same URI as bytes, because TZIP-21 `token_info` values are
-        # bytes and Michelson cannot convert a string at runtime.
-        code_uri_bytes=sp.bytes,
         code_hash=sp.bytes,
         edition_size=sp.nat,
         price=sp.mutez,
-        # Pre-encoded TZIP-21 royalty shares, written verbatim into every
-        # token. Encoded off chain because the on-chain form is JSON.
-        royalties=sp.bytes,
-        # The parameter declaration (params.md §2), immutable. Empty bytes
-        # when the generator declares none — absent and empty must never
-        # both mean the same thing, so readers key off length.
-        params_schema=sp.bytes,
-        # Name prefix. Each token is named "<token_name> #<token_id + 1>",
-        # composed on chain at mint — token ids are 0-based, displayed
-        # edition numbers are 1-based, which is the convention everywhere.
-        token_name=sp.bytes,
-        placeholder_uri=sp.bytes,
+        # Royalty shares in basis points of the sale price, by recipient.
+        # 1250 = 12.5%. Kept on chain *as well as* in the metadata JSON:
+        # a marketplace contract cannot read IPFS, so without this it would
+        # have to trust whatever a lister passed in, and a seller could
+        # list with royalties zeroed out. Teia's arrangement.
+        royalties=sp.map[sp.address, sp.nat],
+        # The metadata URI every token is minted with — an ipfs:// pointer
+        # to the collection's "not revealed yet" JSON. A provider replaces
+        # it per token with that piece's real metadata once rendered.
+        pending_metadata=sp.bytes,
         start_paused=sp.bool,
         metadata=sp.big_map[sp.string, sp.bytes],
     )
@@ -90,19 +85,17 @@ def aleatory():
         administrator=sp.address,
         proposed_admin=sp.option[sp.address],
         resolver=sp.address,
+        trust_resolver=sp.bool,
         local_minters=sp.set[sp.address],
         provider=sp.address,
         provider_agent=sp.address,
         render_gas=sp.mutez,
         code_uri=sp.string,
-        code_uri_bytes=sp.bytes,
         code_hash=sp.bytes,
         edition_size=sp.nat,
         price=sp.mutez,
-        royalties=sp.bytes,
-        params_schema=sp.bytes,
-        token_name=sp.bytes,
-        placeholder_uri=sp.bytes,
+        royalties=sp.map[sp.address, sp.nat],
+        pending_metadata=sp.bytes,
         paused=sp.bool,
         ledger=sp.big_map[sp.nat, sp.address],
         operators=sp.big_map[
@@ -120,31 +113,6 @@ def aleatory():
         metadata=sp.big_map[sp.string, sp.bytes],
         next_token_id=sp.nat,
     )
-
-    def nat_to_bytes(n):
-        """Decimal ASCII for a nat: 0 -> "0", 42 -> "42".
-
-        There is no NAT_TO_STRING in Michelson. This is the standard
-        workaround — divide by ten, look the remainder up in a digit table,
-        prepend. Bounded by the number of digits, so for token ids and
-        royalty shares it is a handful of iterations.
-        """
-        sp.cast(n, sp.nat)
-        # ASCII "0123456789", indexed by digit value. A local rather than a
-        # module constant: sp.module only carries types and functions.
-        digits = sp.bytes("0x30313233343536373839")
-        out = sp.bytes("0x")
-        if n == 0:
-            out = sp.slice(0, 1, digits).unwrap_some()
-        else:
-            rest = n
-            while rest > 0:
-                digit = sp.mod(rest, 10)
-                out = sp.concat(
-                    [sp.slice(digit, 1, digits).unwrap_some(), out]
-                )
-                rest = sp.fst(sp.ediv(rest, 10).unwrap_some())
-        return out
 
     # ---------------------------------------------------------------
     # Resolver
@@ -224,10 +192,10 @@ def aleatory():
         collection already deployed, which is the price of that guarantee
         and the reason this contract stays boring.
 
-        The artist administers it: pause, reprice, retire, choose a render
-        provider, and a local minter override. `code_uri`, `code_hash`,
-        `edition_size`, `royalties` and `params_schema` have no setter
-        anywhere.
+        The artist administers it: pause, reprice, shrink or close the
+        edition, choose a render provider, and a local writer override.
+        `code_uri`, `code_hash` and `pending_metadata` have no setter
+        anywhere; `edition_size` can only ever go down.
         """
 
         def __init__(self, init):
@@ -245,6 +213,13 @@ def aleatory():
             # different resolver later would be a collection whose minting
             # authority we could seize after the fact.
             self.data.resolver = init.resolver
+            # Whether addresses the resolver vouches for may write media
+            # here. Starts true so our own provider works out of the box,
+            # and the artist can revoke it — otherwise choosing a rival
+            # provider would still leave us able to write into their
+            # collection forever, which contradicts the whole point of the
+            # provider being their choice.
+            self.data.trust_resolver = True
             self.data.local_minters = sp.cast(set(), sp.set[sp.address])
 
             # The render provider and the per-piece price agreed with them,
@@ -256,13 +231,10 @@ def aleatory():
             self.data.render_gas = init.render_gas
             # Immutable, all of it.
             self.data.code_uri = init.code_uri
-            self.data.code_uri_bytes = init.code_uri_bytes
             self.data.code_hash = init.code_hash
             self.data.edition_size = init.edition_size
-            self.data.params_schema = init.params_schema
-            self.data.token_name = init.token_name
             self.data.royalties = init.royalties
-            self.data.placeholder_uri = init.placeholder_uri
+            self.data.pending_metadata = init.pending_metadata
 
             self.data.price = init.price
             self.data.paused = init.start_paused
@@ -391,6 +363,21 @@ def aleatory():
             )
 
         @sp.entrypoint
+        def set_trust_resolver(self, trusted):
+            """(Artist only) Whether the resolver may authorise writers here.
+
+            Turning it off severs the last thread of authority anyone but
+            the artist holds over this collection. An artist using a rival
+            provider should be able to do that, and until they do, the
+            resolver's operator can write images into their collection.
+            """
+            sp.cast(trusted, sp.bool)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.is_artist_(), "NOT_ARTIST"
+            self.data.trust_resolver = trusted
+            sp.emit(sp.record(trusted=trusted), tag="set_trust_resolver")
+
+        @sp.entrypoint
         def set_local_minter(self, minter, allowed):
             """(Artist only) Authorise a media writer directly, bypassing
             the resolver. The artist's insurance against a resolver that is
@@ -416,13 +403,18 @@ def aleatory():
             token exists when it returns.
 
             **The piece is minted here, in the collector's own operation.**
-            Code, parameters, royalties, owner and name are all written
-            now; the only thing missing is a raster image, and until a
-            provider supplies one the token shows `placeholder_uri`. An
-            unrevealed piece is a complete artwork with a pending
-            thumbnail, not a promise of a future token — which is why
-            there is nothing to strand, nothing to refund, and nothing a
-            failed provider can take away.
+            The token exists, is owned, and is tradeable the moment this
+            returns; it carries the collection's "not revealed yet"
+            metadata until a provider publishes the piece's own. An
+            unrevealed piece is a real token, not a promise of one — which
+            is why there is nothing to strand, nothing to refund, and
+            nothing a failed provider can take away.
+
+            What the artwork *is* does not depend on that metadata: the
+            code is immutable in this contract's storage, the seed is this
+            operation's hash, and the parameters are in this operation.
+            Metadata is where a marketplace reads about the piece, not
+            where the piece is defined.
 
             THIS OPERATION'S HASH IS THE SEED SOURCE, and it is also the
             operation that mints, so the binding needs no extra record: a
@@ -436,8 +428,9 @@ def aleatory():
 
             `params` is the canonical-JSON encoding of the collector's
             resolved parameter values (params.md §3), empty when the
-            generator declares none. Written into the token here, by their
-            own signature, so nobody downstream can alter what they chose.
+            generator declares none. It is recorded in this operation — by
+            their own signature — which is what a provider reads to know
+            what to render, and what anyone else reads to check the result.
 
             Payment is `price + render_gas`, split in this same operation:
             the price to the artist, the render gas to the provider. The
@@ -457,32 +450,13 @@ def aleatory():
 
             token_id = self.data.next_token_id
 
-            # Composed here from immutable collection state plus what the
-            # collector chose. Nothing about a token's metadata is ever
-            # supplied by a backend, so there is no arbitrary-URI hole to
-            # defend: the only fields any provider may write are the two
-            # image URIs, once, in `set_media`.
-            #
-            # Token ids are 0-based; displayed edition numbers are
-            # 1-based, so token 0 is "<name> #1".
+            # The standard Tezos shape: one empty-string key holding an
+            # ipfs:// pointer to the metadata JSON, which is where name,
+            # artifactUri, displayUri, royalties and attributes all live.
+            # Minted with the collection's "not revealed yet" document; a
+            # provider swaps in the piece's own once it has rendered it.
             token_info = sp.cast(
-                {
-                    "decimals": sp.bytes("0x30"),  # "0"
-                    "name": sp.concat(
-                        [
-                            self.data.token_name,
-                            sp.bytes("0x2023"),  # " #"
-                            nat_to_bytes(token_id + 1),
-                        ]
-                    ),
-                    "artifactUri": self.data.code_uri_bytes,
-                    "displayUri": self.data.placeholder_uri,
-                    "thumbnailUri": self.data.placeholder_uri,
-                    "royalties": self.data.royalties,
-                    "aleaCodeHash": self.data.code_hash,
-                    "aleaParams": params,
-                    "aleaParamsSchema": self.data.params_schema,
-                },
+                {"": self.data.pending_metadata},
                 sp.map[sp.string, sp.bytes],
             )
             self.data.token_metadata[token_id] = sp.record(
@@ -493,8 +467,11 @@ def aleatory():
 
             # Paid inline, both of them. A bad artist or provider address
             # breaks that collection's own sales and nobody else's.
+            # Paid to the provider *contract*, not to the agent: the
+            # signing key should never hold funds. Requires the provider to
+            # accept tez, which is part of being a provider.
             if self.data.render_gas > sp.mutez(0):
-                sp.send(self.data.provider_agent, self.data.render_gas)
+                sp.send(self.data.provider, self.data.render_gas)
             if self.data.price > sp.mutez(0):
                 sp.send(self.data.administrator, self.data.price)
 
@@ -522,10 +499,31 @@ def aleatory():
             freeze every collection that trusted it.
             """
             sp.cast(who, sp.address)
-            allowed = who == self.data.provider_agent
+            # The provider's *current* agent, asked live. A provider that
+            # rotates a leaked key must not need every collection to
+            # re-snapshot before it can work again — that is the
+            # N-transactions problem the resolver exists to avoid, and
+            # third-party providers have no resolver behind them.
+            #
+            # Safe to call out here in a way it would not be in `buy`: this
+            # entrypoint is called by the provider itself, so a broken
+            # provider contract only breaks its own renders. The stored
+            # snapshot stays as the fallback if the view is gone.
+            live = sp.view("get_agent", self.data.provider, (), sp.address)
+            allowed = False
+            if live.is_some():
+                # The provider answered: its current agent is the only one
+                # that counts. The snapshot must NOT also be accepted here,
+                # or rotating a leaked key would never revoke it.
+                allowed = live == sp.Some(who)
+            else:
+                # Provider contract gone or broken. Fall back to whatever
+                # was snapshotted, so an unreachable provider degrades to
+                # its last known good state rather than to nothing.
+                allowed = who == self.data.provider_agent
             if not allowed:
                 allowed = who in self.data.local_minters
-            if not allowed:
+            if not allowed and self.data.trust_resolver:
                 resolved = sp.view(
                     "is_minter", self.data.resolver, who, sp.bool
                 )
@@ -533,73 +531,80 @@ def aleatory():
             return allowed
 
         @sp.entrypoint
-        def set_media(self, token_id, display_uri, thumbnail_uri):
-            """(Authorised writer) Write a piece's rendered images, once.
+        def set_token_metadata(self, token_id, metadata_uri):
+            """(Authorised writer) Publish a piece's real metadata, once.
 
-            The only entrypoint in this contract that modifies an existing
-            token, and deliberately the narrowest one that can do the job:
-            two URI fields, on a token that has no image yet, never again
-            afterwards. It cannot touch the artwork, the parameters, the
-            royalties, the owner, or any other token.
+            Replaces the collection's pending document with this token's
+            own — the JSON carrying its name, artifactUri, displayUri,
+            royalties and attributes, pinned by whoever rendered it.
 
-            Write-once is enforced by comparing against the collection's
-            `placeholder_uri` rather than by keeping a separate flag —
-            which is the same rule providers use off chain to find pending
-            work, so there is exactly one definition of "needs rendering"
-            and no state that can disagree with itself.
+            This is the conventional Tezos arrangement, and it means a
+            provider writes a token's *whole* metadata rather than two
+            fields of it. That is a real grant of trust, and it is the same
+            one every platform doing generative art on Tezos already makes:
+            there is no way to produce a rendered image without executing
+            the artwork, and no way to publish one without saying where it
+            lives.
 
-            No payment happens here. The provider was paid at `buy`. If
-            one takes the gas and never delivers, the artist switches
-            provider and stops paying them; the backlog is settled between
-            artist and provider, off chain. Bounded, because a stuck piece
-            is missing a thumbnail, not an artwork.
+            What bounds it: it can be done once per token, only by someone
+            the artist authorised, and never for a token that already has
+            its metadata. Everything it publishes is checkable — the seed
+            comes from the mint operation, the parameters are in that
+            operation too, and the code is immutable, so the correct output
+            is reproducible by anyone. Detection and key rotation, not a
+            guarantee the chain can enforce.
 
-            Writing an image that does not match the piece is possible and
-            not preventable on chain. It is detectable by anyone: the seed
-            comes from the mint operation, the parameters are on the
-            token, and the code is immutable, so the correct image is
-            reproducible. Detection and key rotation, not a guarantee we
-            cannot make.
+            No payment happens here; the provider was paid at `buy`.
             """
             sp.cast(token_id, sp.nat)
-            sp.cast(display_uri, sp.bytes)
-            sp.cast(thumbnail_uri, sp.bytes)
+            sp.cast(metadata_uri, sp.bytes)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.may_write_media_(sp.sender), "NOT_AUTHORISED"
-            assert sp.len(display_uri) > 0, "EMPTY_DISPLAY_URI"
-            assert display_uri != self.data.placeholder_uri, "IS_PLACEHOLDER"
-
-            token = self.data.token_metadata.get(
-                token_id, error="NO_TOKEN"
-            )
+            assert sp.len(metadata_uri) > 0, "EMPTY_METADATA_URI"
             assert (
-                token.token_info["displayUri"] == self.data.placeholder_uri
-            ), "ALREADY_RENDERED"
+                metadata_uri != self.data.pending_metadata
+            ), "IS_PENDING_DOC"
 
-            token.token_info["displayUri"] = display_uri
-            token.token_info["thumbnailUri"] = thumbnail_uri
+            token = self.data.token_metadata.get(token_id, error="NO_TOKEN")
+            # Write-once, and the same rule providers use off chain to find
+            # pending work: a piece still holding the collection's pending
+            # document is a piece nobody has rendered.
+            assert (
+                token.token_info[""] == self.data.pending_metadata
+            ), "ALREADY_PUBLISHED"
+
+            token.token_info[""] = metadata_uri
             self.data.token_metadata[token_id] = token
 
             sp.emit(
                 sp.record(
                     token_id=token_id,
-                    display_uri=display_uri,
+                    metadata_uri=metadata_uri,
                     renderer=sp.sender,
                 ),
-                tag="set_media",
+                tag="set_token_metadata",
             )
 
         # --- views ---
 
         @sp.onchain_view()
-        def needs_media(self, token_id):
-            """Whether a piece is still awaiting its image — the same rule
-            providers use off chain, so the two can never disagree."""
+        def needs_render(self, token_id):
+            """Whether a piece is still holding the pending document — the
+            same rule providers use off chain, so the two cannot disagree."""
             sp.cast(token_id, sp.nat)
             token = self.data.token_metadata.get(token_id, error="NO_TOKEN")
-            return (
-                token.token_info["displayUri"] == self.data.placeholder_uri
-            )
+            return token.token_info[""] == self.data.pending_metadata
+
+        @sp.onchain_view()
+        def get_royalties(self):
+            """Royalty shares in basis points of the sale price.
+
+            What a marketplace calls to pay artists without trusting the
+            seller. The same numbers appear in each piece's metadata JSON
+            for readers that cannot reach chain state — two representations
+            of one immutable fact, written at deploy and never changed.
+            """
+            return self.data.royalties
 
         @sp.onchain_view()
         def get_edition(self):
@@ -608,14 +613,14 @@ def aleatory():
                 artist=self.data.administrator,
                 code_uri=self.data.code_uri,
                 code_hash=self.data.code_hash,
-                params_schema=self.data.params_schema,
                 edition_size=self.data.edition_size,
                 minted=self.data.next_token_id,
                 price=self.data.price,
                 render_gas=self.data.render_gas,
                 provider=self.data.provider,
                 provider_agent=self.data.provider_agent,
-                placeholder_uri=self.data.placeholder_uri,
+                trust_resolver=self.data.trust_resolver,
+                pending_metadata=self.data.pending_metadata,
                 paused=self.data.paused,
             )
 
@@ -628,8 +633,14 @@ def aleatory():
         """A render provider's price, on chain.
 
         This contract is not required — anything exposing `get_render_gas`
-        and `get_agent` views is a provider, and those two views are the
-        whole membership test. It is here as the reference implementation so that
+        and `get_agent` views and able to receive tez is a provider. Those
+        two views are the whole membership test.
+
+        It separates three roles on purpose: `operator` is the cold key that
+        configures and withdraws, `agent` is the hot key that signs
+        `set_media` from a render daemon, and the contract itself holds the
+        income. A leaked agent key costs its holder nothing to rotate and
+        gives an attacker no money. It is here as the reference implementation so that
         "run your own renderer and sell the service" is a deploy, not a
         negotiation.
 
@@ -640,11 +651,10 @@ def aleatory():
 
         def __init__(self, operator, agent, render_gas, metadata):
             self.data.operator = operator
-            # The address that actually does the work: it calls `set_media`
-            # and it receives the render gas. An implicit account, because a
-            # KT1 with no default entrypoint cannot be sent tez — and because
-            # this is a hot key that gets rotated, while `operator` is the
-            # cold one that rotates it.
+            # The key that does the work: it is what calls `set_media`.
+            # It is *not* paid — render gas accrues in this contract and the
+            # operator withdraws it — so a hot key living in a render daemon
+            # never also holds income.
             self.data.agent = agent
             self.data.render_gas = render_gas
             # TZIP-16 metadata: name, and the push endpoint a mint UI can
@@ -663,6 +673,24 @@ def aleatory():
             assert sp.sender == self.data.operator, "NOT_OPERATOR"
             self.data.render_gas = price
             sp.emit(sp.record(price=price), tag="set_render_gas")
+
+        @sp.entrypoint
+        def default(self):
+            """Accept render gas. Collections pay this contract, not the
+            agent — which is the whole reason this entrypoint exists, since a
+            KT1 with no default entrypoint cannot be sent tez at all."""
+            pass
+
+        @sp.entrypoint
+        def withdraw(self, amount, to_):
+            """(Operator only) Sweep accrued render gas."""
+            sp.cast(amount, sp.mutez)
+            sp.cast(to_, sp.address)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert sp.sender == self.data.operator, "NOT_OPERATOR"
+            assert amount <= sp.balance, "INSUFFICIENT"
+            sp.send(to_, amount)
+            sp.emit(sp.record(to=to_, amount=amount), tag="withdraw")
 
         @sp.entrypoint
         def set_agent(self, agent):
@@ -845,13 +873,10 @@ def aleatory():
                 sp.record(
                     code_uri=sp.string,
                     code_hash=sp.bytes,
-                    code_uri_bytes=sp.bytes,
                     edition_size=sp.nat,
                     price=sp.mutez,
-                    royalties=sp.bytes,
-                    params_schema=sp.bytes,
-                    token_name=sp.bytes,
-                    placeholder_uri=sp.bytes,
+                    royalties=sp.map[sp.address, sp.nat],
+                    pending_metadata=sp.bytes,
                     start_paused=sp.bool,
                     provider=sp.address,
                     max_render_gas=sp.mutez,
@@ -861,6 +886,15 @@ def aleatory():
             assert not self.data.paused, "PAUSED"
             assert sp.amount == self.data.deploy_price, "WRONG_FEE"
             assert sp.len(params.code_uri) > 0, "EMPTY_CODE_URI"
+
+            # Marketplace convention rather than protocol rule, but it is
+            # enforced here because royalties are immutable once a
+            # collection exists: past roughly a quarter, marketplaces stop
+            # honouring them and the piece becomes awkward to trade.
+            total_royalty = sp.cast(0, sp.nat)
+            for share in params.royalties.values():
+                total_royalty += share
+            assert total_royalty <= 2500, "ROYALTY_TOO_HIGH"
 
             # The provider quotes its own price through a view it exposes;
             # that view is the entire membership test for being a provider.
@@ -892,19 +926,17 @@ def aleatory():
                     administrator=sp.sender,
                     proposed_admin=None,
                     resolver=self.data.resolver,
+                    trust_resolver=True,
                     local_minters=sp.set(),
                     provider=params.provider,
                     provider_agent=agent,
                     render_gas=quoted,
                     code_uri=params.code_uri,
-                    code_uri_bytes=params.code_uri_bytes,
                     code_hash=params.code_hash,
                     edition_size=params.edition_size,
                     price=params.price,
                     royalties=params.royalties,
-                    params_schema=params.params_schema,
-                    token_name=params.token_name,
-                    placeholder_uri=params.placeholder_uri,
+                    pending_metadata=params.pending_metadata,
                     paused=params.start_paused,
                     ledger=sp.big_map(),
                     operators=sp.big_map(),
@@ -1054,11 +1086,10 @@ _META = sp.big_map(
     }
 )
 _CODE_URI = "ipfs://QmGeneratorCode"
-_CODE_URI_B = sp.bytes("0x697066733a2f2f516d47656e657261746f72436f6465")
-_PLACEHOLDER = sp.bytes("0x697066733a2f2f516d506c616365686f6c646572")
-_IMAGE = sp.bytes("0x697066733a2f2f516d496d616765")
-_NAME = sp.bytes("0x5069656365")  # "Piece"
-_ROYALTIES = sp.bytes("0x7b7d")  # "{}"
+# The collection's "not revealed yet" metadata document.
+_PENDING = sp.bytes("0x697066733a2f2f516d50656e64696e67")
+# One piece's real metadata, published after rendering.
+_REVEALED = sp.bytes("0x697066733a2f2f516d5265616c")
 _NONE = sp.bytes("0x")
 
 _PRICE = 1_000_000
@@ -1068,7 +1099,12 @@ _TOTAL = _PRICE + _GAS
 
 def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
                      price=_PRICE, edition_size=10, start_paused=False,
-                     agent=None):
+                     agent=None, royalties=None):
+    royalties = (
+        sp.cast({}, sp.map[sp.address, sp.nat])
+        if royalties is None
+        else royalties
+    )
     return sp.record(
         administrator=artist.address,
         resolver=resolver.address,
@@ -1076,14 +1112,11 @@ def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
         provider_agent=(minter if agent is None else agent).address,
         render_gas=sp.mutez(render_gas),
         code_uri=_CODE_URI,
-        code_uri_bytes=_CODE_URI_B,
         code_hash=sp.bytes("0xaa"),
         edition_size=edition_size,
         price=sp.mutez(price),
-        royalties=_ROYALTIES,
-        params_schema=_NONE,
-        token_name=_NAME,
-        placeholder_uri=_PLACEHOLDER,
+        royalties=royalties,
+        pending_metadata=_PENDING,
         start_paused=start_paused,
         metadata=_META,
     )
@@ -1111,6 +1144,17 @@ def _setup(scenario, admin, minter, treasury, render_gas=_GAS):
     return resolver, provider, factory
 
 
+def _provider(scenario, operator, agent, render_gas=_GAS):
+    c = aleatory.AleatoryProvider(
+        operator=operator.address,
+        agent=agent.address,
+        render_gas=sp.mutez(render_gas),
+        metadata=_META,
+    )
+    scenario += c
+    return c
+
+
 def _collection(scenario, artist, resolver, provider, minter, **kw):
     c = aleatory.AleatoryCollection(
         _collection_init(artist, resolver, provider, minter, **kw)
@@ -1120,17 +1164,19 @@ def _collection(scenario, artist, resolver, provider, minter, **kw):
 
 
 def _deploy_params(provider, price=_PRICE, edition_size=10,
-                   max_render_gas=1_000_000, start_paused=False):
+                   max_render_gas=1_000_000, start_paused=False,
+                   royalties=None):
     return sp.record(
         code_uri=_CODE_URI,
-        code_uri_bytes=_CODE_URI_B,
         code_hash=sp.bytes("0xaa"),
         edition_size=edition_size,
         price=sp.mutez(price),
-        royalties=_ROYALTIES,
-        params_schema=_NONE,
-        token_name=_NAME,
-        placeholder_uri=_PLACEHOLDER,
+        royalties=(
+            sp.cast({}, sp.map[sp.address, sp.nat])
+            if royalties is None
+            else royalties
+        ),
+        pending_metadata=_PENDING,
         start_paused=start_paused,
         provider=provider.address,
         max_render_gas=sp.mutez(max_render_gas),
@@ -1138,16 +1184,13 @@ def _deploy_params(provider, price=_PRICE, edition_size=10,
     )
 
 
-def _media(token_id=0, uri=_IMAGE):
-    return sp.record(
-        token_id=token_id, display_uri=uri, thumbnail_uri=uri
-    )
+def _publish(token_id=0, uri=_REVEALED):
+    return sp.record(token_id=token_id, metadata_uri=uri)
 
 
 @sp.add_test()
 def test_deploy_installs_artist_as_admin():
-    """One operation, and the artist owns the result outright. Nothing is
-    held by the factory and handed over."""
+    """One operation, and the artist owns the result outright."""
     scenario = sp.test_scenario("Deploy", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
@@ -1168,9 +1211,9 @@ def test_deploy_installs_artist_as_admin():
 
 
 @sp.add_test()
-def test_buy_mints_immediately_with_placeholder():
-    """The token exists when `buy` returns: code, params, royalties, owner
-    and name all written. Only the image is pending."""
+def test_buy_mints_with_pending_metadata():
+    """The token exists and is owned when `buy` returns, carrying the
+    collection's not-revealed-yet document."""
     scenario = sp.test_scenario("Buy mints", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
@@ -1186,45 +1229,11 @@ def test_buy_mints_immediately_with_placeholder():
 
     scenario.verify(c.data.ledger[0] == alice.address)
     scenario.verify(c.data.next_token_id == 1)
-    info = c.data.token_metadata[0].token_info
-    scenario.verify(info["artifactUri"] == _CODE_URI_B)
-    scenario.verify(info["displayUri"] == _PLACEHOLDER)
-    scenario.verify(info["royalties"] == _ROYALTIES)
-    # Token ids are 0-based, displayed edition numbers are 1-based.
-    scenario.verify(info["name"] == sp.bytes("0x5069656365202331"))  # Piece #1
-    # Nothing held: both legs paid inline.
+    scenario.verify(c.data.token_metadata[0].token_info[""] == _PENDING)
+    # Nothing held by the collection: both legs paid inline.
     scenario.verify(c.balance == sp.mutez(0))
-
-
-@sp.add_test()
-def test_token_names_are_one_based():
-    """token_id 0 is "#1". The nat-to-decimal helper has to carry past a
-    digit boundary, so check across ten."""
-    scenario = sp.test_scenario("Token names", aleatory)
-    admin = sp.test_account("Admin")
-    minter = sp.test_account("Minter")
-    treasury = sp.test_account("Treasury")
-    artist = sp.test_account("Artist")
-    alice = sp.test_account("Alice")
-    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-    c = _collection(scenario, artist, resolver, provider, minter, edition_size=0)
-
-    for _ in range(10):
-        c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
-
-    scenario.verify(
-        c.data.token_metadata[0].token_info["name"]
-        == sp.bytes("0x5069656365202331")  # Piece #1
-    )
-    scenario.verify(
-        c.data.token_metadata[8].token_info["name"]
-        == sp.bytes("0x5069656365202339")  # Piece #9
-    )
-    # Two digits — the carry case.
-    scenario.verify(
-        c.data.token_metadata[9].token_info["name"]
-        == sp.bytes("0x506965636520233130")  # Piece #10
-    )
+    # Render gas went to the provider contract, not to its signing key.
+    scenario.verify(provider.balance == sp.mutez(_GAS))
 
 
 @sp.add_test()
@@ -1237,7 +1246,8 @@ def test_start_paused():
     artist = sp.test_account("Artist")
     alice = sp.test_account("Alice")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-    c = _collection(scenario, artist, resolver, provider, minter, start_paused=True)
+    c = _collection(scenario, artist, resolver, provider, minter,
+                    start_paused=True)
 
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
     c.set_paused(False, _sender=alice, _valid=False)
@@ -1246,8 +1256,8 @@ def test_start_paused():
 
 
 @sp.add_test()
-def test_media_written_once():
-    scenario = sp.test_scenario("Set media", aleatory)
+def test_metadata_published_once():
+    scenario = sp.test_scenario("Publish metadata", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
     treasury = sp.test_account("Treasury")
@@ -1258,25 +1268,26 @@ def test_media_written_once():
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     # Not the artist, not the owner, not a stranger.
-    c.set_media(_media(), _sender=artist, _valid=False)
-    c.set_media(_media(), _sender=alice, _valid=False)
-    # Never the placeholder itself — that would leave it looking pending.
-    c.set_media(_media(uri=_PLACEHOLDER), _sender=minter, _valid=False)
+    c.set_token_metadata(_publish(), _sender=artist, _valid=False)
+    c.set_token_metadata(_publish(), _sender=alice, _valid=False)
+    # Never the pending document itself — that would leave it looking
+    # unrendered forever.
+    c.set_token_metadata(_publish(uri=_PENDING), _sender=minter,
+                         _valid=False)
 
-    c.set_media(_media(), _sender=minter)
-    scenario.verify(
-        c.data.token_metadata[0].token_info["displayUri"] == _IMAGE
+    scenario.verify(c.data.token_metadata[0].token_info[""] == _PENDING)
+    c.set_token_metadata(_publish(), _sender=minter)
+    scenario.verify(c.data.token_metadata[0].token_info[""] == _REVEALED)
+
+    # Write-once: a provider cannot revise a piece after publishing it.
+    c.set_token_metadata(
+        _publish(uri=sp.bytes("0x6f74686572")), _sender=minter, _valid=False
     )
-
-    # Write-once, and it is the placeholder comparison enforcing it.
-    c.set_media(_media(uri=sp.bytes("0x6f74686572")), _sender=minter,
-                _valid=False)
 
 
 @sp.add_test()
-def test_media_cannot_touch_anything_else():
-    """`set_media` reaches two fields of one token and nothing more."""
-    scenario = sp.test_scenario("Media scope", aleatory)
+def test_publishing_touches_one_token_and_nothing_else():
+    scenario = sp.test_scenario("Publish scope", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
     treasury = sp.test_account("Treasury")
@@ -1286,20 +1297,16 @@ def test_media_cannot_touch_anything_else():
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
     c = _collection(scenario, artist, resolver, provider, minter)
 
-    params = sp.bytes("0x7b2264223a317d")  # {"d":1}
-    c.buy(params, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.buy(sp.bytes("0x7b2264223a317d"), _sender=alice,
+          _amount=sp.mutez(_TOTAL))
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
-    c.set_media(_media(), _sender=minter)
+    c.set_token_metadata(_publish(), _sender=minter)
 
-    info = c.data.token_metadata[0].token_info
-    scenario.verify(info["artifactUri"] == _CODE_URI_B)
-    scenario.verify(info["aleaParams"] == params)
-    scenario.verify(info["royalties"] == _ROYALTIES)
-    scenario.verify(c.data.ledger[0] == alice.address)
     # The neighbouring token is untouched.
-    scenario.verify(
-        c.data.token_metadata[1].token_info["displayUri"] == _PLACEHOLDER
-    )
+    scenario.verify(c.data.token_metadata[1].token_info[""] == _PENDING)
+    scenario.verify(c.data.ledger[0] == alice.address)
+    # The generator itself is not reachable from here.
+    scenario.verify(c.data.code_hash == sp.bytes("0xaa"))
 
     # Owner still controls the token; the renderer cannot move it.
     tx = [
@@ -1322,7 +1329,8 @@ def test_edition_size_shrinks_never_grows():
     artist = sp.test_account("Artist")
     alice = sp.test_account("Alice")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-    c = _collection(scenario, artist, resolver, provider, minter, edition_size=10)
+    c = _collection(scenario, artist, resolver, provider, minter,
+                    edition_size=10)
 
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
@@ -1338,8 +1346,8 @@ def test_edition_size_shrinks_never_grows():
     c.set_edition_size(2, _sender=artist)
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
 
-    # Pieces already sold are still renderable after closing.
-    c.set_media(_media(), _sender=minter)
+    # Pieces already sold are still publishable after closing.
+    c.set_token_metadata(_publish(), _sender=minter)
 
 
 @sp.add_test()
@@ -1353,7 +1361,8 @@ def test_open_edition_can_be_closed():
     artist = sp.test_account("Artist")
     alice = sp.test_account("Alice")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-    c = _collection(scenario, artist, resolver, provider, minter, edition_size=0)
+    c = _collection(scenario, artist, resolver, provider, minter,
+                    edition_size=0)
 
     for _ in range(3):
         c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
@@ -1377,14 +1386,7 @@ def test_provider_switch():
     rival_op = sp.test_account("RivalOperator")
     rival_key = sp.test_account("RivalKey")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-
-    rival = aleatory.AleatoryProvider(
-        operator=rival_op.address,
-        agent=rival_key.address,
-        render_gas=sp.mutez(50_000),
-        metadata=_META,
-    )
-    scenario += rival
+    rival = _provider(scenario, rival_op, rival_key, render_gas=50_000)
 
     c = _collection(scenario, artist, resolver, provider, minter)
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
@@ -1394,9 +1396,8 @@ def test_provider_switch():
     c.set_provider(switch, _sender=artist)
     scenario.verify(c.data.render_gas == sp.mutez(50_000))
 
-    # New provider renders the piece the old one never did — authorised
-    # by the snapshot itself, with no local override needed.
-    c.set_media(_media(), _sender=rival_key)
+    # The new provider publishes the piece the old one never did.
+    c.set_token_metadata(_publish(), _sender=rival_key)
 
     # New sales are at the new render gas.
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
@@ -1416,16 +1417,17 @@ def test_resolver_rotation_and_local_override():
     rescue = sp.test_account("Rescue")
     other_agent = sp.test_account("OtherAgent")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-    # The collection's own provider agent is someone else, so `minter` is
-    # authorised solely by the resolver — which is what this test is about.
-    c = _collection(
-        scenario, artist, resolver, provider, minter, agent=other_agent
-    )
+    # A provider whose agent is somebody else, so `minter` reaches this
+    # collection solely through the resolver — which is what is being
+    # tested. Pointing at the default provider would not test it, since
+    # its own live agent is `minter`.
+    theirs = _provider(scenario, admin, other_agent)
+    c = _collection(scenario, artist, resolver, theirs, minter,
+                    agent=other_agent)
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
-    scenario.verify(c.data.provider_agent == other_agent.address)
     resolver.remove_minter(minter.address, _sender=admin)
-    c.set_media(_media(), _sender=minter, _valid=False)
+    c.set_token_metadata(_publish(), _sender=minter, _valid=False)
 
     c.set_local_minter(
         sp.record(minter=rescue.address, allowed=True), _sender=alice,
@@ -1434,10 +1436,102 @@ def test_resolver_rotation_and_local_override():
     c.set_local_minter(
         sp.record(minter=rescue.address, allowed=True), _sender=artist
     )
-    c.set_media(_media(), _sender=rescue)
-    scenario.verify(
-        c.data.token_metadata[0].token_info["displayUri"] == _IMAGE
+    c.set_token_metadata(_publish(), _sender=rescue)
+    scenario.verify(c.data.token_metadata[0].token_info[""] == _REVEALED)
+
+
+@sp.add_test()
+def test_artist_can_revoke_resolver_trust():
+    """Choosing a rival provider should be able to end our access. Until
+    the artist revokes it, the resolver's operator can publish into their
+    collection — which is exactly why the switch exists."""
+    scenario = sp.test_scenario("Revoke resolver", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    other_agent = sp.test_account("OtherAgent")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    theirs = _provider(scenario, artist, other_agent)
+    c = _collection(scenario, artist, resolver, theirs, minter,
+                    agent=other_agent)
+
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+
+    # A resolver-vouched key can publish while trust is on.
+    c.set_token_metadata(_publish(token_id=0), _sender=minter)
+
+    c.set_trust_resolver(False, _sender=alice, _valid=False)
+    c.set_trust_resolver(False, _sender=artist)
+
+    # And cannot once it is off.
+    c.set_token_metadata(_publish(token_id=1), _sender=minter, _valid=False)
+    # The collection's own provider agent still can.
+    c.set_token_metadata(_publish(token_id=1), _sender=other_agent)
+
+
+@sp.add_test()
+def test_provider_can_rotate_its_agent_without_resnapshot():
+    """A leaked agent key is rotated once, at the provider, and every
+    collection follows — no artist has to re-snapshot."""
+    scenario = sp.test_scenario("Agent rotation", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    old_agent = sp.test_account("OldAgent")
+    new_agent = sp.test_account("NewAgent")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    rival = _provider(scenario, artist, old_agent)
+
+    c = _collection(scenario, artist, resolver, provider, minter,
+                    agent=old_agent)
+    c.set_provider(
+        sp.record(provider=rival.address, max_price=sp.mutez(_GAS)),
+        _sender=artist,
     )
+    c.set_trust_resolver(False, _sender=artist)
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+
+    c.set_token_metadata(_publish(token_id=0), _sender=old_agent)
+
+    # Key leaks. One rotation at the provider, no collection touched.
+    rival.set_agent(new_agent.address, _sender=artist)
+    c.set_token_metadata(_publish(token_id=1), _sender=old_agent,
+                         _valid=False)
+    c.set_token_metadata(_publish(token_id=1), _sender=new_agent)
+
+
+@sp.add_test()
+def test_provider_income_is_separate_from_its_signing_key():
+    """A leaked agent key gives an attacker no money: income accrues in the
+    provider contract and only the cold operator key can move it."""
+    scenario = sp.test_scenario("Provider payout", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    c = _collection(scenario, artist, resolver, provider, minter)
+
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    scenario.verify(provider.balance == sp.mutez(2 * _GAS))
+
+    sweep = sp.record(amount=sp.mutez(2 * _GAS), to_=admin.address)
+    provider.withdraw(sweep, _sender=minter, _valid=False)
+    provider.withdraw(
+        sp.record(amount=sp.mutez(999_999_999), to_=admin.address),
+        _sender=admin,
+        _valid=False,
+    )
+    provider.withdraw(sweep, _sender=admin)
+    scenario.verify(provider.balance == sp.mutez(0))
 
 
 @sp.add_test()
@@ -1454,12 +1548,46 @@ def test_factory_has_no_authority_over_collections():
     c.set_paused(True, _sender=admin, _valid=False)
     c.set_price(sp.mutez(1), _sender=admin, _valid=False)
     c.set_edition_size(1, _sender=admin, _valid=False)
+    c.set_trust_resolver(False, _sender=admin, _valid=False)
     c.set_provider(
         sp.record(provider=provider.address, max_price=sp.mutez(1_000_000)),
         _sender=admin,
         _valid=False,
     )
     c.set_paused(True, _sender=artist)
+
+
+@sp.add_test()
+def test_registry_is_open():
+    """Anyone lists a provider; only that provider's own operator can
+    delist it. There is no fee and no gatekeeper."""
+    scenario = sp.test_scenario("Registry", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    stranger = sp.test_account("Stranger")
+    rival_op = sp.test_account("RivalOperator")
+    rival_key = sp.test_account("RivalKey")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    registry = aleatory.AleatoryRegistry()
+    scenario += registry
+    rival = _provider(scenario, rival_op, rival_key, render_gas=50_000)
+
+    # A stranger can list someone else's provider — it is a public index,
+    # not a claim of ownership.
+    registry.register(rival.address, _sender=stranger)
+    scenario.verify(registry.data.count == 1)
+    registry.register(rival.address, _sender=stranger, _valid=False)
+
+    # Something that is not a provider cannot be listed.
+    registry.register(factory.address, _sender=stranger, _valid=False)
+
+    # Only the provider's own operator may delist it.
+    registry.deregister(rival.address, _sender=stranger, _valid=False)
+    registry.deregister(rival.address, _sender=admin, _valid=False)
+    registry.deregister(rival.address, _sender=rival_op)
+    scenario.verify(registry.data.count == 0)
 
 
 @sp.add_test()
@@ -1490,40 +1618,32 @@ def test_factory_admin():
 
 
 @sp.add_test()
-def test_registry_is_open():
-    """Anyone lists a provider; only that provider's own operator can
-    delist it. There is no fee and no gatekeeper."""
-    scenario = sp.test_scenario("Registry", aleatory)
+def test_royalties_are_readable_on_chain_and_capped():
+    """A marketplace pays artists by reading this, not by trusting whoever
+    made the listing — so it has to be on chain, and it has to be sane."""
+    scenario = sp.test_scenario("Royalties", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
     treasury = sp.test_account("Treasury")
-    stranger = sp.test_account("Stranger")
-    rival_op = sp.test_account("RivalOperator")
-    rival_key = sp.test_account("RivalKey")
+    artist = sp.test_account("Artist")
+    collab = sp.test_account("Collaborator")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
 
-    registry = aleatory.AleatoryRegistry()
-    scenario += registry
-
-    rival = aleatory.AleatoryProvider(
-        operator=rival_op.address,
-        agent=rival_key.address,
-        render_gas=sp.mutez(50_000),
-        metadata=_META,
+    split = {artist.address: 1250, collab.address: 1250}
+    c = _collection(
+        scenario, artist, resolver, provider, minter, royalties=split
     )
-    scenario += rival
+    scenario.verify(c.data.royalties[artist.address] == 1250)
+    scenario.verify(c.data.royalties[collab.address] == 1250)
 
-    # A stranger can list someone else's provider — it is a public index,
-    # not a claim of ownership.
-    registry.register(rival.address, _sender=stranger)
-    scenario.verify(registry.data.count == 1)
-    registry.register(rival.address, _sender=stranger, _valid=False)
-
-    # Something that is not a provider cannot be listed.
-    registry.register(factory.address, _sender=stranger, _valid=False)
-
-    # Only the provider's own operator may delist it.
-    registry.deregister(rival.address, _sender=stranger, _valid=False)
-    registry.deregister(rival.address, _sender=admin, _valid=False)
-    registry.deregister(rival.address, _sender=rival_op)
-    scenario.verify(registry.data.count == 0)
+    # Past roughly a quarter, marketplaces stop honouring them.
+    factory.deploy(
+        _deploy_params(
+            provider, royalties={artist.address: 2501}
+        ),
+        _sender=artist,
+        _valid=False,
+    )
+    factory.deploy(
+        _deploy_params(provider, royalties=split), _sender=artist
+    )

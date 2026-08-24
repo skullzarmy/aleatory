@@ -105,8 +105,8 @@ One contract per generator, deployed by the factory. Its metadata big_map carrie
 |---|---|
 | The declaration | `params_schema` inside `aleatory:record`, **and** verbatim under the metadata key `aleatory:params` |
 | The resolution rule | `params_resolution` inside `aleatory:record` |
-| One piece's values | that token's `token_info`, key `aleaParams`, canonical JSON |
-| Where to find the declaration, from a token | `token_info` key `aleaParamsSchema` = `tezos-storage:aleatory%3Aparams` |
+| One piece's values | the `buy` operation that minted it, and `aleaParams` in that token's metadata JSON |
+| Where to find the declaration, from a token | its collection's `aleatory:params` metadata key |
 
 The duplication of the declaration is a few hundred bytes and it is worth them: a platform building a mint UI needs one value, and making it fetch and parse a whole generator record to find one field is how an integration gets skipped.
 
@@ -122,7 +122,7 @@ The whole point. Given a generator contract address:
 2. Render one control per entry, per the table in §2. Use `label` above it and `hint` below it. Start at `default`.
 3. Resolve what the user set, per §3.
 4. Preview by rendering the generator's code with the resolved values — see §6.
-5. Encode canonically per §3 and write the result to the token's `token_info` under `aleaParams` at mint.
+5. Encode canonically per §3 and pass it to `buy`. It is recorded in that operation, and whoever publishes the piece's metadata copies it into the JSON under `aleaParams`.
 
 That is the entire integration. No allowlist, no key, nothing to ask us for. A generator's mint UI is a function of its record, which is the property that stops us from being load-bearing.
 
@@ -166,9 +166,9 @@ Locally, outside the sandbox, the dev harness reads values from the URL: `?p.den
 
 ## 8. Known limits in v0
 
-- **Params are set by whoever buys.** `buy` takes the resolved values and writes them into the token in that same operation, so what the collector chose is committed by their own signature and nobody downstream can alter it. There is no backend in this path — the render provider reads `aleaParams` off the token like any other reader. The end-to-end path is not yet exercised on a testnet.
+- **Params are set by whoever buys.** `buy` takes the resolved values, so what the collector chose is committed by their own signature in the operation that mints the piece. A provider reads them from that operation to know what to render, and anyone else reads them to check the result. The end-to-end path is not yet exercised on a testnet.
 - **`artifactUri` does not carry the values.** It points at the code; a renderer applies `aleaParams` through the harness per §6. Baking values into the URI is a later question and depends on how the harness itself gets served.
 
-- **A wrong `aleaParams` is detectable, not preventable.** The values are on the token and the code is immutable, so anyone can re-render and compare — but nothing on chain forces a provider's image to match the parameters it was minted with. Same posture as the seed.
+- **A wrong `aleaParams` is detectable, not preventable.** The values are in the mint operation and the code is immutable, so anyone can re-render and compare — but nothing on chain forces the published metadata to match what the piece was minted with. Same posture as the seed.
 - **No string or free-numeric type.** A free-text input is a caption, not a dimension of a piece. Imported fxhash `string` params are dropped, and said so out loud at import time.
 - **The ceiling is five,** enforced at declaration time and at import.
