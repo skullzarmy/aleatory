@@ -64,7 +64,7 @@ The consequence, stated plainly: a provider writes a token's **whole** metadata,
 
 What bounds it: once per token, only by someone the artist authorised, and never for a token whose metadata is already published. Write-once — a second attempt fails.
 
-Authorised means the collection's provider, an address the artist authorised directly, or one the resolver vouches for. The resolver is consulted through a view that may fail — if it is gone or broken the call falls through to the local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
+Authorised means the collection's provider, an address the artist authorised directly (`set_local_writer`), or one the resolver vouches for. The resolver is consulted through a view that may fail — if it is gone or broken the call falls through to the local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
 
 **Collectors cannot self-reveal.** Pinning requires an account, and the only two ways to give collectors that are lending them ours or asking every buyer to configure their own IPFS provider. Neither is acceptable, so only providers write images — which also means an artist's grid is protected by default, with no flag needed.
 
@@ -154,9 +154,9 @@ We still choose the default ordering, and default ordering is power. Say so in t
 |---|---|
 | Deploy | Nothing. The artist pays their own origination burn and gas, as they would anywhere. |
 | Mint | Price to the artist, render gas to the provider. We take nothing. |
-| Secondary | Nothing. |
+| Secondary | 2.5%, deducted from the sale, on our own marketplace. Pieces trade freely elsewhere at whatever those venues charge. |
 | Provider registration | Nothing. |
-| Our income | Render and pinning, sold to people who would otherwise run both themselves. |
+| Our income | Render and pinning, sold to people who would otherwise run both themselves, plus the secondary fee on our own market. |
 
 We are not in the mandatory path of any mint. Anyone can run a provider, a factory, or an entire front end without our permission and owes us nothing for it.
 
@@ -174,13 +174,27 @@ Worth leaving the door open for: because a piece is code plus a seed plus params
 
 ---
 
+## 11a. The marketplace
+
+We run a secondary market for pieces minted here: listings and offers, both escrowed, 2.5% deducted from the sale. Copied from objkt and Teia rather than invented.
+
+**Royalties come from the collection, not the listing.** A listing carries no royalty information at all, so there is nothing for a seller to misstate. This is why royalties are kept on chain as a typed map as well as in the metadata JSON — a contract cannot read IPFS.
+
+**The fee is snapshotted into each listing and offer**, so a change is never retroactive, and it is capped in the contract so no future administrator can turn it into a toll.
+
+**There is no `admin_lambda` on the marketplace**, unlike the factory. It holds other people's tokens and tez in escrow, and an escape hatch over its storage would be an escape hatch over their property. If it needs to change, it is replaced and everyone withdraws from the old one first. Pausing stops new trading but never traps anyone: `delist` and `cancel_offer` stay open.
+
+**Royalties from collections we did not deploy are clamped at 25%.** A hostile FA2 could otherwise claim the entire sale price and take a seller's proceeds, or claim more than remains and make its own tokens untradeable. Ours cap at the same figure at deploy, so this changes nothing for them.
+
+---
+
 ## 12. What we deliberately do not do
 
 - No collector self-reveal.
 - No escrow, and the collection holds no funds between operations.
 - No commit-reveal seed.
 - No cross-chain supply.
-- No fee on mints or secondary.
+- No fee on mints. (Secondary trading on our own marketplace does take 2.5%, deducted from the sale, the way objkt does.)
 - No moderation on chain — a blocklist is our front end declining to display something, never chain state.
 - No claim of neutrality. We are the spec author, the reference implementation, the first provider, and the default front end. Say it plainly.
 

@@ -228,7 +228,7 @@ It is the only entrypoint in the contract that modifies an existing token, and i
 
 That is the conventional Tezos arrangement, and the same trust every generative platform here already extends. It is bounded by being write-once, artist-authorised, and reproducible after the fact by anyone.
 
-Authorised means the collection's provider, an address the artist authorised directly, or one the resolver vouches for. The resolver is consulted through a view that may fail: if it is gone or broken the call falls through to the artist's local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
+Authorised means the collection's provider, an address the artist authorised directly (`set_local_writer`), or one the resolver vouches for. The resolver is consulted through a view that may fail: if it is gone or broken the call falls through to the artist's local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
 
 **Collectors cannot self-reveal.** Pinning requires an account, and the only ways to give a collector one are lending them ours or asking every buyer to configure their own IPFS provider. Neither is acceptable — so only providers write images, which also means an artist's grid is protected by default with no flag needed.
 
@@ -366,6 +366,6 @@ Wallet stack reuses what hack.tez already runs (octez.connect / Beacon), which i
 | A runtime we didn't anticipate | Append-only Runtimes catalogue + `custom` kind; no contract replacement needed (§3) |
 | Registry needs a field we didn't foresee | `schema_version`, additive-only evolution, readers ignore unknown optional fields |
 | Nobody uses it | Interop first — pieces trade on objkt/Teia from day one, so an artist risks nothing by trying it |
-| Marketplace fee war | We don't run a marketplace. Not our fight. |
+| Marketplace fee war | We run one, at 2.5%, and pieces trade freely elsewhere regardless — standard FA2 means no venue can be locked out, including ours. |
 | The steward disappears | Admin is transferable in two steps; minting keys are cyclable; the renderer is open source and replaceable. |
 | Protocol constants change (storage cost, op size) | Constants read at runtime where possible; ⚠-marked in docs; estimator is chain-derived, never hardcoded |

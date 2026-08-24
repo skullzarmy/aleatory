@@ -19,8 +19,12 @@ the fee is copied into the listing at that moment.
 
 What the administrator cannot do: touch a listing, touch a token, take a
 seller's proceeds, or raise the fee past a ceiling the contract enforces.
-`paused` stops new listings and offers; it never traps an existing one,
-because delisting and cancelling stay open while paused.
+**There is no `admin_lambda` here**, unlike the factory — this contract
+holds other people's property in escrow, and an escape hatch over its
+storage would be an escape hatch over their tokens and their tez. If this
+contract needs to change, it gets replaced, and everyone withdraws from the
+old one first. `paused` stops new listings and offers; it never traps an
+existing one, because delisting and cancelling stay open while paused.
 
 Escrow, deliberately: a listed token lives in this contract, and offered tez
 lives in this contract. It is the arrangement Teia uses. The alternative —
@@ -30,7 +34,6 @@ and offers that cannot be filled because the tez is spent.
 """
 
 import smartpy as sp
-from smartpy.templates import fa2_lib as fa2
 
 
 @sp.module
@@ -90,11 +93,6 @@ def marketplace():
         next_offer_id=sp.nat,
         metadata=sp.big_map[sp.string, sp.bytes],
     )
-
-    def identity_lambda(storage):
-        """Test-only. Must live inside the module."""
-        sp.cast(storage, t_storage)
-        return storage
 
     class AleatoryMarketplace(sp.Contract):
         def __init__(self, administrator, treasury, fee_bps, metadata):
@@ -218,12 +216,25 @@ def marketplace():
             self.data.fees_accrued += fee
             remaining = sp.amount - fee
 
+            # A collection we did not deploy can say anything here, and a
+            # hostile one could claim 100% and take the seller's proceeds
+            # — or claim more than is left and make every sale of its
+            # tokens fail. So the total honoured is clamped: shares are
+            # paid in order until the cap is reached, and anything past it
+            # is ignored rather than trusted. Our own collections cap at
+            # the same figure when they are deployed, so this changes
+            # nothing for them and protects sellers of everything else.
             royalties = sp.view(
                 "get_royalties", listing.collection, (), sp.map[sp.address, sp.nat]
             )
             if royalties.is_some():
+                budget = sp.cast(2500, sp.nat)
                 for recipient in royalties.unwrap_some().items():
-                    cut = sp.split_tokens(sp.amount, recipient.value, 10000)
+                    share = recipient.value
+                    if share > budget:
+                        share = budget
+                    budget = sp.as_nat(budget - share)
+                    cut = sp.split_tokens(sp.amount, share, 10000)
                     if cut > sp.mutez(0):
                         remaining -= cut
                         sp.send(recipient.key, cut)
@@ -339,12 +350,25 @@ def marketplace():
             self.data.fees_accrued += fee
             remaining = offer.amount - fee
 
+            # A collection we did not deploy can say anything here, and a
+            # hostile one could claim 100% and take the seller's proceeds
+            # — or claim more than is left and make every sale of its
+            # tokens fail. So the total honoured is clamped: shares are
+            # paid in order until the cap is reached, and anything past it
+            # is ignored rather than trusted. Our own collections cap at
+            # the same figure when they are deployed, so this changes
+            # nothing for them and protects sellers of everything else.
             royalties = sp.view(
                 "get_royalties", offer.collection, (), sp.map[sp.address, sp.nat]
             )
             if royalties.is_some():
+                budget = sp.cast(2500, sp.nat)
                 for recipient in royalties.unwrap_some().items():
-                    cut = sp.split_tokens(offer.amount, recipient.value, 10000)
+                    share = recipient.value
+                    if share > budget:
+                        share = budget
+                    budget = sp.as_nat(budget - share)
+                    cut = sp.split_tokens(offer.amount, share, 10000)
                     if cut > sp.mutez(0):
                         remaining -= cut
                         sp.send(recipient.key, cut)
@@ -431,21 +455,6 @@ def marketplace():
             ), "NOT_PROPOSED_ADMIN"
             self.data.administrator = sp.sender
             self.data.proposed_admin = None
-
-        @sp.entrypoint
-        def admin_lambda(self, f):
-            """(Admin only) Escape hatch over marketplace storage.
-
-            Kept for the same reason the factory has one and a collection
-            does not: this contract can be replaced, and what it holds in
-            escrow is recoverable by its owners through `delist` and
-            `cancel_offer` regardless.
-            """
-            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
-            assert self.is_administrator_(), "NOT_ADMIN"
-            sp.cast(f, sp.lambda_(t_storage, t_storage))
-            self.data = f(self.data)
-            sp.emit(sp.record(executed=True), tag="admin_lambda")
 
         # --- views ---
 
@@ -826,6 +835,39 @@ def test_pause_never_traps_anyone():
 
 
 @sp.add_test()
+def test_hostile_collection_cannot_take_the_sellers_proceeds():
+    """A collection we did not deploy can claim any royalty it likes. The
+    marketplace honours at most a quarter, so a hostile one can neither
+    drain a seller nor make its tokens untradeable."""
+    scenario = sp.test_scenario("Hostile royalties", [stub, marketplace])
+    admin = sp.test_account("Admin")
+    treasury = sp.test_account("Treasury")
+    greedy = sp.test_account("Greedy")
+    alice = sp.test_account("Alice")
+    bob = sp.test_account("Bob")
+
+    # Claims the entire sale price as royalty.
+    fa2 = stub.StubFa2({greedy.address: 10000})
+    scenario += fa2
+    fa2.mint(sp.record(to_=alice.address, token_id=0))
+    m = _market(scenario, admin, treasury)
+
+    m.list_token(
+        sp.record(
+            collection=fa2.address, token_id=0, price=sp.mutez(4_000_000)
+        ),
+        _sender=alice,
+    )
+    # The sale still completes, rather than failing on an underflow.
+    m.buy(0, _sender=bob, _amount=sp.mutez(4_000_000))
+    scenario.verify(fa2.data.ledger[0] == bob.address)
+    scenario.verify(m.data.fees_accrued == sp.mutez(100_000))
+    # 2.5% fee and at most 25% royalty were taken; the rest is the
+    # seller's, and the contract kept only the fee.
+    scenario.verify(m.balance == sp.mutez(100_000))
+
+
+@sp.add_test()
 def test_admin_surface():
     scenario = sp.test_scenario("Admin", [stub, marketplace])
     admin = sp.test_account("Admin")
@@ -833,9 +875,6 @@ def test_admin_surface():
     new_admin = sp.test_account("NewAdmin")
     alice = sp.test_account("Alice")
     m = _market(scenario, admin, treasury)
-
-    m.admin_lambda(marketplace.identity_lambda, _sender=alice, _valid=False)
-    m.admin_lambda(marketplace.identity_lambda, _sender=admin)
 
     m.propose_admin(new_admin.address, _sender=alice, _valid=False)
     m.propose_admin(new_admin.address, _sender=admin)

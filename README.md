@@ -19,6 +19,7 @@ Fully on-chain generative art on Tezos. A generator is code, published once and 
 Five contracts. The split between them is the design.
 
 - **Factory** — deploys collections. Holds no tokens, which is what makes its `admin_lambda` escape hatch safe.
+- **Marketplace** — secondary listings and offers, both escrowed. Deliberately has *no* escape hatch, because it holds other people's property.
 - **Collection** — one generator, one edition, owned by the artist from origination. No lambda, no upgrade path, no authority retained by anyone else. A bug in it is permanent; that is the price of the guarantee.
 - **Resolver** — backend minting keys, rotatable in one place.
 - **Provider** — a renderer's price and endpoint. Any contract exposing `get_render_gas` is a provider. That view is the entire membership test.
@@ -32,11 +33,17 @@ Five contracts. The split between them is the design.
 
 An unrevealed piece is a complete artwork with a pending thumbnail, not a promise of a future token.
 
+## The secondary market
+
+Pieces are standard FA2, so they trade on objkt and Teia from day one, and Aleatory runs its own market for them as well — listings and offers, 2.5% deducted from the sale, copying what objkt and Teia already do rather than inventing anything.
+
+Royalties are read from the collection itself rather than from the listing, so a seller cannot cheat an artist out of their share.
+
 ## What this is not
 
-It is not a marketplace and takes nothing on sales or secondary. Pieces are standard FA2 + TZIP-21, so they trade on objkt and Teia from day one.
+It takes nothing on primary sales: the mint price goes to the artist and the render gas to the provider. Income is the render service and the secondary fee.
 
-The contract template is a reference implementation, not a requirement — the standard is a pair of events and a view. Anyone can run a provider, a front end, or their own factory without permission, and owes nothing for it.
+The contract template is a reference implementation, not a requirement — the standard is a pair of events and a view. Anyone can run a provider, a front end, or their own factory without permission, and owes nothing for it. Being *a* marketplace is not the same as being the only one.
 
 ## Contracts
 
