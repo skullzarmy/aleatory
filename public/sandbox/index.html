@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>sandbox</title>
+<style>html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden}</style>
+</head>
+<body>
+<script>
+/*
+ * Sandbox shell for the generative-art lab.
+ *
+ * Why this file exists at all: a piece is a document full of inline scripts,
+ * and a `srcdoc` iframe INHERITS the parent page's CSP. The site forbids inline
+ * scripts, so a srcdoc sandbox is dead on arrival in production (and under
+ * `netlify dev`) while working fine under plain Vite, which sets no headers.
+ *
+ * CSP inheritance only applies to local schemes — about:srcdoc, data:, blob:.
+ * A document loaded from a real URL gets its own policy from its own response
+ * headers. So the sandbox is loaded from here, and netlify.toml gives this one
+ * path a policy that allows inline scripts and denies the network entirely.
+ *
+ * The parent posts the built document in; this shell writes it and gets out of
+ * the way. The frame is still sandboxed (`allow-scripts`, no same-origin), so
+ * the piece runs in an opaque origin with no access to the page.
+ */
+(function () {
+  var written = false;
+
+  function write(doc) {
+    if (written || typeof doc !== "string") return;
+    written = true;
+    document.open();
+    document.write(doc);
+    document.close();
+  }
+
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (!data || data.type !== "sandbox:doc") return;
+    // Only the embedder may load a document here.
+    if (event.source !== window.parent) return;
+    write(data.doc);
+  });
+
+  // The parent also posts on load, in case this beats its listener.
+  try {
+    parent.postMessage({ type: "sandbox:ready" }, "*");
+  } catch (e) {
+    /* no embedder — nothing to do */
+  }
+})();
+</script>
+</body>
+</html>

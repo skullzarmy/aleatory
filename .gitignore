@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+.env.*
+contract/output*/
+contract/__pycache__/
+.DS_Store
