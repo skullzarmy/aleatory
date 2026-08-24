@@ -57,7 +57,8 @@ def aleatory():
         administrator=sp.address,
         resolver=sp.address,
         provider=sp.address,
-        render_price=sp.mutez,
+        provider_agent=sp.address,
+        render_gas=sp.mutez,
         code_uri=sp.string,
         # The same URI as bytes, because TZIP-21 `token_info` values are
         # bytes and Michelson cannot convert a string at runtime.
@@ -72,8 +73,12 @@ def aleatory():
         # when the generator declares none — absent and empty must never
         # both mean the same thing, so readers key off length.
         params_schema=sp.bytes,
+        # Name prefix. Each token is named "<token_name> #<token_id + 1>",
+        # composed on chain at mint — token ids are 0-based, displayed
+        # edition numbers are 1-based, which is the convention everywhere.
         token_name=sp.bytes,
         placeholder_uri=sp.bytes,
+        start_paused=sp.bool,
         metadata=sp.big_map[sp.string, sp.bytes],
     )
 
@@ -87,9 +92,8 @@ def aleatory():
         resolver=sp.address,
         local_minters=sp.set[sp.address],
         provider=sp.address,
-        render_price=sp.mutez,
-        media_due=sp.big_map[sp.nat, sp.mutez],
-        escrowed=sp.mutez,
+        provider_agent=sp.address,
+        render_gas=sp.mutez,
         code_uri=sp.string,
         code_uri_bytes=sp.bytes,
         code_hash=sp.bytes,
@@ -100,7 +104,6 @@ def aleatory():
         token_name=sp.bytes,
         placeholder_uri=sp.bytes,
         paused=sp.bool,
-        retired=sp.bool,
         ledger=sp.big_map[sp.nat, sp.address],
         operators=sp.big_map[
             sp.record(
@@ -117,6 +120,31 @@ def aleatory():
         metadata=sp.big_map[sp.string, sp.bytes],
         next_token_id=sp.nat,
     )
+
+    def nat_to_bytes(n):
+        """Decimal ASCII for a nat: 0 -> "0", 42 -> "42".
+
+        There is no NAT_TO_STRING in Michelson. This is the standard
+        workaround — divide by ten, look the remainder up in a digit table,
+        prepend. Bounded by the number of digits, so for token ids and
+        royalty shares it is a handful of iterations.
+        """
+        sp.cast(n, sp.nat)
+        # ASCII "0123456789", indexed by digit value. A local rather than a
+        # module constant: sp.module only carries types and functions.
+        digits = sp.bytes("0x30313233343536373839")
+        out = sp.bytes("0x")
+        if n == 0:
+            out = sp.slice(0, 1, digits).unwrap_some()
+        else:
+            rest = n
+            while rest > 0:
+                digit = sp.mod(rest, 10)
+                out = sp.concat(
+                    [sp.slice(digit, 1, digits).unwrap_some(), out]
+                )
+                rest = sp.fst(sp.ediv(rest, 10).unwrap_some())
+        return out
 
     # ---------------------------------------------------------------
     # Resolver
@@ -224,15 +252,8 @@ def aleatory():
             # — a sale must not depend on a contract the artist chose and we
             # cannot audit. Re-snapshot via `set_provider`.
             self.data.provider = init.provider
-            self.data.render_price = init.render_price
-            # Render fees held for pieces awaiting their image, and the sum
-            # of them. Everything else this contract receives is forwarded
-            # within the same operation.
-            self.data.media_due = sp.cast(
-                sp.big_map(), sp.big_map[sp.nat, sp.mutez]
-            )
-            self.data.escrowed = sp.mutez(0)
-
+            self.data.provider_agent = init.provider_agent
+            self.data.render_gas = init.render_gas
             # Immutable, all of it.
             self.data.code_uri = init.code_uri
             self.data.code_uri_bytes = init.code_uri_bytes
@@ -244,8 +265,7 @@ def aleatory():
             self.data.placeholder_uri = init.placeholder_uri
 
             self.data.price = init.price
-            self.data.paused = False
-            self.data.retired = False
+            self.data.paused = init.start_paused
 
             # Fails to compile if this shape ever drifts from what the
             # factory constructs in `deploy`.
@@ -283,7 +303,6 @@ def aleatory():
             sp.cast(price, sp.mutez)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.is_artist_(), "NOT_ARTIST"
-            assert not self.data.retired, "RETIRED"
             self.data.price = price
             sp.emit(sp.record(price=price), tag="set_price")
 
@@ -299,14 +318,38 @@ def aleatory():
             sp.emit(sp.record(paused=new_state), tag="set_paused")
 
         @sp.entrypoint
-        def retire(self):
-            """Permanently close the edition to new sales. One-way, and it
-            never touches pieces already sold."""
+        def set_edition_size(self, new_size):
+            """(Artist only) Shrink the edition, or close it.
+
+            Never grows: there is no path in this contract that raises an
+            edition size, because that would rewrite what collectors
+            bought into. Shrinking only makes existing pieces scarcer, so
+            no holder is harmed by it.
+
+            Setting the size to the number already minted closes the
+            edition permanently — that is what replaces a separate
+            `retire` entrypoint. It is one-way only in the sense that
+            nothing can grow again afterwards.
+
+            `0` means open edition, and it is *larger* than any finite
+            size. So open -> finite is a valid reduction, finite -> open
+            is never allowed, and a naive `new <= current` comparison
+            would get both backwards.
+            """
+            sp.cast(new_size, sp.nat)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.is_artist_(), "NOT_ARTIST"
-            self.data.retired = True
-            self.data.paused = True
-            sp.emit(sp.record(at=self.data.next_token_id), tag="retire")
+            assert new_size != 0, "CANNOT_REOPEN"
+            assert new_size >= self.data.next_token_id, "BELOW_MINTED"
+            if self.data.edition_size != 0:
+                assert new_size <= self.data.edition_size, "CANNOT_GROW"
+            self.data.edition_size = new_size
+            sp.emit(
+                sp.record(
+                    edition_size=new_size, minted=self.data.next_token_id
+                ),
+                tag="set_edition_size",
+            )
 
         @sp.entrypoint
         def set_provider(self, provider, max_price):
@@ -331,13 +374,19 @@ def aleatory():
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.is_artist_(), "NOT_ARTIST"
             quoted = sp.view(
-                "get_render_price", provider, (), sp.mutez
+                "get_render_gas", provider, (), sp.mutez
+            ).unwrap_some(error="NO_PROVIDER_VIEW")
+            agent = sp.view(
+                "get_agent", provider, (), sp.address
             ).unwrap_some(error="NO_PROVIDER_VIEW")
             assert quoted <= max_price, "PRICE_ABOVE_MAX"
             self.data.provider = provider
-            self.data.render_price = quoted
+            self.data.provider_agent = agent
+            self.data.render_gas = quoted
             sp.emit(
-                sp.record(provider=provider, render_price=quoted),
+                sp.record(
+                    provider=provider, agent=agent, render_gas=quoted
+                ),
                 tag="set_provider",
             )
 
@@ -367,40 +416,38 @@ def aleatory():
             token exists when it returns.
 
             **The piece is minted here, in the collector's own operation.**
-            Code, parameters, royalties and provenance are all written now;
-            the only thing missing is a raster image, and until a provider
-            supplies one the token shows `placeholder_uri`. An unrevealed
-            piece is a complete artwork with a pending thumbnail, not a
-            promise of a future token — which is why there is no reservation
-            to strand, no refund to argue about, and nothing a dead
-            provider can take away.
+            Code, parameters, royalties, owner and name are all written
+            now; the only thing missing is a raster image, and until a
+            provider supplies one the token shows `placeholder_uri`. An
+            unrevealed piece is a complete artwork with a pending
+            thumbnail, not a promise of a future token — which is why
+            there is nothing to strand, nothing to refund, and nothing a
+            failed provider can take away.
 
             THIS OPERATION'S HASH IS THE SEED SOURCE, and it is also the
             operation that mints, so the binding needs no extra record: a
-            token's seed is derived from the hash of the operation that
-            created it (architecture.md §5).
+            token's seed derives from the hash of the operation that
+            created it.
 
             It does *not* make grinding expensive — the hash covers
             sender-controlled fields, so candidates are enumerated offline
-            and only the chosen one is injected. That is the documented
-            tradeoff of an op-hash seed.
+            and only the chosen one is injected. Documented tradeoff of an
+            op-hash seed, accepted rather than engineered around.
 
             `params` is the canonical-JSON encoding of the collector's
             resolved parameter values (params.md §3), empty when the
-            generator declares none. It is written into the token here, by
-            the collector's own signature, so nobody can alter what they
-            chose afterwards.
+            generator declares none. Written into the token here, by their
+            own signature, so nobody downstream can alter what they chose.
 
-            Payment is `price + render_price`. The price goes to the artist
-            immediately; the render fee is held against this token and paid
-            out when the image is delivered — never before, so nobody is
-            paid for work not done.
+            Payment is `price + render_gas`, split in this same operation:
+            the price to the artist, the render gas to the provider. The
+            contract holds nothing when it returns — no escrow, no
+            balance, no withdraw entrypoint.
             """
             sp.cast(params, sp.bytes)
             assert not self.data.paused, "PAUSED"
-            assert not self.data.retired, "RETIRED"
             assert (
-                sp.amount == self.data.price + self.data.render_price
+                sp.amount == self.data.price + self.data.render_gas
             ), "WRONG_PRICE"
             # edition_size 0 is an open edition.
             assert (
@@ -410,15 +457,24 @@ def aleatory():
 
             token_id = self.data.next_token_id
 
-            # Composed here, from immutable collection state plus what the
-            # collector chose. Nothing about the token's metadata is
+            # Composed here from immutable collection state plus what the
+            # collector chose. Nothing about a token's metadata is ever
             # supplied by a backend, so there is no arbitrary-URI hole to
-            # defend: the only fields any provider may ever write are the
-            # two image URIs, once, in `set_media`.
+            # defend: the only fields any provider may write are the two
+            # image URIs, once, in `set_media`.
+            #
+            # Token ids are 0-based; displayed edition numbers are
+            # 1-based, so token 0 is "<name> #1".
             token_info = sp.cast(
                 {
                     "decimals": sp.bytes("0x30"),  # "0"
-                    "name": self.data.token_name,
+                    "name": sp.concat(
+                        [
+                            self.data.token_name,
+                            sp.bytes("0x2023"),  # " #"
+                            nat_to_bytes(token_id + 1),
+                        ]
+                    ),
                     "artifactUri": self.data.code_uri_bytes,
                     "displayUri": self.data.placeholder_uri,
                     "thumbnailUri": self.data.placeholder_uri,
@@ -435,10 +491,10 @@ def aleatory():
             self.data.ledger[token_id] = sp.sender
             self.data.next_token_id += 1
 
-            if self.data.render_price > sp.mutez(0):
-                self.data.media_due[token_id] = self.data.render_price
-                self.data.escrowed += self.data.render_price
-
+            # Paid inline, both of them. A bad artist or provider address
+            # breaks that collection's own sales and nobody else's.
+            if self.data.render_gas > sp.mutez(0):
+                sp.send(self.data.provider_agent, self.data.render_gas)
             if self.data.price > sp.mutez(0):
                 sp.send(self.data.administrator, self.data.price)
 
@@ -448,7 +504,7 @@ def aleatory():
                     buyer=sp.sender,
                     params=params,
                     paid=sp.amount,
-                    render_fee=self.data.render_price,
+                    render_gas=self.data.render_gas,
                 ),
                 tag="buy",
             )
@@ -466,7 +522,7 @@ def aleatory():
             freeze every collection that trusted it.
             """
             sp.cast(who, sp.address)
-            allowed = who == self.data.provider
+            allowed = who == self.data.provider_agent
             if not allowed:
                 allowed = who in self.data.local_minters
             if not allowed:
@@ -480,22 +536,30 @@ def aleatory():
         def set_media(self, token_id, display_uri, thumbnail_uri):
             """(Authorised writer) Write a piece's rendered images, once.
 
-            This is the only entrypoint in the contract that modifies an
-            existing token, and it is deliberately the narrowest one that
-            can do the job: two URI fields, on a token that has no image
-            yet, and never again afterwards. It cannot touch the artwork,
-            the parameters, the royalties, the owner, or any other token.
+            The only entrypoint in this contract that modifies an existing
+            token, and deliberately the narrowest one that can do the job:
+            two URI fields, on a token that has no image yet, never again
+            afterwards. It cannot touch the artwork, the parameters, the
+            royalties, the owner, or any other token.
 
-            Payment is released here, to whoever delivered — which is why
-            it goes to `sp.sender` rather than to the stored provider. An
-            artist who switches providers has their outstanding pieces
-            rendered by the new one, and the fee follows the work.
+            Write-once is enforced by comparing against the collection's
+            `placeholder_uri` rather than by keeping a separate flag —
+            which is the same rule providers use off chain to find pending
+            work, so there is exactly one definition of "needs rendering"
+            and no state that can disagree with itself.
+
+            No payment happens here. The provider was paid at `buy`. If
+            one takes the gas and never delivers, the artist switches
+            provider and stops paying them; the backlog is settled between
+            artist and provider, off chain. Bounded, because a stuck piece
+            is missing a thumbnail, not an artwork.
 
             Writing an image that does not match the piece is possible and
             not preventable on chain. It is detectable by anyone: the seed
-            comes from the mint operation and the parameters are in the
-            token, so the correct image is reproducible. Detection, and key
-            rotation, rather than a guarantee we cannot make.
+            comes from the mint operation, the parameters are on the
+            token, and the code is immutable, so the correct image is
+            reproducible. Detection and key rotation, not a guarantee we
+            cannot make.
             """
             sp.cast(token_id, sp.nat)
             sp.cast(display_uri, sp.bytes)
@@ -503,27 +567,24 @@ def aleatory():
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.may_write_media_(sp.sender), "NOT_AUTHORISED"
             assert sp.len(display_uri) > 0, "EMPTY_DISPLAY_URI"
+            assert display_uri != self.data.placeholder_uri, "IS_PLACEHOLDER"
 
-            # Present exactly once: absent means either never sold or
-            # already rendered, and both mean there is nothing to write.
-            fee = self.data.media_due.get(token_id, error="NO_MEDIA_DUE")
-            del self.data.media_due[token_id]
+            token = self.data.token_metadata.get(
+                token_id, error="NO_TOKEN"
+            )
+            assert (
+                token.token_info["displayUri"] == self.data.placeholder_uri
+            ), "ALREADY_RENDERED"
 
-            token = self.data.token_metadata[token_id]
             token.token_info["displayUri"] = display_uri
             token.token_info["thumbnailUri"] = thumbnail_uri
             self.data.token_metadata[token_id] = token
-
-            if fee > sp.mutez(0):
-                self.data.escrowed -= fee
-                sp.send(sp.sender, fee)
 
             sp.emit(
                 sp.record(
                     token_id=token_id,
                     display_uri=display_uri,
                     renderer=sp.sender,
-                    fee=fee,
                 ),
                 tag="set_media",
             )
@@ -531,11 +592,14 @@ def aleatory():
         # --- views ---
 
         @sp.onchain_view()
-        def get_media_due(self, token_id):
-            """The fee held for a piece still awaiting its image. Fails once
-            rendered, so a provider can check before doing the work."""
+        def needs_media(self, token_id):
+            """Whether a piece is still awaiting its image — the same rule
+            providers use off chain, so the two can never disagree."""
             sp.cast(token_id, sp.nat)
-            return self.data.media_due.get(token_id, error="NO_MEDIA_DUE")
+            token = self.data.token_metadata.get(token_id, error="NO_TOKEN")
+            return (
+                token.token_info["displayUri"] == self.data.placeholder_uri
+            )
 
         @sp.onchain_view()
         def get_edition(self):
@@ -548,10 +612,11 @@ def aleatory():
                 edition_size=self.data.edition_size,
                 minted=self.data.next_token_id,
                 price=self.data.price,
-                render_price=self.data.render_price,
+                render_gas=self.data.render_gas,
                 provider=self.data.provider,
+                provider_agent=self.data.provider_agent,
+                placeholder_uri=self.data.placeholder_uri,
                 paused=self.data.paused,
-                retired=self.data.retired,
             )
 
 
@@ -562,9 +627,9 @@ def aleatory():
     class AleatoryProvider(sp.Contract):
         """A render provider's price, on chain.
 
-        This contract is not required — anything exposing a
-        `get_render_price` view is a provider, and that view is the whole
-        membership test. It is here as the reference implementation so that
+        This contract is not required — anything exposing `get_render_gas`
+        and `get_agent` views is a provider, and those two views are the
+        whole membership test. It is here as the reference implementation so that
         "run your own renderer and sell the service" is a deploy, not a
         negotiation.
 
@@ -573,21 +638,135 @@ def aleatory():
         an older one until its artist re-snapshots.
         """
 
-        def __init__(self, operator, render_price):
+        def __init__(self, operator, agent, render_gas, metadata):
             self.data.operator = operator
-            self.data.render_price = render_price
+            # The address that actually does the work: it calls `set_media`
+            # and it receives the render gas. An implicit account, because a
+            # KT1 with no default entrypoint cannot be sent tez — and because
+            # this is a hot key that gets rotated, while `operator` is the
+            # cold one that rotates it.
+            self.data.agent = agent
+            self.data.render_gas = render_gas
+            # TZIP-16 metadata: name, and the push endpoint a mint UI can
+            # ping for latency. Deliberately here rather than in a storage
+            # field with its own entrypoint — endpoints rot, metadata is
+            # free to update, and a provider who advertises nothing still
+            # works by polling the chain.
+            self.data.metadata = sp.cast(
+                metadata, sp.big_map[sp.string, sp.bytes]
+            )
 
         @sp.entrypoint
-        def set_render_price(self, price):
+        def set_render_gas(self, price):
             sp.cast(price, sp.mutez)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert sp.sender == self.data.operator, "NOT_OPERATOR"
-            self.data.render_price = price
-            sp.emit(sp.record(price=price), tag="set_render_price")
+            self.data.render_gas = price
+            sp.emit(sp.record(price=price), tag="set_render_gas")
+
+        @sp.entrypoint
+        def set_agent(self, agent):
+            """(Operator only) Rotate the working key. Collections pick the
+            new one up when their artist re-snapshots the provider."""
+            sp.cast(agent, sp.address)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert sp.sender == self.data.operator, "NOT_OPERATOR"
+            self.data.agent = agent
+            sp.emit(sp.record(agent=agent), tag="set_agent")
+
+        @sp.entrypoint
+        def set_metadata(self, key, value):
+            sp.cast(key, sp.string)
+            sp.cast(value, sp.bytes)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert sp.sender == self.data.operator, "NOT_OPERATOR"
+            self.data.metadata[key] = value
 
         @sp.onchain_view()
-        def get_render_price(self):
-            return self.data.render_price
+        def get_render_gas(self):
+            return self.data.render_gas
+
+        @sp.onchain_view()
+        def get_agent(self):
+            return self.data.agent
+
+        @sp.onchain_view()
+        def get_operator(self):
+            return self.data.operator
+
+    # ---------------------------------------------------------------
+    # Registry
+    # ---------------------------------------------------------------
+
+    class AleatoryRegistry(sp.Contract):
+        """The list of render providers. Nobody controls it.
+
+        Registration is permissionless and free. There is no fee, no
+        allowlist, and no admin who can remove an entry — this is
+        deliberately not a gate anyone holds. Deploying a provider contract
+        already costs origination burn, which is a real floor against bulk
+        junk, and a provider that has never delivered anything sorts to the
+        bottom of a ranking computed from chain events rather than from
+        anything asserted here.
+
+        The registry exists so a UI can enumerate providers without asking
+        us. It makes no claim about whether any of them are any good; that
+        is what the measured ranking is for.
+        """
+
+        def __init__(self):
+            self.data.providers = sp.cast(
+                sp.big_map(), sp.big_map[sp.address, sp.timestamp]
+            )
+            self.data.count = 0
+
+        @sp.entrypoint
+        def register(self, provider):
+            """(Anyone) List a provider contract.
+
+            Checks the two views that define a provider, so an entry that
+            cannot possibly be used never lands in the list. That is a
+            type check, not an endorsement.
+            """
+            sp.cast(provider, sp.address)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert not self.data.providers.contains(provider), "ALREADY"
+            gas = sp.view(
+                "get_render_gas", provider, (), sp.mutez
+            ).unwrap_some(error="NOT_A_PROVIDER")
+            agent = sp.view(
+                "get_agent", provider, (), sp.address
+            ).unwrap_some(error="NOT_A_PROVIDER")
+            self.data.providers[provider] = sp.now
+            self.data.count += 1
+            sp.emit(
+                sp.record(provider=provider, agent=agent, render_gas=gas),
+                tag="register",
+            )
+
+        @sp.entrypoint
+        def deregister(self, provider):
+            """(The provider's own operator) Remove an entry.
+
+            Only the operator of that provider contract can do this, which
+            is checked by asking the contract itself. Nobody else — not us,
+            not an artist, not another provider — can delist anyone.
+            """
+            sp.cast(provider, sp.address)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.data.providers.contains(provider), "NOT_REGISTERED"
+            operator = sp.view(
+                "get_operator", provider, (), sp.address
+            ).unwrap_some(error="NOT_A_PROVIDER")
+            assert sp.sender == operator, "NOT_OPERATOR"
+            del self.data.providers[provider]
+            self.data.count = sp.as_nat(self.data.count - 1)
+            sp.emit(sp.record(provider=provider), tag="deregister")
+
+        @sp.onchain_view()
+        def is_registered(self, provider):
+            sp.cast(provider, sp.address)
+            return self.data.providers.contains(provider)
 
     # ---------------------------------------------------------------
     # Factory
@@ -673,8 +852,9 @@ def aleatory():
                     params_schema=sp.bytes,
                     token_name=sp.bytes,
                     placeholder_uri=sp.bytes,
+                    start_paused=sp.bool,
                     provider=sp.address,
-                    max_render_price=sp.mutez,
+                    max_render_gas=sp.mutez,
                     metadata=sp.big_map[sp.string, sp.bytes],
                 ),
             )
@@ -688,9 +868,12 @@ def aleatory():
             # raising their price between quote and signature fails the
             # deploy rather than quietly charging more.
             quoted = sp.view(
-                "get_render_price", params.provider, (), sp.mutez
+                "get_render_gas", params.provider, (), sp.mutez
             ).unwrap_some(error="NO_PROVIDER_VIEW")
-            assert quoted <= params.max_render_price, "PRICE_ABOVE_MAX"
+            agent = sp.view(
+                "get_agent", params.provider, (), sp.address
+            ).unwrap_some(error="NO_PROVIDER_VIEW")
+            assert quoted <= params.max_render_gas, "PRICE_ABOVE_MAX"
 
             self.data.fees_accrued += sp.amount
 
@@ -711,9 +894,8 @@ def aleatory():
                     resolver=self.data.resolver,
                     local_minters=sp.set(),
                     provider=params.provider,
-                    render_price=quoted,
-                    media_due=sp.big_map(),
-                    escrowed=sp.mutez(0),
+                    provider_agent=agent,
+                    render_gas=quoted,
                     code_uri=params.code_uri,
                     code_uri_bytes=params.code_uri_bytes,
                     code_hash=params.code_hash,
@@ -723,8 +905,7 @@ def aleatory():
                     params_schema=params.params_schema,
                     token_name=params.token_name,
                     placeholder_uri=params.placeholder_uri,
-                    paused=False,
-                    retired=False,
+                    paused=params.start_paused,
                     ledger=sp.big_map(),
                     operators=sp.big_map(),
                     token_metadata=sp.big_map(),
@@ -880,14 +1061,20 @@ _NAME = sp.bytes("0x5069656365")  # "Piece"
 _ROYALTIES = sp.bytes("0x7b7d")  # "{}"
 _NONE = sp.bytes("0x")
 
+_PRICE = 1_000_000
+_GAS = 200_000
+_TOTAL = _PRICE + _GAS
 
-def _collection_init(artist, resolver, provider, render_price=200_000,
-                     price=1_000_000, edition_size=10):
+
+def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
+                     price=_PRICE, edition_size=10, start_paused=False,
+                     agent=None):
     return sp.record(
         administrator=artist.address,
         resolver=resolver.address,
         provider=provider.address,
-        render_price=sp.mutez(render_price),
+        provider_agent=(minter if agent is None else agent).address,
+        render_gas=sp.mutez(render_gas),
         code_uri=_CODE_URI,
         code_uri_bytes=_CODE_URI_B,
         code_hash=sp.bytes("0xaa"),
@@ -897,32 +1084,43 @@ def _collection_init(artist, resolver, provider, render_price=200_000,
         params_schema=_NONE,
         token_name=_NAME,
         placeholder_uri=_PLACEHOLDER,
+        start_paused=start_paused,
         metadata=_META,
     )
 
 
-def _setup(scenario, admin, minter, treasury, render_price=200_000,
-           deploy_price=100_000):
+def _setup(scenario, admin, minter, treasury, render_gas=_GAS):
     resolver = aleatory.AleatoryResolver(
         administrator=admin.address, minters=sp.set([minter.address])
     )
     scenario += resolver
     provider = aleatory.AleatoryProvider(
-        operator=admin.address, render_price=sp.mutez(render_price)
+        operator=admin.address,
+        agent=minter.address,
+        render_gas=sp.mutez(render_gas),
+        metadata=_META,
     )
     scenario += provider
     factory = aleatory.AleatoryFactory(
         administrator=admin.address,
         treasury=treasury.address,
-        deploy_price=sp.mutez(deploy_price),
+        deploy_price=sp.mutez(0),
         resolver=resolver.address,
     )
     scenario += factory
     return resolver, provider, factory
 
 
-def _deploy_params(provider, price=1_000_000, edition_size=10,
-                   max_render_price=1_000_000):
+def _collection(scenario, artist, resolver, provider, minter, **kw):
+    c = aleatory.AleatoryCollection(
+        _collection_init(artist, resolver, provider, minter, **kw)
+    )
+    scenario += c
+    return c
+
+
+def _deploy_params(provider, price=_PRICE, edition_size=10,
+                   max_render_gas=1_000_000, start_paused=False):
     return sp.record(
         code_uri=_CODE_URI,
         code_uri_bytes=_CODE_URI_B,
@@ -933,9 +1131,16 @@ def _deploy_params(provider, price=1_000_000, edition_size=10,
         params_schema=_NONE,
         token_name=_NAME,
         placeholder_uri=_PLACEHOLDER,
+        start_paused=start_paused,
         provider=provider.address,
-        max_render_price=sp.mutez(max_render_price),
+        max_render_gas=sp.mutez(max_render_gas),
         metadata=_META,
+    )
+
+
+def _media(token_id=0, uri=_IMAGE):
+    return sp.record(
+        token_id=token_id, display_uri=uri, thumbnail_uri=uri
     )
 
 
@@ -950,28 +1155,22 @@ def test_deploy_installs_artist_as_admin():
     artist = sp.test_account("Artist")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
 
-    factory.deploy(
-        _deploy_params(provider), _sender=artist, _amount=sp.mutez(1),
-        _valid=False,
-    )
     # The artist's ceiling is enforced against the provider's live quote.
     factory.deploy(
-        _deploy_params(provider, max_render_price=1),
+        _deploy_params(provider, max_render_gas=1),
         _sender=artist,
-        _amount=sp.mutez(100_000),
         _valid=False,
     )
-    factory.deploy(
-        _deploy_params(provider), _sender=artist, _amount=sp.mutez(100_000)
-    )
+    factory.deploy(_deploy_params(provider), _sender=artist)
     scenario.verify(factory.data.next_collection_id == 1)
-    scenario.verify(factory.data.fees_accrued == sp.mutez(100_000))
+    # No deploy fee: the artist pays their own origination burn and gas.
+    scenario.verify(factory.data.fees_accrued == sp.mutez(0))
 
 
 @sp.add_test()
 def test_buy_mints_immediately_with_placeholder():
-    """The token exists when `buy` returns: code, params, royalties and
-    owner all written. Only the image is pending."""
+    """The token exists when `buy` returns: code, params, royalties, owner
+    and name all written. Only the image is pending."""
     scenario = sp.test_scenario("Buy mints", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
@@ -979,31 +1178,75 @@ def test_buy_mints_immediately_with_placeholder():
     artist = sp.test_account("Artist")
     alice = sp.test_account("Alice")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    c = _collection(scenario, artist, resolver, provider, minter)
 
-    c = aleatory.AleatoryCollection(
-        _collection_init(artist, resolver, provider)
-    )
-    scenario += c
-
-    # Price is the piece plus the render fee.
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_000_000), _valid=False)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_200_000))
+    # Price is the piece plus the render gas — neither alone is enough.
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_PRICE), _valid=False)
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     scenario.verify(c.data.ledger[0] == alice.address)
     scenario.verify(c.data.next_token_id == 1)
-    scenario.verify(
-        c.data.token_metadata[0].token_info["artifactUri"] == _CODE_URI_B
-    )
-    scenario.verify(
-        c.data.token_metadata[0].token_info["displayUri"] == _PLACEHOLDER
-    )
-    # Only the render fee is held; the artist was paid inline.
-    scenario.verify(c.data.escrowed == sp.mutez(200_000))
-    scenario.verify(c.balance == sp.mutez(200_000))
+    info = c.data.token_metadata[0].token_info
+    scenario.verify(info["artifactUri"] == _CODE_URI_B)
+    scenario.verify(info["displayUri"] == _PLACEHOLDER)
+    scenario.verify(info["royalties"] == _ROYALTIES)
+    # Token ids are 0-based, displayed edition numbers are 1-based.
+    scenario.verify(info["name"] == sp.bytes("0x5069656365202331"))  # Piece #1
+    # Nothing held: both legs paid inline.
+    scenario.verify(c.balance == sp.mutez(0))
 
 
 @sp.add_test()
-def test_media_written_once_and_paid_on_delivery():
+def test_token_names_are_one_based():
+    """token_id 0 is "#1". The nat-to-decimal helper has to carry past a
+    digit boundary, so check across ten."""
+    scenario = sp.test_scenario("Token names", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    c = _collection(scenario, artist, resolver, provider, minter, edition_size=0)
+
+    for _ in range(10):
+        c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+
+    scenario.verify(
+        c.data.token_metadata[0].token_info["name"]
+        == sp.bytes("0x5069656365202331")  # Piece #1
+    )
+    scenario.verify(
+        c.data.token_metadata[8].token_info["name"]
+        == sp.bytes("0x5069656365202339")  # Piece #9
+    )
+    # Two digits — the carry case.
+    scenario.verify(
+        c.data.token_metadata[9].token_info["name"]
+        == sp.bytes("0x506965636520233130")  # Piece #10
+    )
+
+
+@sp.add_test()
+def test_start_paused():
+    """Deploy, check, announce, then open."""
+    scenario = sp.test_scenario("Start paused", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    c = _collection(scenario, artist, resolver, provider, minter, start_paused=True)
+
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
+    c.set_paused(False, _sender=alice, _valid=False)
+    c.set_paused(False, _sender=artist)
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+
+
+@sp.add_test()
+def test_media_written_once():
     scenario = sp.test_scenario("Set media", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
@@ -1011,35 +1254,28 @@ def test_media_written_once_and_paid_on_delivery():
     artist = sp.test_account("Artist")
     alice = sp.test_account("Alice")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-
-    c = aleatory.AleatoryCollection(
-        _collection_init(artist, resolver, provider)
-    )
-    scenario += c
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_200_000))
-
-    media = sp.record(token_id=0, display_uri=_IMAGE, thumbnail_uri=_IMAGE)
+    c = _collection(scenario, artist, resolver, provider, minter)
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     # Not the artist, not the owner, not a stranger.
-    c.set_media(media, _sender=artist, _valid=False)
-    c.set_media(media, _sender=alice, _valid=False)
+    c.set_media(_media(), _sender=artist, _valid=False)
+    c.set_media(_media(), _sender=alice, _valid=False)
+    # Never the placeholder itself — that would leave it looking pending.
+    c.set_media(_media(uri=_PLACEHOLDER), _sender=minter, _valid=False)
 
-    c.set_media(media, _sender=minter)
+    c.set_media(_media(), _sender=minter)
     scenario.verify(
         c.data.token_metadata[0].token_info["displayUri"] == _IMAGE
     )
-    # Escrow released on delivery, not before.
-    scenario.verify(c.data.escrowed == sp.mutez(0))
-    scenario.verify(c.balance == sp.mutez(0))
 
-    # Write-once: no second bite at an existing token.
-    c.set_media(media, _sender=minter, _valid=False)
+    # Write-once, and it is the placeholder comparison enforcing it.
+    c.set_media(_media(uri=sp.bytes("0x6f74686572")), _sender=minter,
+                _valid=False)
 
 
 @sp.add_test()
 def test_media_cannot_touch_anything_else():
-    """`set_media` is the only entrypoint that modifies an existing token,
-    and it can reach exactly two fields of one token."""
+    """`set_media` reaches two fields of one token and nothing more."""
     scenario = sp.test_scenario("Media scope", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
@@ -1048,43 +1284,90 @@ def test_media_cannot_touch_anything_else():
     alice = sp.test_account("Alice")
     bob = sp.test_account("Bob")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    c = _collection(scenario, artist, resolver, provider, minter)
 
-    c = aleatory.AleatoryCollection(
-        _collection_init(artist, resolver, provider)
-    )
-    scenario += c
-    c.buy(sp.bytes("0x7b2264223a317d"), _sender=alice,
-          _amount=sp.mutez(1_200_000))
-    c.set_media(
-        sp.record(token_id=0, display_uri=_IMAGE, thumbnail_uri=_IMAGE),
-        _sender=minter,
-    )
+    params = sp.bytes("0x7b2264223a317d")  # {"d":1}
+    c.buy(params, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.set_media(_media(), _sender=minter)
 
     info = c.data.token_metadata[0].token_info
     scenario.verify(info["artifactUri"] == _CODE_URI_B)
-    scenario.verify(info["aleaParams"] == sp.bytes("0x7b2264223a317d"))
+    scenario.verify(info["aleaParams"] == params)
     scenario.verify(info["royalties"] == _ROYALTIES)
     scenario.verify(c.data.ledger[0] == alice.address)
+    # The neighbouring token is untouched.
+    scenario.verify(
+        c.data.token_metadata[1].token_info["displayUri"] == _PLACEHOLDER
+    )
 
-    # Owner still controls the token; nobody else can move it.
-    c.transfer(
-        [sp.record(from_=alice.address,
-                   txs=[sp.record(to_=bob.address, amount=1, token_id=0)])],
-        _sender=minter,
-        _valid=False,
-    )
-    c.transfer(
-        [sp.record(from_=alice.address,
-                   txs=[sp.record(to_=bob.address, amount=1, token_id=0)])],
-        _sender=alice,
-    )
+    # Owner still controls the token; the renderer cannot move it.
+    tx = [
+        sp.record(
+            from_=alice.address,
+            txs=[sp.record(to_=bob.address, amount=1, token_id=0)],
+        )
+    ]
+    c.transfer(tx, _sender=minter, _valid=False)
+    c.transfer(tx, _sender=alice)
     scenario.verify(c.data.ledger[0] == bob.address)
 
 
 @sp.add_test()
-def test_provider_switch_pays_whoever_delivers():
-    """A provider that vanishes cannot strand a collection: the artist
-    switches, and the fee held for unrendered pieces follows the work."""
+def test_edition_size_shrinks_never_grows():
+    scenario = sp.test_scenario("Edition size", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    c = _collection(scenario, artist, resolver, provider, minter, edition_size=10)
+
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+
+    c.set_edition_size(5, _sender=alice, _valid=False)
+    c.set_edition_size(20, _sender=artist, _valid=False)   # never grows
+    c.set_edition_size(0, _sender=artist, _valid=False)    # never reopens
+    c.set_edition_size(1, _sender=artist, _valid=False)    # below minted
+    c.set_edition_size(5, _sender=artist)
+    scenario.verify(c.data.edition_size == 5)
+
+    # Closing is setting it to what is already minted.
+    c.set_edition_size(2, _sender=artist)
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
+
+    # Pieces already sold are still renderable after closing.
+    c.set_media(_media(), _sender=minter)
+
+
+@sp.add_test()
+def test_open_edition_can_be_closed():
+    """0 is larger than any finite size, so open -> finite is a reduction
+    and a naive comparison would reject it."""
+    scenario = sp.test_scenario("Open edition", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    c = _collection(scenario, artist, resolver, provider, minter, edition_size=0)
+
+    for _ in range(3):
+        c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    scenario.verify(c.data.next_token_id == 3)
+
+    c.set_edition_size(2, _sender=artist, _valid=False)  # below minted
+    c.set_edition_size(4, _sender=artist)
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
+
+
+@sp.add_test()
+def test_provider_switch():
+    """A provider that vanishes cannot strand a collection."""
     scenario = sp.test_scenario("Provider switch", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
@@ -1096,41 +1379,28 @@ def test_provider_switch_pays_whoever_delivers():
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
 
     rival = aleatory.AleatoryProvider(
-        operator=rival_op.address, render_price=sp.mutez(50_000)
+        operator=rival_op.address,
+        agent=rival_key.address,
+        render_gas=sp.mutez(50_000),
+        metadata=_META,
     )
     scenario += rival
 
-    c = aleatory.AleatoryCollection(
-        _collection_init(artist, resolver, provider)
-    )
-    scenario += c
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_200_000))
+    c = _collection(scenario, artist, resolver, provider, minter)
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
-    # Original provider is gone. The artist switches; only they may.
-    c.set_provider(
-        sp.record(provider=rival.address, max_price=sp.mutez(100_000)),
-        _sender=alice,
-        _valid=False,
-    )
-    c.set_provider(
-        sp.record(provider=rival.address, max_price=sp.mutez(100_000)),
-        _sender=artist,
-    )
-    scenario.verify(c.data.render_price == sp.mutez(50_000))
+    switch = sp.record(provider=rival.address, max_price=sp.mutez(100_000))
+    c.set_provider(switch, _sender=alice, _valid=False)
+    c.set_provider(switch, _sender=artist)
+    scenario.verify(c.data.render_gas == sp.mutez(50_000))
 
-    # New provider delivers the old piece and collects the old fee.
-    c.set_local_minter(
-        sp.record(minter=rival_key.address, allowed=True), _sender=artist
-    )
-    c.set_media(
-        sp.record(token_id=0, display_uri=_IMAGE, thumbnail_uri=_IMAGE),
-        _sender=rival_key,
-    )
-    scenario.verify(c.data.escrowed == sp.mutez(0))
+    # New provider renders the piece the old one never did — authorised
+    # by the snapshot itself, with no local override needed.
+    c.set_media(_media(), _sender=rival_key)
 
-    # New sales are at the new render price.
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_200_000), _valid=False)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_050_000))
+    # New sales are at the new render gas.
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_PRICE + 50_000))
 
 
 @sp.add_test()
@@ -1144,59 +1414,29 @@ def test_resolver_rotation_and_local_override():
     artist = sp.test_account("Artist")
     alice = sp.test_account("Alice")
     rescue = sp.test_account("Rescue")
+    other_agent = sp.test_account("OtherAgent")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-
-    c = aleatory.AleatoryCollection(
-        _collection_init(artist, resolver, provider)
+    # The collection's own provider agent is someone else, so `minter` is
+    # authorised solely by the resolver — which is what this test is about.
+    c = _collection(
+        scenario, artist, resolver, provider, minter, agent=other_agent
     )
-    scenario += c
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_200_000))
+    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
-    media = sp.record(token_id=0, display_uri=_IMAGE, thumbnail_uri=_IMAGE)
+    scenario.verify(c.data.provider_agent == other_agent.address)
     resolver.remove_minter(minter.address, _sender=admin)
-    c.set_media(media, _sender=minter, _valid=False)
+    c.set_media(_media(), _sender=minter, _valid=False)
 
+    c.set_local_minter(
+        sp.record(minter=rescue.address, allowed=True), _sender=alice,
+        _valid=False,
+    )
     c.set_local_minter(
         sp.record(minter=rescue.address, allowed=True), _sender=artist
     )
-    c.set_media(media, _sender=rescue)
+    c.set_media(_media(), _sender=rescue)
     scenario.verify(
         c.data.token_metadata[0].token_info["displayUri"] == _IMAGE
-    )
-
-
-@sp.add_test()
-def test_edition_cap_pause_and_retire():
-    scenario = sp.test_scenario("Supply controls", aleatory)
-    admin = sp.test_account("Admin")
-    minter = sp.test_account("Minter")
-    treasury = sp.test_account("Treasury")
-    artist = sp.test_account("Artist")
-    alice = sp.test_account("Alice")
-    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-
-    c = aleatory.AleatoryCollection(
-        _collection_init(artist, resolver, provider, edition_size=2)
-    )
-    scenario += c
-
-    c.set_paused(True, _sender=alice, _valid=False)
-    c.set_paused(True, _sender=artist)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_200_000), _valid=False)
-    c.set_paused(False, _sender=artist)
-
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_200_000))
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_200_000))
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1_200_000), _valid=False)
-
-    c.retire(_sender=alice, _valid=False)
-    c.retire(_sender=artist)
-    c.set_price(sp.mutez(1), _sender=artist, _valid=False)
-
-    # Retiring never blocks delivery of pieces already sold.
-    c.set_media(
-        sp.record(token_id=0, display_uri=_IMAGE, thumbnail_uri=_IMAGE),
-        _sender=minter,
     )
 
 
@@ -1209,15 +1449,11 @@ def test_factory_has_no_authority_over_collections():
     treasury = sp.test_account("Treasury")
     artist = sp.test_account("Artist")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-
-    c = aleatory.AleatoryCollection(
-        _collection_init(artist, resolver, provider)
-    )
-    scenario += c
+    c = _collection(scenario, artist, resolver, provider, minter)
 
     c.set_paused(True, _sender=admin, _valid=False)
     c.set_price(sp.mutez(1), _sender=admin, _valid=False)
-    c.retire(_sender=admin, _valid=False)
+    c.set_edition_size(1, _sender=admin, _valid=False)
     c.set_provider(
         sp.record(provider=provider.address, max_price=sp.mutez(1_000_000)),
         _sender=admin,
@@ -1227,22 +1463,67 @@ def test_factory_has_no_authority_over_collections():
 
 
 @sp.add_test()
-def test_factory_admin_lambda_and_fees():
+def test_factory_admin():
     scenario = sp.test_scenario("Factory admin", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
     treasury = sp.test_account("Treasury")
     artist = sp.test_account("Artist")
+    new_admin = sp.test_account("NewAdmin")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
 
-    factory.deploy(
-        _deploy_params(provider), _sender=artist, _amount=sp.mutez(100_000)
-    )
-    factory.withdraw_fees(_sender=artist)
-    scenario.verify(factory.data.fees_accrued == sp.mutez(0))
-    factory.withdraw_fees(_sender=artist, _valid=False)
+    factory.deploy(_deploy_params(provider), _sender=artist)
 
     factory.admin_lambda(
         aleatory.identity_lambda, _sender=artist, _valid=False
     )
     factory.admin_lambda(aleatory.identity_lambda, _sender=admin)
+
+    # Succession: two-step, and only the proposed admin can accept.
+    factory.propose_admin(new_admin.address, _sender=artist, _valid=False)
+    factory.propose_admin(new_admin.address, _sender=admin)
+    factory.accept_admin(_sender=admin, _valid=False)
+    factory.accept_admin(_sender=new_admin)
+    scenario.verify(factory.data.administrator == new_admin.address)
+    factory.set_deploy_price(sp.mutez(1), _sender=admin, _valid=False)
+    factory.set_deploy_price(sp.mutez(1), _sender=new_admin)
+
+
+@sp.add_test()
+def test_registry_is_open():
+    """Anyone lists a provider; only that provider's own operator can
+    delist it. There is no fee and no gatekeeper."""
+    scenario = sp.test_scenario("Registry", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    stranger = sp.test_account("Stranger")
+    rival_op = sp.test_account("RivalOperator")
+    rival_key = sp.test_account("RivalKey")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    registry = aleatory.AleatoryRegistry()
+    scenario += registry
+
+    rival = aleatory.AleatoryProvider(
+        operator=rival_op.address,
+        agent=rival_key.address,
+        render_gas=sp.mutez(50_000),
+        metadata=_META,
+    )
+    scenario += rival
+
+    # A stranger can list someone else's provider — it is a public index,
+    # not a claim of ownership.
+    registry.register(rival.address, _sender=stranger)
+    scenario.verify(registry.data.count == 1)
+    registry.register(rival.address, _sender=stranger, _valid=False)
+
+    # Something that is not a provider cannot be listed.
+    registry.register(factory.address, _sender=stranger, _valid=False)
+
+    # Only the provider's own operator may delist it.
+    registry.deregister(rival.address, _sender=stranger, _valid=False)
+    registry.deregister(rival.address, _sender=admin, _valid=False)
+    registry.deregister(rival.address, _sender=rival_op)
+    scenario.verify(registry.data.count == 0)
