@@ -246,7 +246,7 @@ def test_publishing_touches_one_token_and_nothing_else():
     scenario.verify(c.data.token_metadata[1].token_info[""] == _PENDING)
     scenario.verify(c.data.ledger[0] == alice.address)
     # The generator itself is not reachable from here.
-    scenario.verify(c.data.code_hash == sp.bytes("0xaa"))
+    scenario.verify(c.data.art.code_hash == sp.bytes("0xaa"))
 
     # Owner still controls the token; the renderer cannot move it.
     tx = [
@@ -280,7 +280,7 @@ def test_edition_size_shrinks_never_grows():
     c.set_edition_size(0, _sender=artist, _valid=False)    # never reopens
     c.set_edition_size(1, _sender=artist, _valid=False)    # below minted
     c.set_edition_size(5, _sender=artist)
-    scenario.verify(c.data.edition_size == 5)
+    scenario.verify(c.data.sale.edition_size == 5)
 
     # Closing is setting it to what is already minted.
     c.set_edition_size(2, _sender=artist)
@@ -334,7 +334,7 @@ def test_provider_switch():
     switch = sp.record(provider=rival.address, max_price=sp.mutez(100_000))
     c.set_provider(switch, _sender=alice, _valid=False)
     c.set_provider(switch, _sender=artist)
-    scenario.verify(c.data.render_gas == sp.mutez(50_000))
+    scenario.verify(c.data.render.render_gas == sp.mutez(50_000))
 
     # The new provider publishes the piece the old one never did.
     c.set_token_metadata(_publish(), _sender=rival_key)
@@ -573,8 +573,8 @@ def test_royalties_are_readable_on_chain_and_capped():
     c = _collection(
         scenario, artist, resolver, provider, minter, royalties=split
     )
-    scenario.verify(c.data.royalties[artist.address] == 1250)
-    scenario.verify(c.data.royalties[collab.address] == 1250)
+    scenario.verify(c.data.art.royalties[artist.address] == 1250)
+    scenario.verify(c.data.art.royalties[collab.address] == 1250)
 
     # Past roughly a quarter, marketplaces stop honouring them.
     factory.deploy(

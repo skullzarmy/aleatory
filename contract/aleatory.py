@@ -92,22 +92,54 @@ def aleatory():
     # factory has to construct this exact shape in `sp.create_contract`;
     # the child casts `self.data` to it so the two can never drift apart
     # silently.
-    t_collection_storage: type = sp.record(
-        administrator=sp.address,
-        proposed_admin=sp.option[sp.address],
+    # The collection's complete storage, grouped rather than flat.
+    #
+    # SmartPy rebuilds the whole storage record in every entrypoint, and the
+    # cost of that grows faster than linearly with the number of top-level
+    # fields — a measured 36% of the compiled contract, for a record this
+    # wide. Grouping by who writes what means an entrypoint rebuilds one
+    # subtree instead of twenty fields, and origination burn is paid by the
+    # artist, so this is their money.
+    #
+    # Declared explicitly because the factory constructs this exact shape in
+    # `sp.create_contract`; the child casts `self.data` to it so the two
+    # cannot drift apart silently.
+    t_art: type = sp.record(
+        code_uri=sp.string,
+        code_hash=sp.bytes,
+        # Royalty shares in basis points of the sale price, by recipient.
+        # 1250 = 12.5%. Kept on chain *as well as* in the metadata JSON:
+        # a marketplace contract cannot read IPFS, so without this it would
+        # have to trust whatever a lister passed in, and a seller could
+        # list with royalties zeroed out. Teia's arrangement.
+        royalties=sp.map[sp.address, sp.nat],
+        # The metadata URI every token is minted with — an ipfs:// pointer
+        # to the collection's "not revealed yet" JSON. A provider replaces
+        # it per token with that piece's real metadata once rendered.
+        pending_metadata=sp.bytes,
+    )
+
+    t_sale: type = sp.record(
+        price=sp.mutez,
+        edition_size=sp.nat,
+        paused=sp.bool,
+    )
+
+    t_render: type = sp.record(
         resolver=sp.address,
         trust_resolver=sp.bool,
         local_writers=sp.set[sp.address],
         provider=sp.address,
         provider_agent=sp.address,
         render_gas=sp.mutez,
-        code_uri=sp.string,
-        code_hash=sp.bytes,
-        edition_size=sp.nat,
-        price=sp.mutez,
-        royalties=sp.map[sp.address, sp.nat],
-        pending_metadata=sp.bytes,
-        paused=sp.bool,
+    )
+
+    t_collection_storage: type = sp.record(
+        administrator=sp.address,
+        proposed_admin=sp.option[sp.address],
+        art=t_art,
+        sale=t_sale,
+        render=t_render,
         ledger=sp.big_map[sp.nat, sp.address],
         operators=sp.big_map[
             sp.record(
@@ -224,36 +256,29 @@ def aleatory():
             self.data.administrator = init.administrator
             self.data.proposed_admin = sp.cast(None, sp.option[sp.address])
 
-            # Where backend minting keys are resolved from. Fixed at
-            # origination: a collection that could be pointed at a
-            # different resolver later would be a collection whose minting
-            # authority we could seize after the fact.
-            self.data.resolver = init.resolver
-            # Whether addresses the resolver vouches for may write media
-            # here. Starts true so our own provider works out of the box,
-            # and the artist can revoke it — otherwise choosing a rival
-            # provider would still leave us able to write into their
-            # collection forever, which contradicts the whole point of the
-            # provider being their choice.
-            self.data.trust_resolver = True
-            self.data.local_writers = sp.cast(set(), sp.set[sp.address])
-
-            # The render provider and the per-piece price agreed with them,
-            # snapshotted. `buy` never calls out to the provider's contract
-            # — a sale must not depend on a contract the artist chose and we
-            # cannot audit. Re-snapshot via `set_provider`.
-            self.data.provider = init.provider
-            self.data.provider_agent = init.provider_agent
-            self.data.render_gas = init.render_gas
-            # Immutable, all of it.
-            self.data.code_uri = init.code_uri
-            self.data.code_hash = init.code_hash
-            self.data.edition_size = init.edition_size
-            self.data.royalties = init.royalties
-            self.data.pending_metadata = init.pending_metadata
-
-            self.data.price = init.price
-            self.data.paused = init.start_paused
+            self.data.art = sp.record(
+                code_uri=init.code_uri,
+                code_hash=init.code_hash,
+                royalties=init.royalties,
+                pending_metadata=init.pending_metadata,
+            )
+            self.data.sale = sp.record(
+                price=init.price,
+                edition_size=init.edition_size,
+                paused=init.start_paused,
+            )
+            self.data.render = sp.record(
+                # Where writer authorisation is resolved from. Fixed at
+                # origination: a collection that could be repointed later
+                # would be one whose authority we could seize after the
+                # fact. The artist may switch it off entirely, not move it.
+                resolver=init.resolver,
+                trust_resolver=True,
+                local_writers=sp.cast(set(), sp.set[sp.address]),
+                provider=init.provider,
+                provider_agent=init.provider_agent,
+                render_gas=init.render_gas,
+            )
 
             # Fails to compile if this shape ever drifts from what the
             # factory constructs in `deploy`.
@@ -291,7 +316,7 @@ def aleatory():
             sp.cast(price, sp.mutez)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.is_artist_(), "NOT_ARTIST"
-            self.data.price = price
+            self.data.sale.price = price
             sp.emit(sp.record(price=price), tag="set_price")
 
         @sp.entrypoint
@@ -302,7 +327,7 @@ def aleatory():
             sp.cast(new_state, sp.bool)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.is_artist_(), "NOT_ARTIST"
-            self.data.paused = new_state
+            self.data.sale.paused = new_state
             sp.emit(sp.record(paused=new_state), tag="set_paused")
 
         @sp.entrypoint
@@ -329,9 +354,9 @@ def aleatory():
             assert self.is_artist_(), "NOT_ARTIST"
             assert new_size != 0, "CANNOT_REOPEN"
             assert new_size >= self.data.next_token_id, "BELOW_MINTED"
-            if self.data.edition_size != 0:
-                assert new_size <= self.data.edition_size, "CANNOT_GROW"
-            self.data.edition_size = new_size
+            if self.data.sale.edition_size != 0:
+                assert new_size <= self.data.sale.edition_size, "CANNOT_GROW"
+            self.data.sale.edition_size = new_size
             sp.emit(
                 sp.record(
                     edition_size=new_size, minted=self.data.next_token_id
@@ -370,9 +395,9 @@ def aleatory():
                 "get_agent", provider, (), sp.address
             ).unwrap_some(error="NO_PROVIDER_VIEW")
             assert quoted <= max_price, "PRICE_ABOVE_MAX"
-            self.data.provider = provider
-            self.data.provider_agent = agent
-            self.data.render_gas = quoted
+            self.data.render.provider = provider
+            self.data.render.provider_agent = agent
+            self.data.render.render_gas = quoted
             sp.emit(
                 sp.record(
                     provider=provider, agent=agent, render_gas=quoted
@@ -392,7 +417,7 @@ def aleatory():
             sp.cast(trusted, sp.bool)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.is_artist_(), "NOT_ARTIST"
-            self.data.trust_resolver = trusted
+            self.data.render.trust_resolver = trusted
             sp.emit(sp.record(trusted=trusted), tag="set_trust_resolver")
 
         @sp.entrypoint
@@ -410,9 +435,9 @@ def aleatory():
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.is_artist_(), "NOT_ARTIST"
             if allowed:
-                self.data.local_writers.add(writer)
+                self.data.render.local_writers.add(writer)
             else:
-                self.data.local_writers.remove(writer)
+                self.data.render.local_writers.remove(writer)
             sp.emit(
                 sp.record(writer=writer, allowed=allowed),
                 tag="set_local_writer",
@@ -461,14 +486,14 @@ def aleatory():
             balance, no withdraw entrypoint.
             """
             sp.cast(params, sp.bytes)
-            assert not self.data.paused, "PAUSED"
+            assert not self.data.sale.paused, "PAUSED"
             assert (
-                sp.amount == self.data.price + self.data.render_gas
+                sp.amount == self.data.sale.price + self.data.render.render_gas
             ), "WRONG_PRICE"
             # edition_size 0 is an open edition.
             assert (
-                self.data.edition_size == 0
-                or self.data.next_token_id < self.data.edition_size
+                self.data.sale.edition_size == 0
+                or self.data.next_token_id < self.data.sale.edition_size
             ), "SOLD_OUT"
 
             token_id = self.data.next_token_id
@@ -479,7 +504,7 @@ def aleatory():
             # Minted with the collection's "not revealed yet" document; a
             # provider swaps in the piece's own once it has rendered it.
             token_info = sp.cast(
-                {"": self.data.pending_metadata},
+                {"": self.data.art.pending_metadata},
                 sp.map[sp.string, sp.bytes],
             )
             self.data.token_metadata[token_id] = sp.record(
@@ -493,10 +518,10 @@ def aleatory():
             # Paid to the provider *contract*, not to the agent: the
             # signing key should never hold funds. Requires the provider to
             # accept tez, which is part of being a provider.
-            if self.data.render_gas > sp.mutez(0):
-                sp.send(self.data.provider, self.data.render_gas)
-            if self.data.price > sp.mutez(0):
-                sp.send(self.data.administrator, self.data.price)
+            if self.data.render.render_gas > sp.mutez(0):
+                sp.send(self.data.render.provider, self.data.render.render_gas)
+            if self.data.sale.price > sp.mutez(0):
+                sp.send(self.data.administrator, self.data.sale.price)
 
             sp.emit(
                 sp.record(
@@ -504,7 +529,7 @@ def aleatory():
                     buyer=sp.sender,
                     params=params,
                     paid=sp.amount,
-                    render_gas=self.data.render_gas,
+                    render_gas=self.data.render.render_gas,
                 ),
                 tag="buy",
             )
@@ -532,7 +557,7 @@ def aleatory():
             # entrypoint is called by the provider itself, so a broken
             # provider contract only breaks its own renders. The stored
             # snapshot stays as the fallback if the view is gone.
-            live = sp.view("get_agent", self.data.provider, (), sp.address)
+            live = sp.view("get_agent", self.data.render.provider, (), sp.address)
             allowed = False
             if live.is_some():
                 # The provider answered: its current agent is the only one
@@ -543,12 +568,12 @@ def aleatory():
                 # Provider contract gone or broken. Fall back to whatever
                 # was snapshotted, so an unreachable provider degrades to
                 # its last known good state rather than to nothing.
-                allowed = who == self.data.provider_agent
+                allowed = who == self.data.render.provider_agent
             if not allowed:
-                allowed = who in self.data.local_writers
-            if not allowed and self.data.trust_resolver:
+                allowed = who in self.data.render.local_writers
+            if not allowed and self.data.render.trust_resolver:
                 resolved = sp.view(
-                    "is_writer", self.data.resolver, who, sp.bool
+                    "is_writer", self.data.render.resolver, who, sp.bool
                 )
                 allowed = resolved == sp.Some(True)
             return allowed
@@ -585,7 +610,7 @@ def aleatory():
             assert self.may_write_media_(sp.sender), "NOT_AUTHORISED"
             assert sp.len(metadata_uri) > 0, "EMPTY_METADATA_URI"
             assert (
-                metadata_uri != self.data.pending_metadata
+                metadata_uri != self.data.art.pending_metadata
             ), "IS_PENDING_DOC"
 
             token = self.data.token_metadata.get(token_id, error="NO_TOKEN")
@@ -593,7 +618,7 @@ def aleatory():
             # pending work: a piece still holding the collection's pending
             # document is a piece nobody has rendered.
             assert (
-                token.token_info[""] == self.data.pending_metadata
+                token.token_info[""] == self.data.art.pending_metadata
             ), "ALREADY_PUBLISHED"
 
             token.token_info[""] = metadata_uri
@@ -616,7 +641,7 @@ def aleatory():
             same rule providers use off chain, so the two cannot disagree."""
             sp.cast(token_id, sp.nat)
             token = self.data.token_metadata.get(token_id, error="NO_TOKEN")
-            return token.token_info[""] == self.data.pending_metadata
+            return token.token_info[""] == self.data.art.pending_metadata
 
         @sp.onchain_view()
         def get_royalties(self):
@@ -627,25 +652,25 @@ def aleatory():
             for readers that cannot reach chain state — two representations
             of one immutable fact, written at deploy and never changed.
             """
-            return self.data.royalties
+            return self.data.art.royalties
 
         @sp.onchain_view()
         def get_edition(self):
             """Everything needed to rebuild the edition from chain state."""
             return sp.record(
                 artist=self.data.administrator,
-                code_uri=self.data.code_uri,
-                code_hash=self.data.code_hash,
-                royalties=self.data.royalties,
-                edition_size=self.data.edition_size,
+                code_uri=self.data.art.code_uri,
+                code_hash=self.data.art.code_hash,
+                royalties=self.data.art.royalties,
+                edition_size=self.data.sale.edition_size,
                 minted=self.data.next_token_id,
-                price=self.data.price,
-                render_gas=self.data.render_gas,
-                provider=self.data.provider,
-                provider_agent=self.data.provider_agent,
-                trust_resolver=self.data.trust_resolver,
-                pending_metadata=self.data.pending_metadata,
-                paused=self.data.paused,
+                price=self.data.sale.price,
+                render_gas=self.data.render.render_gas,
+                provider=self.data.render.provider,
+                provider_agent=self.data.render.provider_agent,
+                trust_resolver=self.data.render.trust_resolver,
+                pending_metadata=self.data.art.pending_metadata,
+                paused=self.data.sale.paused,
             )
 
     # ---------------------------------------------------------------
@@ -963,19 +988,25 @@ def aleatory():
                 sp.record(
                     administrator=sp.sender,
                     proposed_admin=None,
-                    resolver=self.data.resolver,
-                    trust_resolver=True,
-                    local_writers=sp.set(),
-                    provider=params.provider,
-                    provider_agent=agent,
-                    render_gas=quoted,
-                    code_uri=params.code_uri,
-                    code_hash=params.code_hash,
-                    edition_size=params.edition_size,
-                    price=params.price,
-                    royalties=params.royalties,
-                    pending_metadata=params.pending_metadata,
-                    paused=params.start_paused,
+                    art=sp.record(
+                        code_uri=params.code_uri,
+                        code_hash=params.code_hash,
+                        royalties=params.royalties,
+                        pending_metadata=params.pending_metadata,
+                    ),
+                    sale=sp.record(
+                        price=params.price,
+                        edition_size=params.edition_size,
+                        paused=params.start_paused,
+                    ),
+                    render=sp.record(
+                        resolver=self.data.resolver,
+                        trust_resolver=True,
+                        local_writers=sp.set(),
+                        provider=params.provider,
+                        provider_agent=agent,
+                        render_gas=quoted,
+                    ),
                     ledger=sp.big_map(),
                     operators=sp.big_map(),
                     token_metadata=sp.big_map(),
