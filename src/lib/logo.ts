@@ -148,31 +148,49 @@ function arc(r: number, a0: number, a1: number, sweep = 1): string {
  * Two legs, a crossbar, and a bowl on the right that closes back into the
  * apex. Fixed geometry: this is the part that has to read the same forever.
  */
-function monogram(r: number): string {
-    const h = r * 1.55;
-    const w = r * 1.16;
-    const apexY = round(-h / 2);
-    const footY = round(h / 2);
-    const halfW = round(w / 2);
-    const barY = round(h * 0.16);
-    const barX = round(w * 0.26);
+/**
+ * The A.
+ *
+ * Two splayed legs and a crossbar, and the crossbar lands exactly on the
+ * legs: its ends are solved from the leg geometry rather than guessed, so
+ * there is no overhang at any size.
+ *
+ * The letter stays plain on purpose. The ring around it is ornate, and two
+ * ornate things at the same centre fight each other.
+ */
+function monogram(r: number, style: MonogramStyle = "plain"): string {
+    const h = r * 1.6;
+    const w = r * 1.28;
+    const apexY = -h / 2;
+    const footY = h / 2;
+    const halfW = w / 2;
 
-    // The bowl sits inside the right leg and closes into it, so the letter
-    // reads as an A carrying a loop. Larger than this and it starts to read
-    // as a second letter.
-    const bowlR = round(w * 0.235);
-    const bowlCx = round(w * 0.145);
-    const bowlCy = round(h * 0.155);
+    /** Half-width of the letter at a given height. */
+    const widthAt = (y: number) => ((y - apexY) / h) * halfW;
 
-    return [
-        `M0,${apexY}L${-halfW},${footY}`,
-        `M0,${apexY}L${halfW},${footY}`,
-        `M${-barX},${barY}L${barX},${barY}`,
-        `M${bowlCx},${round(bowlCy - bowlR)}` +
-            `a${bowlR},${bowlR} 0 1 0 0,${round(bowlR * 2)}` +
-            `a${bowlR},${bowlR} 0 1 0 0,${round(-bowlR * 2)}`,
-    ].join("");
+    const barY = h * 0.2;
+    const barX = widthAt(barY);
+
+    const strokes = [
+        `M0,${round(apexY)}L${round(-halfW)},${round(footY)}`,
+        `M0,${round(apexY)}L${round(halfW)},${round(footY)}`,
+        `M${round(-barX)},${round(barY)}L${round(barX)},${round(barY)}`,
+    ];
+
+    if (style === "hooked") {
+        // The right leg carries on past the foot and curls back under, a nod
+        // to the flourish in the original drawing. It reads as one stroke
+        // continuing rather than a second shape stuck on.
+        const hookR = w * 0.26;
+        strokes[1] =
+            `M0,${round(apexY)}L${round(halfW)},${round(footY)}` +
+            `a${round(hookR)},${round(hookR)} 0 0 1 ${round(-hookR * 1.5)},${round(hookR * 0.35)}`;
+    }
+
+    return strokes.join("");
 }
+
+type MonogramStyle = "plain" | "hooked";
 
 /* ------------------------------------------------------------------ */
 /* The mark                                                            */
