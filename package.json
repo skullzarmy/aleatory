@@ -12,7 +12,9 @@
     "test:contracts": "SMARTPY_OUTPUT_DIR=contract/output-aleatory python3 contract/tests_aleatory.py && SMARTPY_OUTPUT_DIR=contract/output-marketplace python3 contract/tests_marketplace.py && SMARTPY_OUTPUT_DIR=contract/output-integration python3 contract/tests_integration.py",
     "deploy": "npx tsx contract/deploy.ts",
     "deploy:collection": "npx tsx contract/deploy-collection.ts",
-    "test:metadata": "npx tsx src/lib/metadata.test.ts"
+    "test:metadata": "npx tsx src/lib/metadata.test.ts",
+    "build:icons": "npx tsx scripts/build-icons.mts",
+    "logo": "npx tsx scripts/logo-preview.mts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.6",

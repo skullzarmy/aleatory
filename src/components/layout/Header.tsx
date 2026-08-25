@@ -16,11 +16,15 @@ export function Header() {
     return (
         <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
             <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
-                <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-                    {/* Today's variant. Everyone sees the same one on a given
-                        date, which keeps server and client renders in step. */}
-                    <Logo size={28} daily />
-                    {BRAND.name}
+                {/* The mark carries the brand on its own. Today's variant,
+                    the same for everyone on a given date, which keeps server
+                    and client renders in step. */}
+                <Link
+                    href="/"
+                    aria-label={`${BRAND.name}, home`}
+                    className="shrink-0 transition-opacity hover:opacity-80"
+                >
+                    <Logo size={44} daily label="" />
                 </Link>
 
                 <nav className="hidden gap-4 text-sm text-muted-foreground sm:flex">

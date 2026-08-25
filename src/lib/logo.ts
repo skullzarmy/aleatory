@@ -30,6 +30,11 @@ export interface LogoOptions {
      * mush and the silhouette is what carries recognition.
      */
     detail?: "full" | "compact";
+    /**
+     * Accessible name. An empty string marks the mark decorative, which is
+     * right when it sits beside the word it stands for.
+     */
+    label?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -414,6 +419,7 @@ export function renderLogo(options: LogoOptions = {}): string {
         background,
         fold = 12,
         detail = "full",
+        label = "Aleatory",
     } = options;
 
     const rand = makeRandom(seed);
@@ -455,7 +461,8 @@ export function renderLogo(options: LogoOptions = {}): string {
         : "";
 
     return [
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-108 -108 216 216" width="${size}" height="${size}" role="img" aria-label="Aleatory">`,
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-108 -108 216 216" width="${size}" height="${size}" ` +
+            (label ? `role="img" aria-label="${label}">` : `aria-hidden="true" focusable="false">`),
         `<defs>${defs.join("")}</defs>`,
         plate,
         `<g fill="none" stroke="${stroke}" stroke-linecap="round" stroke-linejoin="round">`,
