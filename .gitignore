@@ -10,3 +10,8 @@ contract/__pycache__/
 .env
 contract/build/
 contract/deployments/
+
+# next
+.next/
+next-env.d.ts
+out/

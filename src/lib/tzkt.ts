@@ -1,0 +1,148 @@
+/**
+ * TzKT client.
+ *
+ * Everything the site shows is derived from chain state through this file, so
+ * that anyone can rebuild the same views from the same public API. Nothing
+ * here depends on an index only we hold. See docs/decisions.md §8.
+ */
+import { tzktApi } from "./config";
+
+export interface TzktContract {
+    address: string;
+    alias?: string;
+    creator?: { address: string };
+    firstActivityTime?: string;
+    lastActivityTime?: string;
+    tokensCount?: number;
+}
+
+export interface TzktToken {
+    id: number;
+    contract: { address: string; alias?: string };
+    tokenId: string;
+    firstMinter?: { address: string };
+    firstTime?: string;
+    lastTime?: string;
+    totalSupply?: string;
+    metadata?: TokenMetadata;
+}
+
+/** TZIP-21 shaped, as TzKT resolves it from the token's metadata document. */
+export interface TokenMetadata {
+    name?: string;
+    description?: string;
+    artifactUri?: string;
+    displayUri?: string;
+    thumbnailUri?: string;
+    creators?: string[];
+    attributes?: { name: string; value: string }[];
+    royalties?: { decimals: number; shares: Record<string, number> };
+    /** Aleatory's own keys, per docs/params.md §4. */
+    aleaParams?: string;
+    aleaCodeHash?: string;
+}
+
+async function get<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
+    const url = new URL(`${tzktApi()}${path}`);
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
+    const res = await fetch(url.toString(), { next: { revalidate: 30 } });
+    if (!res.ok) {
+        throw new Error(`TzKT ${res.status} on ${path}`);
+    }
+    return (await res.json()) as T;
+}
+
+/**
+ * Every collection a factory has originated.
+ *
+ * Internal originations are attributed to the originating contract, so this
+ * is the whole set with no events to parse and no state of ours. It is the
+ * query in docs/decisions.md §8, and anyone can run it.
+ */
+export async function fetchCollections(factory: string): Promise<TzktContract[]> {
+    if (!factory) return [];
+    return get<TzktContract[]>("/v1/contracts", {
+        creator: factory,
+        "sort.desc": "firstActivityTime",
+        limit: 200,
+        select: "address,alias,firstActivityTime,lastActivityTime,tokensCount",
+    });
+}
+
+/** Tokens across a set of collections, newest first. */
+export async function fetchRecentTokens(
+    collections: string[],
+    limit = 48,
+    offset = 0,
+): Promise<TzktToken[]> {
+    if (collections.length === 0) return [];
+    return get<TzktToken[]>("/v1/tokens", {
+        "contract.in": collections.join(","),
+        "sort.desc": "firstTime",
+        limit,
+        offset,
+    });
+}
+
+export async function fetchToken(contract: string, tokenId: string): Promise<TzktToken | null> {
+    const rows = await get<TzktToken[]>("/v1/tokens", {
+        contract,
+        tokenId,
+        limit: 1,
+    });
+    return rows[0] ?? null;
+}
+
+/** Raw contract storage, for the fields TzKT does not model. */
+export async function fetchStorage<T = unknown>(address: string): Promise<T> {
+    return get<T>(`/v1/contracts/${address}/storage`);
+}
+
+/** Who holds a token now. */
+export async function fetchOwner(contract: string, tokenId: string): Promise<string | null> {
+    const rows = await get<{ account: { address: string } }[]>("/v1/tokens/balances", {
+        "token.contract": contract,
+        "token.tokenId": tokenId,
+        "balance.gt": 0,
+        limit: 1,
+    });
+    return rows[0]?.account?.address ?? null;
+}
+
+/**
+ * The operation that created a token, which is also its seed.
+ *
+ * A piece's seed is the hash of the `buy` operation that minted it
+ * (docs/decisions.md §3), so this is how a renderer and anyone checking its
+ * work arrive at the same value.
+ */
+export async function fetchMintOperation(
+    contract: string,
+    tokenId: string,
+): Promise<{ hash: string; level: number; timestamp: string } | null> {
+    const rows = await get<
+        { hash: string; level: number; timestamp: string }[]
+    >("/v1/tokens/transfers", {
+        "token.contract": contract,
+        "token.tokenId": tokenId,
+        "from.null": "true",
+        limit: 1,
+        select: "transactionId,level,timestamp",
+    });
+    const row = rows[0];
+    if (!row) return null;
+    // `transactionId` identifies the operation; resolve it to a hash.
+    const ops = await get<{ hash: string }[]>("/v1/operations/transactions", {
+        id: (row as unknown as { transactionId: number }).transactionId,
+        limit: 1,
+        select: "hash",
+    });
+    const hash = (ops[0] as unknown as string | { hash: string }) ?? null;
+    return hash
+        ? {
+              hash: typeof hash === "string" ? hash : hash.hash,
+              level: row.level,
+              timestamp: row.timestamp,
+          }
+        : null;
+}
