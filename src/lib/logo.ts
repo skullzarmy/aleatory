@@ -351,7 +351,7 @@ function petalBand(
     const step = TAU / fold;
     const belly = range(rand, 0.95, 1.15);
     const out: Stroke[] = [
-        { d: petal(r0, r1, step / 2, belly), width: 2.6, opacity: 1, repeat: true },
+        { d: petal(r0, r1, step / 2, belly), width: 1.6, opacity: 0.9, repeat: true },
     ];
 
     // A second, shorter layer offset by half a step, which is what gives the
@@ -392,14 +392,14 @@ function buildStrokes(
         // noise below about forty pixels.
         strokes.push({
             d: circle(R * BANDS.frame[1] * 1.15),
-            width: 3,
+            width: 2,
             opacity: 1,
             repeat: false,
         });
         const step = TAU / fold;
         strokes.push({
             d: petal(R * 0.58, R, step / 2, 1.05),
-            width: 4.5,
+            width: 3,
             opacity: 1,
             repeat: true,
         });
@@ -488,7 +488,7 @@ export function renderLogo(options: LogoOptions = {}): string {
         `</g>`,
         clear,
         `<g fill="none" stroke="${stroke}" stroke-linecap="round" stroke-linejoin="round">`,
-        `<path d="${monogram(R * (detail === "compact" ? 0.3 : 0.24))}" stroke-width="${detail === "compact" ? 5 : 3.2}"/>`,
+        `<path d="${monogram(R * (detail === "compact" ? 0.32 : 0.27))}" stroke-width="${detail === "compact" ? 6 : 4.6}"/>`,
         `</g>`,
         `</svg>`,
     ].join("");
