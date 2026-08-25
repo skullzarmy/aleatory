@@ -11,7 +11,8 @@
     "build:contracts": "python3 contract/build.py",
     "test:contracts": "SMARTPY_OUTPUT_DIR=contract/output-aleatory python3 contract/tests_aleatory.py && SMARTPY_OUTPUT_DIR=contract/output-marketplace python3 contract/tests_marketplace.py && SMARTPY_OUTPUT_DIR=contract/output-integration python3 contract/tests_integration.py",
     "deploy": "npx tsx contract/deploy.ts",
-    "deploy:collection": "npx tsx contract/deploy-collection.ts"
+    "deploy:collection": "npx tsx contract/deploy-collection.ts",
+    "test:metadata": "npx tsx src/lib/metadata.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.6",
@@ -42,6 +43,10 @@
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "@netlify/functions": "^3.0.4",
+    "@netlify/plugin-nextjs": "^5.9.4",
+    "@cloudflare/puppeteer": "^1.0.2",
+    "wrangler": "^3.99.0"
   }
 }

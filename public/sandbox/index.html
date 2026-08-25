@@ -1,54 +1,121 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<title>sandbox</title>
-<style>html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden}</style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Aleatory sandbox</title>
+<style>
+  html,body { margin:0; padding:0; height:100%; background:#111; overflow:hidden; }
+  #err { color:#eee; font:13px/1.5 ui-monospace,monospace; padding:16px; white-space:pre-wrap; }
+</style>
 </head>
 <body>
+<div id="err" hidden></div>
 <script>
-/*
- * Sandbox shell for the generative-art lab.
+/**
+ * The sandbox host.
  *
- * Why this file exists at all: a piece is a document full of inline scripts,
- * and a `srcdoc` iframe INHERITS the parent page's CSP. The site forbids inline
- * scripts, so a srcdoc sandbox is dead on arrival in production (and under
- * `netlify dev`) while working fine under plain Vite, which sets no headers.
+ * Artist code runs here, on its own origin, so it has no reach into wallet
+ * state or session storage on the app. The app frames this page with
+ * sandbox="allow-scripts".
  *
- * CSP inheritance only applies to local schemes — about:srcdoc, data:, blob:.
- * A document loaded from a real URL gets its own policy from its own response
- * headers. So the sandbox is loaded from here, and netlify.toml gives this one
- * path a policy that allows inline scripts and denies the network entirely.
+ * Query: ?code=<ipfs uri or https url>&seed=<op hash>&params=<json>
  *
- * The parent posts the built document in; this shell writes it and gets out of
- * the way. The frame is still sandboxed (`allow-scripts`, no same-origin), so
- * the piece runs in an opaque origin with no access to the page.
+ * The harness matches worker/render.ts exactly. A piece has to look the same
+ * here as it does in the image that ends up on chain.
  */
 (function () {
-  var written = false;
+  var q = new URLSearchParams(location.search);
+  var code = q.get("code") || "";
+  var seed = q.get("seed") || "";
+  var paramsJson = q.get("params") || "";
 
-  function write(doc) {
-    if (written || typeof doc !== "string") return;
-    written = true;
-    document.open();
-    document.write(doc);
-    document.close();
+  function fail(msg) {
+    var el = document.getElementById("err");
+    el.hidden = false;
+    el.textContent = msg;
   }
 
-  window.addEventListener("message", function (event) {
-    var data = event.data;
-    if (!data || data.type !== "sandbox:doc") return;
-    // Only the embedder may load a document here.
-    if (event.source !== window.parent) return;
-    write(data.doc);
-  });
-
-  // The parent also posts on load, in case this beats its listener.
-  try {
-    parent.postMessage({ type: "sandbox:ready" }, "*");
-  } catch (e) {
-    /* no embedder — nothing to do */
+  function xmur3(str) {
+    var h = 1779033703 ^ str.length;
+    for (var i = 0; i < str.length; i++) {
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return function () {
+      h = Math.imul(h ^ (h >>> 16), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      h ^= h >>> 16;
+      return h >>> 0;
+    };
   }
+  function sfc32(a, b, c, d) {
+    return function () {
+      a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+      var t = (a + b) | 0;
+      a = b ^ (b >>> 9);
+      b = (c + (c << 3)) | 0;
+      c = (c << 21) | (c >>> 11);
+      d = (d + 1) | 0;
+      t = (t + d) | 0;
+      c = (c + t) | 0;
+      return (t >>> 0) / 4294967296;
+    };
+  }
+
+  var s = xmur3(seed || "unseeded");
+  var rand = sfc32(s(), s(), s(), s());
+  Math.random = rand;
+
+  // Frozen clock, matching the render worker.
+  var FIXED = 0;
+  var RealDate = Date;
+  Date = class extends RealDate {
+    constructor() {
+      if (arguments.length === 0) super(FIXED);
+      else super(...arguments);
+    }
+    static now() { return FIXED; }
+  };
+  performance.now = function () { return 0; };
+
+  var params = {};
+  try { params = paramsJson ? JSON.parse(paramsJson) : {}; } catch (e) {}
+
+  window.__ALEA_READY__ = false;
+  window.$alea = {
+    seed: seed,
+    random: rand,
+    params: params,
+    param: function (n, d) { return n in params ? params[n] : d; },
+    ready: function () { window.__ALEA_READY__ = true; }
+  };
+  window.$fx = {
+    hash: seed,
+    rand: rand,
+    getParam: function (n) { return params[n]; },
+    getParams: function () { return params; },
+    preview: function () { window.__ALEA_READY__ = true; }
+  };
+
+  if (!code) { fail("No generator given."); return; }
+
+  var url = code.indexOf("ipfs://") === 0
+    ? "https://ipfs.fileship.xyz/" + code.slice(7)
+    : code;
+
+  fetch(url)
+    .then(function (r) {
+      if (!r.ok) throw new Error("Could not load the generator (" + r.status + ")");
+      return r.text();
+    })
+    .then(function (html) {
+      // Replace this document with the piece, keeping the globals above.
+      document.open();
+      document.write(html);
+      document.close();
+    })
+    .catch(function (e) { fail(String(e.message || e)); });
 })();
 </script>
 </body>
