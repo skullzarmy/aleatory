@@ -4,16 +4,3 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-
-# The sandbox is served on its own host. Artist code has no reach into wallet
-# state or session storage on the app's origin.
-[[redirects]]
-  from = "/sandbox/*"
-  to = "/sandbox/index.html"
-  status = 200
-
-[[headers]]
-  for = "/sandbox/*"
-  [headers.values]
-    Content-Security-Policy = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; connect-src https:; font-src data: https:"
-    X-Frame-Options = "ALLOWALL"

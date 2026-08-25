@@ -1,0 +1,18 @@
+# The sandbox site. Deploys from this directory, on its own domain.
+#
+# Netlify site settings: base directory `sandbox`, publish directory `.`,
+# no build command. Domain: sandbox.aleatory.art
+#
+# Separate from the app on purpose. Generator code is untrusted and runs in
+# every visitor's browser, and a different origin is what keeps it away from
+# wallet state and session storage.
+
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; connect-src https:; font-src data: https:; frame-ancestors https://aleatory.art https://*.aleatory.art http://localhost:3000"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
