@@ -100,6 +100,8 @@ The objkt convention, **not** TZIP-21, which defines no royalties field at all. 
 
 Royalties live in the token's metadata JSON and are built off chain by whoever pins that document. The collection also keeps them on chain as a typed map with a view, which is what the marketplace pays from.
 
+Both representations earn their place. objkt's documentation says it reads royalties from token metadata, and asks anyone storing them on chain *outside* the metadata to get in touch. Writing them into the document means objkt works with no coordination from us, and the typed map serves the contracts that cannot read IPFS.
+
 **The UI works in relative terms** because that is how people think: a total percentage, then recipients splitting it. 25% total, two wallets at 50% each becomes `decimals: 4` with shares `1250` and `1250`. Getting that conversion backwards pays out wrong forever, so the deploy preview shows the decoded result the way objkt will read it, "tz1abc… receives 12.5% of each sale", before anything is signed.
 
 Conventions enforced in the UI: total at most 25%, shares summing to 100%, remainder to the first recipient. The contract caps the on-chain total at 25%.

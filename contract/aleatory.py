@@ -229,7 +229,6 @@ def aleatory():
     class AleatoryCollection(
         main.Nft,
         main.OnchainviewBalanceOf,
-        main.OffchainviewTokenMetadata,
     ):
         """One project: one generator, one edition, owned by the artist.
 
@@ -250,7 +249,6 @@ def aleatory():
             sp.cast(init, t_collection_init)
 
             main.OnchainviewBalanceOf.__init__(self)
-            main.OffchainviewTokenMetadata.__init__(self)
             main.Nft.__init__(self, init.metadata, {}, [])
 
             self.data.administrator = init.administrator

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/themeToggle";
 import { ConnectButton } from "./ConnectButton";
 import { BRAND, NETWORK } from "@/lib/config";
@@ -15,7 +16,10 @@ export function Header() {
     return (
         <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
             <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
-                <Link href="/" className="font-semibold tracking-tight">
+                <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+                    {/* Today's variant. Everyone sees the same one on a given
+                        date, which keeps server and client renders in step. */}
+                    <Logo size={28} daily />
                     {BRAND.name}
                 </Link>
 
