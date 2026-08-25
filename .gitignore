@@ -9,7 +9,6 @@ contract/__pycache__/
 # deploy scripts
 .env
 contract/build/
-contract/deployments/
 
 # next
 .next/

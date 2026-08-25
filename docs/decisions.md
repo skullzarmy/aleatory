@@ -194,9 +194,30 @@ We run a secondary market for pieces minted here: listings and offers, both escr
 
 ---
 
+## 12a. What it costs, measured
+
+Originated on shadownet 2026-08-25. Protocol constants read live: 250 mutez per byte, 32,768 bytes per operation, gas caps of 1,040,000 both per operation and per block.
+
+| | cost | bytes |
+|---|---|---|
+| Factory origination, once, ours | 4.22 ꜩ | 16,792 |
+| Collection deploy, per artist | 3.56 ꜩ | 14,237 |
+| Mint, per collector | 0.052 ꜩ | 208 |
+
+The factory carries a copy of the collection template, and that whole operation is 16,792 bytes against the 32,768 cap. It fits with room to grow.
+
+**A collection costing an artist 3.56 ꜩ is the number to watch.** It is real money charged to the people this is built for, and it comes almost entirely from the template's size. Trimming the fa2_lib mixins we do not use is the obvious lever.
+
+A mint costs a collector about five hundredths of a tez in burn on top of the price and the render gas, and it stays flat as an edition grows.
+
+Addresses are in `contract/deployments/shadownet.json`.
+
+---
+
 ## 13. Still open
 
 - **A number for `deploy_price`**, resolved 2026-08-23: zero.
 - **Renderer hardening**, network blocked before the first byte, frozen clock, bundled fonts only, hard kill, server-side hashing. Tracked as work, not as an open question.
 - **objkt royalty verification** on testnet before any mainnet collection exists.
 - **Template audit** before mainnet. The single largest remaining risk.
+- **Trimming the collection template**, since its size is what an artist pays at deploy.

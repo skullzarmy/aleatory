@@ -55,6 +55,55 @@ const RPC_URL = process.env.TEZOS_RPC || DEFAULT_RPC[NETWORK]
 /** Tezos caps a single operation at 32,768 bytes, code included. */
 const MAX_OPERATION_BYTES = 32768
 
+/**
+ * Chain limits, read live.
+ *
+ * On shadownet `hard_gas_limit_per_operation` equals
+ * `hard_gas_limit_per_block`, so an operation submitted at the per-operation
+ * maximum consumes the entire block budget and the node rejects it with
+ * `gas_exhausted.block`. Taquito's estimator simulates at that maximum, which
+ * is why estimation fails there on contracts of any size.
+ *
+ * Reading both and staying under the block ceiling is what makes an
+ * origination land.
+ */
+interface ChainLimits {
+  gasPerOperation: number
+  gasPerBlock: number
+  storagePerOperation: number
+  costPerByte: number
+}
+
+async function chainLimits(tezos: TezosToolkit): Promise<ChainLimits> {
+  const c = (await tezos.rpc.getConstants()) as unknown as {
+    hard_gas_limit_per_operation: { toNumber(): number }
+    hard_gas_limit_per_block: { toNumber(): number }
+    hard_storage_limit_per_operation: { toNumber(): number }
+    cost_per_byte: { toNumber(): number }
+  }
+  return {
+    gasPerOperation: c.hard_gas_limit_per_operation.toNumber(),
+    gasPerBlock: c.hard_gas_limit_per_block.toNumber(),
+    storagePerOperation: c.hard_storage_limit_per_operation.toNumber(),
+    costPerByte: c.cost_per_byte.toNumber(),
+  }
+}
+
+/**
+ * Limits to submit with when estimation is unavailable.
+ *
+ * Well under the block ceiling, since the operation has to fit inside a block
+ * alongside whatever else is in it.
+ */
+function fallbackLimits(limits: ChainLimits) {
+  const ceiling = Math.min(limits.gasPerOperation, limits.gasPerBlock)
+  return {
+    gasLimit: Math.floor(ceiling * 0.75),
+    storageLimit: limits.storagePerOperation,
+    fee: 100_000,
+  }
+}
+
 type Name = 'resolver' | 'provider' | 'registry' | 'factory' | 'marketplace'
 
 const CONTRACT_DIR: Record<Name, string> = {
@@ -243,6 +292,11 @@ async function main() {
     }
   }
 
+  const limits = await chainLimits(tezos)
+  console.log(
+    `  gas caps  ${limits.gasPerOperation} per op, ${limits.gasPerBlock} per block`,
+  )
+
   if (!DRY_RUN) await ensureRevealed(tezos, signer)
 
   for (const name of targets) {
@@ -255,37 +309,63 @@ async function main() {
     console.log(`\n${name}`)
     console.log(`  micheline json  ${codeBytes.toLocaleString()} bytes`)
 
-    let estimate
+    let explicit: { gasLimit: number; storageLimit: number; fee: number } | null = null
     try {
-      estimate = await tezos.estimate.originate({ code: code as never, storage: storageFor(name) })
-    } catch (e) {
-      console.error(`  ✗ estimation failed: ${(e as Error).message}`)
-      // Name the operation-size failure directly. An RPC error string on
-      // its own sends you looking in the wrong place.
-      if (String(e).match(/operation.*too large|exceeds|size/i)) {
-        console.error(
-          `\n  This looks like the ${MAX_OPERATION_BYTES}-byte operation cap.\n` +
-            `  If so, ${name} cannot be originated as one operation and the fix is\n` +
-            `  architectural, not a deploy flag, see task 28.`,
-        )
+      const estimate = await tezos.estimate.originate({
+        code: code as never,
+        storage: storageFor(name),
+      })
+      console.log(
+        `  storage burn    ${(estimate.burnFeeMutez / 1_000_000).toFixed(6)} tez  (${estimate.storageLimit} bytes)`,
+      )
+      console.log(`  gas             ${estimate.gasLimit}`)
+      console.log(`  total cost      ${(estimate.totalCost / 1_000_000).toFixed(6)} tez`)
+      if (estimate.opSize && estimate.opSize > MAX_OPERATION_BYTES) {
+        console.error(`  ✗ operation is ${estimate.opSize} bytes, over the ${MAX_OPERATION_BYTES} cap`)
+        process.exit(1)
       }
-      process.exit(1)
-    }
-
-    const burn = estimate.burnFeeMutez
-    console.log(`  storage burn    ${(burn / 1_000_000).toFixed(6)} tez  (${estimate.storageLimit} bytes)`)
-    console.log(`  gas             ${estimate.gasLimit}`)
-    console.log(`  total cost      ${((estimate.totalCost) / 1_000_000).toFixed(6)} tez`)
-    if (estimate.opSize && estimate.opSize > MAX_OPERATION_BYTES) {
-      console.error(`  ✗ operation is ${estimate.opSize} bytes, over the ${MAX_OPERATION_BYTES} cap`)
-      process.exit(1)
+    } catch (e) {
+      const msg = String(e)
+      if (msg.match(/operation.*too large|too_large|size/i)) {
+        console.error(`  ✗ ${(e as Error).message}`)
+        console.error(
+          `\n  This is the ${MAX_OPERATION_BYTES}-byte operation cap. ${name} cannot be\n` +
+            `  originated as one operation, and the fix is architectural.`,
+        )
+        process.exit(1)
+      }
+      if (msg.match(/gas_exhausted|gas_limit_too_high/i)) {
+        // The estimator simulates at the per-operation maximum, which on this
+        // chain is the whole block. Submit explicit limits instead.
+        explicit = fallbackLimits(limits)
+        console.log(
+          `  estimation unavailable on ${NETWORK} (gas caps are equal), submitting explicit limits`,
+        )
+        console.log(`  gas             ${explicit.gasLimit}`)
+        console.log(`  storage limit   ${explicit.storageLimit} bytes`)
+        console.log(
+          `  burn ceiling    ${((explicit.storageLimit * limits.costPerByte) / 1_000_000).toFixed(6)} tez  (actual is charged on what is used)`,
+        )
+      } else {
+        console.error(`  ✗ ${(e as Error).message}`)
+        process.exit(1)
+      }
     }
 
     if (DRY_RUN) continue
 
-    const op = await tezos.contract.originate({ code: code as never, storage: storageFor(name) })
+    const op = await tezos.contract.originate({
+      code: code as never,
+      storage: storageFor(name),
+      ...(explicit ?? {}),
+    })
     console.log(`  injected ${op.hash}, confirming...`)
     const contract = await op.contract()
+    // What it actually cost, read from the receipt.
+    console.log(
+      `  cost            ${((op.fee + (op.storageDiff ?? 0) * limits.costPerByte) / 1_000_000).toFixed(6)} tez` +
+        `  (fee ${op.fee}, storage ${op.storageDiff ?? 0} bytes)`,
+    )
     deployed[name] = contract.address
     writeDeployments(deployed)
     console.log(`  ✓ ${contract.address}`)
