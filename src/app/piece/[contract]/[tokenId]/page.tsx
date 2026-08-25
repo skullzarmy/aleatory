@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { fetchPiece } from "@/lib/piece";
 import { ArtifactFrame } from "@/components/piece/ArtifactFrame";
 import { PieceFacts } from "@/components/piece/PieceFacts";
+import { PieceMarket } from "@/components/piece/PieceMarket";
+import { fetchListingFor, fetchOffersFor } from "@/lib/market";
 import { BRAND } from "@/lib/config";
 
 export const revalidate = 30;
@@ -30,6 +32,12 @@ export default async function PiecePage({ params }: { params: Params }) {
     const piece = await fetchPiece(contract, tokenId);
     if (!piece) notFound();
 
+    const [listing, offers] = await Promise.all([
+        fetchListingFor(contract, tokenId).catch(() => null),
+        fetchOffersFor(contract, tokenId).catch(() => []),
+    ]);
+    const royaltyTotal = piece.royalties.reduce((n, r) => n + r.bps, 0);
+
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -51,6 +59,17 @@ export default async function PiecePage({ params }: { params: Params }) {
                             the artwork runs from chain state above.
                         </p>
                     )}
+
+                    <div className="mt-4">
+                        <PieceMarket
+                            contract={contract}
+                            tokenId={tokenId}
+                            owner={piece.owner}
+                            listing={listing}
+                            offers={offers}
+                            royaltyBps={royaltyTotal}
+                        />
+                    </div>
 
                     <div className="mt-4">
                         <PieceFacts piece={piece} />

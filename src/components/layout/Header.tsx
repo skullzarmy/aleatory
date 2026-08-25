@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/themeToggle";
+import { ConnectButton } from "./ConnectButton";
 import { BRAND, NETWORK } from "@/lib/config";
 
 const NAV = [
@@ -36,6 +37,7 @@ export function Header() {
                         </span>
                     )}
                     <ThemeToggle />
+                    <ConnectButton />
                 </div>
             </div>
         </header>
