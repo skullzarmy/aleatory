@@ -3,8 +3,7 @@ import { fetchRecentFeed } from "@/lib/feed";
 import { FeedGrid, FeedGridSkeleton } from "@/components/feed/FeedGrid";
 import { EmptyFeed } from "@/components/feed/EmptyFeed";
 
-// Chain state moves, and a feed that is a minute stale is fine. Anything
-// longer and a fresh mint looks lost.
+// A fresh mint should appear within about half a minute.
 export const revalidate = 30;
 
 async function Recent() {

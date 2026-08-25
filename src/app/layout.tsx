@@ -11,7 +11,7 @@ const anybody = Anybody({ subsets: ["latin"], display: "swap" });
 export const metadata: Metadata = {
     metadataBase: new URL(BRAND.url),
     title: {
-        default: `${BRAND.name} — ${BRAND.tagline}`,
+        default: `${BRAND.name}, ${BRAND.tagline}`,
         template: `%s · ${BRAND.name}`,
     },
     description: BRAND.description,

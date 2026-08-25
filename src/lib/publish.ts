@@ -1,9 +1,9 @@
 /**
- * Aleatory — testnet publish and mint.
+ * Aleatory, testnet publish and mint.
  *
  * v0 publishes one contract per project: a stock FA2 whose contract metadata
  * carries the generator record AND the generator code itself, on chain, in
- * storage. That is a real Class A/B publish, not a simulation of one — the
+ * storage. That is a real Class A/B publish, not a simulation of one, the
  * bytes are burned, the estimate can be checked against the receipt, and the
  * piece renders from chain state.
  *
@@ -29,7 +29,7 @@ export const CODE_KEY = "aleatory:code";
 /** Storage key the generator record lives under. */
 export const RECORD_KEY = "aleatory:record";
 /**
- * Storage key the parameter declaration lives under — written only when the
+ * Storage key the parameter declaration lives under, written only when the
  * generator declares parameters.
  *
  * It is already inside the record, so this is a duplicate of a few hundred
@@ -78,7 +78,7 @@ function sortedStringMap(entries: Array<[string, Mich]>): Mich {
 
 /**
  * Storage for the project contract. Same layout as the FA2 deployer's Basic
- * (MultiAsset) contract, with no tokens at origination — pieces are created
+ * (MultiAsset) contract, with no tokens at origination, pieces are created
  * one at a time by minting, so each gets its own operation hash to seed from.
  */
 function buildStorage(admin: string, record: GeneratorRecord, code: string, coverUri?: string | null): Mich {
@@ -105,7 +105,7 @@ function buildStorage(admin: string, record: GeneratorRecord, code: string, cove
         [RECORD_KEY, bytes(toHex(JSON.stringify(record)))],
         [CODE_KEY, bytes(toHex(code))],
     ];
-    // Only when there is something to declare — an absent key and an empty
+    // Only when there is something to declare, an absent key and an empty
     // declaration must not be two ways of saying the same thing.
     if (record.params_schema && record.params_schema.params.length > 0) {
         entries.push([PARAMS_KEY, bytes(toHex(JSON.stringify(record.params_schema)))]);
@@ -157,7 +157,7 @@ export async function publishGenerator(
  *
  * `/v1/operations/{hash}` returns every operation in the batch; the
  * origination carries the new address. (Deliberately not the `?hash=` filter
- * on the typed endpoints — it is silently ignored there.)
+ * on the typed endpoints, it is silently ignored there.)
  */
 export async function waitForContract(
     net: DeployNetwork,
@@ -181,11 +181,11 @@ export async function waitForContract(
             }
         } catch (err) {
             if (err instanceof Error && err.message.startsWith("Origination ")) throw err;
-            // Indexer lag or a transient network error — keep waiting.
+            // Indexer lag or a transient network error, keep waiting.
         }
         await new Promise((r) => setTimeout(r, intervalMs));
     }
-    throw new Error("The indexer has not reported the contract yet. It is on chain — check the operation link.");
+    throw new Error("The indexer has not reported the contract yet. It is on chain, check the operation link.");
 }
 
 // ---------------------------------------------------------------------------
@@ -216,7 +216,7 @@ export interface TokenInfoInput {
  * The token_info key/value pairs, before Micheline encoding.
  *
  * Exported so the cost estimate can measure exactly what a mint will store,
- * rather than guessing at it — the estimate and the operation read the same
+ * rather than guessing at it, the estimate and the operation read the same
  * list, so they cannot drift apart.
  */
 export function tokenInfoEntries(input: TokenInfoInput): Array<[string, string]> {
@@ -335,7 +335,7 @@ export async function waitForApplied(
         }
         await new Promise((r) => setTimeout(r, intervalMs));
     }
-    throw new Error("The indexer has not reported the mint yet — it may still land. Check the operation link.");
+    throw new Error("The indexer has not reported the mint yet, it may still land. Check the operation link.");
 }
 
 // ---------------------------------------------------------------------------
@@ -356,7 +356,7 @@ function hexToText(hex: string): string {
 }
 
 /**
- * Rebuild a generator from chain state alone — contract metadata in, runnable
+ * Rebuild a generator from chain state alone, contract metadata in, runnable
  * piece out. This is the resurrection path in miniature: no front end, no
  * indexer of ours, no server.
  */
@@ -373,7 +373,7 @@ export async function loadGenerator(net: DeployNetwork, contract: string): Promi
     const find = (k: string) => keys.find((entry) => entry.key === k && entry.active !== false)?.value;
     const codeHex = find(CODE_KEY);
     const recordHex = find(RECORD_KEY);
-    if (!codeHex) throw new Error("This contract carries no aleatory code — it is not a Aleatory generator.");
+    if (!codeHex) throw new Error("This contract carries no aleatory code, it is not a Aleatory generator.");
 
     const code = hexToText(codeHex);
     const record = recordHex ? (JSON.parse(hexToText(recordHex)) as GeneratorRecord) : null;
@@ -384,7 +384,7 @@ export async function loadGenerator(net: DeployNetwork, contract: string): Promi
 
 export interface OnChainPiece {
     tokenId: number;
-    /** The mint operation hash — the seed source. */
+    /** The mint operation hash, the seed source. */
     opHash: string;
     seed: string;
     owner: string;
@@ -395,7 +395,7 @@ export interface OnChainPiece {
  * and the parameter values that were written with them.
  *
  * The values come out of the mint operation's own `token_info`, not from
- * anything we stored — the same place any other reader would get them.
+ * anything we stored, the same place any other reader would get them.
  */
 export async function loadPieces(
     net: DeployNetwork,

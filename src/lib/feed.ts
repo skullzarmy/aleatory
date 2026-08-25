@@ -1,10 +1,7 @@
 /**
  * The recent feed: pieces minted across every Aleatory collection, newest
- * first.
- *
- * Assembled from public chain data, so the same view is reproducible by
- * anyone against TzKT. Before the first collection exists this returns an
- * empty feed, which the UI shows as a state of its own.
+ * first. Assembled from public chain data, so anyone can reproduce it against
+ * TzKT.
  */
 import { CONTRACTS } from "./config";
 import {
@@ -28,8 +25,8 @@ export interface FeedPiece {
     artifactUrl?: string;
     /**
      * True while the piece still carries its collection's "not revealed yet"
-     * document. A real token either way: what it is comes from chain state,
-     * and the metadata describes it. See docs/decisions.md §4.
+     * document. The piece itself comes from chain state, and the metadata
+     * describes it. See docs/decisions.md §4.
      */
     pending: boolean;
 }
@@ -37,10 +34,10 @@ export interface FeedPiece {
 function toPiece(t: TzktToken, collectionAlias?: string): FeedPiece {
     const m = t.metadata;
     const display = m?.displayUri || m?.thumbnailUri;
-    // A piece is awaiting its render when the metadata carries no image of
-    // its own. The definitive check compares token_info[""] against the
-    // collection's pending document; this is the cheap version, and it agrees
-    // with it in every case the feed cares about.
+    // A piece is awaiting its render when its metadata carries no image.
+    // The exact check compares token_info[""] against the collection's
+    // pending document, which matters on a piece page. For a feed row this
+    // is equivalent and costs one fewer request.
     const pending = !display;
     return {
         key: `${t.contract.address}:${t.tokenId}`,
@@ -59,7 +56,7 @@ function toPiece(t: TzktToken, collectionAlias?: string): FeedPiece {
 export interface RecentFeed {
     pieces: FeedPiece[];
     collectionCount: number;
-    /** No factory configured yet, which is different from a quiet feed. */
+    /** True when no factory address is set. Distinct from a quiet feed. */
     unconfigured: boolean;
 }
 

@@ -1,6 +1,6 @@
 /** biome-ignore-all lint/suspicious/noCommentText: `// …` is the house voice in lab copy */
 /**
- * Aleatory — the params panel.
+ * Aleatory, the params panel.
  *
  * Two components, and the split between them is the whole point:
  *
@@ -8,7 +8,7 @@
  *   <ParamsTuner>        anyone turns them
  *
  * The tuner is built from nothing but the declaration. It reads no template, no
- * kind, no code — feed it a schema fetched from contract storage and it renders
+ * kind, no code, feed it a schema fetched from contract storage and it renders
  * the right controls. That is deliberate: it is the reference implementation of
  * the mint UI another platform has to be able to build for our generators
  * without our source (docs/aleatory/params.md), and keeping it honest is easier
@@ -75,7 +75,7 @@ const TYPES: Array<{ id: ParamType; label: string }> = [
 ];
 
 // ---------------------------------------------------------------------------
-// Declaration — the artist's side
+// Declaration, the artist's side
 // ---------------------------------------------------------------------------
 
 interface DeclarationProps {
@@ -106,7 +106,7 @@ export function ParamsDeclaration({ specs, onChange }: DeclarationProps) {
         <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
             {specs.length === 0 && (
                 <p style={{ fontFamily: mono, fontSize: "0.72rem", color: "var(--fg-muted)", margin: 0, lineHeight: 1.7 }}>
-                    // no parameters. that is the normal case — a piece can be the seed alone. declare one and it becomes a control
+                    // no parameters. that is the normal case, a piece can be the seed alone. declare one and it becomes a control
                     the minter turns, stored on chain with their token.
                 </p>
             )}
@@ -273,7 +273,7 @@ function DefaultInput({ spec, onChange }: { spec: ParamSpec; onChange: (value: P
 }
 
 // ---------------------------------------------------------------------------
-// Tuner — everyone else's side
+// Tuner, everyone else's side
 // ---------------------------------------------------------------------------
 
 interface TunerProps {

@@ -1,5 +1,5 @@
 /**
- * Aleatory — sandbox document builder.
+ * Aleatory, sandbox document builder.
  *
  * Takes an artist's HTML document, injects the harness, the resolved
  * dependencies and a locked-down CSP, and returns a single self-contained
@@ -10,7 +10,7 @@
  *  1. Dependency resolution is a PRE-RENDER step. Libraries are inlined into
  *     the document before it ever runs, exactly as they will be when they come
  *     from the on-chain Deps contract instead of a manifest. The piece itself
- *     never touches the network — the CSP makes that structural, not advisory.
+ *     never touches the network, the CSP makes that structural, not advisory.
  *  2. The harness must run before anything the artist wrote, or the PRNG and
  *     the network overrides land too late to mean anything.
  */
@@ -94,7 +94,7 @@ export function buildSandboxDoc(html: string, opts: SandboxOptions): string {
     return `<!doctype html><html><head>\n${injected}\n</head><body>\n${html}\n</body></html>`;
 }
 
-/** A fresh 256-bit seed, hex. Used for sandbox runs — minted pieces derive
+/** A fresh 256-bit seed, hex. Used for sandbox runs, minted pieces derive
  *  theirs from chain state instead (see record.deriveSeed). */
 export function randomSeed(): string {
     const bytes = new Uint8Array(32);
@@ -105,7 +105,7 @@ export function randomSeed(): string {
 /** Deterministic seed sequence for grid previews, so the grid is stable across
  *  reloads and shareable by its base seed. */
 export function seedAt(base: string, index: number): string {
-    // Mix the index into the base with a cheap avalanche — good enough to
+    // Mix the index into the base with a cheap avalanche, good enough to
     // decorrelate neighbouring grid cells, and reproducible anywhere.
     let h1 = 0x811c9dc5 ^ index;
     let h2 = 0x9e3779b9 + index * 0x85ebca6b;

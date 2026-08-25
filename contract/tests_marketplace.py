@@ -115,7 +115,7 @@ def _market(scenario, admin, treasury, fee_bps=250):
 
 @sp.add_test()
 def test_list_buy_and_split():
-    """A sale pays the platform, then the artists, then the seller — and
+    """A sale pays the platform, then the artists, then the seller, and
     the royalty numbers come from the collection, not the listing."""
     scenario = sp.test_scenario("Sale", [stub, marketplace])
     admin = sp.test_account("Admin")
@@ -187,7 +187,7 @@ def test_seller_cannot_zero_out_royalties():
 @sp.add_test()
 def test_plain_fa2_without_royalties_still_trades():
     """A collection that exposes no royalties view pays none, rather than
-    failing — which is what lets this market carry ordinary FA2s too."""
+    failing, which is what lets this market carry ordinary FA2s too."""
     scenario = sp.test_scenario("Plain FA2", [stub, marketplace])
     admin = sp.test_account("Admin")
     treasury = sp.test_account("Treasury")

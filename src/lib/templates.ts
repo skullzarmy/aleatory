@@ -1,17 +1,17 @@
 /**
- * Aleatory — starter templates.
+ * Aleatory, starter templates.
  *
  * One per runtime kind. Each is a complete, single-file index.html that also
  * runs by being opened directly from disk: the `$alea` guard at the top provides
  * a local dev harness with a random seed when the real one isn't there. That
- * is the loop artists actually live in — reload for a new seed, pin one by URL
- * (?seed=…) — and it means nothing about working locally depends on us.
+ * is the loop artists actually live in, reload for a new seed, pin one by URL
+ * (?seed=…), and it means nothing about working locally depends on us.
  */
 import type { ParamSpec } from "./params";
 import { RUNTIME_KINDS } from "./runtimes";
 
 /** The dev-harness guard prepended to every template. */
-const DEV_SHIM = `    // Dev harness — only used when this file is opened outside the sandbox.
+const DEV_SHIM = `    // Dev harness, only used when this file is opened outside the sandbox.
     // Reload for a new seed, pin one with ?seed=<hex>, and set any declared
     // parameter with ?p.<name>=<value>, e.g. ?p.density=220.
     if (!window.$alea) {
@@ -45,13 +45,13 @@ const DEV_SHIM = `    // Dev harness — only used when this file is opened outs
           return v !== "" && !isNaN(Number(v)) ? Number(v) : v;
         },
         features: function (o) { console.log("features", o); return o; },
-        ready: function () { console.log("ready — captured here"); }
+        ready: function () { console.log("ready, captured here"); }
       };
       window.$alea.paramsSchema = [];
       // The fxhash-era names, so a sketch written against them runs locally too.
       window.fxhash = seed;
       window.fxrand = rand;
-      window.fxpreview = function () { console.log("fxpreview — captured here"); };
+      window.fxpreview = function () { console.log("fxpreview, captured here"); };
       window.$fx = {
         hash: seed, rand: rand, isPreview: false,
         preview: window.fxpreview,
@@ -60,10 +60,10 @@ const DEV_SHIM = `    // Dev harness — only used when this file is opened outs
         getFeatures: function () { return window.$fxhashFeatures || {}; },
         getParam: function (n) { return window.$alea.param(n, undefined); },
         getParams: function () { return window.$alea.params; },
-        params: function (d) { console.log("params declared in code — move them to the params panel to publish", d); return d; }
+        params: function (d) { console.log("params declared in code, move them to the params panel to publish", d); return d; }
       };
 
-      // A ALEA_MAIN piece is driven by the harness, not by itself — so opened
+      // A ALEA_MAIN piece is driven by the harness, not by itself, so opened
       // directly, with no harness present, nothing would ever call it. The dev
       // harness drives the lifecycle in the same order the real one does, after
       // layout, so a custom-runtime piece behaves the same in both places.
@@ -87,7 +87,7 @@ const DEV_SHIM = `    // Dev harness — only used when this file is opened outs
         }
       };
       var devBootWhenLaidOut = function () {
-        // Never wait on requestAnimationFrame alone — it is throttled to nothing in
+        // Never wait on requestAnimationFrame alone, it is throttled to nothing in
         // a background tab, and a piece that only boots when watched is not a piece.
         requestAnimationFrame(devBoot);
         setTimeout(devBoot, 250);
@@ -136,7 +136,7 @@ ${DEV_SHIM}
   var density = alea.param("density", 140);
   var spread  = alea.param("spread", 0.35);
 
-  // Declare traits. These are indexed and shown to collectors — keep them
+  // Declare traits. These are indexed and shown to collectors, keep them
   // meaningful, not decorative. Traits derived from a parameter are honest;
   // just remember two collectors can now share one.
   alea.features({
@@ -205,7 +205,7 @@ ${DEV_SHIM}
     if (drawn) return;
     drawn = true;
     draw();
-    // The capture point. Fire it once, when the piece is finished — previews
+    // The capture point. Fire it once, when the piece is finished, previews
     // are taken here, and they must be reproducible.
     alea.ready();
   }
@@ -232,9 +232,9 @@ ${DEV_SHIM}
   var alea = window.$alea;
 
   // SVG output is text, which makes it the cheapest thing to seal fully on
-  // chain — the entire artwork, code and all, in contract storage.
+  // chain, the entire artwork, code and all, in contract storage.
 
-  // Declared parameters — the names come from the params panel, and a mint UI
+  // Declared parameters, the names come from the params panel, and a mint UI
   // anywhere builds its own controls from the same declaration.
   var INK = { black: "#111111", red: "#d4462f", blue: "#1b3b6f", amber: "#f2b134", green: "#3a7d44" };
   var ink = INK[alea.param("ink", "black")] || INK.black;
@@ -291,7 +291,7 @@ const P5_TEMPLATE = `<!doctype html>
   <style>html,body{margin:0;height:100%;background:#0b0b0c;overflow:hidden}canvas{display:block}</style>
   <!--
     p5 is NOT bundled here. It is a shared dependency, resolved by hash before
-    the piece boots — paid for once by the commons, referenced by every project
+    the piece boots, paid for once by the commons, referenced by every project
     after that. Publishing records the pinned version (1.5.0) in the generator
     record, so this sketch boots into this p5 forever.
 
@@ -379,13 +379,13 @@ const CUSTOM_TEMPLATE = `<!doctype html>
 ${DEV_SHIM}
 
 // The "custom" kind: bring any engine you like. Implement the lifecycle and
-// everything downstream — determinism checks, capture, cost, publishing,
-// indexing, market — works identically to a first-party runtime.
+// everything downstream, determinism checks, capture, cost, publishing,
+// indexing, market, works identically to a first-party runtime.
 //
-//   boot(ctx)      required — called once, before anything is drawn
-//   render(ctx)    required — produce the output
-//   features()     optional — traits derived from the seed
-//   resize(w, h)   optional — omit and the harness re-boots at the new size
+//   boot(ctx)      required, called once, before anything is drawn
+//   render(ctx)    required, produce the output
+//   features()     optional, traits derived from the seed
+//   resize(w, h)   optional, omit and the harness re-boots at the new size
 //
 // ctx is $alea: { seed, rand(), randInt(), randBetween(), pick(), chance(),
 //               param(name, fallback), features(obj), ready() }
@@ -407,7 +407,7 @@ window.ALEA_MAIN = {
 
     this.hue = alea.randInt(0, 359);
     // Declared parameters. ctx.param(name, fallback) is the same call in every
-    // runtime kind — the declaration lives in the params panel, not in here.
+    // runtime kind, the declaration lives in the params panel, not in here.
     this.bars = alea.param("bars", 18);
     var chroma = alea.param("chroma", 0.6);
     this.rows = [];
@@ -463,9 +463,9 @@ const BY_KIND: Record<string, string> = {
 /**
  * The parameter declarations each template's code is written against.
  *
- * Loading a template loads these into the params panel, so the two halves —
+ * Loading a template loads these into the params panel, so the two halves , 
  * the `alea.param("density", …)` call and the declaration a collector's control
- * is built from — arrive already agreeing with each other. An artist starting
+ * is built from, arrive already agreeing with each other. An artist starting
  * from a template sees a working example of the whole mechanism rather than a
  * feature they have to go find.
  */

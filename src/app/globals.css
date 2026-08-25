@@ -75,8 +75,8 @@ body {
     }
 }
 
-/* A piece awaiting its render. Deliberately legible as a state of its own
-   rather than as a broken image: an unrevealed token is a real token. */
+/* A piece awaiting its render. An unrevealed token is a real token, and this
+   is what that looks like. */
 @layer components {
     .pending-shimmer {
         @apply relative overflow-hidden bg-muted;

@@ -1,10 +1,10 @@
-# Architecture — Aleatory
+# Architecture, Aleatory
 
 **Status:** draft, 2026-08-01. Shape, not spec.
 
 The front end is disposable and the protocol is the platform. This document is what that means in contracts.
 
-**What v0 actually implements** (the lab at `/labs/aleatory`, see [roadmap.md](roadmap.md) §1): the record in §3, the seed derivation in §5, the class labelling in §6, the renderer standard in §7 including declared mint-time parameters ([params.md](params.md)), and the chain-only rebuild in §9 are all real and running on testnets. Three things are still stand-ins, and each is called out where it appears: the Runtimes catalogue lives in code rather than in an append-only contract; shared libraries resolve from a manifest rather than from the Deps contract; and a project is a stock FA2 whose contract metadata carries both the record and the code, rather than the four separate contracts below. The record shape does not change when those move on chain — that is the point of designing it first.
+**What v0 actually implements** (the lab at `/labs/aleatory`, see [roadmap.md](roadmap.md) §1): the record in §3, the seed derivation in §5, the class labelling in §6, the renderer standard in §7 including declared mint-time parameters ([params.md](params.md)), and the chain-only rebuild in §9 are all real and running on testnets. Three things are still stand-ins, and each is called out where it appears: the Runtimes catalogue lives in code rather than in an append-only contract; shared libraries resolve from a manifest rather than from the Deps contract; and a project is a stock FA2 whose contract metadata carries both the record and the code, rather than the four separate contracts below. The record shape does not change when those move on chain, that is the point of designing it first.
 
 ---
 
@@ -44,25 +44,25 @@ The price of that guarantee is real: a bug in the template is frozen into every 
 
 ### Deploy is one operation
 
-The artist calls `deploy` with the fee. The factory originates the collection in that same operation with the artist already installed as its administrator *in the initial storage* — nothing is ever held by us and transferred, and there is no second signature.
+The artist calls `deploy` with the fee. The factory originates the collection in that same operation with the artist already installed as its administrator *in the initial storage*, nothing is ever held by us and transferred, and there is no second signature.
 
 Storage burn and gas are charged to the operation's source, which is the artist's wallet, as Tezos charges all storage to the payer including for internal originations. The factory fronts nothing.
 
-**There is no deploy fee.** It is zero: the artist's own origination burn and gas are the only cost, which is already a real floor against spam. `deploy_price` exists as an admin-settable field starting at 0 so an anti-spam lever remains possible without a new factory, and any change would be visible on chain. Sales carry no platform cut either — the mint price goes to the artist and the render gas to the provider. Our income is the render service.
+**There is no deploy fee.** It is zero: the artist's own origination burn and gas are the only cost, which is already a real floor against spam. `deploy_price` exists as an admin-settable field starting at 0 so an anti-spam lever remains possible without a new factory, and any change would be visible on chain. Sales carry no platform cut either, the mint price goes to the artist and the render gas to the provider. Our income is the render service.
 
 ### Changing the template means a new factory
 
-The template is Michelson code compiled into the factory, and contract code is immutable — no lambda can rewrite it. So a new template is a new factory. That is cheap: it deploys new collections, existing ones are untouched, and nothing migrates.
+The template is Michelson code compiled into the factory, and contract code is immutable, no lambda can rewrite it. So a new template is a new factory. That is cheap: it deploys new collections, existing ones are untouched, and nothing migrates.
 
 ### The template is not required
 
-Anything that is standard FA2 + TZIP-21 gets indexed, rendered and traded — by us, by objkt, by anyone. What a third-party contract must match in order to use our render-and-mint backend is the `buy`/`mint` **interface**, not this implementation.
+Anything that is standard FA2 + TZIP-21 gets indexed, rendered and traded, by us, by objkt, by anyone. What a third-party contract must match in order to use our render-and-mint backend is the `buy`/`mint` **interface**, not this implementation.
 
 So the artifact that has to be right is the published interface. The template is its reference implementation, and someone who writes their own to that interface is a first-class citizen. Someone who writes something else entirely still gets indexed and displayed; they just mint their own way.
 
 ### The resolver, and its failure mode
 
-Collections store the resolver address immutably and consult it through an on-chain view at mint. Rotating a leaked backend key is one operation instead of one per collection ever deployed — which matters most at exactly the moment you are compromised and slow.
+Collections store the resolver address immutably and consult it through an on-chain view at mint. Rotating a leaked backend key is one operation instead of one per collection ever deployed, which matters most at exactly the moment you are compromised and slow.
 
 The cost, stated plainly: whoever administers the resolver can authorise a minter into every collection that trusts it.
 
@@ -70,7 +70,7 @@ Two things bound that. A collection's resolver is fixed at origination, so we ca
 
 ---
 
-## 3. The generator record — versioned and typed
+## 3. The generator record, versioned and typed
 
 The single most consequential design decision, because Registry entries are immutable and the contract is meant to never be replaced. Anything not extensible here becomes a migration later.
 
@@ -97,7 +97,7 @@ GeneratorRecord {
 
   runtime : {                          # the type struct
     kind_id         : nat              # -> Runtimes contract
-    kind_version    : string           # e.g. "1.5.0" — the library/dialect version
+    kind_version    : string           # e.g. "1.5.0", the library/dialect version
   }
   standard_version  : nat              # entry-point lifecycle the code conforms to
 
@@ -129,7 +129,7 @@ RuntimeKind {
 
 **Kinds live in an append-only contract, not in an enum in the Registry.** An enum means adding a runtime in 2029 requires a new Registry contract and a migration of everything published before it. A catalogue means it requires one append operation, and every record ever written keeps parsing.
 
-A kind is never edited. A better p5 harness is a *new kind_id*, and old projects keep pointing at the old one. Deprecation marks a kind as discouraged for new publishes and changes nothing about existing work — pieces minted against a deprecated kind render identically forever, which is the promise in [pipeline.md](pipeline.md) §5.
+A kind is never edited. A better p5 harness is a *new kind_id*, and old projects keep pointing at the old one. Deprecation marks a kind as discouraged for new publishes and changes nothing about existing work, pieces minted against a deprecated kind render identically forever, which is the promise in [pipeline.md](pipeline.md) §5.
 
 ### Standard entry points
 
@@ -143,7 +143,7 @@ Every kind implements the same lifecycle, whatever the underlying library, expor
 | **features()** | optional | Returns the trait map derived from the seed. |
 | **resize(w, h)** | optional | Absent means the harness re-boots at the new size. |
 
-This is what makes "custom code" a first-class kind rather than an escape hatch. An artist bringing an engine nobody here has heard of implements five functions and declares `kind: custom` with their harness bundled or referenced. They get every guarantee — determinism check, capture, indexing, market — without asking anyone to add support for their toolchain.
+This is what makes "custom code" a first-class kind rather than an escape hatch. An artist bringing an engine nobody here has heard of implements five functions and declares `kind: custom` with their harness bundled or referenced. They get every guarantee, determinism check, capture, indexing, market, without asking anyone to add support for their toolchain.
 
 ### Forward-compatibility rules
 
@@ -154,7 +154,7 @@ This is what makes "custom code" a first-class kind rather than an escape hatch.
 
 ---
 
-## 4. Supply and sale — on-demand only
+## 4. Supply and sale, on-demand only
 
 **Pieces are minted on demand, against a purchase.** A collector calls `buy` and pays; nothing is minted in advance and put up for sale.
 
@@ -168,7 +168,7 @@ Established Tezos NFT behaviour, not invented here. The artist controls the supp
 
 | | |
 |---|---|
-| Pause / unpause the sale | Any time. Never affects transfers — a paused collection still trades on secondary. |
+| Pause / unpause the sale | Any time. Never affects transfers, a paused collection still trades on secondary. |
 | Start paused | Chosen at deploy, so a collection can be deployed, checked, announced, then opened. |
 | Change price | Any time, for future mints only. Never retroactive. |
 | Reduce the edition | Any time, never below what is already minted. Reducing supply only makes existing pieces scarcer, so no holder is harmed. |
@@ -193,7 +193,7 @@ Closing an edition is a tombstone, not an erasure. Nothing on a chain is deleted
 
 ### The problem
 
-A token's `displayUri` is a raster of the piece. Producing it means *executing the generator's JavaScript* — p5, canvas, whatever the artist wrote — which no contract can do and no collector's wallet will do on our behalf.
+A token's `displayUri` is a raster of the piece. Producing it means *executing the generator's JavaScript*, p5, canvas, whatever the artist wrote, which no contract can do and no collector's wallet will do on our behalf.
 
 If any address may write a token's URIs, then anyone can point a token at any CID. Our own client would notice, because the render is deterministic and we can check it. That does not help: the damage lands on objkt, and objkt renders whatever the metadata says. Verifiability is worthless on the surface where the harm actually occurs. This is the same reasoning that led fxhash to run a signer, arrived at independently.
 
@@ -201,7 +201,7 @@ If any address may write a token's URIs, then anyone can point a token at any CI
 
 Modelled on `zolturd_nft.py` in tezoshitcoin.xyz, which already solves this and is in production.
 
-Only an authorised address may call `set_token_metadata`. Authorisation is the collection's provider — asked live, so rotating a leaked key revokes it everywhere at once — or an address the artist authorised locally, or one the Resolver contract (§2) vouches for while `trust_resolver` is on. Such an address cannot pause, cannot reprice, cannot change the edition, and cannot mint anything: minting happens in `buy`, by the collector.
+Only an authorised address may call `set_token_metadata`. Authorisation is the collection's provider, asked live, so rotating a leaked key revokes it everywhere at once, or an address the artist authorised locally, or one the Resolver contract (§2) vouches for while `trust_resolver` is on. Such an address cannot pause, cannot reprice, cannot change the edition, and cannot mint anything: minting happens in `buy`, by the collector.
 
 Because no open URI-writing entrypoint exists, the arbitrary-CID hole never exists to be defended against.
 
@@ -211,32 +211,32 @@ Because no open URI-writing entrypoint exists, the arbitrary-CID hole never exis
 
 | | Who signs | What happens |
 |---|---|---|
-| 1. **`buy`** | the collector, once | Pays `price + render_gas`, split in that same operation — price to the artist, render gas to the provider. **Mints the token**: code, parameters, royalties, owner and name, showing the collection's placeholder image. **This operation's hash is the seed.** |
+| 1. **`buy`** | the collector, once | Pays `price + render_gas`, split in that same operation, price to the artist, render gas to the provider. **Mints the token**: code, parameters, royalties, owner and name, showing the collection's placeholder image. **This operation's hash is the seed.** |
 | 2. **`set_token_metadata`** | a render provider | Publishes that piece's metadata URI, once, replacing the collection's pending document. |
 
-**The token is minted in the collector's own operation.** An unrevealed piece is a complete artwork with a pending thumbnail, not a promise of a future token — which is why there is no reservation to strand, no refund to argue about, and nothing a failed provider can take away. It is also why the seed needs no extra record: a token's seed derives from the hash of the operation that created it.
+**The token is minted in the collector's own operation.** An unrevealed piece is a complete artwork with a pending thumbnail, not a promise of a future token, which is why there is no reservation to strand, no refund to argue about, and nothing a failed provider can take away. It is also why the seed needs no extra record: a token's seed derives from the hash of the operation that created it.
 
 The contract's balance is zero when `buy` returns. Nothing is escrowed, nothing is held, there is no withdraw entrypoint.
 
 **The reveal is a UI moment, not a transaction for the collector.** The wrapped-present framing is presentation over the window while a provider works, and it costs the buyer no second signature.
 
-**This does not make grinding expensive.** The operation hash covers fields the sender controls — counter, fee, gas and storage limits — so candidates are enumerated offline, seeds derived, pieces rendered locally, and only the chosen one is ever injected. One payment, arbitrarily many attempts. Documented, accepted, not hidden.
+**This does not make grinding expensive.** The operation hash covers fields the sender controls, counter, fee, gas and storage limits, so candidates are enumerated offline, seeds derived, pieces rendered locally, and only the chosen one is ever injected. One payment, arbitrarily many attempts. Documented, accepted, not hidden.
 
 ### `set_token_metadata`, and what it grants
 
-It is the only entrypoint in the contract that modifies an existing token, and it modifies exactly one field of one token, once — but that field is the metadata pointer, so a provider publishes the piece's **whole** metadata document.
+It is the only entrypoint in the contract that modifies an existing token, and it modifies exactly one field of one token, once, but that field is the metadata pointer, so a provider publishes the piece's **whole** metadata document.
 
 That is the conventional Tezos arrangement, and the same trust every generative platform here already extends. It is bounded by being write-once, artist-authorised, and reproducible after the fact by anyone.
 
 Authorised means the collection's provider, an address the artist authorised directly (`set_local_writer`), or one the resolver vouches for. The resolver is consulted through a view that may fail: if it is gone or broken the call falls through to the artist's local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
 
-**Collectors cannot self-reveal.** Pinning requires an account, and the only ways to give a collector one are lending them ours or asking every buyer to configure their own IPFS provider. Neither is acceptable — so only providers write images, which also means an artist's grid is protected by default with no flag needed.
+**Collectors cannot self-reveal.** Pinning requires an account, and the only ways to give a collector one are lending them ours or asking every buyer to configure their own IPFS provider. Neither is acceptable, so only providers write images, which also means an artist's grid is protected by default with no flag needed.
 
 Writing an image that does not match the piece is possible and not preventable on chain. It is detectable by anyone: the seed comes from the mint operation, the parameters are in the token, the code is immutable, so the correct image is reproducible. Detection and key rotation, not a guarantee we cannot make.
 
 ### The artwork is on chain; the metadata is a description of it
 
-`code_uri` and `code_hash` are immutable collection storage, the seed is the buy operation's hash, and the parameters are in that same operation. So a piece is fully determined by chain state — before any metadata is published and regardless of what is published.
+`code_uri` and `code_hash` are immutable collection storage, the seed is the buy operation's hash, and the parameters are in that same operation. So a piece is fully determined by chain state, before any metadata is published and regardless of what is published.
 
 The metadata JSON is where a marketplace reads *about* the piece: its name, its `displayUri`, its royalties. Useful, and not the artwork.
 
@@ -244,15 +244,15 @@ The metadata JSON is where a marketplace reads *about* the piece: its name, its 
 
 ### Royalties
 
-The **objkt convention** — not TZIP-21, which defines no royalties field at all. objkt and Teia read `{"decimals": n, "shares": {address: value}}`, where each share is an **absolute** fraction of the sale price.
+The **objkt convention**, not TZIP-21, which defines no royalties field at all. objkt and Teia read `{"decimals": n, "shares": {address: value}}`, where each share is an **absolute** fraction of the sale price.
 
 Set once at deploy and written into every piece's metadata document.
 
 Royalties live in the token's metadata JSON and are built off chain, like every other Tezos NFT. The contract neither composes nor validates them.
 
-The UI works in relative terms — a total percentage, then recipients splitting it — and converts to absolute shares before encoding. Mistaking one for the other pays out wrong forever, so the deploy preview shows the decoded result the way objkt will read it before anything is signed. Conventions kept in the UI: total at most 25%, shares summing to 100%, remainder to the first recipient.
+The UI works in relative terms, a total percentage, then recipients splitting it, and converts to absolute shares before encoding. Mistaking one for the other pays out wrong forever, so the deploy preview shows the decoded result the way objkt will read it before anything is signed. Conventions kept in the UI: total at most 25%, shares summing to 100%, remainder to the first recipient.
 
-An optional platform share is a recipient row that starts absent — an explicit, unchecked ask, never a default. Because royalties are immutable, that choice is permanent for every piece the collection will ever mint, and the UI has to say so at the moment of asking.
+An optional platform share is a recipient row that starts absent, an explicit, unchecked ask, never a default. Because royalties are immutable, that choice is permanent for every piece the collection will ever mint, and the UI has to say so at the moment of asking.
 
 ### Implementation status
 
@@ -266,29 +266,29 @@ The hard part, and the part every platform gets asked about.
 
 **Requirements:** reproducible by anyone from chain state alone; unpredictable enough at mint time that collectors aren't shopping for outcomes; no oracle, no server, no trusted party.
 
-Tezos gives us no block hash in Michelson and no VRF. What a contract can see — `level`, `now`, `sender`, storage counters — is all predictable, so a naive on-chain seed is snipeable: run the generator locally against the seed you know you'll get, mint only when you like the result.
+Tezos gives us no block hash in Michelson and no VRF. What a contract can see, `level`, `now`, `sender`, storage counters, is all predictable, so a naive on-chain seed is snipeable: run the generator locally against the seed you know you'll get, mint only when you like the result.
 
 Two supported policies, chosen per project at publish time and recorded immutably in the record:
 
-**Policy A — operation-hash seed (default).**
+**Policy A, operation-hash seed (default).**
 ```
 seed = blake2b(buy_op_hash ‖ token_id ‖ generator_id)
 ```
-`buy_op_hash` is the hash of the collector's `buy` operation (§4a) — fixed by the buyer's own signature, before the backend renders anything. The operation hash is chain state — an indexer reads it, anyone can recompute it, no trust involved — it just isn't readable *inside* Michelson, so the binding happens at the metadata/render layer rather than in contract storage. Simple, cheap, and the convention artists coming from other platforms already understand.
+`buy_op_hash` is the hash of the collector's `buy` operation (§4a), fixed by the buyer's own signature, before the backend renders anything. The operation hash is chain state, an indexer reads it, anyone can recompute it, no trust involved, it just isn't readable *inside* Michelson, so the binding happens at the metadata/render layer rather than in contract storage. Simple, cheap, and the convention artists coming from other platforms already understand.
 
-Honest limitation: the op hash is computable before submission, so a determined minter can grind counters and fees offline to fish for a seed. This is a known, real, and historically tolerated weakness — it costs effort and gets much worse for the sniper as demand rises. Document it, don't hide it.
+Honest limitation: the op hash is computable before submission, so a determined minter can grind counters and fees offline to fish for a seed. This is a known, real, and historically tolerated weakness, it costs effort and gets much worse for the sniper as demand rises. Document it, don't hide it.
 
-~~**Policy B — commit-reveal seed.**~~ Dropped 2026-08-23: the operation hash is always the seed, so `seed_policy` is a constant in the spec rather than a field in the record. Commit-reveal would have meant two collector signatures and a contract that mints separately from the one that pays — both of which the settled model removes. The grinding weakness above is accepted and documented instead.
+~~**Policy B, commit-reveal seed.**~~ Dropped 2026-08-23: the operation hash is always the seed, so `seed_policy` is a constant in the spec rather than a field in the record. Commit-reveal would have meant two collector signatures and a contract that mints separately from the one that pays, both of which the settled model removes. The grinding weakness above is accepted and documented instead.
 
 **Not doing:** artist-chosen seeds, curated seed lists, or any mechanism where the platform can influence which seed a collector receives. If we can pick, we can be corrupted, and eventually someone will ask.
 
 ---
 
-## 6. How a piece is stored — labeled, not policed
+## 6. How a piece is stored, labeled, not policed
 
 Fully on-chain is the goal and is genuinely affordable on Tezos for code-sized payloads. It is not affordable for everything, and pretending otherwise pushes artists into lying about their dependencies.
 
-Storage burn is 0.00025 ꜩ/byte (250 mutez), and a single operation is capped at 32,768 bytes, so large uploads chunk across multiple operations. Both were read live from Shadownet on 2026-08-01 and match the figures below — and the v0 estimator reads them from the chain at runtime rather than trusting this paragraph.
+Storage burn is 0.00025 ꜩ/byte (250 mutez), and a single operation is capped at 32,768 bytes, so large uploads chunk across multiple operations. Both were read live from Shadownet on 2026-08-01 and match the figures below, and the v0 estimator reads them from the chain at runtime rather than trusting this paragraph.
 
 | Payload | Bytes | Rough burn |
 |---|---|---|
@@ -301,8 +301,8 @@ So: an artist can publish a self-contained generator for a few tez. A library co
 Every generator carries a class, displayed on the piece:
 
 - **Fully on-chain (FOC).** Code and every dependency on chain. Renders from L1 alone, forever, with no other system in existence. The default we push people toward.
-- **On-chain + shared library.** Code on chain, dependencies referenced by hash. Once the Deps contract exists the guarantee is the same as FOC and far cheaper to publish — but in v0 the library is resolved from a CDN manifest, so a piece like this is **not** fully on-chain yet. Say so plainly wherever it is displayed.
-- **IPFS.** Code or assets in content-addressed off-chain storage, hash recorded on chain. Legitimate for heavy inputs — audio, large datasets, photographic source material — and honestly labeled as depending on someone continuing to pin it.
+- **On-chain + shared library.** Code on chain, dependencies referenced by hash. Once the Deps contract exists the guarantee is the same as FOC and far cheaper to publish, but in v0 the library is resolved from a CDN manifest, so a piece like this is **not** fully on-chain yet. Say so plainly wherever it is displayed.
+- **IPFS.** Code or assets in content-addressed off-chain storage, hash recorded on chain. Legitimate for heavy inputs, audio, large datasets, photographic source material, and honestly labeled as depending on someone continuing to pin it.
 
 IPFS pieces get pinned by us and by anyone else who wants to help; the pin set is public so its health is observable. **No option is forbidden. Every one is visible.** An artist choosing IPFS is making an informed tradeoff, and the collector gets to see it before they buy.
 
@@ -313,11 +313,11 @@ IPFS pieces get pinned by us and by anyone else who wants to help; the pin set i
 A generator is HTML/JS (or SVG, or WASM) that receives a seed and renders. That's it. The standard's job is to be boring and compatible.
 
 - **Seed delivery** by URL parameter and a global, matching the convention artists' existing code is already written against. Code that ran on other Tezos snippet platforms should run here with near-zero edits. Compatibility is deliberate: we are not asking anyone to rewrite a body of work to prove loyalty.
-- **Lifecycle** as defined in §3 — one contract across every runtime kind.
-- **Parameterized mints** — a project may declare **up to five** named, typed parameters via `params_schema`, which the minter sets before signing and which are stored on chain with the token alongside the seed. Determinism holds: (code, seed, params) is still a pure function, which is why the resolution rule is specified rather than left to each implementation. Always optional; most generators declare none. The artist names each one and sets its range — unnamed fixed-arity sliders are the mistake this is deliberately not repeating. Specified in full, as an integration guide for other platforms, in **[params.md](params.md)**. Implemented in v0.
-- **Capture** — the declared capture point in `CaptureSpec`, fired by `ready()`, so preview images are reproducible rather than whenever-the-screenshotter-felt-like-it.
-- **Sandbox** — rendered in a sandboxed frame with no network. Not a policy, an enforcement: the determinism rule is checked mechanically at publish time, and a generator that tries to fetch gets flagged before it ever mints.
-- **SVG-on-chain path** — for pieces that emit pure SVG, the whole thing can live in contract storage with no runtime at all. Neighboring work (Bootloader) shows this is a rich vein; there is no reason for the standard to exclude it.
+- **Lifecycle** as defined in §3, one contract across every runtime kind.
+- **Parameterized mints**, a project may declare **up to five** named, typed parameters via `params_schema`, which the minter sets before signing and which are stored on chain with the token alongside the seed. Determinism holds: (code, seed, params) is still a pure function, which is why the resolution rule is specified rather than left to each implementation. Always optional; most generators declare none. The artist names each one and sets its range, unnamed fixed-arity sliders are the mistake this is deliberately not repeating. Specified in full, as an integration guide for other platforms, in **[params.md](params.md)**. Implemented in v0.
+- **Capture**, the declared capture point in `CaptureSpec`, fired by `ready()`, so preview images are reproducible rather than whenever-the-screenshotter-felt-like-it.
+- **Sandbox**, rendered in a sandboxed frame with no network. Not a policy, an enforcement: the determinism rule is checked mechanically at publish time, and a generator that tries to fetch gets flagged before it ever mints.
+- **SVG-on-chain path**, for pieces that emit pure SVG, the whole thing can live in contract storage with no runtime at all. Neighboring work (Bootloader) shows this is a rich vein; there is no reason for the standard to exclude it.
 
 The standard is published as a spec document with a reference implementation and a conformance test suite, versioned as `standard_version`. Another front end must be able to render our pieces correctly without reading our source.
 
@@ -327,13 +327,13 @@ The standard is published as a spec document with a reference implementation and
 
 An import path for work marooned by platforms that left or died.
 
-Given a generator's code and its seed convention, re-homing it here is mostly mechanical: wrap the snippet, map the seed parameter, republish under the original artist's address, mint the same edition size or none at all. The interesting cases are the ones where the *original* is at risk — code that only exists behind a service that may stop paying its bills.
+Given a generator's code and its seed convention, re-homing it here is mostly mechanical: wrap the snippet, map the seed parameter, republish under the original artist's address, mint the same edition size or none at all. The interesting cases are the ones where the *original* is at risk, code that only exists behind a service that may stop paying its bills.
 
 Shape of it:
 
-1. **Mirror** (read-only, no chain writes) — archive at-risk generator code and metadata from existing platforms into content-addressed storage, publicly. This is worth doing *whether or not* anyone re-mints, and it is worth starting before v1. Archives are cheap; regret is not.
-2. **Claim** — the original artist, proving control of the original address, republishes their generator here as a FOC/shared entry.
-3. **Continue** — new editions of an old system, or a fresh system in the same lineage, at the artist's discretion.
+1. **Mirror** (read-only, no chain writes), archive at-risk generator code and metadata from existing platforms into content-addressed storage, publicly. This is worth doing *whether or not* anyone re-mints, and it is worth starting before v1. Archives are cheap; regret is not.
+2. **Claim**, the original artist, proving control of the original address, republishes their generator here as a FOC/shared entry.
+3. **Continue**, new editions of an old system, or a fresh system in the same lineage, at the artist's discretion.
 
 Two hard rules: **only the artist may claim,** and the original provenance is recorded, not laundered. A rescued generator says where it came from.
 
@@ -350,15 +350,15 @@ Two hard rules: **only the artist may claim,** and the original provenance is re
 
 ## 10. Front end
 
-Next on Netlify, React, Tailwind and Radix — the same stack as [rejkt.xyz](https://rejkt.xyz), so its components, TzKT client and feed machinery lift across rather than being rewritten.
+Next on Netlify, React, Tailwind and Radix, the same stack as [rejkt.xyz](https://rejkt.xyz), so its components, TzKT client and feed machinery lift across rather than being rewritten.
 
 **Wallet is Tezos X Connect** (`@tezos-x/octez.connect-sdk`), as on hack.tez. This is the one part of rejkt that does not transfer: it is still on Beacon.
 
-**Open in the sense that matters: someone else can pick it up.** No build secrets, forkable, and documented well enough — `AGENTS.md`, skills files, these docs — that a newcomer or their agent gets oriented without asking us. That is a documentation problem, not an argument for a smaller stack.
+**Open in the sense that matters: someone else can pick it up.** No build secrets, forkable, and documented well enough, `AGENTS.md`, skills files, these docs, that a newcomer or their agent gets oriented without asking us. That is a documentation problem, not an argument for a smaller stack.
 
 Brand strings live in one module so that forks and the eventual rename are a one-file change (see [roadmap.md](roadmap.md) §4).
 
-**One hard constraint: generator code never renders on the app's own origin.** Artist JavaScript is untrusted, it runs in every visitor's browser, and same-origin would give it reach into wallet state and session storage. Artifacts are served from a separate host in a sandboxed frame — the arrangement fxhash uses, and a DNS decision far cheaper to make before the first piece renders than after.
+**One hard constraint: generator code never renders on the app's own origin.** Artist JavaScript is untrusted, it runs in every visitor's browser, and same-origin would give it reach into wallet state and session storage. Artifacts are served from a separate host in a sandboxed frame, the arrangement fxhash uses, and a DNS decision far cheaper to make before the first piece renders than after.
 
 Wallet stack reuses what hack.tez already runs (octez.connect / Beacon), which is also what makes v0 in the labs nearly free.
 
@@ -373,7 +373,7 @@ Wallet stack reuses what hack.tez already runs (octez.connect / Beacon), which i
 | IPFS rot | Public pin set, multiple pinners, class shown on every piece |
 | A runtime we didn't anticipate | Append-only Runtimes catalogue + `custom` kind; no contract replacement needed (§3) |
 | Registry needs a field we didn't foresee | `schema_version`, additive-only evolution, readers ignore unknown optional fields |
-| Nobody uses it | Interop first — pieces trade on objkt/Teia from day one, so an artist risks nothing by trying it |
-| Marketplace fee war | We run one, at 2.5%, and pieces trade freely elsewhere regardless — standard FA2 means no venue can be locked out, including ours. |
+| Nobody uses it | Interop first, pieces trade on objkt/Teia from day one, so an artist risks nothing by trying it |
+| Marketplace fee war | We run one, at 2.5%, and pieces trade freely elsewhere regardless, standard FA2 means no venue can be locked out, including ours. |
 | The steward disappears | Admin is transferable in two steps; minting keys are cyclable; the renderer is open source and replaceable. |
 | Protocol constants change (storage cost, op size) | Constants read at runtime where possible; ⚠-marked in docs; estimator is chain-derived, never hardcoded |

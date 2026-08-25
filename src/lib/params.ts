@@ -1,10 +1,10 @@
 /**
- * Aleatory — mint-time parameters.
+ * Aleatory, mint-time parameters.
  *
  * A generator may declare up to five named inputs that whoever mints a piece
  * tunes before they sign. The declaration is the artist's: their names, their
  * ranges, their defaults. Nothing is imposed, and a generator that declares
- * nothing is the normal case — params are always optional.
+ * nothing is the normal case, params are always optional.
  *
  * That is deliberately not what the previous generation of this idea did.
  * editart handed every project the same five unnamed sliders, so a parameter
@@ -14,7 +14,7 @@
  * collector can see what they are actually turning.
  *
  * The piece stays a pure function of (code, seed, params). Two of those three
- * are chosen by a person, which is precisely why the third — resolution — has
+ * are chosen by a person, which is precisely why the third, resolution, has
  * to be mechanical: given a schema and any raw values at all, every renderer
  * anywhere must land on the same values, or the same token renders differently
  * in two places and the whole determinism guarantee is theatre.
@@ -37,7 +37,7 @@ export interface ParamSpec {
     /** number / int only. */
     min?: number;
     max?: number;
-    /** number / int only. The quantization grid — values snap to it. */
+    /** number / int only. The quantization grid, values snap to it. */
     step?: number;
     /** select only. */
     options?: string[];
@@ -102,20 +102,20 @@ export function validateSchema(params: ParamSpec[]): string[] {
     for (const p of params) {
         const where = p.id || "(unnamed)";
         if (!ID_RE.test(p.id)) {
-            errors.push(`"${where}" is not a usable name — lowercase letters, digits and _ only, starting with a letter, max 24.`);
+            errors.push(`"${where}" is not a usable name, lowercase letters, digits and _ only, starting with a letter, max 24.`);
         }
         if (seen.has(p.id)) errors.push(`"${where}" is declared twice. Names are how the code finds a value.`);
         seen.add(p.id);
-        if (!p.label.trim()) errors.push(`"${where}" needs a label — it is what a collector reads on the control.`);
+        if (!p.label.trim()) errors.push(`"${where}" needs a label, it is what a collector reads on the control.`);
 
         if (p.type === "number" || p.type === "int") {
             const min = p.min ?? 0;
             const max = p.max ?? 1;
             if (!Number.isFinite(min) || !Number.isFinite(max)) errors.push(`"${where}" needs a numeric min and max.`);
-            else if (min >= max) errors.push(`"${where}" has min ${min} ≥ max ${max} — there is nothing to tune.`);
+            else if (min >= max) errors.push(`"${where}" has min ${min} ≥ max ${max}, there is nothing to tune.`);
             const step = p.step ?? (p.type === "int" ? 1 : 0.01);
             if (!(step > 0)) errors.push(`"${where}" needs a step greater than zero.`);
-            else if (step > max - min) errors.push(`"${where}" has a step larger than its range — it can only ever hold one value.`);
+            else if (step > max - min) errors.push(`"${where}" has a step larger than its range, it can only ever hold one value.`);
             if (typeof p.default !== "number" || !Number.isFinite(p.default)) errors.push(`"${where}" needs a numeric default.`);
             else if (p.default < min || p.default > max) errors.push(`"${where}" has a default of ${p.default}, outside ${min}…${max}.`);
         }
@@ -141,7 +141,7 @@ export function validateSchema(params: ParamSpec[]): string[] {
     return errors;
 }
 
-/** The schema as it goes into the record — null when nothing is declared, so
+/** The schema as it goes into the record, null when nothing is declared, so
  *  "no params" stays one unambiguous shape rather than two. */
 export function schemaForRecord(params: ParamSpec[]): ParamsSchema | null {
     if (params.length === 0) return null;
@@ -162,7 +162,7 @@ export function specsOf(schema: ParamsSchema | null | undefined): ParamSpec[] {
  * Two runs of one token must produce identical values, and a float that arrives
  * as 0.30000000000000004 from one UI and 0.3 from another is the same slider in
  * two positions as far as the piece is concerned. Quantizing at resolution time
- * — not at control time — means it does not matter which UI produced it.
+ *, not at control time, means it does not matter which UI produced it.
  */
 function quantize(value: number, min: number, max: number, step: number): number {
     const clamped = Math.min(max, Math.max(min, value));
@@ -212,7 +212,7 @@ export function resolveParam(spec: ParamSpec, raw: unknown): ParamValue {
  * Every path into a render goes through here: the studio tuner, the mint form,
  * the gallery reading values back off a token, and any third-party renderer
  * following params.md. A value that arrives out of range or of the wrong type
- * is corrected, never rejected — the alternative is a token that some viewers
+ * is corrected, never rejected, the alternative is a token that some viewers
  * can render and others cannot, which is the one outcome worth designing out.
  */
 export function resolveParams(specs: ParamSpec[], raw: unknown): ParamValues {
@@ -230,7 +230,7 @@ export function defaultValues(specs: ParamSpec[]): ParamValues {
     return out;
 }
 
-/** A value picked uniformly at random within the declaration — the "surprise
+/** A value picked uniformly at random within the declaration, the "surprise
  *  me" the mint UI offers, and how the grid shows off a parameter's range. */
 export function randomValues(specs: ParamSpec[], rand: () => number = Math.random): ParamValues {
     const out: ParamValues = {};
@@ -284,7 +284,7 @@ export function encodeParams(specs: ParamSpec[], values: ParamValues): string {
 }
 
 /** Read `aleaParams` back off a token. Bad JSON resolves to defaults rather
- *  than failing the render — the schema is the authority, not the token. */
+ *  than failing the render, the schema is the authority, not the token. */
 export function decodeParams(specs: ParamSpec[], json: string | null | undefined): ParamValues {
     if (!json) return defaultValues(specs);
     try {
@@ -354,7 +354,7 @@ export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes:
             case "select": {
                 const choices = (Array.isArray(options.options) ? options.options : []).map(String);
                 if (choices.length < 2) {
-                    notes.push(`"${label}" is a select with fewer than two options — skipped.`);
+                    notes.push(`"${label}" is a select with fewer than two options, skipped.`);
                     break;
                 }
                 params.push({
@@ -367,7 +367,7 @@ export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes:
                 break;
             }
             default:
-                notes.push(`"${label}" is a ${String(d.type)} param, which has no equivalent here — skipped.`);
+                notes.push(`"${label}" is a ${String(d.type)} param, which has no equivalent here, skipped.`);
         }
     }
 
@@ -384,7 +384,7 @@ export function formatParamValue(spec: ParamSpec, value: ParamValue): string {
     return String(value);
 }
 
-/** One-line human summary of a whole set — for token descriptions and lists. */
+/** One-line human summary of a whole set, for token descriptions and lists. */
 export function summarizeParams(specs: ParamSpec[], values: ParamValues): string {
     return specs.map((spec) => `${spec.label}: ${formatParamValue(spec, values[spec.id])}`).join(" · ");
 }

@@ -1,10 +1,10 @@
 /**
- * Aleatory — the runtime kinds catalogue.
+ * Aleatory, the runtime kinds catalogue.
  *
  * This is the v0 mirror of what becomes the on-chain **Runtimes** contract
  * (docs/aleatory/architecture.md §3). Kinds live in an append-only catalogue
  * rather than an enum precisely so that adding a runtime in 2029 is one append
- * operation instead of a registry migration — and the v0 shape is deliberately
+ * operation instead of a registry migration, and the v0 shape is deliberately
  * identical to the on-chain record so the swap is a data-source change.
  *
  * A kind is never edited. A better harness for a kind is a NEW kind_id, and
@@ -14,11 +14,11 @@
 /**
  * How a piece is stored, in the words the Tezos art community already uses.
  *
- *   foc    fully on-chain — code and everything it needs live in contract storage
+ *   foc    fully on-chain, code and everything it needs live in contract storage
  *   shared on-chain code, plus a shared library referenced by hash
  *   ipfs   code or assets off-chain, content hash recorded on chain
  *
- * Displayed on every piece. Not a ranking and not a gate — a collector should
+ * Displayed on every piece. Not a ranking and not a gate, a collector should
  * be able to see what a work depends on before they buy it.
  */
 export type StorageClassId = "foc" | "shared" | "ipfs";
@@ -27,7 +27,7 @@ export interface DepSpec {
     /** Stable id, recorded in the generator record. */
     id: string;
     label: string;
-    /** Pinned version — a generator records this, never "latest". */
+    /** Pinned version, a generator records this, never "latest". */
     version: string;
     /**
      * v0 resolves dependency source from this URL and records the blake2b of
@@ -122,7 +122,7 @@ const cache = new Map<string, ResolvedDep>();
 
 /**
  * Fetch and hash a dependency. This happens in the LAB page, never in the
- * sandbox frame — by the time a piece runs, its libraries are already inlined
+ * sandbox frame, by the time a piece runs, its libraries are already inlined
  * text and the frame has no network at all.
  */
 export async function resolveDep(spec: DepSpec): Promise<ResolvedDep> {

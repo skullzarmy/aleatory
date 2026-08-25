@@ -2,13 +2,11 @@
 
     python3 contract/build.py
 
-Writes `contract/build/<Name>/step_001_cont_0_contract.json` for each. The
-test suites also emit compiled code, but into per-scenario directories whose
-names and step numbers move whenever a test is added or renamed — deploy
-scripts should not be reading those.
+Writes `contract/build/<Name>/step_001_cont_0_contract.json` for each, so a
+deploy script has one stable path to read.
 
-This originates nothing and asserts nothing. It exists so that what gets
-deployed is compiled by one command, from source, on purpose.
+Originates nothing and asserts nothing. What gets deployed is compiled by one
+command, from source, on purpose.
 """
 
 import os

@@ -1,9 +1,7 @@
 /**
- * Every brand string and every chain address, in one module.
- *
- * roadmap.md §4 asks for this so that a fork, a rename, or a redeploy is a
- * one-file change. Nothing else in the app should hardcode a name, a domain,
- * or a KT1.
+ * Every brand string and every chain address, in one module, so a fork, a
+ * rename, or a redeploy is a one-file change (roadmap.md §4). Nothing else in
+ * the app hardcodes a name, a domain, or a KT1.
  */
 
 export const BRAND = {
@@ -34,9 +32,8 @@ export const TZKT_UI: Record<Network, string> = {
  * Contract addresses, written by contract/deploy.ts into
  * contract/deployments/<network>.json and copied into the environment.
  *
- * Empty until something is deployed. The UI treats that as "no collections
- * yet" rather than as an error, because before the first deploy that is
- * exactly what it is.
+ * Empty until something is deployed. The UI reads empty as "nothing deployed
+ * yet" and says so.
  */
 export const CONTRACTS = {
     factory: process.env.NEXT_PUBLIC_FACTORY_ADDRESS || "",
@@ -48,10 +45,9 @@ export const CONTRACTS = {
 /**
  * Artist code renders here, never on this origin.
  *
- * Generator JavaScript is untrusted and runs in every visitor's browser. On
- * the app's own origin it would have reach into wallet state and session
- * storage, so artifacts are framed from a separate host. See
- * docs/architecture.md §10.
+ * Generator JavaScript is untrusted and runs in every visitor's browser. Same
+ * origin would give it reach into wallet state and session storage, so
+ * artifacts are framed from a separate host. See docs/architecture.md §10.
  */
 export const SANDBOX_ORIGIN =
     process.env.NEXT_PUBLIC_SANDBOX_ORIGIN || "https://sandbox.aleatory.art";

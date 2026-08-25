@@ -9,7 +9,7 @@
  * Order matters: the factory needs the resolver's address, so the resolver
  * goes first. Everything else is independent. Addresses are written to
  * `contract/deployments/<network>.json` and reused on later runs, so a
- * partial deploy can be resumed rather than restarted.
+ * partial deploy resumes where it stopped.
  *
  * Env:
  *   TEZOS_WALLET_PRIV_KEY     deployer (signs + pays)
@@ -18,13 +18,12 @@
  *   ALEA_TREASURY_ADDRESS     where marketplace fees sweep to
  *   ALEA_AGENT_ADDRESS        our render daemon's signing key
  *   ALEA_MARKET_FEE_BPS       secondary fee, basis points (default 250 = 2.5%)
- *   ALEA_DEPLOY_PRICE_MUTEZ   factory deploy fee (default 0 — see decisions.md §2)
+ *   ALEA_DEPLOY_PRICE_MUTEZ   factory deploy fee (default 0, see decisions.md §2)
  *
- * The first origination is the one that matters. The factory embeds its own
- * collection template, so its code is by far the largest thing here, and a
- * Tezos operation is capped at 32,768 bytes. If the factory will not
- * originate, that is not a deploy problem — it is a design problem, and this
- * script says so rather than failing obscurely.
+ * The factory embeds its own collection template, so its code is the largest
+ * thing here, and a Tezos operation is capped at 32,768 bytes. If the factory
+ * will not originate, the fix is architectural, and this script says so in
+ * those words.
  */
 import 'dotenv/config'
 import { TezosToolkit, MichelsonMap } from '@taquito/taquito'
@@ -139,7 +138,7 @@ async function ensureRevealed(tezos: TezosToolkit, signer: InMemorySigner) {
     { branch, contents, protocol, signature: sig.prefixSig },
   ] as never)
   const opHash = await tezos.rpc.injectOperation(sig.sbytes)
-  console.log(`  Reveal injected: ${opHash} — waiting...`)
+  console.log(`  Reveal injected: ${opHash}, waiting...`)
   for (let i = 0; i < 45; i++) {
     await new Promise((r) => setTimeout(r, 4000))
     if (await tezos.rpc.getManagerKey(pkh).catch(() => null)) {
@@ -167,7 +166,7 @@ async function main() {
   const feeBps = parseInt(process.env.ALEA_MARKET_FEE_BPS || '250', 10)
   const deployPrice = parseInt(process.env.ALEA_DEPLOY_PRICE_MUTEZ || '0', 10)
 
-  // A mainnet run with a shadownet .env — or the reverse — bakes the wrong
+  // A mainnet run with a shadownet .env, or the reverse, bakes the wrong
   // addresses in permanently, and nothing on chain catches it.
   const envNetwork = process.env.PUBLIC_TEZOS_NETWORK
   if (envNetwork && envNetwork !== NETWORK) {
@@ -186,7 +185,7 @@ async function main() {
   console.log(`  treasury  ${treasury}`)
   console.log(`  agent     ${agent}`)
   console.log(`  fee       ${feeBps} bps      deploy price ${deployPrice} mutez`)
-  if (DRY_RUN) console.log(`  DRY RUN — estimating only, nothing will be injected`)
+  if (DRY_RUN) console.log(`  DRY RUN, estimating only, nothing will be injected`)
 
   const deployed = readDeployments()
   const targets = onlyArg ? [onlyArg as Name] : ORDER
@@ -248,7 +247,7 @@ async function main() {
 
   for (const name of targets) {
     if (deployed[name]) {
-      console.log(`\n${name}: already at ${deployed[name]} — skipping`)
+      console.log(`\n${name}: already at ${deployed[name]}, skipping`)
       continue
     }
     const code = loadCode(name)
@@ -261,13 +260,13 @@ async function main() {
       estimate = await tezos.estimate.originate({ code: code as never, storage: storageFor(name) })
     } catch (e) {
       console.error(`  ✗ estimation failed: ${(e as Error).message}`)
-      // The failure that matters, called out rather than left to be decoded
-      // from an RPC error string.
+      // Name the operation-size failure directly. An RPC error string on
+      // its own sends you looking in the wrong place.
       if (String(e).match(/operation.*too large|exceeds|size/i)) {
         console.error(
           `\n  This looks like the ${MAX_OPERATION_BYTES}-byte operation cap.\n` +
             `  If so, ${name} cannot be originated as one operation and the fix is\n` +
-            `  architectural, not a deploy flag — see task 28.`,
+            `  architectural, not a deploy flag, see task 28.`,
         )
       }
       process.exit(1)
@@ -285,7 +284,7 @@ async function main() {
     if (DRY_RUN) continue
 
     const op = await tezos.contract.originate({ code: code as never, storage: storageFor(name) })
-    console.log(`  injected ${op.hash} — confirming...`)
+    console.log(`  injected ${op.hash}, confirming...`)
     const contract = await op.contract()
     deployed[name] = contract.address
     writeDeployments(deployed)

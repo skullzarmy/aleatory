@@ -9,8 +9,8 @@ export function ThemeToggle() {
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
 
-    // Rendered only after mount: the server has no idea which theme the
-    // visitor prefers, and guessing produces a hydration mismatch.
+    // The server cannot know the visitor's theme, so this renders after
+    // mount to keep hydration clean.
     if (!mounted) return <div className="h-9 w-9" aria-hidden />;
 
     const dark = resolvedTheme === "dark";

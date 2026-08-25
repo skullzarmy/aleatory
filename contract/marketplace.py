@@ -1,4 +1,4 @@
-"""Aleatory Marketplace — secondary market for pieces minted on the platform.
+"""Aleatory Marketplace, secondary market for pieces minted on the platform.
 
 Copies what objkt and Teia already do rather than inventing anything. A
 seller escrows the token and names a price; a buyer pays it; the contract
@@ -9,7 +9,7 @@ tez escrowed instead.
 collection exposes a `get_royalties` view returning shares in basis points,
 so a seller cannot list a piece with the artist's royalties zeroed out.
 That is the whole reason those numbers live on chain as well as in the
-metadata JSON — a contract cannot read IPFS.
+metadata JSON, a contract cannot read IPFS.
 
 **The platform fee is 2.5%, taken out of the sale.** The seller nets the
 price minus fee minus royalties, which is how objkt does it. It is
@@ -19,7 +19,7 @@ the fee is copied into the listing at that moment.
 
 What the administrator cannot do: touch a listing, touch a token, take a
 seller's proceeds, or raise the fee past a ceiling the contract enforces.
-**There is no `admin_lambda` here**, unlike the factory — this contract
+**There is no `admin_lambda` here**, unlike the factory, this contract
 holds other people's property in escrow, and an escape hatch over its
 storage would be an escape hatch over their tokens and their tez. If this
 contract needs to change, it gets replaced, and everyone withdraws from the
@@ -27,8 +27,8 @@ old one first. `paused` stops new listings and offers; it never traps an
 existing one, because delisting and cancelling stay open while paused.
 
 Escrow, deliberately: a listed token lives in this contract, and offered tez
-lives in this contract. It is the arrangement Teia uses. The alternative —
-leaving both with their owners and relying on FA2 operator rights — means
+lives in this contract. It is the arrangement Teia uses. The alternative , 
+leaving both with their owners and relying on FA2 operator rights, means
 listings that silently cannot be filled because the seller moved the token,
 and offers that cannot be filled because the tez is spent.
 """
@@ -128,7 +128,7 @@ def marketplace():
             """(Anyone) Escrow a token here and offer it at a price.
 
             The token moves into this contract, so a listing can always be
-            filled — it cannot go stale because the seller moved the piece
+            filled, it cannot go stale because the seller moved the piece
             somewhere else. Requires the seller to have made this contract
             an operator first, per the usual FA2 dance.
             """
@@ -218,7 +218,7 @@ def marketplace():
 
             # A collection we did not deploy can say anything here, and a
             # hostile one could claim 100% and take the seller's proceeds
-            # — or claim more than is left and make every sale of its
+            #, or claim more than is left and make every sale of its
             # tokens fail. So the total honoured is clamped: shares are
             # paid in order until the cap is reached, and anything past it
             # is ignored rather than trusted. Our own collections cap at
@@ -352,7 +352,7 @@ def marketplace():
 
             # A collection we did not deploy can say anything here, and a
             # hostile one could claim 100% and take the seller's proceeds
-            # — or claim more than is left and make every sale of its
+            #, or claim more than is left and make every sale of its
             # tokens fail. So the total honoured is clamped: shares are
             # paid in order until the cap is reached, and anything past it
             # is ignored rather than trusted. Our own collections cap at

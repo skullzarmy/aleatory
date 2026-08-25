@@ -1,37 +1,37 @@
-"""Aleatory — collections, the factory that deploys them, and the render
+"""Aleatory, collections, the factory that deploys them, and the render
 provider machinery around them.
 
-**Collection** — one per project, originated by the factory, owned by the
+**Collection**, one per project, originated by the factory, owned by the
 artist from the moment it exists. Standard FA2 (TZIP-12) holding exactly one
 generator and its edition. **No admin lambda, no upgrade path, no platform
 fee, and no authority retained by us.** A bug in this template is frozen
 into every collection already deployed; that is the price of the guarantee,
 and the reason it stays boring.
 
-**Factory** — originates a collection in one operation with the caller
+**Factory**, originates a collection in one operation with the caller
 already installed as its administrator. Holds no tokens, so its
 `admin_lambda` escape hatch cannot reach anyone's NFT. That is the point of
 the split: the contract that needs to be upgradable holds nothing, and the
 contract that holds everything cannot be touched.
 
-**Provider** — a render provider's price and working key. Any contract
+**Provider**, a render provider's price and working key. Any contract
 exposing `get_render_gas` and `get_agent` and able to receive tez is a
 provider; those views are the entire membership test.
 
-**Registry** — a permissionless, free list of providers, so a UI can
+**Registry**, a permissionless, free list of providers, so a UI can
 enumerate them without asking us.
 
-**Resolver** — our own working keys in one place, so rotating a leaked one
+**Resolver**, our own working keys in one place, so rotating a leaked one
 does not mean touching every collection. A collection may sever it
 (`set_trust_resolver`), and does not depend on it.
 
 The flow:
 
-1. **`buy`** — the collector's single signature. Pays the artist and the
+1. **`buy`**, the collector's single signature. Pays the artist and the
    render provider, and **mints the token in that same operation**, carrying
    the collection's "not revealed yet" metadata. This operation's hash is
    the seed.
-2. **`set_token_metadata`** — an authorised render provider publishes that
+2. **`set_token_metadata`**, an authorised render provider publishes that
    piece's real metadata document, once.
 
 Token metadata is an `ipfs://` pointer under `token_info[""]`, which is what
@@ -45,8 +45,8 @@ that same operation. Metadata is where a marketplace reads *about* a piece.
 
 The template is a starting point, not a requirement. Anything standard FA2
 gets indexed and traded. What a third-party contract must match to use a
-render provider is the interface — the `buy` and `set_token_metadata`
-events, and the pending-document rule for finding unrendered pieces — not
+render provider is the interface, the `buy` and `set_token_metadata`
+events, and the pending-document rule for finding unrendered pieces, not
 this implementation.
 
 Deploy to shadownet first, soak-test, then mainnet.
@@ -80,7 +80,7 @@ def aleatory():
         # have to trust whatever a lister passed in, and a seller could
         # list with royalties zeroed out. Teia's arrangement.
         royalties=sp.map[sp.address, sp.nat],
-        # The metadata URI every token is minted with — an ipfs:// pointer
+        # The metadata URI every token is minted with, an ipfs:// pointer
         # to the collection's "not revealed yet" JSON. A provider replaces
         # it per token with that piece's real metadata once rendered.
         pending_metadata=sp.bytes,
@@ -96,7 +96,7 @@ def aleatory():
     #
     # SmartPy rebuilds the whole storage record in every entrypoint, and the
     # cost of that grows faster than linearly with the number of top-level
-    # fields — a measured 36% of the compiled contract, for a record this
+    # fields, a measured 36% of the compiled contract, for a record this
     # wide. Grouping by who writes what means an entrypoint rebuilds one
     # subtree instead of twenty fields, and origination burn is paid by the
     # artist, so this is their money.
@@ -113,7 +113,7 @@ def aleatory():
         # have to trust whatever a lister passed in, and a seller could
         # list with royalties zeroed out. Teia's arrangement.
         royalties=sp.map[sp.address, sp.nat],
-        # The metadata URI every token is minted with — an ipfs:// pointer
+        # The metadata URI every token is minted with, an ipfs:// pointer
         # to the collection's "not revealed yet" JSON. A provider replaces
         # it per token with that piece's real metadata once rendered.
         pending_metadata=sp.bytes,
@@ -173,7 +173,7 @@ def aleatory():
 
         The cost of the convenience, stated plainly: whoever administers
         this contract can authorise a writer into every collection that
-        trusts it. Two things bound that — a collection's resolver is fixed
+        trusts it. Two things bound that, a collection's resolver is fixed
         at origination, so it cannot be repointed at a different authority
         afterwards, and any artist can sever it outright with
         `set_trust_resolver`. See `AleatoryCollection.may_write_media_`.
@@ -235,7 +235,7 @@ def aleatory():
 
         Deliberately has no escape hatch. There is no `admin_lambda`, no
         code upgrade, and no entrypoint that touches a collector's token
-        beyond the one-time media write below — not for the artist, not for
+        beyond the one-time media write below, not for the artist, not for
         the factory, not for us. A bug in this template is frozen into every
         collection already deployed, which is the price of that guarantee
         and the reason this contract stays boring.
@@ -322,7 +322,7 @@ def aleatory():
         @sp.entrypoint
         def set_paused(self, new_state):
             """Pause the **sale**. Transfers of existing pieces are never
-            affected — a paused project still trades on the secondary
+            affected, a paused project still trades on the secondary
             market."""
             sp.cast(new_state, sp.bool)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
@@ -340,7 +340,7 @@ def aleatory():
             no holder is harmed by it.
 
             Setting the size to the number already minted closes the
-            edition permanently — that is what replaces a separate
+            edition permanently, that is what replaces a separate
             `retire` entrypoint. It is one-way only in the sense that
             nothing can grow again afterwards.
 
@@ -371,7 +371,7 @@ def aleatory():
 
             The price and working key are read from the provider's own
             contract, which must expose `get_render_gas` and `get_agent`
-            views — those are the entire membership test for being a
+            views, those are the entire membership test for being a
             provider. Anyone can deploy one.
 
             `max_price` is the artist's ceiling, so a provider raising
@@ -379,7 +379,7 @@ def aleatory():
             than silently charging more.
 
             Switchable on purpose. A provider that is down, overpriced or
-            gone must not be able to strand a collection — pieces it never
+            gone must not be able to strand a collection, pieces it never
             rendered stay publishable by whoever comes next, since a piece
             still holding the pending document is a piece anyone authorised
             can publish.
@@ -454,7 +454,7 @@ def aleatory():
             The token exists, is owned, and is tradeable the moment this
             returns; it carries the collection's "not revealed yet"
             metadata until a provider publishes the piece's own. An
-            unrevealed piece is a real token, not a promise of one — which
+            unrevealed piece is a real token, not a promise of one, which
             is why there is nothing to strand, nothing to refund, and
             nothing a failed provider can take away.
 
@@ -469,20 +469,20 @@ def aleatory():
             token's seed derives from the hash of the operation that
             created it.
 
-            It does *not* make grinding expensive — the hash covers
+            It does *not* make grinding expensive, the hash covers
             sender-controlled fields, so candidates are enumerated offline
             and only the chosen one is injected. Documented tradeoff of an
             op-hash seed, accepted rather than engineered around.
 
             `params` is the canonical-JSON encoding of the collector's
             resolved parameter values (params.md §3), empty when the
-            generator declares none. It is recorded in this operation — by
-            their own signature — which is what a provider reads to know
+            generator declares none. It is recorded in this operation, by
+            their own signature, which is what a provider reads to know
             what to render, and what anyone else reads to check the result.
 
             Payment is `price + render_gas`, split in this same operation:
             the price to the artist, the render gas to the provider. The
-            contract holds nothing when it returns — no escrow, no
+            contract holds nothing when it returns, no escrow, no
             balance, no withdraw entrypoint.
             """
             sp.cast(params, sp.bytes)
@@ -541,7 +541,7 @@ def aleatory():
             """The collection's own provider, an address the artist
             authorised directly, or one the resolver vouches for.
 
-            The resolver is consulted through a view that may fail — if it
+            The resolver is consulted through a view that may fail, if it
             is gone or broken the call yields nothing and we fall through,
             rather than reverting. A dead resolver must not permanently
             freeze every collection that trusted it.
@@ -549,7 +549,7 @@ def aleatory():
             sp.cast(who, sp.address)
             # The provider's *current* agent, asked live. A provider that
             # rotates a leaked key must not need every collection to
-            # re-snapshot before it can work again — that is the
+            # re-snapshot before it can work again, that is the
             # N-transactions problem the resolver exists to avoid, and
             # third-party providers have no resolver behind them.
             #
@@ -583,7 +583,7 @@ def aleatory():
             """(Authorised writer) Publish a piece's real metadata, once.
 
             Replaces the collection's pending document with this token's
-            own — the JSON carrying its name, artifactUri, displayUri,
+            own, the JSON carrying its name, artifactUri, displayUri,
             royalties and attributes, pinned by whoever rendered it.
 
             This is the conventional Tezos arrangement, and it means a
@@ -596,7 +596,7 @@ def aleatory():
 
             What bounds it: it can be done once per token, only by someone
             the artist authorised, and never for a token that already has
-            its metadata. Everything it publishes is checkable — the seed
+            its metadata. Everything it publishes is checkable, the seed
             comes from the mint operation, the parameters are in that
             operation too, and the code is immutable, so the correct output
             is reproducible by anyone. Detection and key rotation, not a
@@ -637,7 +637,7 @@ def aleatory():
 
         @sp.onchain_view()
         def needs_render(self, token_id):
-            """Whether a piece is still holding the pending document — the
+            """Whether a piece is still holding the pending document, the
             same rule providers use off chain, so the two cannot disagree."""
             sp.cast(token_id, sp.nat)
             token = self.data.token_metadata.get(token_id, error="NO_TOKEN")
@@ -649,7 +649,7 @@ def aleatory():
 
             What a marketplace calls to pay artists without trusting the
             seller. The same numbers appear in each piece's metadata JSON
-            for readers that cannot reach chain state — two representations
+            for readers that cannot reach chain state, two representations
             of one immutable fact, written at deploy and never changed.
             """
             return self.data.art.royalties
@@ -680,7 +680,7 @@ def aleatory():
     class AleatoryProvider(sp.Contract):
         """A render provider's price, on chain.
 
-        This contract is not required — anything exposing `get_render_gas`
+        This contract is not required, anything exposing `get_render_gas`
         and `get_agent` views and able to receive tez is a provider. Those
         two views are the whole membership test.
 
@@ -702,14 +702,14 @@ def aleatory():
         def __init__(self, operator, agent, render_gas, metadata):
             self.data.operator = operator
             # The key that does the work: it calls `set_token_metadata`.
-            # It is *not* paid — render gas accrues in this contract and the
-            # operator withdraws it — so a hot key living in a render daemon
+            # It is *not* paid, render gas accrues in this contract and the
+            # operator withdraws it, so a hot key living in a render daemon
             # never also holds income.
             self.data.agent = agent
             self.data.render_gas = render_gas
             # TZIP-16 metadata: name, and the push endpoint a mint UI can
             # ping for latency. Deliberately here rather than in a storage
-            # field with its own entrypoint — endpoints rot, metadata is
+            # field with its own entrypoint, endpoints rot, metadata is
             # free to update, and a provider who advertises nothing still
             # works by polling the chain.
             self.data.metadata = sp.cast(
@@ -727,7 +727,7 @@ def aleatory():
         @sp.entrypoint
         def default(self):
             """Accept render gas. Collections pay this contract, not the
-            agent — which is the whole reason this entrypoint exists, since a
+            agent, which is the whole reason this entrypoint exists, since a
             KT1 with no default entrypoint cannot be sent tez at all."""
             pass
 
@@ -749,7 +749,7 @@ def aleatory():
             Every collection using this provider follows immediately: they
             ask for the current agent when authorising a write, rather than
             trusting the value they snapshotted. No artist has to do
-            anything, which is the point — a leaked key must be revocable
+            anything, which is the point, a leaked key must be revocable
             in one operation."""
             sp.cast(agent, sp.address)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
@@ -786,7 +786,7 @@ def aleatory():
 
         Registration is permissionless and free. There is no fee and no
         allowlist, and the only address that can remove an entry is the
-        operator of that provider itself — not us, not an artist, not
+        operator of that provider itself, not us, not an artist, not
         another provider. Deliberately not a gate anyone holds. Deploying
         a provider contract
         already costs origination burn, which is a real floor against bulk
@@ -834,8 +834,8 @@ def aleatory():
             """(The provider's own operator) Remove an entry.
 
             Only the operator of that provider contract can do this, which
-            is checked by asking the contract itself. Nobody else — not us,
-            not an artist, not another provider — can delist anyone.
+            is checked by asking the contract itself. Nobody else, not us,
+            not an artist, not another provider, can delist anyone.
             """
             sp.cast(provider, sp.address)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
@@ -878,13 +878,13 @@ def aleatory():
         """Originates collections. Holds no tokens, ever.
 
         Because it holds nothing, `admin_lambda` here cannot reach anyone's
-        NFT — which is exactly why the escape hatch lives on this contract
+        NFT, which is exactly why the escape hatch lives on this contract
         and not on the one that holds the art.
 
         What the lambda can and cannot do, precisely: it transforms factory
         *storage*. It cannot change the collection template, because that
         template is Michelson code compiled into this contract and contract
-        code is immutable. A new template means a new factory — which is
+        code is immutable. A new template means a new factory, which is
         cheap, since old collections are untouched and nothing migrates.
         """
 
@@ -911,7 +911,7 @@ def aleatory():
             """(Anyone, payable) Originate a collection in one operation.
 
             The caller is installed as the collection's administrator in
-            its *initial storage* — it is never held by us and handed over.
+            its *initial storage*, it is never held by us and handed over.
             One signature, no second step, nothing of the artist's passing
             through our hands.
 
@@ -924,7 +924,7 @@ def aleatory():
             charge for; the field exists so an anti-spam lever remains
             possible without deploying a new factory, and any change to it
             would be visible on chain. Collections carry no platform fee on
-            primary sales either — the price goes to the artist and the
+            primary sales either, the price goes to the artist and the
             render gas to the provider.
 
             Note for callers: the artist's operation needs a storage limit
@@ -1056,7 +1056,7 @@ def aleatory():
         def set_resolver(self, resolver):
             """(Admin only) Which resolver *future* collections are built
             against. Collections already deployed keep the resolver they
-            were born with — theirs is fixed, by design."""
+            were born with, theirs is fixed, by design."""
             sp.cast(resolver, sp.address)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.is_administrator_(), "NOT_ADMIN"
@@ -1066,7 +1066,7 @@ def aleatory():
         @sp.entrypoint
         def set_paused(self, new_state):
             """(Admin only) Stop new deployments. Has no effect on any
-            collection already deployed — we have no authority there."""
+            collection already deployed, we have no authority there."""
             sp.cast(new_state, sp.bool)
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.is_administrator_(), "NOT_ADMIN"

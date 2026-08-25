@@ -1,9 +1,9 @@
 /**
- * Aleatory — the sandbox frame.
+ * Aleatory, the sandbox frame.
  *
  * One piece, one seed, one frame. The frame is `sandbox="allow-scripts"` with no
  * `allow-same-origin`, so the piece runs in an opaque origin with no access to
- * the page, no storage, and — via CSP — no network at all.
+ * the page, no storage, and, via CSP, no network at all.
  *
  * The document is NOT handed over as `srcdoc`, and that is the whole subtlety
  * here. A srcdoc document inherits the parent page's CSP, and the site forbids
@@ -23,7 +23,7 @@ import type { ParamSpec, ParamValues } from "../../lib/aleatory/params";
 import type { FrameMessage, Violation } from "../../lib/aleatory/runtime";
 import { buildSandboxDoc } from "../../lib/aleatory/sandbox";
 
-/** Static shell in public/. Served by Vite and Netlify alike, and — critically —
+/** Static shell in public/. Served by Vite and Netlify alike, and, critically , 
  *  carries its own CSP rather than inheriting the site's. */
 const SHELL_URL = "/sandbox/index.html";
 
@@ -34,7 +34,7 @@ export interface RunResult {
     source: "canvas" | "svg" | "none";
     features: Record<string, string | number | boolean>;
     violations: Violation[];
-    /** Diagnostic, not a fault — see FrameMessage. */
+    /** Diagnostic, not a fault, see FrameMessage. */
     mathRandomCalls: number;
     elapsed: number;
     autoCaptured: boolean;
@@ -94,7 +94,7 @@ export default function SandboxFrame({
     const violationsRef = useRef<Violation[]>([]);
 
     // Keep the latest callbacks without making the frame re-mount when a parent
-    // re-renders — a remount is a re-run, and re-runs must be deliberate.
+    // re-renders, a remount is a re-run, and re-runs must be deliberate.
     const onResultRef = useRef(onResult);
     const onErrorRef = useRef(onError);
     const onParamsDeclaredRef = useRef(onParamsDeclared);
@@ -106,7 +106,7 @@ export default function SandboxFrame({
 
     // Params and their declaration are objects, so a parent re-render hands us
     // new identities for identical values. Comparing the serialized form is what
-    // keeps a re-render from being a re-run — the frame rebuilds when the values
+    // keeps a re-render from being a re-run, the frame rebuilds when the values
     // actually change, and only then.
     const paramsKey = useMemo(() => JSON.stringify(params ?? {}), [params]);
     const schemaKey = useMemo(() => JSON.stringify(paramsSchema ?? []), [paramsSchema]);
@@ -136,7 +136,7 @@ export default function SandboxFrame({
     }, []);
 
     // A layout effect, so the listener is in place before the browser gets a
-    // chance to paint — and therefore before any document we hand the frame can
+    // chance to paint, and therefore before any document we hand the frame can
     // finish booting. A missed first message reads as a piece that never ran.
     useLayoutEffect(() => {
         function onMessage(event: MessageEvent) {

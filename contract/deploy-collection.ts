@@ -12,8 +12,8 @@
  *   2. what a mint costs a collector on top of price + render gas
  *   3. whether any of it fits inside a single operation
  *
- * It deliberately uses the real factory rather than originating a collection
- * directly, because the one-signature deploy is the thing being tested.
+ * It goes through the real factory, because the one-signature deploy is the
+ * thing being measured.
  *
  * Env: as contract/deploy.ts, plus
  *   ALEA_CODE_URI          ipfs:// pointer to the generator (required)
@@ -52,8 +52,8 @@ function deployments(): Record<string, string> {
 function requireEnv(name: string): string {
   const v = process.env[name]
   if (!v) {
-    // These are immutable once the collection exists. A missing value must
-    // never quietly become a placeholder that is then permanent.
+    // Immutable once the collection exists, so a missing value has to stop
+    // the run.
     throw new Error(`${name} is not set, and it can never be changed after deploy.`)
   }
   return v
@@ -124,7 +124,7 @@ async function main() {
     price,
     royalties,
     pending_metadata: hex(pending),
-    start_paused: true, // deploy, check, announce, then open — decisions.md §5
+    start_paused: true, // deploy, check, announce, then open, decisions.md §5
     provider: d.provider,
     max_render_gas: Number(renderGas),
     metadata: collectionMeta,
@@ -136,12 +136,12 @@ async function main() {
   console.log(`  total         ${(est.totalCost / 1_000_000).toFixed(6)} tez  <- what a collection costs an artist`)
 
   if (DRY_RUN) {
-    console.log('\nDRY RUN — nothing injected.')
+    console.log('\nDRY RUN, nothing injected.')
     return
   }
 
   const op = await factory.methodsObject.deploy(params).send()
-  console.log(`\n  injected ${op.hash} — confirming...`)
+  console.log(`\n  injected ${op.hash}, confirming...`)
   await op.confirmation()
 
   const storage = (await factory.storage()) as { collections: { get: (k: number) => Promise<string> }, next_collection_id: { toNumber: () => number } }
@@ -168,7 +168,7 @@ async function main() {
   console.log(`  paid on top of price + render gas  <- what a mint costs a collector`)
 
   const buyOp = await collection.methodsObject.buy('').send({ amount: total, mutez: true })
-  console.log(`  injected ${buyOp.hash} — confirming...`)
+  console.log(`  injected ${buyOp.hash}, confirming...`)
   await buyOp.confirmation()
   console.log(`  ✓ token 0 minted. Its seed is this operation hash:`)
   console.log(`    ${buyOp.hash}`)

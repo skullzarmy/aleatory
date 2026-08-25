@@ -5,8 +5,8 @@ import type { FeedPiece } from "@/lib/feed";
 /**
  * One piece in a feed.
  *
- * A piece awaiting its render gets a state of its own rather than a broken
- * image. It is a real token, owned and tradeable, and the card should say so.
+ * A piece awaiting its render shows an "awaiting render" state. It is a real
+ * token, owned and tradeable, and the card says so.
  */
 export function PieceCard({ piece }: { piece: FeedPiece }) {
     return (

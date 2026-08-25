@@ -1,11 +1,8 @@
 import { BRAND, NETWORK } from "@/lib/config";
 
 /**
- * Three different kinds of nothing, told apart.
- *
- * "We have not deployed yet", "nobody has made a collection", and "something
- * broke" are distinct facts, and collapsing them into one blank grid is how a
- * site becomes untrustworthy.
+ * Three kinds of nothing, each told apart: nothing deployed, no collections,
+ * no pieces. Each is a distinct fact and the copy states which one it is.
  */
 export function EmptyFeed({
     reason,
@@ -15,15 +12,15 @@ export function EmptyFeed({
     const copy = {
         unconfigured: {
             title: "Nothing deployed yet",
-            body: `${BRAND.name}'s contracts have not been originated on ${NETWORK}. The feed turns on by itself once they are.`,
+            body: `${BRAND.name}'s contracts are waiting to be originated on ${NETWORK}. The feed turns on once they are.`,
         },
         "no-collections": {
             title: "No collections yet",
-            body: "The factory is live and no artist has deployed a collection through it. This is the first day.",
+            body: "The factory is live and waiting for its first collection.",
         },
         "no-pieces": {
             title: "No pieces minted yet",
-            body: "Collections exist and nobody has bought a piece from one. The first mint shows up here.",
+            body: "Collections are open. The first mint shows up here.",
         },
     }[reason];
 

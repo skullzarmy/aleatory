@@ -1,9 +1,8 @@
 /**
  * IPFS URI handling.
  *
- * Which gateway is a runtime choice, and a deliberately shallow one: a piece
- * is addressed by its CID, so any gateway serves the same bytes and a dead
- * one is a config change rather than a migration.
+ * The gateway is a runtime choice. A piece is addressed by its CID, so any
+ * gateway serves the same bytes and swapping one is a config change.
  */
 const GATEWAY =
     process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz";

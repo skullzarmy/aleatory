@@ -39,7 +39,7 @@ An unrevealed piece is a real token. What it *is* comes from chain state: immuta
 
 Pieces are standard FA2, so they trade on objkt and Teia from day one. Aleatory runs its own market for them as well: listings and offers, 2.5% deducted from the sale, copying what objkt and Teia already do.
 
-Royalties are read from the collection itself rather than from the listing, so a seller cannot cheat an artist out of their share.
+Royalties come from the collection's own storage, so a seller cannot cheat an artist out of their share.
 
 ## Where the money goes
 

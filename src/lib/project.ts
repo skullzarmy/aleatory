@@ -1,5 +1,5 @@
 /**
- * Aleatory — packaging.
+ * Aleatory, packaging.
  *
  * The v0 package format is a single self-contained HTML document. A .zip in
  * the shape artists already ship (index.html at the root, a libraries/ folder,
@@ -13,7 +13,7 @@ import { strFromU8, unzipSync } from "fflate";
 
 export interface PackagedProject {
     html: string;
-    /** Total bytes of the flattened document — what the cost estimate prices. */
+    /** Total bytes of the flattened document, what the cost estimate prices. */
     bytes: number;
     /** Human notes about what was inlined and what could not be resolved. */
     notes: string[];
@@ -110,7 +110,7 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
     // <script src="…"></script> → inline
     html = html.replace(/<script\b([^>]*?)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>\s*<\/script>/gi, (match, _pre, src: string) => {
         if (/^(https?:)?\/\//.test(src)) {
-            notes.push(`Left a remote script reference in place: ${src} — it will be blocked and reported at render time.`);
+            notes.push(`Left a remote script reference in place: ${src}, it will be blocked and reported at render time.`);
             return match;
         }
         const file = lookup(src);

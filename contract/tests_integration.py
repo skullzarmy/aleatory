@@ -89,7 +89,7 @@ def _world(scenario, admin, agent, treasury, artist, royalties):
 
 @sp.add_test()
 def test_full_lifecycle():
-    """Deploy, mint, publish, list, sell — across four real contracts.
+    """Deploy, mint, publish, list, sell, across four real contracts.
 
     The load-bearing assertion is the royalty split: the marketplace has no
     royalty information of its own and has to fetch it from the collection
@@ -222,7 +222,7 @@ def test_royalties_actually_cross_the_contract_boundary():
 @sp.add_test()
 def test_an_unrevealed_piece_still_trades():
     """A piece whose metadata was never published is a real token. It
-    should list and sell like any other — the reveal is a courtesy, not a
+    should list and sell like any other, the reveal is a courtesy, not a
     precondition for ownership."""
     scenario = sp.test_scenario("Unrevealed trade", [aleatory, marketplace])
     admin = sp.test_account("Admin")

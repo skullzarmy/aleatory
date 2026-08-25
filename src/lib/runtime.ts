@@ -1,5 +1,5 @@
 /**
- * Aleatory — the runtime harness.
+ * Aleatory, the runtime harness.
  *
  * This is the code that boots inside the sandbox frame, before the artist's
  * code, and provides the whole contract described in docs/aleatory:
@@ -7,14 +7,14 @@
  *   - a seeded PRNG, so the piece is a pure function of (code, seed, params)
  *   - the $alea lifecycle: boot / render / ready / features / resize
  *   - a compatibility shim for the older fxhash-era globals, so existing
- *     artist code runs unmodified — nothing stranded
+ *     artist code runs unmodified, nothing stranded
  *   - mechanical enforcement of the determinism rule: network access is
  *     blocked and reported, Math.random is substituted and reported
  *   - deterministic capture at the declared capture point, digested so two
  *     runs of the same seed can be compared
  *
  * It is shipped as a source string because it must be injected into a
- * sandboxed srcdoc frame with an opaque origin — nothing here can be imported
+ * sandboxed srcdoc frame with an opaque origin, nothing here can be imported
  * by the frame, so everything the frame needs travels with it.
  */
 
@@ -24,7 +24,7 @@
  *
  * v2 adds declared mint-time parameters: `$alea.params` is populated from the
  * generator's schema, `$alea.paramsSchema` exposes the declaration to the piece,
- * and a read of an undeclared name is reported. v1 code is unaffected — it
+ * and a read of an undeclared name is reported. v1 code is unaffected, it
  * declared nothing, so it receives nothing, and every v1 entry point still
  * means exactly what it meant. Serving one harness for both is the v0 shortcut;
  * archiving a harness per (kind, standard_version) is v1 work (architecture §3).
@@ -37,7 +37,7 @@ export type FrameMessage =
     | {
           type: "alea:ready";
           seed: string;
-          /** sha-256 (or fallback) of the captured output — the determinism digest. */
+          /** sha-256 (or fallback) of the captured output, the determinism digest. */
           digest: string;
           /** data: URL of the capture, only when requested. */
           image: string | null;
@@ -49,7 +49,7 @@ export type FrameMessage =
            * How many times the piece reached for Math.random. Not a violation:
            * the seeded stream is substituted, so the run stays reproducible, and
            * libraries call it too (p5 does, during init). Reported only where it
-           * is actionable — as a likely cause when two runs of one seed differ.
+           * is actionable, as a likely cause when two runs of one seed differ.
            */
           mathRandomCalls: number;
           /** ms from boot to ready(). */
@@ -60,7 +60,7 @@ export type FrameMessage =
     | { type: "alea:violation"; violation: Violation }
     | { type: "alea:error"; message: string }
     /** An fxhash-era piece declaring its params in code. Offered to the studio
-     *  for import into the panel — see the `$fx.params` shim. */
+     *  for import into the panel, see the `$fx.params` shim. */
     | { type: "alea:params-declared"; params: unknown[] };
 
 export interface Violation {
@@ -69,7 +69,7 @@ export interface Violation {
 }
 
 export interface HarnessConfig {
-    /** 64 hex chars — the seed. */
+    /** 64 hex chars, the seed. */
     seed: string;
     /**
      * The mint-time parameter values, ALREADY resolved against the schema by
@@ -122,7 +122,7 @@ export const HARNESS_SOURCE = String.raw`
 
   function violate(kind, detail) {
     for (var i = 0; i < violations.length; i++) {
-      // Collapse repeats — one fetch in a loop is one problem, not five hundred.
+      // Collapse repeats, one fetch in a loop is one problem, not five hundred.
       if (violations[i].kind === kind && violations[i].detail === detail) return;
     }
     var v = { kind: kind, detail: detail };
@@ -273,7 +273,7 @@ export const HARNESS_SOURCE = String.raw`
   function finish(auto) {
     if (captured) return;
     captured = true;
-    // One frame of slack so the last draw call has actually painted — but never
+    // One frame of slack so the last draw call has actually painted, but never
     // wait on rAF alone: an offscreen frame (the determinism check runs two of
     // them) can be throttled hard enough that it never fires.
     var grabbed = false;
@@ -282,7 +282,7 @@ export const HARNESS_SOURCE = String.raw`
       grabbed = true;
       var shot = grab();
       if (shot.source === "none") {
-        violate("capture", "nothing to capture — no canvas and no svg in the document.");
+        violate("capture", "nothing to capture, no canvas and no svg in the document.");
       }
       digest(shot.data || "").then(function (d) {
         post({
@@ -305,7 +305,7 @@ export const HARNESS_SOURCE = String.raw`
 
   // --- declared parameters ---------------------------------------------------
   // Values arrive already resolved against the declaration (clamped, snapped to
-  // the step grid, defaults filled in) — see lib/aleatory/params.ts. The frame
+  // the step grid, defaults filled in), see lib/aleatory/params.ts. The frame
   // re-resolves nothing, because two implementations of one rule is how the same
   // token ends up rendering differently in two places.
   var paramSchema = CFG.paramsSchema || [];
@@ -316,8 +316,8 @@ export const HARNESS_SOURCE = String.raw`
   function readParam(name, fallback) {
     if (Object.prototype.hasOwnProperty.call(paramValues, name)) return paramValues[name];
     if (Object.prototype.hasOwnProperty.call(declared, name)) return declared[name]["default"];
-    // A read of a name the generator never declared. Not fatal — the fallback
-    // stands and the piece renders — but it is almost always a typo or a param
+    // A read of a name the generator never declared. Not fatal, the fallback
+    // stands and the piece renders, but it is almost always a typo or a param
     // that was renamed in one place and not the other, and the collector's mint
     // UI will have no control for it. Reported so the checks catch it before the
     // record is immutable.
@@ -368,7 +368,7 @@ export const HARNESS_SOURCE = String.raw`
     getParams: function () { return paramValues; },
     getRawParam: function (name) { return readParam(name, undefined); },
     // fxhash-era projects declare their params by calling this at load time. We
-    // keep the declaration in the record instead — a mint UI has to be buildable
+    // keep the declaration in the record instead, a mint UI has to be buildable
     // by reading chain state, never by executing the artwork. So the call is not
     // ignored: it is forwarded to the studio, which offers to import it into the
     // params panel. An imported project arrives with its controls intact rather
@@ -402,7 +402,7 @@ export const HARNESS_SOURCE = String.raw`
     // and the missing signal is reported rather than silently tolerated.
     setTimeout(function () {
       if (captured) return;
-      violate("capture", "ready() was never called — captured on the " + CFG.timeout + "ms deadline instead. " +
+      violate("capture", "ready() was never called, captured on the " + CFG.timeout + "ms deadline instead. " +
         "Call $alea.ready() (or fxpreview()) at the capture point so previews are reproducible.");
       finish(true);
     }, CFG.timeout);
@@ -410,7 +410,7 @@ export const HARNESS_SOURCE = String.raw`
 
   // Boot after layout, never merely after parse. A frame that has not been laid
   // out yet reports innerWidth 0, and a piece that sizes itself from the window
-  // at parse time draws nothing at all — the single most common way a first run
+  // at parse time draws nothing at all, the single most common way a first run
   // comes back blank.
   function bootWhenLaidOut() {
     requestAnimationFrame(function () { setTimeout(boot, 0); });

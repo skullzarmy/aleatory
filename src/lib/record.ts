@@ -1,5 +1,5 @@
 /**
- * Aleatory — the generator record.
+ * Aleatory, the generator record.
  *
  * The versioned, typed structure described in docs/aleatory/architecture.md §3,
  * as it is written into contract storage. Three independent version axes:
@@ -17,7 +17,7 @@ import { type ParamSpec, type ParamsSchema, PARAMS_RESOLUTION, schemaForRecord }
 import { STANDARD_VERSION } from "./runtime";
 import type { ResolvedDep, StorageClassId } from "./runtimes";
 
-/** Bumped only additively — readers ignore unknown trailing optional fields. */
+/** Bumped only additively, readers ignore unknown trailing optional fields. */
 export const SCHEMA_VERSION = 1;
 
 export interface CodeRef {
@@ -63,7 +63,7 @@ export interface GeneratorRecord {
     seed_policy: SeedPolicy;
     /**
      * The mint-time parameters this generator declares, or null when it declares
-     * none — which is the common case and stays one unambiguous shape.
+     * none, which is the common case and stays one unambiguous shape.
      *
      * Immutable with the rest of the record, and deliberately readable on its
      * own: another platform builds a mint UI for this generator from this field
@@ -80,7 +80,7 @@ export interface GeneratorRecord {
     royalties_bps: number;
     /**
      * The seed the artist pinned as the collection's cover. Stored so the cover
-     * can be regenerated from chain state by anyone — the thumbnail image in the
+     * can be regenerated from chain state by anyone, the thumbnail image in the
      * contract metadata is a cache of this, not the source of it.
      */
     cover_seed: string;
@@ -89,8 +89,8 @@ export interface GeneratorRecord {
 export const OP_HASH_SEED_FORMULA = "blake2b_256(utf8(op_hash + ':' + token_id + ':' + contract_address))";
 
 /**
- * Policy A. The operation hash is chain state — an indexer reads it, anyone
- * recomputes it, nobody is trusted — it simply isn't readable inside Michelson,
+ * Policy A. The operation hash is chain state, an indexer reads it, anyone
+ * recomputes it, nobody is trusted, it simply isn't readable inside Michelson,
  * so the binding happens here rather than in contract storage.
  *
  * Known limitation, stated in the docs and not hidden: the op hash is
@@ -108,7 +108,7 @@ export function hashBytes(text: string): { hash: string; bytes: number } {
 }
 
 /**
- * Class is derived, never chosen — and it is displayed on the piece rather than
+ * Class is derived, never chosen, and it is displayed on the piece rather than
  * enforced. An artist may publish anything; a collector always sees what the
  * work depends on.
  */
@@ -120,13 +120,13 @@ export function storageClassOf(deps: ResolvedDep[], codeOnChain: boolean): Stora
 export const STORAGE_CLASS_LABEL: Record<StorageClassId, { name: string; blurb: string }> = {
     foc: {
         name: "fully on-chain",
-        blurb: "Your code and everything it needs are stored in the contract. The piece renders from Tezos alone — no IPFS, no server, nothing to keep paying for.",
+        blurb: "Your code and everything it needs are stored in the contract. The piece renders from Tezos alone, no IPFS, no server, nothing to keep paying for.",
     },
     shared: {
         name: "on-chain + shared library",
         blurb:
             "Your code is stored in the contract; the library it uses is referenced by hash. In v0 that library is fetched from a CDN, " +
-            "so a piece like this is not fully on-chain yet — the shared library contract is v1 work.",
+            "so a piece like this is not fully on-chain yet, the shared library contract is v1 work.",
     },
     ipfs: {
         name: "IPFS",
@@ -149,7 +149,7 @@ export interface ChainConstants {
     live: boolean;
 }
 
-/** Protocol defaults — only used when the RPC is unreachable, and labelled as such. */
+/** Protocol defaults, only used when the RPC is unreachable, and labelled as such. */
 const FALLBACK: ChainConstants = {
     costPerByte: 250,
     maxOperationBytes: 32_768,
@@ -160,7 +160,7 @@ const FALLBACK: ChainConstants = {
 /**
  * Read the constants from the chain rather than hardcoding them. Storage cost
  * and operation limits are protocol values that have changed before and will
- * change again — an estimator that lies is worse than no estimator.
+ * change again, an estimator that lies is worse than no estimator.
  */
 export async function fetchConstants(rpcUrl: string): Promise<ChainConstants> {
     try {
@@ -236,7 +236,7 @@ export function formatBytes(bytes: number): string {
 /**
  * Downscale a capture into a thumbnail for token metadata.
  *
- * Previews are a convenience, never a source of truth — the piece is the code
+ * Previews are a convenience, never a source of truth, the piece is the code
  * and the seed, and anyone can regenerate the image from the capture recipe.
  * They still cost real storage, so they are small on purpose and the cost is
  * shown before anyone signs.
@@ -280,7 +280,7 @@ export interface BuildRecordInput {
     captureTimeoutMs: number;
     viewport: { width: number; height: number };
     coverSeed: string;
-    /** Declared mint-time parameters. Empty is normal — params are optional. */
+    /** Declared mint-time parameters. Empty is normal, params are optional. */
     paramSpecs?: ParamSpec[];
 }
 

@@ -1,6 +1,6 @@
 /** biome-ignore-all lint/suspicious/noCommentText: `// …` is the house voice in lab copy */
 /**
- * Aleatory — v0.
+ * Aleatory, v0.
  *
  * The whole first iteration in one lab: template, sandbox, mechanical checks,
  * cost estimate, testnet publish + mint, and a gallery that rebuilds pieces
@@ -182,7 +182,7 @@ export default function Aleatory() {
     const { client: globalClient, address: globalAddress, connect: globalConnect, disconnect: globalDisconnect } = useTezos();
 
     usePageMeta({
-        title: "Aleatory — seeded generative art on Tezos — Labs — hack.tez",
+        title: "Aleatory, seeded generative art on Tezos, Labs, hack.tez",
         description:
             "v0 of a community-run home for generative art on Tezos: template, sandbox, determinism checks, on-chain cost estimate, and testnet publish + mint. Rules and a seed, deterministic forever.",
         path: "/labs/aleatory",
@@ -206,7 +206,7 @@ export default function Aleatory() {
     /** A declaration an imported piece made in code, waiting to be adopted. */
     const [fxImport, setFxImport] = useState<{ params: ParamSpec[]; notes: string[] } | null>(null);
     const paramErrors = useMemo(() => validateSchema(paramSpecs), [paramSpecs]);
-    /** What the frames actually receive — never the raw control state. */
+    /** What the frames actually receive, never the raw control state. */
     const runParams = useMemo(() => resolveParams(paramSpecs, paramValues), [paramSpecs, paramValues]);
 
     // A declaration edit can invalidate a value (a range moved, a type changed).
@@ -247,7 +247,7 @@ export default function Aleatory() {
 
     const depSources = useMemo(() => deps.map((d) => d.source), [deps]);
 
-    // Resolve the kind's shared libraries once, in the page — by the time a
+    // Resolve the kind's shared libraries once, in the page, by the time a
     // piece boots they are inlined text and the frame has no network at all.
     useEffect(() => {
         let cancelled = false;
@@ -306,7 +306,7 @@ export default function Aleatory() {
     }, []);
 
     /** An imported piece called `$fx.params([...])`. Offered, never applied
-     *  silently — adopting a declaration changes what gets published. */
+     *  silently, adopting a declaration changes what gets published. */
     const onParamsDeclared = useCallback(
         (declaration: unknown[]) => {
             if (paramSpecs.length > 0) return;
@@ -410,7 +410,7 @@ export default function Aleatory() {
 
             // Params are optional, so "none declared" is a pass, not a warning.
             // What is worth failing on is a declaration that cannot be honoured:
-            // an invalid schema, or code reading a name no control exists for —
+            // an invalid schema, or code reading a name no control exists for , 
             // that value would be unreachable for every collector, forever.
             const unreadable = [...first.violations, ...result.violations].filter(
                 (v) => v.kind === "runtime" && v.detail.includes("undeclared parameter"),
@@ -425,7 +425,7 @@ export default function Aleatory() {
                         : unreadable.length > 0
                           ? unreadable.map((v) => v.detail).join(" ")
                           : paramSpecs.length === 0
-                            ? "None declared. Optional — this piece is the seed alone."
+                            ? "None declared. Optional, this piece is the seed alone."
                             : `${paramSpecs.length} declared: ${paramSpecs.map((p) => p.id).join(", ")}. Both runs used the same values.`,
             });
 
@@ -435,7 +435,7 @@ export default function Aleatory() {
                 status: kind.deps.length === 0 ? "pass" : deps.length === kind.deps.length ? "pass" : "fail",
                 detail:
                     kind.deps.length === 0
-                        ? "No shared libraries — this piece is fully on-chain."
+                        ? "No shared libraries, this piece is fully on-chain."
                         : deps.length === kind.deps.length
                           ? deps.map((d) => `${d.spec.label} ${d.spec.version} → ${d.hash.slice(0, 12)}…`).join(" · ")
                           : "A declared dependency could not be resolved.",
@@ -514,10 +514,10 @@ export default function Aleatory() {
 
     const cost: CostBreakdown | null = useMemo(() => {
         if (!constants) return null;
-        // The record is stored twice — once inline in the TZIP-16 document and
-        // once under its own key — plus the TZIP-16 wrapper itself.
+        // The record is stored twice, once inline in the TZIP-16 document and
+        // once under its own key, plus the TZIP-16 wrapper itself.
         const recordBytes = draftRecord ? new TextEncoder().encode(JSON.stringify(draftRecord)).length * 2 + 300 : 1200;
-        // Class B keeps shared libraries out of this project's storage entirely —
+        // Class B keeps shared libraries out of this project's storage entirely , 
         // that is the whole reason the Deps contract exists.
         return estimateCost(codeHash.bytes, recordBytes, 0, constants);
     }, [constants, codeHash.bytes, draftRecord]);
@@ -606,12 +606,12 @@ export default function Aleatory() {
             };
             const res = await publishGenerator(net, walletClient, activeAddress, record, project.html);
 
-            setPublishStep(`origination ${res.opHash.slice(0, 10)}… submitted — waiting for the indexer`);
+            setPublishStep(`origination ${res.opHash.slice(0, 10)}… submitted, waiting for the indexer`);
             const address = await waitForContract(net, res.opHash);
             setContract(address);
             setPublishedRecord(record);
             // The mint form starts where the artist left the studio, not at the
-            // declared defaults — it is the same piece they were just looking at.
+            // declared defaults, it is the same piece they were just looking at.
             setMintValues(resolveParams(specsOf(record.params_schema), paramValues));
             setPublishStep(null);
         } catch (err) {
@@ -631,7 +631,7 @@ export default function Aleatory() {
 
             const tokenId = minted.length;
             const pieceParams = resolveParams(publishedSpecs, mintValues);
-            setPublishStep(`minting piece #${tokenId} — waiting for signature…`);
+            setPublishStep(`minting piece #${tokenId}, waiting for signature…`);
             const info = buildTokenInfo({
                 title: publishedRecord.title,
                 description: publishedRecord.description,
@@ -643,11 +643,11 @@ export default function Aleatory() {
             });
             const res = await mintPiece(net, walletClient, contract, activeAddress, tokenId, info);
 
-            setPublishStep(`mint ${res.opHash.slice(0, 10)}… submitted — waiting for the indexer`);
+            setPublishStep(`mint ${res.opHash.slice(0, 10)}… submitted, waiting for the indexer`);
             await waitForApplied(net, res.opHash);
 
             // The seed exists only now: it is derived from the operation hash,
-            // which nobody — including us — knew before the operation landed.
+            // which nobody, including us, knew before the operation landed.
             const pieceSeed = deriveSeed(res.opHash, tokenId, contract);
             setMinted((m) => [...m, { tokenId, opHash: res.opHash, seed: pieceSeed, params: pieceParams }]);
             setPublishStep(null);
@@ -684,7 +684,7 @@ export default function Aleatory() {
 
                 // Resolve the libraries the RECORD names, not whatever the studio
                 // happens to be set to. A piece boots into the version it was made
-                // with, forever — that is the entire point of pinning kind_version.
+                // with, forever, that is the entire point of pinning kind_version.
                 const recordKind = RUNTIME_KINDS.find((k) => k.name === gen.record.runtime.kind_name);
                 const wanted = (recordKind?.deps ?? []).filter((d) => gen.record.deps.some((ref) => ref.ref === `${d.id}@${d.version}`));
                 const resolved = wanted.length > 0 ? await resolveDeps(wanted) : [];
@@ -1016,7 +1016,7 @@ export default function Aleatory() {
                                     >
                                         <div>
                                             captured from {lastRun.source} at {lastRun.elapsed}ms
-                                            {lastRun.autoCaptured ? " (on the deadline — ready() never fired)" : ""}
+                                            {lastRun.autoCaptured ? " (on the deadline, ready() never fired)" : ""}
                                         </div>
                                         <div style={{ wordBreak: "break-all" }}>digest {lastRun.digest.slice(0, 24)}…</div>
                                         {Object.entries(lastRun.features).length > 0 && (
@@ -1079,7 +1079,7 @@ export default function Aleatory() {
                             }}
                         >
                             // you name them, you set the range. the declaration is published with the generator, so a mint page
-                            anywhere — ours or somebody else's — can build these controls from chain state alone. the values a
+                            anywhere, ours or somebody else's, can build these controls from chain state alone. the values a
                             collector picks are stored on their token, next to the seed.
                         </p>
 
@@ -1095,7 +1095,7 @@ export default function Aleatory() {
                                 <p style={{ fontFamily: mono, fontSize: "0.74rem", color: "var(--fg)", margin: 0, lineHeight: 1.7 }}>
                                     // this project declares {fxImport.params.length} parameter
                                     {fxImport.params.length === 1 ? "" : "s"} in code, fxhash style. the declaration has to live in the
-                                    record for a mint UI to read it — import them?
+                                    record for a mint UI to read it, import them?
                                 </p>
                                 {fxImport.notes.map((n) => (
                                     <p
@@ -1127,7 +1127,7 @@ export default function Aleatory() {
 
                         {paramSpecs.length > 0 && (
                             <div style={{ marginTop: "1rem" }}>
-                                <span style={labelStyle}>Try them — this is the control a minter gets</span>
+                                <span style={labelStyle}>Try them, this is the control a minter gets</span>
                                 <ParamsTuner specs={paramSpecs} values={paramValues} onChange={setParamValues} />
                                 <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.7rem", flexWrap: "wrap" }}>
                                     <button type="button" style={button()} onClick={() => setParamValues(randomValues(paramSpecs))}>
@@ -1178,11 +1178,11 @@ export default function Aleatory() {
                             <Dices size={12} aria-hidden="true" /> new grid
                         </button>
                         <Note>
-                            // {gridCount} seeds from base {baseSeed.slice(0, 12)}… — click one to pin it in the studio
+                            // {gridCount} seeds from base {baseSeed.slice(0, 12)}…, click one to pin it in the studio
                             {paramSpecs.length > 0 && (
                                 <>
                                     <br />
-                                    // params held at {summarizeParams(paramSpecs, runParams)} — the grid varies the seed and nothing
+                                    // params held at {summarizeParams(paramSpecs, runParams)}, the grid varies the seed and nothing
                                     else, which is the only way to read what the seed alone is doing
                                 </>
                             )}
@@ -1208,7 +1208,7 @@ export default function Aleatory() {
                                 title={s}
                                 style={{ ...previewBox, padding: 0, cursor: "pointer" }}
                             >
-                                {/* The frame must not eat the click — the whole tile selects the seed. */}
+                                {/* The frame must not eat the click, the whole tile selects the seed. */}
                                 <SandboxFrame
                                     html={project.html}
                                     seed={s}
@@ -1297,17 +1297,17 @@ export default function Aleatory() {
                                 color: gateOpen ? "var(--ok)" : "var(--err, #ff6b6b)",
                             }}
                         >
-                            // {gateOpen ? "gate open — this generator can be published." : "gate closed — fix the failures and run again."}
+                            // {gateOpen ? "gate open, this generator can be published." : "gate closed, fix the failures and run again."}
                         </p>
                     )}
 
                     {/* The two runs, on screen and on purpose. Browsers throttle
                         animation frames in offscreen iframes, so a hidden runner can
-                        sit there forever without drawing — and showing the pair being
+                        sit there forever without drawing, and showing the pair being
                         compared is the honest version of this check anyway. */}
                     {checkPhase !== 0 && (
                         <div style={{ marginTop: "1rem" }}>
-                            <span style={labelStyle}>run {checkPhase} of 2 — seed {checkSeed.slice(0, 16)}…</span>
+                            <span style={labelStyle}>run {checkPhase} of 2, seed {checkSeed.slice(0, 16)}…</span>
                             <div
                                 style={{
                                     width: "220px",
@@ -1449,8 +1449,8 @@ export default function Aleatory() {
                                     {[
                                         ["generator code", formatBytes(cost.codeBytes)],
                                         ["record + metadata", formatBytes(cost.recordBytes)],
-                                        ["shared libraries in this contract", deps.length > 0 ? "0 B — referenced by hash" : "none"],
-                                        ["per mint (token metadata)", mintCost ? formatBytes(mintCost.bytes) : "—"],
+                                        ["shared libraries in this contract", deps.length > 0 ? "0 B, referenced by hash" : "none"],
+                                        ["per mint (token metadata)", mintCost ? formatBytes(mintCost.bytes) : ", "],
                                         ["operations to publish", String(cost.operations)],
                                     ].map(([k, v]) => (
                                         <tr key={k} style={{ borderBottom: "1px solid var(--border)" }}>
@@ -1473,7 +1473,7 @@ export default function Aleatory() {
                                     lineHeight: 1.7,
                                 }}
                             >
-                                // {constants.live ? "live from the chain" : "RPC unreachable — protocol defaults, may be wrong"}:{" "}
+                                // {constants.live ? "live from the chain" : "RPC unreachable, protocol defaults, may be wrong"}:{" "}
                                 {constants.costPerByte} mutez/byte · {formatBytes(constants.maxOperationBytes)} per operation
                             </p>
                         )}
@@ -1494,7 +1494,7 @@ export default function Aleatory() {
                                     }}
                                 >
                                     {d.spec.label} {d.spec.version} · {formatBytes(d.bytes)} ·{" "}
-                                    {constants ? formatTez((d.bytes * constants.costPerByte) / 1_000_000) : "…"} —{" "}
+                                    {constants ? formatTez((d.bytes * constants.costPerByte) / 1_000_000) : "…"} , {" "}
                                     <span style={{ color: "var(--fg)" }}>paid once by whoever does it, then free for every project after</span>
                                 </p>
                             ))}
@@ -1550,7 +1550,7 @@ export default function Aleatory() {
                     </div>
 
                     <Note>
-                        // v0 publishes to testnets only. mainnet contracts are v1, and most of what they store can never be changed — so
+                        // v0 publishes to testnets only. mainnet contracts are v1, and most of what they store can never be changed, so
                         they wait until the shape has survived being wrong a few times here.
                     </Note>
 
@@ -1575,7 +1575,7 @@ export default function Aleatory() {
                                 lineHeight: 1.7,
                             }}
                         >
-                            // this generator is {formatBytes(cost.totalBytes)} — hex-encoded that exceeds what one operation can carry, so
+                            // this generator is {formatBytes(cost.totalBytes)}, hex-encoded that exceeds what one operation can carry, so
                             it needs {cost.operations} chunked uploads. v0 publishes in a single origination; chunking is v1. Trim the code,
                             or move heavy assets out of it.
                         </p>
@@ -1671,7 +1671,7 @@ export default function Aleatory() {
                                     margin: "0 0 0.5rem",
                                 }}
                             >
-                                // published — code and record are in contract storage
+                                // published, code and record are in contract storage
                             </p>
                             <a
                                 href={`${net.tzktUrl}/${contract}`}
@@ -1757,7 +1757,7 @@ export default function Aleatory() {
                                 }}
                             >
                                 // each mint is one batched operation (create_token + mint_tokens). that operation's hash is the seed source
-                                — nobody, including us, knows the seed before it lands.
+                               , nobody, including us, knows the seed before it lands.
                             </p>
                         </div>
                     )}

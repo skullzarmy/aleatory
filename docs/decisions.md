@@ -1,8 +1,6 @@
-# Decision record — Aleatory
+# Decision record, Aleatory
 
-**Status:** settled, 2026-08-23. This is the model to build. Where it disagrees with [architecture.md](architecture.md), this document wins until that one is rewritten.
-
-It supersedes two earlier models: a single shared contract holding every generator, and a backend-mints-after-render flow with escrowed reservations. Both are gone.
+**Status:** settled, 2026-08-23. This is the model to build. Where it disagrees with [architecture.md](architecture.md), this document wins.
 
 ---
 
@@ -14,7 +12,7 @@ It supersedes two earlier models: a single shared contract holding every generat
 | **Collection** | One generator, one edition, its tokens | The artist, from origination. |
 | **Resolver** | Our backend keys | Us. One flip rotates a leaked key everywhere. |
 | **Provider** | One renderer's price and endpoint | Whoever runs it. |
-| **Registry** | The list of providers | Nobody — permissionless, no fee. |
+| **Registry** | The list of providers | Nobody, permissionless, no fee. |
 
 **The factory holds no tokens.** That is what makes `admin_lambda` safe there: it transforms factory storage, and there is nothing of anyone else's in it.
 
@@ -26,19 +24,19 @@ It supersedes two earlier models: a single shared contract holding every generat
 
 One operation. The artist calls `deploy` with the fee; the factory originates the collection in that same operation with the artist already installed as administrator **in the initial storage**. Nothing is held by us and handed over, and there is no second signature.
 
-Storage burn and gas are charged to the operation's source — the artist's wallet — as Tezos charges all storage to the payer, including for internal originations. We front nothing.
+Storage burn and gas are charged to the operation's source, the artist's wallet, as Tezos charges all storage to the payer, including for internal originations. We front nothing.
 
-The template is compiled once and lives as Michelson inside the factory. Every collection is byte-identical code; only storage differs. There is no build server, no key custody, and anyone can verify a collection is the real template by comparing code hashes. Changing the template means deploying a new factory — old collections are untouched and nothing migrates.
+The template is compiled once and lives as Michelson inside the factory. Every collection is byte-identical code; only storage differs. There is no build server, no key custody, and anyone can verify a collection is the real template by comparing code hashes. Changing the template means deploying a new factory, old collections are untouched and nothing migrates.
 
-**There is no deploy fee.** It is zero, and the artist's own origination burn and gas are the only cost of deploying — which is already a real floor against spam without us charging for anything. `deploy_price` exists as an admin-settable field starting at 0 so an anti-spam lever is possible later without a new factory; any change to it would be visible on chain. Income is the render service.
+**There is no deploy fee.** It is zero, and the artist's own origination burn and gas are the only cost of deploying, which is already a real floor against spam without us charging for anything. `deploy_price` exists as an admin-settable field starting at 0 so an anti-spam lever is possible later without a new factory; any change to it would be visible on chain. Income is the render service.
 
 Set at deploy and immutable thereafter: `code_uri`, `code_hash`, `params_schema`, royalties, token name, placeholder image.
 
 ---
 
-## 3. Sale — `buy`
+## 3. Sale, `buy`
 
-One signature. Pays `price + render_gas`, split in that same operation: price to the artist, render gas to the provider. The contract's balance is zero when it returns — nothing to drain, no withdraw entrypoint.
+One signature. Pays `price + render_gas`, split in that same operation: price to the artist, render gas to the provider. The contract's balance is zero when it returns, nothing to drain, no withdraw entrypoint.
 
 **The token is minted here, in the collector's own operation.** It exists, is owned, and is tradeable the moment `buy` returns, carrying the collection's "not revealed yet" metadata document until a provider publishes the piece's own.
 
@@ -46,31 +44,31 @@ An unrevealed piece is a real token, not a promise of one. That is why there is 
 
 What the artwork *is* does not depend on that metadata: the code is immutable in contract storage, the seed is the buy operation's hash, and the parameters are in that operation. Metadata is where a marketplace reads *about* a piece, not where the piece is defined.
 
-**The seed is the hash of this operation.** Always — commit-reveal is not offered. Since `buy` both pays and mints, the binding needs no extra record: a token's seed derives from the hash of the operation that created it.
+**The seed is the hash of this operation.** Always, commit-reveal is not offered. Since `buy` both pays and mints, the binding needs no extra record: a token's seed derives from the hash of the operation that created it.
 
-This does not make grinding expensive. The operation hash covers sender-controlled fields, so candidates are enumerated offline and only the chosen one is injected — one payment, arbitrarily many attempts. Documented, accepted, not hidden.
+This does not make grinding expensive. The operation hash covers sender-controlled fields, so candidates are enumerated offline and only the chosen one is injected, one payment, arbitrarily many attempts. Documented, accepted, not hidden.
 
 **Parameters** are chosen by the collector, resolved per [params.md](params.md) §3, and written into the token by `buy` itself. Their own signature commits what they chose; nobody can alter it afterwards.
 
 ---
 
-## 4. Reveal — `set_token_metadata`
+## 4. Reveal, `set_token_metadata`
 
 An authorised writer publishes one token's metadata URI, once, replacing the collection's pending document.
 
-**This follows the ordinary Tezos arrangement rather than inventing one.** `token_info[""]` holds an `ipfs://` pointer to a JSON document carrying name, `artifactUri`, `displayUri`, royalties and attributes — the same shape objkt, Teia and fxhash all use. Nothing is composed on chain.
+**This follows the ordinary Tezos arrangement rather than inventing one.** `token_info[""]` holds an `ipfs://` pointer to a JSON document carrying name, `artifactUri`, `displayUri`, royalties and attributes, the same shape objkt, Teia and fxhash all use. Nothing is composed on chain.
 
-The consequence, stated plainly: a provider writes a token's **whole** metadata, not two fields of it. That is a real grant of trust, and it is the same one every platform doing generative art on Tezos already makes — there is no way to produce a rendered image without executing the artwork, and no way to publish one without saying where it lives.
+The consequence, stated plainly: a provider writes a token's **whole** metadata, not two fields of it. That is a real grant of trust, and it is the same one every platform doing generative art on Tezos already makes, there is no way to produce a rendered image without executing the artwork, and no way to publish one without saying where it lives.
 
-What bounds it: once per token, only by someone the artist authorised, and never for a token whose metadata is already published. Write-once — a second attempt fails.
+What bounds it: once per token, only by someone the artist authorised, and never for a token whose metadata is already published. Write-once, a second attempt fails.
 
-Authorised means the collection's provider, an address the artist authorised directly (`set_local_writer`), or one the resolver vouches for. The resolver is consulted through a view that may fail — if it is gone or broken the call falls through to the local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
+Authorised means the collection's provider, an address the artist authorised directly (`set_local_writer`), or one the resolver vouches for. The resolver is consulted through a view that may fail, if it is gone or broken the call falls through to the local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
 
-**Collectors cannot self-reveal.** Pinning requires an account, and the only two ways to give collectors that are lending them ours or asking every buyer to configure their own IPFS provider. Neither is acceptable, so only providers write images — which also means an artist's grid is protected by default, with no flag needed.
+**Collectors cannot self-reveal.** Pinning requires an account, and the only two ways to give collectors that are lending them ours or asking every buyer to configure their own IPFS provider. Neither is acceptable, so only providers write images, which also means an artist's grid is protected by default, with no flag needed.
 
 Publishing metadata that does not match the piece is possible and not preventable on chain. It is detectable by anyone: the seed comes from the mint operation, the parameters are in that same operation, and the code is immutable, so the correct output is reproducible. Detection and key rotation, not a guarantee we cannot make.
 
-**The artist can sever our access entirely.** `trust_resolver` starts on, so our provider works out of the box, and `set_trust_resolver(false)` removes the resolver as an authorisation path — otherwise an artist who moved to a rival provider would still leave us able to publish into their collection forever.
+**The artist can sever our access entirely.** `trust_resolver` starts on, so our provider works out of the box, and `set_trust_resolver(false)` removes the resolver as an authorisation path, otherwise an artist who moved to a rival provider would still leave us able to publish into their collection forever.
 
 ---
 
@@ -80,7 +78,7 @@ Established Tezos NFT behaviour. The artist controls supply; the collector contr
 
 | | |
 |---|---|
-| Pause / unpause the sale | Any time. Never affects transfers — a paused collection still trades on secondary. |
+| Pause / unpause the sale | Any time. Never affects transfers, a paused collection still trades on secondary. |
 | Start paused | Chosen at deploy, so a collection can be deployed, checked, announced, then opened. |
 | Change price | Any time, for future mints only. Never retroactive. |
 | Reduce the edition | Any time. Never below what is already minted. |
@@ -98,17 +96,15 @@ Reductions and price changes emit events, so a cut from 100 to 50 is visible rat
 
 ## 6. Royalties
 
-The objkt convention — **not** TZIP-21, which defines no royalties field at all. objkt and Teia read `{"decimals": n, "shares": {address: value}}` where each share is an **absolute** fraction of the sale price.
+The objkt convention, **not** TZIP-21, which defines no royalties field at all. objkt and Teia read `{"decimals": n, "shares": {address: value}}` where each share is an **absolute** fraction of the sale price.
 
-Royalties live in the token's metadata JSON, like everything else, and are built off chain by whoever pins that document. **The contract does not compose or validate them.**
+Royalties live in the token's metadata JSON and are built off chain by whoever pins that document. The collection also keeps them on chain as a typed map with a view, which is what the marketplace pays from.
 
-An earlier draft had the contract composing the JSON so a client could never mis-encode it. That was abandoned once the metadata moved to a CID — and it was never as cheap as it sounded, because rendering a recipient as `tz1…` text requires base58check encoding, which Michelson has no instruction for.
+**The UI works in relative terms** because that is how people think: a total percentage, then recipients splitting it. 25% total, two wallets at 50% each becomes `decimals: 4` with shares `1250` and `1250`. Getting that conversion backwards pays out wrong forever, so the deploy preview shows the decoded result the way objkt will read it, "tz1abc… receives 12.5% of each sale", before anything is signed.
 
-**The UI still works in relative terms** because that is how people think: a total percentage, then recipients splitting it. 25% total, two wallets at 50% each becomes `decimals: 4` with shares `1250` and `1250`. Getting that conversion backwards pays out wrong forever, so the deploy preview shows the decoded result the way objkt will read it — "tz1abc… receives 12.5% of each sale" — before anything is signed.
+Conventions enforced in the UI: total at most 25%, shares summing to 100%, remainder to the first recipient. The contract caps the on-chain total at 25%.
 
-Conventions kept in the UI rather than the contract: total at most 25%, shares summing to 100%, remainder to the first recipient.
-
-**The platform share** is a recipient row that starts absent. An explicit, unchecked ask above the royalty settings — never pre-added. Its copy must say what is true: the split is permanent for every piece this collection will ever mint, and there is no later removal.
+**The platform share** is a recipient row that starts absent. An explicit, unchecked ask above the royalty settings, never pre-added. Its copy must say what is true: the split is permanent for every piece this collection will ever mint, and there is no later removal.
 
 ---
 
@@ -116,11 +112,11 @@ Conventions kept in the UI rather than the contract: total at most 25%, shares s
 
 **A provider is any contract exposing a `get_render_gas` view.** That view is the entire membership test. Deploying one is how you join; there is no application, no allowlist, and no fee.
 
-The artist picks a provider at deploy and can switch any time. The price is **snapshotted** when they pick — `buy` never calls out to the provider's contract, because a sale must not depend on a contract we cannot audit, and a price change mid-block would fail the amount check.
+The artist picks a provider at deploy and can switch any time. The price is **snapshotted** when they pick, `buy` never calls out to the provider's contract, because a sale must not depend on a contract we cannot audit, and a price change mid-block would fail the amount check.
 
 Providers are paid at `buy`, before delivering. If one takes fees and stops rendering, the artist switches and stops paying them; the backlog is already paid to the wrong party and is the artist's to settle. Bounded, because a stuck piece is missing a thumbnail, not an artwork.
 
-**We only ever pin what our own renderer produced.** Never client-submitted bytes, regardless of who is asking or what they signed — verifying someone else's image costs the same as rendering it ourselves, and accepting arbitrary bytes makes us a host for arbitrary content.
+**We only ever pin what our own renderer produced.** Never client-submitted bytes, regardless of who is asking or what they signed, verifying someone else's image costs the same as rendering it ourselves, and accepting arbitrary bytes makes us a host for arbitrary content.
 
 ---
 
@@ -128,9 +124,9 @@ Providers are paid at `buy`, before delivering. If one takes fees and stops rend
 
 The chain is the authoritative work queue. Any push notification is a latency optimisation, never the mechanism.
 
-- **Which collections a provider serves** — `set_provider` events naming their address.
-- **Which pieces need rendering** — `buy` events, plus a sweep for pieces whose `token_info[""]` still equals the collection's pending document. That rule covers backlogs, restarts, and collections inherited from another provider, with no state of the provider's own.
-- **Where to push** — the provider's TZIP-16 contract metadata, not storage. URLs rot; metadata is free to update and a provider who advertises nothing still works by polling.
+- **Which collections a provider serves**, `set_provider` events naming their address.
+- **Which pieces need rendering**, `buy` events, plus a sweep for pieces whose `token_info[""]` still equals the collection's pending document. That rule covers backlogs, restarts, and collections inherited from another provider, with no state of the provider's own.
+- **Where to push**, the provider's TZIP-16 contract metadata, not storage. URLs rot; metadata is free to update and a provider who advertises nothing still works by polling.
 
 This works identically for collections our factory did not deploy. Anything emitting those two events and honouring the placeholder rule is servable by any provider, which is the openness actually paying off: the standard is events and a view, not our contracts.
 
@@ -164,11 +160,9 @@ We are not in the mandatory path of any mint. Anyone can run a provider, a facto
 
 ## 11. Names and identity
 
-Token names are `[collection name] #[n]`, written into each piece's metadata JSON by whoever publishes it. `token_id` is 0-based; the displayed number is `token_id + 1`, so the first mint is token 0 named "Collection #1". This is the convention everywhere and objkt expects it.
+Token names are `[collection name] #[n]`, written into each piece's metadata JSON by whoever publishes it. `token_id` is 0-based and the displayed number is `token_id + 1`, so the first mint is token 0 named "Collection #1". This is the convention everywhere and objkt expects it.
 
-An earlier draft composed names on chain, which needed a nat-to-decimal helper since Michelson has no `NAT_TO_STRING`. Gone with the rest of the on-chain metadata.
-
-**Each deployment is its own work.** The same generator on L1 and on a rollup is two pieces, not one — sharing supply across chains needs bridging, and that is not something to put in an immutable contract. Copyminting is not detected or expected; a stated policy against it belongs in front-end and community rules, never chain state.
+**Each deployment is its own work.** The same generator on L1 and on a rollup is two pieces, not one, sharing supply across chains needs bridging, and that is not something to put in an immutable contract. Copyminting is not detected or expected; a stated policy against it belongs in front-end and community rules, never chain state.
 
 Worth leaving the door open for: because a piece is code plus a seed plus params, the same work *is* reproducible on another chain by construction. A multichain-mint conversation with Teia and objkt becomes real once there are artists and a working standard to point at.
 
@@ -178,7 +172,7 @@ Worth leaving the door open for: because a piece is code plus a seed plus params
 
 We run a secondary market for pieces minted here: listings and offers, both escrowed, 2.5% deducted from the sale. Copied from objkt and Teia rather than invented.
 
-**Royalties come from the collection, not the listing.** A listing carries no royalty information at all, so there is nothing for a seller to misstate. This is why royalties are kept on chain as a typed map as well as in the metadata JSON — a contract cannot read IPFS.
+**Royalties come from the collection, not the listing.** A listing carries no royalty information at all, so there is nothing for a seller to misstate. This is why royalties are kept on chain as a typed map as well as in the metadata JSON, a contract cannot read IPFS.
 
 **The fee is snapshotted into each listing and offer**, so a change is never retroactive, and it is capped in the contract so no future administrator can turn it into a toll.
 
@@ -195,14 +189,14 @@ We run a secondary market for pieces minted here: listings and offers, both escr
 - No commit-reveal seed.
 - No cross-chain supply.
 - No fee on mints. (Secondary trading on our own marketplace does take 2.5%, deducted from the sale, the way objkt does.)
-- No moderation on chain — a blocklist is our front end declining to display something, never chain state.
+- No moderation on chain, a blocklist is our front end declining to display something, never chain state.
 - No claim of neutrality. We are the spec author, the reference implementation, the first provider, and the default front end. Say it plainly.
 
 ---
 
 ## 13. Still open
 
-- **A number for `deploy_price`** — resolved 2026-08-23: zero.
-- **Renderer hardening** — network blocked before the first byte, frozen clock, bundled fonts only, hard kill, server-side hashing. Tracked as work, not as an open question.
+- **A number for `deploy_price`**, resolved 2026-08-23: zero.
+- **Renderer hardening**, network blocked before the first byte, frozen clock, bundled fonts only, hard kill, server-side hashing. Tracked as work, not as an open question.
 - **objkt royalty verification** on testnet before any mainnet collection exists.
 - **Template audit** before mainnet. The single largest remaining risk.

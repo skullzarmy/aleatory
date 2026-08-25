@@ -163,7 +163,7 @@ def test_buy_mints_with_pending_metadata():
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
     c = _collection(scenario, artist, resolver, provider, minter)
 
-    # Price is the piece plus the render gas — neither alone is enough.
+    # Price is the piece plus the render gas, neither alone is enough.
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_PRICE), _valid=False)
     c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
@@ -210,7 +210,7 @@ def test_metadata_published_once():
     # Not the artist, not the owner, not a stranger.
     c.set_token_metadata(_publish(), _sender=artist, _valid=False)
     c.set_token_metadata(_publish(), _sender=alice, _valid=False)
-    # Never the pending document itself — that would leave it looking
+    # Never the pending document itself, that would leave it looking
     # unrendered forever.
     c.set_token_metadata(_publish(uri=_PENDING), _sender=minter,
                          _valid=False)
@@ -358,7 +358,7 @@ def test_resolver_rotation_and_local_override():
     other_agent = sp.test_account("OtherAgent")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
     # A provider whose agent is somebody else, so `minter` reaches this
-    # collection solely through the resolver — which is what is being
+    # collection solely through the resolver, which is what is being
     # tested. Pointing at the default provider would not test it, since
     # its own live agent is `minter`.
     theirs = _provider(scenario, admin, other_agent)
@@ -384,7 +384,7 @@ def test_resolver_rotation_and_local_override():
 def test_artist_can_revoke_resolver_trust():
     """Choosing a rival provider should be able to end our access. Until
     the artist revokes it, the resolver's operator can publish into their
-    collection — which is exactly why the switch exists."""
+    collection, which is exactly why the switch exists."""
     scenario = sp.test_scenario("Revoke resolver", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
@@ -415,7 +415,7 @@ def test_artist_can_revoke_resolver_trust():
 @sp.add_test()
 def test_provider_can_rotate_its_agent_without_resnapshot():
     """A leaked agent key is rotated once, at the provider, and every
-    collection follows — no artist has to re-snapshot."""
+    collection follows, no artist has to re-snapshot."""
     scenario = sp.test_scenario("Agent rotation", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
@@ -514,7 +514,7 @@ def test_registry_is_open():
     scenario += registry
     rival = _provider(scenario, rival_op, rival_key, render_gas=50_000)
 
-    # A stranger can list someone else's provider — it is a public index,
+    # A stranger can list someone else's provider, it is a public index,
     # not a claim of ownership.
     registry.register(rival.address, _sender=stranger)
     scenario.verify(registry.data.count == 1)
@@ -560,7 +560,7 @@ def test_factory_admin():
 @sp.add_test()
 def test_royalties_are_readable_on_chain_and_capped():
     """A marketplace pays artists by reading this, not by trusting whoever
-    made the listing — so it has to be on chain, and it has to be sane."""
+    made the listing, so it has to be on chain, and it has to be sane."""
     scenario = sp.test_scenario("Royalties", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
@@ -915,7 +915,7 @@ def test_royalties_at_the_ceiling_and_empty():
 @sp.add_test()
 def test_collection_never_holds_tez():
     """`buy` forwards both legs in the same operation. If this contract
-    ever holds a balance, something has gone wrong — there is no withdraw
+    ever holds a balance, something has gone wrong, there is no withdraw
     entrypoint to get it out again."""
     scenario = sp.test_scenario("No stuck tez", aleatory)
     admin = sp.test_account("Admin")

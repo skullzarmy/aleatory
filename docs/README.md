@@ -2,7 +2,7 @@
 
 **Draft docs, 2026-08-02.**
 
-A community-run home for generative art on Tezos — art that emerges from **code and seeded randomness**, not from an image model. Built in the HEN/Teia tradition: open, permissionless, honest about its costs, and engineered so that it cannot die with any one company or any one person.
+A community-run home for generative art on Tezos, art that emerges from **code and seeded randomness**, not from an image model. Built in the HEN/Teia tradition: open, permissionless, honest about its costs, and engineered so that it cannot die with any one company or any one person.
 
 It is born and pupates in the [hack.tez labs](../../src/labs/), and leaves home at v1.
 
@@ -10,7 +10,7 @@ It is born and pupates in the [hack.tez labs](../../src/labs/), and leaves home 
 
 ## Why
 
-fxhash's center of gravity moved to Ethereum and Base. EditArt went dark after the death of its creator. Bootloader is good work owned by an exchange. Three different structural failure modes — acquisition drift, single point of failure, corporate dependency — and no indie, community-run option left standing.
+fxhash's center of gravity moved to Ethereum and Base. EditArt went dark after the death of its creator. Bootloader is good work owned by an exchange. Three different structural failure modes, acquisition drift, single point of failure, corporate dependency, and no indie, community-run option left standing.
 
 HEN proved the alternative: when the contracts are unowned and the data is addressable, the community can rebuild the front end and keep going. That rebuild became Teia. **This project treats that not as a happy accident but as a design requirement.**
 
@@ -32,10 +32,10 @@ Read in this order.
 
 ## The short version
 
-- **Generative means rules + a seed**, deterministic forever. A piece must be reproducible, self-contained, and seed-bound. That rule is archival first — and it happens to exclude AI image generation on technical grounds, without anyone having to police an artist's process.
+- **Generative means rules + a seed**, deterministic forever. A piece must be reproducible, self-contained, and seed-bound. That rule is archival first, and it happens to exclude AI image generation on technical grounds, without anyone having to police an artist's process.
 - **The front end is disposable; the protocol is the platform.** If the site vanishes tonight, every piece still renders and a stranger can rebuild the rest from public artifacts.
 - **No admin key over anyone's art.** Contracts can pause new mints and nothing else. Published work is untouchable, including by us.
-- **On-chain by default, labeled when not.** Fully on-chain, on-chain-plus-shared-library, or IPFS — disclosed on every piece. Shared libraries paid for once, then free forever.
+- **On-chain by default, labeled when not.** Fully on-chain, on-chain-plus-shared-library, or IPFS, disclosed on every piece. Shared libraries paid for once, then free forever.
 - **No lock-in.** Standard FA2 + TZIP-21, so pieces trade on objkt and Teia from day one without an integration.
 - **Nothing stranded.** Import paths and an archival mirror for work marooned by platforms that left.
 - **No VC.** Small fees, public treasury, public accounting.
