@@ -15,7 +15,7 @@ const NAV = [
 export function Header() {
     return (
         <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
-            <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
+            <div className="mx-auto flex h-20 max-w-7xl items-center gap-6 px-4">
                 {/* The mark carries the brand on its own, drawn fresh on
                     every load. */}
                 <Link
@@ -23,7 +23,7 @@ export function Header() {
                     aria-label={`${BRAND.name}, home`}
                     className="shrink-0 transition-opacity hover:opacity-80"
                 >
-                    <Logo size={44} daily label="" />
+                    <Logo size={72} label="" />
                 </Link>
 
                 <nav className="hidden gap-4 text-sm text-muted-foreground sm:flex">
