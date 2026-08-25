@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { renderLogo, CANONICAL_SEED } from "@/lib/logo";
 
 /**
  * The mark, drawn fresh on every load.
  *
- * The server renders the canonical mark and the client replaces it with a new
- * one once mounted, so there is no hydration mismatch and no layout shift.
- * Anything that must stay fixed forever uses the canonical seed directly.
+ * One render, a new seed each time the component mounts.
  */
 export function Logo({
     size = 40,
@@ -25,16 +23,14 @@ export function Logo({
     label?: string;
     className?: string;
 }) {
-    const [seed, setSeed] = useState(CANONICAL_SEED);
-
-    useEffect(() => {
-        if (fixed) return;
-        setSeed(`${Date.now()}-${Math.random()}`);
-    }, [fixed]);
+    const [seed] = useState(() =>
+        fixed ? CANONICAL_SEED : `${Date.now()}-${Math.random()}`,
+    );
 
     return (
         <span
             className={className}
+            suppressHydrationWarning
             style={{ display: "inline-flex", width: size, height: size }}
             dangerouslySetInnerHTML={{
                 __html: renderLogo({ seed, size, detail, label }),
