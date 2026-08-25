@@ -350,7 +350,15 @@ Two hard rules: **only the artist may claim,** and the original provenance is re
 
 ## 10. Front end
 
-Static, no build secrets, deployable by a stranger with a checkout and a hosting account. Mirrors expected and encouraged. Brand strings live in one module so that forks and the eventual rename are a one-file change (see [roadmap.md](roadmap.md) §4).
+Next on Netlify, React, Tailwind and Radix — the same stack as [rejkt.xyz](https://rejkt.xyz), so its components, TzKT client and feed machinery lift across rather than being rewritten.
+
+**Wallet is Tezos X Connect** (`@tezos-x/octez.connect-sdk`), as on hack.tez. This is the one part of rejkt that does not transfer: it is still on Beacon.
+
+**Open in the sense that matters: someone else can pick it up.** No build secrets, forkable, and documented well enough — `AGENTS.md`, skills files, these docs — that a newcomer or their agent gets oriented without asking us. That is a documentation problem, not an argument for a smaller stack.
+
+Brand strings live in one module so that forks and the eventual rename are a one-file change (see [roadmap.md](roadmap.md) §4).
+
+**One hard constraint: generator code never renders on the app's own origin.** Artist JavaScript is untrusted, it runs in every visitor's browser, and same-origin would give it reach into wallet state and session storage. Artifacts are served from a separate host in a sandboxed frame — the arrangement fxhash uses, and a DNS decision far cheaper to make before the first piece renders than after.
 
 Wallet stack reuses what hack.tez already runs (octez.connect / Beacon), which is also what makes v0 in the labs nearly free.
 
