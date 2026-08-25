@@ -1,0 +1,20 @@
+{
+  "name": "aleatory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fully on-chain generative art on Tezos",
+  "scripts": {
+    "build:contracts": "python3 contract/build.py",
+    "test:contracts": "SMARTPY_OUTPUT_DIR=contract/output-aleatory python3 contract/tests_aleatory.py && SMARTPY_OUTPUT_DIR=contract/output-marketplace python3 contract/tests_marketplace.py && SMARTPY_OUTPUT_DIR=contract/output-integration python3 contract/tests_integration.py",
+    "deploy": "npx tsx contract/deploy.ts",
+    "deploy:collection": "npx tsx contract/deploy-collection.ts"
+  },
+  "devDependencies": {
+    "@taquito/signer": "^21.0.0",
+    "@taquito/taquito": "^21.0.0",
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

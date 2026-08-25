@@ -5,3 +5,8 @@ dist/
 contract/output*/
 contract/__pycache__/
 .DS_Store
+
+# deploy scripts
+.env
+contract/build/
+contract/deployments/
