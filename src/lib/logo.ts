@@ -476,15 +476,5 @@ export function renderLogo(options: LogoOptions = {}): string {
     ].join("");
 }
 
-/**
- * The seed everyone sees on a given day.
- *
- * Stable for the whole UTC day, so a server render and a client render agree
- * and everyone looking at the site sees the same mark.
- */
-export function seedOfTheDay(d: Date = new Date()): string {
-    return `aleatory-${d.toISOString().slice(0, 10)}`;
-}
-
 /** The pinned mark. Favicons, OG cards, anywhere a file has to be forever. */
 export const CANONICAL_SEED = "aleatory";

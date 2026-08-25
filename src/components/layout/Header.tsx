@@ -16,9 +16,8 @@ export function Header() {
     return (
         <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
             <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
-                {/* The mark carries the brand on its own. Today's variant,
-                    the same for everyone on a given date, which keeps server
-                    and client renders in step. */}
+                {/* The mark carries the brand on its own, drawn fresh on
+                    every load. */}
                 <Link
                     href="/"
                     aria-label={`${BRAND.name}, home`}

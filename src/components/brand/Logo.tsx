@@ -1,42 +1,44 @@
-import { renderLogo, seedOfTheDay, CANONICAL_SEED } from "@/lib/logo";
+"use client";
+
+import { useEffect, useState } from "react";
+import { renderLogo, CANONICAL_SEED } from "@/lib/logo";
 
 /**
- * The mark.
+ * The mark, drawn fresh on every load.
  *
- * `daily` draws today's variant, the same for everyone on a given date so a
- * server render and a client render agree. Anything that has to stay fixed
- * uses the canonical seed.
- *
- * The SVG carries its own `role` and `aria-label`, so a caller wrapping this
- * in a link should label the link for where it goes and leave the mark to
- * name itself.
+ * The server renders the canonical mark and the client replaces it with a new
+ * one once mounted, so there is no hydration mismatch and no layout shift.
+ * Anything that must stay fixed forever uses the canonical seed directly.
  */
 export function Logo({
     size = 40,
-    daily = false,
+    fixed = false,
     detail = "full",
     label = "Aleatory",
     className,
 }: {
     size?: number;
-    daily?: boolean;
+    /** Hold the canonical mark instead of drawing a new one. */
+    fixed?: boolean;
     detail?: "full" | "compact";
-    /** Pass an empty string when the mark is decorative next to real text. */
+    /** Empty marks it decorative, for when it sits beside the word. */
     label?: string;
     className?: string;
 }) {
-    const svg = renderLogo({
-        seed: daily ? seedOfTheDay() : CANONICAL_SEED,
-        size,
-        detail,
-        label,
-    });
+    const [seed, setSeed] = useState(CANONICAL_SEED);
+
+    useEffect(() => {
+        if (fixed) return;
+        setSeed(`${Date.now()}-${Math.random()}`);
+    }, [fixed]);
 
     return (
         <span
             className={className}
             style={{ display: "inline-flex", width: size, height: size }}
-            dangerouslySetInnerHTML={{ __html: svg }}
+            dangerouslySetInnerHTML={{
+                __html: renderLogo({ seed, size, detail, label }),
+            }}
         />
     );
 }
