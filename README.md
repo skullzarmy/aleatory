@@ -12,6 +12,7 @@ A generator is code, published once and immutable. A piece is that code plus a s
 |---|---|
 | [docs/decisions.md](docs/decisions.md) | The settled model, end to end. Read this first. Where it disagrees with the older documents, it wins. |
 | [docs/architecture.md](docs/architecture.md) | Contracts, the generator record, seeds, storage classes, the renderer standard. Being brought in line with the decision record. |
+| [docs/interface.md](docs/interface.md) | ALEATORY-001. Two events, one view, one rule. Build against this and any provider renders your work. |
 | [docs/params.md](docs/params.md) | Mint-time parameters. A spec: another platform can build a mint UI from it alone. |
 | [docs/pipeline.md](docs/pipeline.md) | What the artist actually touches: template, sandbox, publish, market. |
 | [docs/open-questions.md](docs/open-questions.md) | Decisions not yet made, with a recommendation where there is one. |

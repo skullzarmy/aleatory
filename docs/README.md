@@ -24,6 +24,7 @@ Read in this order.
 |---|---|
 | **[architecture.md](architecture.md)** | The protocol. Contracts, the versioned + typed generator record, seed policies, storage classes, the renderer standard, rescue, indexing. |
 | **[pipeline.md](pipeline.md)** | The artist's path: template → sandbox → mint pipeline → market. What an artist actually touches. |
+| **[interface.md](interface.md)** | ALEATORY-001, the interface a conforming collection implements. |
 | **[params.md](params.md)** | Declared mint-time parameters, as a spec: the declaration format, the exact resolution rule, where it all sits on chain, and how another platform builds a mint UI for our generators without our source. |
 | **[roadmap.md](roadmap.md)** | v0 lab (no infra, ships now), v1 protocol (leaves home), v2 Tezos X and the multi-runtime bet. |
 | **[open-questions.md](open-questions.md)** | What's undecided, what needs fact-checking before publication, and the naming criteria. Read this before quoting anything publicly. |
