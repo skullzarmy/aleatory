@@ -1,0 +1,12 @@
+name = "aleatory-render"
+main = "render.ts"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare operates the browsers. This worker holds no keys beyond the
+# shared secret that gates it.
+browser = { binding = "BROWSER" }
+
+# RENDER_TOKEN is set with `wrangler secret put RENDER_TOKEN` and matched by
+# the Netlify function that calls this. A workers.dev URL is public, so the
+# secret is what stands between the open internet and the render budget.
