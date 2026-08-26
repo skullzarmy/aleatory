@@ -42,7 +42,7 @@ const DEV_SHIM = `    // Dev harness, only used when this file is opened outside
       };
       for (var i = 0; i < 16; i++) rand();
       window.$alea = {
-        seed: seed, hash: seed, params: {}, rand: rand,
+        seed: seed, hash: seed, params: {}, rand: rand, random: rand,
         randInt: function (lo, hi) { return Math.floor(rand() * (hi - lo + 1)) + lo; },
         randBetween: function (lo, hi) { return lo + rand() * (hi - lo); },
         pick: function (arr) { return arr[Math.floor(rand() * arr.length)]; },

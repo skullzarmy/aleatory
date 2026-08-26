@@ -4,7 +4,7 @@
 
 The front end is disposable and the protocol is the platform. This document is what that means in contracts.
 
-**What v0 actually implements** (the lab at `/labs/aleatory`, see [roadmap.md](roadmap.md) §1): the record in §3, the seed derivation in §5, the class labelling in §6, the renderer standard in §7 including declared mint-time parameters ([params.md](params.md)), and the chain-only rebuild in §9 are all real and running on testnets. Three things are still stand-ins, and each is called out where it appears: the Runtimes catalogue lives in code rather than in an append-only contract; shared libraries resolve from a manifest rather than from the Deps contract; and a project is a stock FA2 whose contract metadata carries both the record and the code, rather than the four separate contracts below. The record shape does not change when those move on chain, that is the point of designing it first.
+**What v0 actually implements** (the lab at `/labs/aleatory`, see [roadmap.md](roadmap.md) §1): the record in §3, the seed derivation in §5, the class labelling in §6, the renderer standard in §7 including declared mint-time parameters ([params.md](params.md)), and the chain-only rebuild in §9 are all real and running on testnets. Two things are still stand-ins, and each is called out where it appears: the runtime kinds catalogue lives in code and picks a template rather than being recorded on chain, and a project is a stock FA2 whose contract metadata carries both the record and the code, rather than the four separate contracts below. The record shape does not change when those move on chain, that is the point of designing it first.
 
 ---
 
@@ -294,15 +294,44 @@ Storage burn is 0.00025 ꜩ/byte (250 mutez), and a single operation is capped a
 |---|---|---|
 | A tight generator | 4 KB | ~1 ꜩ |
 | A generous generator | 20 KB | ~5 ꜩ |
-| A minified library (once, shared, forever) | 500 KB | ~125 ꜩ |
+| p5 1.5.0, gzipped, bundled into a generator | 215 KB | ~54 ꜩ |
 
-So: an artist can publish a self-contained generator for a few tez. A library costs real money *once*, and then every project that references it pays nothing. That is exactly the cost structure a commons should have, and it is worth funding library uploads from the treasury as a public good.
+So an artist publishes a generator for a few tez, and bundling a library costs
+about 54 ꜩ on top, per collection, every time. That is the number that settles
+the library question: on a chain without ETH-scale prices, a library that has
+to be paid for again by every artist who uses it is a library nobody uses.
+
+**Libraries are declared, not stored, and nobody is the authority for them.**
+A generator carries `<meta name="alea:library" content="p5@1.5.0">`, the
+collection records npm coordinates and a blake2b digest under
+`aleatory:libraries`, and any renderer fetches those bytes from anywhere and
+refuses them unless they hash to the recorded value. See
+[ALEATORY-001](interface.md) §1.
+
+Storing libraries on chain was considered and rejected. It would put us in the
+position of uploading, funding and vouching for every version of every library,
+which is a supply-chain seat nobody should occupy: a bad `three.js` published
+by the platform would run in every piece that named it and no artist would ever
+look. Anchoring to a public registry's own integrity digest removes us from the
+trust path entirely, and the digest is checkable by anyone, forever, with no
+reference to us.
+
+Durability comes from the standard being replicable rather than from bytes on
+chain. The repository is public domain, the interface is fully specified, and
+the hash makes any copy of a library provably the right one, so a fork can
+rebuild every part of this without permission.
 
 Every generator carries a class, displayed on the piece:
 
-- **Fully on-chain (FOC).** Code and every dependency on chain. Renders from L1 alone, forever, with no other system in existence. The default we push people toward.
-- **On-chain + shared library.** Code on chain, dependencies referenced by hash. Once the Deps contract exists the guarantee is the same as FOC and far cheaper to publish, but in v0 the library is resolved from a CDN manifest, so a piece like this is **not** fully on-chain yet. Say so plainly wherever it is displayed.
-- **IPFS.** Code or assets in content-addressed off-chain storage, hash recorded on chain. Legitimate for heavy inputs, audio, large datasets, photographic source material, and honestly labeled as depending on someone continuing to pin it.
+- **Fully on-chain (FOC).** The generator is in contract storage. Renders from
+  L1 alone, forever, with no other system in existence. The default, and every
+  template ships this way.
+- **IPFS.** The generator is past the operation cap and lives in
+  content-addressed storage with its hash on chain. Legitimate for heavy work,
+  and honestly labelled as depending on someone continuing to pin it.
+
+A declared library is orthogonal to both: it is a fetch a renderer performs, it
+is verified, and it is disclosed on the piece either way.
 
 IPFS pieces get pinned by us and by anyone else who wants to help; the pin set is public so its health is observable. **No option is forbidden. Every one is visible.** An artist choosing IPFS is making an informed tradeoff, and the collector gets to see it before they buy.
 
@@ -371,7 +400,7 @@ Wallet stack reuses what hack.tez already runs (octez.connect / Beacon), which i
 | Risk | Mitigation |
 |---|---|
 | Seed grinding on the op-hash seed | Documented plainly and accepted; the cost of one signature and no separate mint step |
-| On-chain storage costs deter artists | Shared Deps contract; treasury funds library uploads; publish a cost estimator before anyone signs |
+| On-chain storage costs deter artists | Libraries are declared and verified rather than stored, so a generator stays small enough to go on chain; publish a cost estimator before anyone signs |
 | IPFS rot | Public pin set, multiple pinners, class shown on every piece |
 | A runtime we didn't anticipate | Append-only Runtimes catalogue + `custom` kind; no contract replacement needed (§3) |
 | Registry needs a field we didn't foresee | `schema_version`, additive-only evolution, readers ignore unknown optional fields |

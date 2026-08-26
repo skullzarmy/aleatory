@@ -119,6 +119,26 @@ artist can revoke it at any time.
 
 ---
 
+## Libraries
+
+A collection declares what its generator needs under `aleatory:libraries`, and
+resolving that is part of rendering. This provider tries its own deployment
+first, then unpkg, then jsdelivr, and checks every candidate against the
+recorded blake2b digest. A mirror that is stale, wrong, or hostile is skipped
+rather than used.
+
+**If nothing resolves, the piece is not rendered at all.** A p5 sketch drawn
+without p5 produces a blank frame, and publishing that frame would put a
+permanent image of an error on a token nobody told. The piece stays pending,
+which is a state the queue already understands and `provider:retry` can act on.
+
+Where the bytes come from is not part of the interface. Any source is fine
+because none of them is trusted: the digest was recorded when the piece was
+published, and it either matches or the library is refused. See
+[ALEATORY-001](interface.md) §1.
+
+---
+
 ## Determinism
 
 Rebuilding a piece produces the same bytes and the same CID. The seed is the
@@ -136,7 +156,8 @@ identical stream. If you change one, change the other.
 ## What this holds
 
 The agent key, a pinning credential, and a Cloudflare token. No chain access
-beyond the agent, no wallet with funds, no database.
+beyond the agent, no wallet with funds, no database, and no library store: a
+declared library is fetched and verified per render, and cached by its digest.
 
 Rendering goes through Cloudflare Browser Run's REST endpoint, which takes the
 document directly. There is no worker to deploy and no public URL to guard.

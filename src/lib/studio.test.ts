@@ -226,6 +226,48 @@ console.log("\nLibraries");
     );
 }
 
+console.log("\nThe published surface");
+{
+    // ALEATORY-001 §7 is what a third party builds against, so every harness
+    // has to actually provide what it says. The spec documented $alea.random()
+    // while the shim inside every downloadable template offered only rand(),
+    // which meant a template written against our own published standard broke
+    // the moment an artist opened it locally.
+    const surface = [
+        "seed",
+        "random",
+        "rand",
+        "randInt",
+        "randBetween",
+        "pick",
+        "chance",
+        "params",
+        "param",
+        "features",
+        "ready",
+    ];
+
+    const spec = readFileSync("docs/interface.md", "utf8");
+    const harnesses: [string, string][] = [
+        ["isolate", readFileSync("isolate/index.html", "utf8")],
+        ["renderer", readFileSync("netlify/functions/lib/render.mts", "utf8")],
+        // The shim every template carries, which is what runs when an artist
+        // opens the file they downloaded.
+        ["template shim", templateFor(RUNTIME_KINDS[0].kindId)],
+    ];
+
+    for (const key of surface) {
+        check(`$alea.${key}: documented`, spec.includes(`$alea.${key}`));
+        for (const [name, src] of harnesses) {
+            check(
+                `$alea.${key}: in the ${name}`,
+                new RegExp(`\\b${key}\\s*:`).test(src),
+                "documented and missing is worse than undocumented",
+            );
+        }
+    }
+}
+
 console.log("\nOne harness");
 {
     // The app used to carry a third copy of the harness. It does not now: the

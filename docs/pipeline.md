@@ -31,7 +31,9 @@ No stage is a gate staffed by a human. The checks are mechanical, the outcomes a
 
 A small family of starters, p5, plain canvas, SVG, three.js, WASM later, each one a folder with `index.html` at the root that runs by opening it.
 
-**Each template corresponds to a runtime kind in the on-chain Runtimes catalogue** ([architecture.md](architecture.md) §3), and publishing records the `kind_id` and the pinned `kind_version` in the generator's registry entry. So "the p5 template" is not a convenience we maintain out-of-band, it is the artist-facing surface of a typed, versioned thing the chain knows about, and a piece minted from p5 1.5.0 keeps booting into p5 1.5.0 in ten years regardless of what the templates look like by then.
+**A template is a starting point and nothing more.** It picks a starting document and a starting parameter schema, and after that the file is the artist's. Nothing about the template is recorded on chain, because nothing needs to be: the generator declares its own libraries, so a renderer reads the piece rather than looking anything up about us.
+
+A piece minted against p5 1.5.0 keeps booting into p5 1.5.0 in ten years, because the version and its hash are in the record. Versions are added, never updated: pinning one forever is the correct behaviour for an artwork, not a maintenance problem.
 
 Adding a template later, a new engine, a new dialect, is an append to the catalogue, not a contract migration. And an artist whose toolchain nobody has heard of uses the `custom` kind: implement the five lifecycle entry points, bundle or reference a harness, and everything downstream (checks, capture, provisioning, indexing, market) works identically. Custom is a supported path, not an escape hatch.
 
@@ -50,11 +52,19 @@ The runtime is a **superset of the conventions artists' existing code already us
 
 Nothing stranded, expressed as an afternoon of shim code. An artist should be able to try this with a system they already finished, not with a rewrite they have to justify.
 
-### Dependencies: reference, don't bundle
+### Dependencies: declare, don't bundle
 
-The one real divergence from the old flow. In the fxhash model you zip `p5.min.js` into every project. Here, a library that already lives in the on-chain **Deps** contract is referenced by hash and the runtime resolves it, the sandbox and the renderer rewrite the script tag to the on-chain blob.
+The one real divergence from the old flow. In the fxhash model you zip `p5.min.js` into every project. Here a generator declares what it needs and a renderer supplies it:
 
-Consequence: a ~900 KB library is paid for once by whoever needs it first (or by the treasury, as a public good), and every project afterward carries a 32-byte reference instead of a megabyte. That is the difference between fully-on-chain being a stunt and fully-on-chain being the default. Artists using a library not yet in Deps can either upload it, permanently, for everyone, or bundle it into their own project and pay the burn themselves.
+```html
+<meta name="alea:library" content="p5@1.5.0">
+```
+
+Consequence: p5 costs an artist none of their generator's size, so a p5 piece is a few KB and goes on chain like any other. Bundled instead, it would be 215 KB gzipped and about 54 ꜩ of burn, per collection, every time. That is the difference between fully-on-chain being a stunt and fully-on-chain being the default.
+
+What makes a declaration safe is the hash, and what makes the hash worth anything is that nobody here is the authority behind it. The record carries npm coordinates plus a blake2b digest; a renderer fetches from any mirror and refuses anything that does not match. Anyone can check a recorded digest against npm's own integrity value without reference to us. Full rules in [ALEATORY-001](interface.md) §1.
+
+A library nobody published has no independent authority behind it, so it goes inside the document, where it is the artist's own code and their own bytes.
 
 ---
 
@@ -84,9 +94,9 @@ Where the old model ran server-side inside a company, ours holds to a rule: **an
 
 Stages, in order:
 
-**1. Validate.** Same checks as the sandbox, re-run at submission, root `index.html`, no network, determinism across runs, capture fires, size within limits, declared deps all resolvable in the Deps contract. Pass/fail is mechanical and the reasons are shown in full. No reviewer, no discretion, no appeal needed because there's no judgment involved.
+**1. Validate.** Same checks as the sandbox, re-run at submission: root `index.html`, no network, determinism across runs, capture fires, size within limits, every declared library resolvable and matching its hash. Pass/fail is mechanical and the reasons are shown in full. No reviewer, no discretion, no appeal needed because there's no judgment involved.
 
-**2. Resolve deps.** Each declared library is matched to its on-chain hash. Anything missing is either uploaded now (chunked across operations, since a single operation is capped at ⚠ ~32 KB) or bundled and paid for by the artist. The final byte count and storage class are fixed here.
+**2. Resolve libraries.** Each declaration is fetched and checked against its recorded digest. Anything that does not resolve is reported rather than skipped, because a piece rendered without the library it asked for is a blank frame. The final byte count and storage class are fixed here.
 
 **3. Provision.** The chain operations, batched and signed by the artist:
    - FOC/shared: generator code chunked into the Registry, dependency references recorded, edition size, seed policy (op-hash or commit-reveal), royalties, and metadata written.

@@ -65,6 +65,50 @@ The hash covers the decoded source either way, so it verifies what actually
 runs. For a pointer it is the only defence against a gateway handing back
 something other than what was published.
 
+### Declared libraries
+
+"Self-contained" means the document carries everything it needs **except** the
+libraries it declares. A generator declares one with a meta tag:
+
+```html
+<meta name="alea:library" content="p5@1.5.0">
+```
+
+One tag per library, and they load in the order they appear. A renderer inlines
+them ahead of the artist's code.
+
+The collection repeats the declaration in its metadata, under
+`aleatory:libraries`, so a renderer can resolve a piece without parsing the
+generator first:
+
+```json
+[{ "id": "p5", "version": "1.5.0", "path": "lib/p5.min.js", "hash": "16f48a…" }]
+```
+
+| field | meaning |
+|---|---|
+| `id` | package name on npm |
+| `version` | exact, never a range |
+| `path` | file inside the published package |
+| `hash` | **blake2b-256** of that file's bytes, hex |
+
+`id`, `version` and `path` make the library resolvable from npm or any mirror
+of it. `hash` decides whether what came back is usable.
+
+**A renderer must verify the hash and must refuse to draw if it cannot.** A
+sketch rendered without the library it asked for produces a blank frame, and
+publishing that as the piece is worse than publishing nothing.
+
+**Nobody is the authority for what a library is.** The declaration points at a
+public registry, and the registry publishes its own integrity digest for the
+package, so anyone can check a recorded hash against a source that has no
+relationship to the platform the piece was minted on. Cache by hash, never by
+`id@version`: a generator declaring `p5@1.5.0` with different bytes must be
+able to harm only itself.
+
+A library that is not on a public registry has no independent authority behind
+it, so it belongs inside the document.
+
 ---
 
 ## 2. Token metadata
@@ -191,12 +235,21 @@ A generator receives its seed and parameters from globals installed before its
 first line runs:
 
 ```js
-$alea.seed      // the mint operation hash
-$alea.random()  // seeded stream, deterministic
-$alea.params    // resolved parameter values
+$alea.seed              // the mint operation hash
+$alea.random()          // seeded stream, deterministic
+$alea.rand()            // the same function, shorter
+$alea.randInt(lo, hi)   // inclusive
+$alea.randBetween(lo, hi)
+$alea.pick(array)
+$alea.chance(p)
+$alea.params            // resolved parameter values
 $alea.param(name, fallback)
-$alea.ready()   // signal the capture point
+$alea.features(object)  // traits, indexed and shown to collectors
+$alea.ready()           // signal the capture point
 ```
+
+Everything above `params` draws from one seeded stream, so calling any of them
+advances it. `random` and `rand` are the same function under two names.
 
 `$alea` is the entire surface. A conforming renderer installs that and
 nothing else: aliases for other platforms are not part of this interface, and a
@@ -213,6 +266,21 @@ that varies will vary: a provider renders once, and that render is the piece.
 Network access is blocked for the duration.
 
 Parameters are specified in [params.md](params.md).
+
+### What conformance actually requires
+
+Three things, all mechanical, and nothing else. No restriction on technique,
+library, medium, or how the document was authored.
+
+1. **Self-contained.** Nothing fetched while rendering. Declared libraries are
+   supplied by the renderer before the piece runs, so they are not a fetch.
+2. **Deterministic.** One seed, one capture. Run the piece twice from a clean
+   frame and the captures agree.
+3. **Signals its capture point** by calling `$alea.ready()`.
+
+What happens after the capture is the artist's business. A piece that responds
+to a mouse forever still has exactly one canonical image, and that image is
+what goes on chain.
 
 ---
 
