@@ -287,17 +287,22 @@ const P5_TEMPLATE = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <title>untitled sketch</title>
+  <meta name="alea:library" content="p5@1.5.0">
   <style>html,body{margin:0;height:100%;background:#0b0b0c;overflow:hidden}canvas{display:block}</style>
   <!--
-    p5 1.5.0 is inlined above this comment, in full. It is part of your piece,
-    the same way it is part of an fxhash bundle: whatever is not in this file is
-    not in the artwork, and a piece that needs this website to fill in the
-    missing half is a piece that dies with this website.
+    The meta tag above is how this file says it needs p5. A renderer loads
+    1.5.0 for you and checks it against the hash recorded when you publish, so
+    p5 costs you none of your generator's size and you always boot into the
+    same p5.
 
-    It is large, so a p5 collection is published to IPFS with its hash on chain
-    rather than into contract storage. The Cost panel says which you are getting
-    before you sign anything.
+    That tag travels with the file. Download this, work on it anywhere, upload
+    it again, and it still says what it needs.
+
+    Working offline? Uncomment the next line. Leave it commented for publishing:
+    a piece must not reach the network at render time, and the sandbox reports
+    it if it tries.
   -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/p5@1.5.0/lib/p5.min.js"></script> -->
 </head>
 <body>
 <script>

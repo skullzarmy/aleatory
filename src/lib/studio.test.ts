@@ -17,6 +17,7 @@ import { templateFor, templateParamsFor } from "./templates";
 import { resolveParams, validateSchema } from "./params";
 import { newDraft, seedAt } from "./draft";
 import { packageFromHtml } from "./project";
+import { declaredIn, librariesIn, withLibraries } from "./libraries";
 
 let failures = 0;
 
@@ -201,6 +202,27 @@ console.log("\nLibraries");
         "a collection records the libraries it expects",
         publish.includes("aleatory:libraries"),
         "a renderer is not required to know anything about our catalogue",
+    );
+
+    // The declaration lives in the document, so it survives a download, a week
+    // in someone else's editor, and an upload. Anything held only beside the
+    // file is lost on the first round trip.
+    const doc = `<!doctype html>\n<html>\n<head>\n  <meta charset="utf-8">\n</head>\n<body></body>\n</html>`;
+    const added = withLibraries(doc, ["p5@1.5.0"]);
+    check("a declaration can be written into a document", declaredIn(added).length === 1);
+    check(
+        "and removed without a trace",
+        withLibraries(added, []) === doc,
+        "switching library must not slowly accrete blank lines in the artist's file",
+    );
+    check(
+        "an undeclared document asks for nothing",
+        librariesIn(doc).specs.length === 0 && librariesIn(doc).unknown.length === 0,
+    );
+    check(
+        "an unknown coordinate is reported, not dropped",
+        librariesIn(withLibraries(doc, ["nope@9.9.9"])).unknown.length === 1,
+        "a silently missing library is a blank frame with no explanation",
     );
 }
 

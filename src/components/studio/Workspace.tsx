@@ -8,6 +8,7 @@ import { SeedGrid } from "./SeedGrid";
 import { Checks } from "./Checks";
 import { Cost } from "./Cost";
 import { ParamsPanel } from "./ParamsPanel";
+import { LibraryPicker } from "./LibraryPicker";
 import { getKind } from "@/lib/runtimes";
 import { saveDraft, randomSeed, type Draft } from "@/lib/draft";
 import { downloadText } from "@/lib/project";
@@ -35,11 +36,12 @@ import { Dice5 } from "lucide-react";
  * All of it is local. The draft lives in this browser and nothing leaves it
  * until publish.
  */
-type Tool = "seeds" | "params" | "checks" | "cost";
+type Tool = "seeds" | "params" | "libraries" | "checks" | "cost";
 
 const TOOLS: { id: Tool; label: string }[] = [
     { id: "seeds", label: "Seeds" },
     { id: "params", label: "Parameters" },
+    { id: "libraries", label: "Libraries" },
     { id: "checks", label: "Checks" },
     { id: "cost", label: "Cost" },
 ];
@@ -207,6 +209,10 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                     onSpecsChange={(params) => update({ params })}
                                     onValuesChange={setValues}
                                 />
+                            )}
+
+                            {tool === "libraries" && (
+                                <LibraryPicker html={draft.html} onChange={setHtml} />
                             )}
 
                             {tool === "checks" && (

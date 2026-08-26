@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getKind, resolveDeps, type ResolvedDep } from "@/lib/runtimes";
+import { resolveDeps, type ResolvedDep } from "@/lib/runtimes";
+import { librariesIn } from "@/lib/libraries";
 
 /**
- * The libraries a runtime kind needs, resolved once for the whole workspace.
+ * The libraries this document asks for, resolved once for the whole workspace.
  *
  * Resolution is a pre-render step on purpose: a library is fetched here, in the
  * studio, and inlined into the document before it runs. The frame itself has
@@ -14,7 +15,7 @@ import { getKind, resolveDeps, type ResolvedDep } from "@/lib/runtimes";
  * Resolving per frame would fetch p5 seventeen times to draw a seed grid, so it
  * happens here and every frame is handed the same already-resolved sources.
  */
-export function useDeps(kindId: number): {
+export function useDeps(html: string): {
     deps: string[];
     resolved: ResolvedDep[];
     loading: boolean;
@@ -25,7 +26,7 @@ export function useDeps(kindId: number): {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const specs = getKind(kindId).deps;
+        const { specs } = librariesIn(html);
         if (specs.length === 0) {
             setResolved([]);
             setLoading(false);
@@ -50,7 +51,7 @@ export function useDeps(kindId: number): {
         return () => {
             cancelled = true;
         };
-    }, [kindId]);
+    }, [html]);
 
     // Memoised. Returning a fresh array each render makes every consumer's
     // dependency arrays unstable, and a consumer that remounts a frame on

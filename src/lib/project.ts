@@ -122,6 +122,27 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
         return `<script>${literal(strFromU8(file))}</script>`;
     });
 
+    /**
+     * `url(…)` inside CSS, wherever that CSS ends up.
+     *
+     * Inlining a stylesheet moves its text into the document but leaves every
+     * path in it pointing at a folder that no longer exists. A background image
+     * or a webfont then resolves against the page instead, which in a sandbox
+     * with `connect-src 'none'` is simply gone: no error, no image, and nothing
+     * anywhere saying a file was left behind.
+     */
+    const inlineCssUrls = (css: string): string =>
+        css.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (match: string, _q: string, ref: string) => {
+            if (/^(https?:|data:|blob:|#)/i.test(ref)) return match;
+            const file = lookup(ref);
+            if (!file) {
+                unresolved.push(ref);
+                return match;
+            }
+            const mime = MIME[ext(ref)] ?? "application/octet-stream";
+            return `url("data:${mime};base64,${toBase64(file)}")`;
+        });
+
     // <link rel="stylesheet" href="…"> → inline
     html = html.replace(/<link\b[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>/gi, (match: string, href: string) => {
         if (!/stylesheet/i.test(match)) return match;
@@ -130,8 +151,13 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
             if (!/^(https?:)?\/\//.test(href)) unresolved.push(href);
             return match;
         }
-        return `<style>${literal(strFromU8(file))}</style>`;
+        return `<style>${literal(inlineCssUrls(strFromU8(file)))}</style>`;
     });
+
+    // …and in <style> blocks the document already had.
+    html = html.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (match: string, css: string) =>
+        match.replace(css, literal(inlineCssUrls(css))),
+    );
 
     // Any remaining src="…" (images, audio, video) → data URI
     html = html.replace(/\bsrc\s*=\s*["']([^"']+)["']/gi, (match: string, src: string) => {
