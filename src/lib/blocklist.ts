@@ -8,7 +8,11 @@
  */
 
 /** Collections hidden from feeds, market rows and collection lists. */
-export const BLOCKED_COLLECTIONS: ReadonlySet<string> = new Set<string>([]);
+export const BLOCKED_COLLECTIONS: ReadonlySet<string> = new Set<string>([
+    // Deployed during testing with a generator that had a syntax error, so it
+    // renders as an empty square and always will: the code is immutable.
+    "KT1Q9PqMtkiwFxhofbb2mAbP1UFoLYaHsg2s",
+]);
 
 /** Providers hidden from the picker and the providers page. */
 export const BLOCKED_PROVIDERS: ReadonlySet<string> = new Set<string>([]);

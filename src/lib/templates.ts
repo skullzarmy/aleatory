@@ -48,11 +48,6 @@ const DEV_SHIM = `    // Dev harness, only used when this file is opened outside
         ready: function () { console.log("ready, captured here"); }
       };
       window.$alea.paramsSchema = [];
-},
-        getParam: function (n) { return window.$alea.param(n, undefined); },
-        getParams: function () { return window.$alea.params; },
-        params: function (d) { console.log("params declared in code, move them to the params panel to publish", d); return d; }
-      };
 
       // A ALEA_MAIN piece is driven by the harness, not by itself, so opened
       // directly, with no harness present, nothing would ever call it. The dev

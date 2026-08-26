@@ -4,8 +4,17 @@
  * The gateway is a runtime choice. A piece is addressed by its CID, so any
  * gateway serves the same bytes and swapping one is a config change.
  */
+/**
+ * Where pinned content is read from.
+ *
+ * The default is the gateway of the service we pin to. A general-purpose
+ * gateway has to pull our content across the IPFS network before it can serve
+ * it, which for a freshly pinned image means it often simply does not have it:
+ * a 200 with zero bytes, and a piece that renders as an empty frame with no
+ * error anywhere. Reading from where we wrote removes the race entirely.
+ */
 const GATEWAY =
-    process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz";
+    process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs";
 
 export function isIpfsUri(uri: string): boolean {
     return typeof uri === "string" && uri.startsWith("ipfs://");

@@ -7,6 +7,7 @@
  */
 import { CONTRACTS, ISOLATE_ORIGIN } from "./config";
 import {
+    fetchTokenUris,
     fetchToken,
     fetchOwner,
     fetchMintOperation,
@@ -106,7 +107,21 @@ export async function fetchPiece(
         fetchStorage<CollectionStorage>(contract).catch(() => null),
     ]);
 
-    const m = token.metadata;
+    // TzKT's resolved document when it has one, and the chain's own pointer
+    // when it does not. TzKT fetches `ipfs://` metadata on its own schedule
+    // and on some networks never, so a piece finished on chain would sit here
+    // looking unrendered indefinitely.
+    let m = token.metadata;
+    if (!m?.displayUri && !m?.thumbnailUri) {
+        const uris = await fetchTokenUris(contract).catch(() => new Map<string, string>());
+        const uri = uris.get(tokenId);
+        if (uri?.startsWith("ipfs://")) {
+            m =
+                (await fetch(convertIpfsToGatewayUrl(uri), { next: { revalidate: 300 } })
+                    .then((r) => (r.ok ? (r.json() as Promise<typeof m>) : null))
+                    .catch(() => null)) ?? m;
+        }
+    }
     const display = m?.displayUri || m?.thumbnailUri;
     // sp.string on chain, so it needs no decoding. `pending_metadata` below
     // is sp.bytes and does.

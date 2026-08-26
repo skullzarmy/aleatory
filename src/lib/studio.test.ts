@@ -59,6 +59,27 @@ for (const kind of RUNTIME_KINDS) {
         bytes <= MAX_OPERATION_BYTES,
     );
 
+    // Every inline script actually parses.
+    //
+    // A template is a string in a TypeScript file, so nothing compiles it and
+    // a syntax error rides all the way to a collector's browser. One did: a
+    // careless edit left a stray `},` in the shared dev shim, every template
+    // built from it was broken JavaScript, and the only symptom was a piece
+    // that rendered as a blank square with no error anywhere anyone would look.
+    const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    check(`${kind.label}: has inline script`, scripts.length > 0);
+    for (const [i, body] of scripts.entries()) {
+        let parsed = true;
+        let why = "";
+        try {
+            new Function(body);
+        } catch (e) {
+            parsed = false;
+            why = e instanceof Error ? e.message : String(e);
+        }
+        check(`${kind.label}: script ${i + 1} parses`, parsed, why);
+    }
+
     const params = templateParamsFor(kind.kindId);
     check(`${kind.label}: declares a valid schema`, validateSchema(params).length === 0,
         validateSchema(params).join("; "));

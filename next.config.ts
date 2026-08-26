@@ -24,10 +24,24 @@ const CHAIN_HOSTS = [
     "https://rpc.tzkt.io",
 ];
 
+/**
+ * Gateways an image may be loaded from.
+ *
+ * The configured one is included by origin, so changing the gateway does not
+ * silently leave every image blocked by a policy that still names the old one.
+ * The rest are fallbacks a piece minted earlier may still point at.
+ */
+const IPFS_GATEWAY =
+    process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs";
+
 const IPFS_HOSTS = [
-    "https://ipfs.fileship.xyz",
-    "https://ipfs.io",
-    "https://cloudflare-ipfs.com",
+    ...new Set([
+        new URL(IPFS_GATEWAY).origin,
+        "https://gateway.pinata.cloud",
+        "https://ipfs.fileship.xyz",
+        "https://ipfs.io",
+        "https://cloudflare-ipfs.com",
+    ]),
 ];
 
 function csp(): string {
