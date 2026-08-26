@@ -34,18 +34,61 @@ import {
 } from "./lib/libraries.mts";
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
+const KT1 = /^KT1[1-9A-HJ-NP-Za-km-z]{33}$/;
+
+function addressList(value: string | undefined): string[] {
+    return (value || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => KT1.test(s));
+}
+
+/** Overrides the router, for testing against a factory it does not list. */
+const FACTORY_OVERRIDE = addressList(
+    process.env.ALEA_FACTORIES || process.env.ALEA_FACTORY_ADDRESS,
+);
+
+const ROUTER = (process.env.ALEA_ROUTER_ADDRESS ||
+    process.env.NEXT_PUBLIC_ROUTER_ADDRESS ||
+    "").trim();
+
+let factoryCache: { at: number; addresses: string[] } | null = null;
+
 /**
  * Factories whose collections this provider will look at.
  *
- * Set explicitly rather than defaulted: anyone can deploy a factory, and one
- * we do not know is one whose collections we have no reason to spend render
- * budget on. Storage is still the authority afterwards, this only decides
- * where to look.
+ * From the router, which is what the router is for: it holds the current
+ * factory and every retired one, so a collection deployed by an old factory
+ * keeps being served rather than quietly going unrendered forever.
+ *
+ * This used to be an environment variable with no fallback. An operator who
+ * set one factory served that factory's collections and silently ignored the
+ * rest, which is exactly what happened here: three collections sat unrendered
+ * because the list was written before the other factories existed and nobody
+ * updates a list they cannot see is wrong.
+ *
+ * Storage is still the authority afterwards. This only decides where to look,
+ * and a collection is served because its own storage names this provider.
  */
-const FACTORIES = (process.env.ALEA_FACTORIES || process.env.ALEA_FACTORY_ADDRESS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => /^KT1[1-9A-HJ-NP-Za-km-z]{33}$/.test(s));
+async function factories(): Promise<string[]> {
+    if (FACTORY_OVERRIDE.length > 0) return FACTORY_OVERRIDE;
+    if (!ROUTER) return [];
+
+    // Rarely changes, and a scan every fifteen seconds should not re-read it.
+    if (factoryCache && Date.now() - factoryCache.at < 300_000) {
+        return factoryCache.addresses;
+    }
+
+    const storage = await tzkt<{ factories?: string[] }>(
+        `/v1/contracts/${ROUTER}/storage`,
+    ).catch(() => null);
+
+    // Deduplicated: the router prepends, so re-registering a factory leaves it
+    // in the list twice and it would be scanned twice.
+    const addresses = [...new Set(addressList((storage?.factories ?? []).join(",")))];
+    if (addresses.length > 0) factoryCache = { at: Date.now(), addresses };
+    return addresses;
+}
 const PING_TOKEN = process.env.ALEA_PROVIDER_PING_TOKEN || "";
 const IPFS_GATEWAY = process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz";
 
@@ -146,7 +189,7 @@ export async function collectionsServed(): Promise<string[]> {
     // sees a new collection at all: it would sit unrendered until its artist
     // happened to switch provider. Everything a factory originated is the
     // other half.
-    for (const factory of FACTORIES) {
+    for (const factory of await factories()) {
         const originated = await tzkt<{ address: string }[]>("/v1/contracts", {
             creator: factory,
             limit: 500,
@@ -205,7 +248,11 @@ async function metadataKey(collection: string, key: string): Promise<string | un
 export async function pendingIn(collection: string): Promise<PendingPiece[]> {
     const storage = await tzkt<CollectionStorage>(`/v1/contracts/${collection}/storage`);
     const pendingUri = hexToUtf8(storage.art.pending_metadata);
-    const codeUri = hexToUtf8(storage.art.code_uri ?? "");
+    // `code_uri` is sp.string on chain, not sp.bytes. Decoding it as hex threw
+    // "not hex" on every collection published by pointer, so the scan died
+    // before it reached a single piece and an IPFS-stored generator could
+    // never be rendered at all.
+    const codeUri = storage.art.code_uri ?? "";
     requireAddress(storage.administrator, "administrator");
 
     // The generator is in storage. Nothing is fetched, so there is no gateway
@@ -536,7 +583,11 @@ export async function pieceAt(collection: string, tokenId: string): Promise<Pend
     if (storage.art.code) {
         code = await decodeCode(storage.art.code, storage.art.code_encoding ?? "identity");
     } else {
-        const codeUri = hexToUtf8(storage.art.code_uri ?? "");
+        // `code_uri` is sp.string on chain, not sp.bytes. Decoding it as hex threw
+    // "not hex" on every collection published by pointer, so the scan died
+    // before it reached a single piece and an IPFS-stored generator could
+    // never be rendered at all.
+    const codeUri = storage.art.code_uri ?? "";
         if (codeUri.startsWith("ipfs://") && CID.test(codeUri.slice(7).split(/[/?#]/)[0])) {
             code = await fetchGenerator(codeUri);
         }
@@ -552,7 +603,7 @@ export async function pieceAt(collection: string, tokenId: string): Promise<Pend
         seed: mint.hash,
         params: mint.params,
         code,
-        codeUri: hexToUtf8(storage.art.code_uri ?? ""),
+        codeUri: storage.art.code_uri ?? "",
         artist: storage.administrator,
     };
 }

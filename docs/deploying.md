@@ -151,7 +151,12 @@ ALEA_AGENT_SK=
 PINATA_JWT=
 CF_ACCOUNT_ID=
 CF_API_TOKEN=
+ALEA_ROUTER_ADDRESS=
 ```
+
+`ALEA_ROUTER_ADDRESS` is how the daemon finds the factories whose collections
+it should look at. Without it, it scans nothing and reports serving no
+collections while otherwise looking perfectly configured.
 
 The agent key is a secret and belongs on this box only. It signs
 `set_token_metadata` and nothing else, so a leak costs the tez in it and
