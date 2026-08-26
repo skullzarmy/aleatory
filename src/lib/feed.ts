@@ -9,10 +9,74 @@ import {
     fetchCollectionsDeployedBy,
     fetchRecentTokens,
     fetchTokensHeldBy,
+    fetchTokenUris,
     type TzktToken,
 } from "./tzkt";
 import { isBlockedCollection } from "./blocklist";
 import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
+
+interface TokenDoc {
+    name?: string;
+    displayUri?: string;
+    thumbnailUri?: string;
+    artifactUri?: string;
+}
+
+/**
+ * Metadata documents for a collection, fetched from the chain's own pointers.
+ *
+ * One big_map read for the whole collection, then one fetch per document that
+ * TzKT has not already resolved. Failures are silent on purpose: a document
+ * that will not load leaves the piece looking unrendered, which is exactly
+ * what it looks like today, rather than taking the page down with it.
+ */
+async function resolveDocs(
+    collection: string,
+    tokenIds: string[],
+): Promise<Map<string, TokenDoc>> {
+    const out = new Map<string, TokenDoc>();
+    if (tokenIds.length === 0) return out;
+
+    const uris = await fetchTokenUris(collection).catch(() => new Map<string, string>());
+    await Promise.all(
+        tokenIds.map(async (id) => {
+            const uri = uris.get(id);
+            if (!uri || !uri.startsWith("ipfs://")) return;
+            const doc = await fetch(convertIpfsToGatewayUrl(uri), { next: { revalidate: 300 } })
+                .then((r) => (r.ok ? (r.json() as Promise<TokenDoc>) : null))
+                .catch(() => null);
+            if (doc) out.set(id, doc);
+        }),
+    );
+    return out;
+}
+
+const key = (t: TzktToken) => `${t.contract.address}:${t.tokenId}`;
+
+/**
+ * Documents for whatever TzKT left unresolved, grouped so it is one big_map
+ * read per collection rather than one per token.
+ */
+async function docsFor(tokens: TzktToken[]): Promise<Map<string, TokenDoc>> {
+    const missing = tokens.filter((t) => !t.metadata?.displayUri && !t.metadata?.thumbnailUri);
+    if (missing.length === 0) return new Map();
+
+    const byCollection = new Map<string, string[]>();
+    for (const t of missing) {
+        const list = byCollection.get(t.contract.address) ?? [];
+        list.push(t.tokenId);
+        byCollection.set(t.contract.address, list);
+    }
+
+    const out = new Map<string, TokenDoc>();
+    await Promise.all(
+        [...byCollection].map(async ([collection, ids]) => {
+            const docs = await resolveDocs(collection, ids);
+            for (const [id, doc] of docs) out.set(`${collection}:${id}`, doc);
+        }),
+    );
+    return out;
+}
 
 export interface FeedPiece {
     key: string;
@@ -34,13 +98,17 @@ export interface FeedPiece {
     pending: boolean;
 }
 
-function toPiece(t: TzktToken, collectionAlias?: string): FeedPiece {
-    const m = t.metadata;
+function toPiece(
+    t: TzktToken,
+    collectionAlias?: string,
+    resolved?: TokenDoc,
+): FeedPiece {
+    // TzKT's own `metadata` when it has it, and the document we fetched
+    // ourselves when it does not. TzKT resolves `ipfs://` metadata on its own
+    // schedule and on some networks never, so a piece finished on chain would
+    // otherwise sit here looking unrendered indefinitely.
+    const m = t.metadata ?? resolved;
     const display = m?.displayUri || m?.thumbnailUri;
-    // A piece is awaiting its render when its metadata carries no image.
-    // The exact check compares token_info[""] against the collection's
-    // pending document, which matters on a piece page. For a feed row this
-    // is equivalent and costs one fewer request.
     const pending = !display;
     return {
         key: `${t.contract.address}:${t.tokenId}`,
@@ -78,8 +146,11 @@ export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
         collections.map((c) => c.address),
         limit,
     );
+    const docs = await docsFor(tokens);
     return {
-        pieces: tokens.map((t) => toPiece(t, aliasByAddress.get(t.contract.address))),
+        pieces: tokens.map((t) =>
+            toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t))),
+        ),
         collectionCount: collections.length,
         unconfigured: false,
     };
@@ -116,8 +187,11 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
     ]);
 
     const madeSet = new Set(deployed);
+    const docs = await docsFor(tokens);
     return {
-        held: tokens.map((t) => toPiece(t, aliasByAddress.get(t.contract.address))),
+        held: tokens.map((t) =>
+            toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t))),
+        ),
         made: collections
             .filter((c) => madeSet.has(c.address))
             .map((c) => ({ address: c.address, name: c.alias, minted: c.tokensCount ?? 0 })),

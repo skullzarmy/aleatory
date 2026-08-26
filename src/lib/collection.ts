@@ -1,7 +1,13 @@
 /**
  * A collection, read from its own storage.
  */
-import { fetchStorage, fetchRecentTokens, type TzktToken } from "./tzkt";
+import {
+    fetchStorage,
+    fetchRecentTokens,
+    fetchTokenUris,
+    type TokenMetadata,
+    type TzktToken,
+} from "./tzkt";
 import { fetchCollections } from "./tzkt";
 import { CONTRACTS, tzktApi } from "./config";
 import { bytesToString, convertIpfsToGatewayUrl } from "@/utils/ipfs";
@@ -127,8 +133,29 @@ export async function fetchCollectionPieces(
     limit = 48,
 ): Promise<FeedPiece[]> {
     const tokens = await fetchRecentTokens([address], limit);
+
+    // The chain's own pointers, for anything TzKT has not resolved. It fetches
+    // `ipfs://` metadata on its own schedule and on some networks never, and a
+    // piece finished on chain should not sit here looking unrendered.
+    const uris = await fetchTokenUris(address).catch(() => new Map<string, string>());
+    const docs = new Map<string, TokenMetadata>();
+    await Promise.all(
+        tokens
+            .filter((t) => !t.metadata?.displayUri && !t.metadata?.thumbnailUri)
+            .map(async (t) => {
+                const uri = uris.get(t.tokenId);
+                if (!uri?.startsWith("ipfs://")) return;
+                const doc = await fetch(convertIpfsToGatewayUrl(uri), {
+                    next: { revalidate: 300 },
+                })
+                    .then((r) => (r.ok ? (r.json() as Promise<TokenMetadata>) : null))
+                    .catch(() => null);
+                if (doc) docs.set(t.tokenId, doc);
+            }),
+    );
+
     return tokens.map((t: TzktToken) => {
-        const m = t.metadata;
+        const m = t.metadata ?? docs.get(t.tokenId);
         const display = m?.displayUri || m?.thumbnailUri;
         return {
             key: `${address}:${t.tokenId}`,

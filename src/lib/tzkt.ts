@@ -207,3 +207,40 @@ export async function fetchMintOperation(
           }
         : null;
 }
+
+/**
+ * A token's metadata document, read from the chain rather than from an index.
+ *
+ * TzKT resolves `ipfs://` metadata into its `metadata` field, eventually and
+ * on its own schedule, and on some networks not at all. Waiting for it means a
+ * piece that is finished on chain still shows as unrendered, which is both
+ * wrong and a strange thing for a project whose claim is that everything comes
+ * from chain state.
+ *
+ * So this reads `token_info[""]` out of the collection's own big_map and
+ * fetches the document itself. One call covers a whole collection.
+ */
+export async function fetchTokenUris(
+    collection: string,
+): Promise<Map<string, string>> {
+    const rows = await get<{ key: string; value: { token_info: Record<string, string> } }[]>(
+        `/v1/contracts/${requireAddress(collection)}/bigmaps/token_metadata/keys`,
+        { active: "true", limit: 400 },
+    ).catch(() => []);
+
+    const out = new Map<string, string>();
+    for (const r of rows) {
+        const hex = r.value?.token_info?.[""];
+        if (!hex) continue;
+        const uri = hexToUtf8(hex);
+        if (uri) out.set(String(r.key), uri);
+    }
+    return out;
+}
+
+function hexToUtf8(hex: string): string {
+    const clean = hex.replace(/^0x/, "");
+    if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(clean)) return "";
+    const bytes = clean.match(/.{2}/g) ?? [];
+    return new TextDecoder().decode(new Uint8Array(bytes.map((b) => parseInt(b, 16))));
+}
