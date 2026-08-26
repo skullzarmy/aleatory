@@ -136,7 +136,16 @@ Reports what is waiting and changes nothing. If that works, the service will.
 
 ### Linux, systemd
 
-`/etc/systemd/system/aleatory-provider.service`:
+**Get the three real values first.** systemd resolves none of them for you,
+and every one of them is a common way to fail:
+
+```
+id -un                          # the user
+ls -d ~/aleatory                # the checkout
+readlink -f "$(which node)"     # node, absolutely
+```
+
+Then `/etc/systemd/system/aleatory-provider.service`, substituting yours:
 
 ```ini
 [Unit]
@@ -146,10 +155,15 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=aleatory
-WorkingDirectory=/srv/aleatory
-EnvironmentFile=/srv/aleatory/.env
-ExecStart=/usr/bin/npm run provider:daemon
+User=YOUR_USER
+WorkingDirectory=/home/YOUR_USER/aleatory
+EnvironmentFile=/home/YOUR_USER/aleatory/.env
+
+# node and tsx by absolute path, not `npm run`. systemd has no shell profile,
+# so nothing is on PATH: `npm` is frequently not in /usr/bin at all, and never
+# is under nvm. npx would also try to resolve a package at start, over a
+# network that may not be up yet.
+ExecStart=/usr/bin/node /home/YOUR_USER/aleatory/node_modules/.bin/tsx scripts/provider-daemon.mts
 
 Restart=always
 RestartSec=10
@@ -161,8 +175,8 @@ TimeoutStopSec=60
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/srv/aleatory
+ProtectHome=read-only
+ReadWritePaths=/home/YOUR_USER/aleatory
 
 [Install]
 WantedBy=multi-user.target
@@ -171,8 +185,29 @@ WantedBy=multi-user.target
 ```
 sudo systemctl daemon-reload
 sudo systemctl enable --now aleatory-provider
-journalctl -u aleatory-provider -f
+systemctl status aleatory-provider --no-pager -l
 ```
+
+### When it will not start
+
+> Job for aleatory-provider.service failed because of unavailable resources or
+> another system error.
+
+That is systemd saying it could not launch the process at all, before any of
+our code ran. It means `User=`, `WorkingDirectory=` or `ExecStart=` names
+something that does not exist. Check all three; the message does not say which.
+
+```
+journalctl -u aleatory-provider --no-pager -n 50
+```
+
+`--no-pager` matters. Without it these commands open `less`, and on a unit with
+no output yet they look like they have hung.
+
+`ProtectHome=read-only` is deliberate: the checkout is usually under `/home`,
+and `ProtectHome=true` hides it from the service, which produces the same
+failure. If the checkout lives outside `/home`, `ProtectHome=true` is stricter
+and fine.
 
 `EnvironmentFile` does not understand quotes the way a shell does. Write
 `PINATA_JWT=eyJ…` with no surrounding quotes, or systemd passes the quotes
@@ -192,7 +227,7 @@ through as part of the value and the daemon reports the credential as invalid.
   <key>ProgramArguments</key>
   <array>
     <string>/bin/sh</string><string>-lc</string>
-    <string>cd /Users/you/aleatory &amp;&amp; npm run provider:daemon</string>
+    <string>cd /Users/YOUR_USER/aleatory &amp;&amp; npm run provider:daemon</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -223,7 +258,7 @@ No native equivalent that handles restarts well. Two options that do:
 
 ```
 nssm install AleatoryProvider "C:\Program Files\nodejs\npm.cmd" "run provider:daemon"
-nssm set AleatoryProvider AppDirectory C:\aleatory
+nssm set AleatoryProvider AppDirectory C:\path\to\aleatory
 nssm start AleatoryProvider
 ```
 
