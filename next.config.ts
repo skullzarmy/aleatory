@@ -25,6 +25,16 @@ const CHAIN_HOSTS = [
 ];
 
 /**
+ * Name resolution. See src/lib/identity.ts.
+ *
+ * Blocking this is invisible: the fetch fails, every address falls back to its
+ * truncated form, and nothing announces that names were ever meant to be here.
+ */
+const NAME_RESOLVER = new URL(
+    process.env.NEXT_PUBLIC_HACKTEZ_API || "https://hacktez.com",
+).origin;
+
+/**
  * Gateways an image may be loaded from.
  *
  * The configured one is included by origin, so changing the gateway does not
@@ -57,6 +67,7 @@ function csp(): string {
         [
             "connect-src 'self'",
             ...CHAIN_HOSTS,
+            NAME_RESOLVER,
             // Beacon's relay servers. The octez SDK uses octez.io; the
             // walletbeacon hosts are the older Beacon network and are kept
             // because a wallet may still pair through them. Blocking these

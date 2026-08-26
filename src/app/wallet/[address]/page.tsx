@@ -6,6 +6,7 @@ import { fetchWallet } from "@/lib/feed";
 import { isAddress } from "@/lib/tzkt";
 import { tzktLink } from "@/lib/config";
 import { shortAddress } from "@/lib/utils";
+import { resolveName } from "@/lib/identity";
 
 export const revalidate = 60;
 
@@ -15,7 +16,8 @@ export async function generateMetadata({
     params: Promise<{ address: string }>;
 }): Promise<Metadata> {
     const { address } = await params;
-    return { title: shortAddress(address) };
+    const name = await resolveName(address);
+    return { title: name ?? shortAddress(address) };
 }
 
 /**
@@ -34,12 +36,17 @@ export default async function WalletPage({
     const { address } = await params;
     if (!isAddress(address)) notFound();
 
-    const { held, made, unconfigured } = await fetchWallet(address);
+    const [{ held, made, unconfigured }, name] = await Promise.all([
+        fetchWallet(address),
+        resolveName(address),
+    ]);
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-8">
             <header>
-                <h1 className="text-xl font-semibold tracking-tight">{shortAddress(address)}</h1>
+                <h1 className="text-xl font-semibold tracking-tight">
+                    {name ?? shortAddress(address)}
+                </h1>
                 <p className="mt-1 text-xs text-muted-foreground">
                     <a
                         href={tzktLink(address)}

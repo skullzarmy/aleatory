@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
-import { shortAddress } from "@/lib/utils";
-import { tzktLink } from "@/lib/config";
-import { ChevronDown, ExternalLink, Images, LogOut, Wallet } from "lucide-react";
+import { AccountName } from "@/components/AccountName";
+import { ChevronDown, Images, LogOut, Wallet } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -22,16 +21,16 @@ export function ConnectButton() {
     if (address) {
         return (
             <DropdownMenu>
-                <DropdownMenuTrigger className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-accent data-[state=open]:bg-accent">
-                    <span className="h-2 w-2 rounded-full bg-success" />
-                    {shortAddress(address)}
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                <DropdownMenuTrigger className="inline-flex h-9 max-w-[13rem] items-center gap-2 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-accent data-[state=open]:bg-accent">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-success" />
+                    <AccountName address={address} className="truncate" />
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-56">
-                    {/* The full address, because the trigger only ever shows
-                        the ends of it and that is the thing worth checking. */}
-                    <DropdownMenuLabel className="font-mono text-xs font-normal text-muted-foreground">
+                <DropdownMenuContent align="end" className="w-64">
+                    {/* The address itself, because the trigger shows a name
+                        and a name is a claim the address is what settles. */}
+                    <DropdownMenuLabel className="break-all font-mono text-xs font-normal text-muted-foreground">
                         {address}
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
@@ -41,12 +40,6 @@ export function ConnectButton() {
                             <Images />
                             What you own
                         </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                        <a href={tzktLink(address)} target="_blank" rel="noreferrer">
-                            <ExternalLink />
-                            View on TzKT
-                        </a>
                     </DropdownMenuItem>
 
                     <DropdownMenuSeparator />
