@@ -139,8 +139,8 @@ console.log("\nOne harness");
         "it is the one participant that must have no network",
     );
 
-    const worker = readFileSync("worker/render.ts", "utf8");
-    check("the worker carries xmur3", worker.includes("function xmur3"));
+    const worker = readFileSync("netlify/functions/lib/render.mts", "utf8");
+    check("the renderer carries xmur3", worker.includes("function xmur3"));
     check(
         "the two agree on the construction",
         isolate.includes("sfc32(s(), s(), s(), s())") &&

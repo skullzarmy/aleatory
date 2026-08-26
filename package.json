@@ -17,7 +17,11 @@
     "logo": "npx tsx scripts/logo-preview.mts",
     "dev:isolate": "node scripts/dev-isolate.mjs",
     "test:studio": "npx tsx src/lib/studio.test.ts",
-    "test": "npm run test:metadata && npm run test:studio"
+    "test": "npm run test:metadata && npm run test:studio",
+    "provider:run": "npx tsx scripts/provider-run.mts",
+    "provider:setup": "npx tsx scripts/provider-setup.mts",
+    "provider:check": "PROVIDER_DRY=1 npx tsx scripts/provider-run.mts",
+    "provider:retry": "npx tsx scripts/provider-retry.mts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.6",
@@ -53,8 +57,6 @@
     "typescript": "^5.6.3",
     "@netlify/functions": "^3.0.4",
     "@netlify/plugin-nextjs": "^5.9.4",
-    "@cloudflare/puppeteer": "^1.0.2",
-    "wrangler": "^3.99.0",
     "@netlify/blobs": "^8.1.0"
   }
 }

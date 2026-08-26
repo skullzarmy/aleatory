@@ -208,7 +208,7 @@ def test_start_paused():
 
 
 @sp.add_test()
-def test_metadata_published_once():
+def test_metadata_publishing():
     scenario = sp.test_scenario("Publish metadata", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
@@ -231,10 +231,20 @@ def test_metadata_published_once():
     c.set_token_metadata(_publish(), _sender=minter)
     scenario.verify(c.data.token_metadata[0].token_info[""] == _REVEALED)
 
-    # Write-once: a provider cannot revise a piece after publishing it.
-    c.set_token_metadata(
-        _publish(uri=sp.bytes("0x6f74686572")), _sender=minter, _valid=False
-    )
+    # Rewritable, on purpose. A publish that lands without its confirmation
+    # being seen would otherwise leave a piece that can never be corrected and
+    # can never be tried again, and a retry has to be possible.
+    c.set_token_metadata(_publish(uri=sp.bytes("0x6f74686572")), _sender=minter)
+    scenario.verify(c.data.token_metadata[0].token_info[""] == sp.bytes("0x6f74686572"))
+
+    # Who may write is the bound, not how many times. A revealed piece is no
+    # more writable by a stranger than an unrevealed one.
+    c.set_token_metadata(_publish(), _sender=alice, _valid=False)
+    c.set_token_metadata(_publish(), _sender=artist, _valid=False)
+
+    # And never back to the pending document, which would make a revealed
+    # piece look unrendered to every queue watching for one.
+    c.set_token_metadata(_publish(uri=_PENDING), _sender=minter, _valid=False)
 
 
 @sp.add_test()

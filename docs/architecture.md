@@ -226,7 +226,7 @@ The contract's balance is zero when `mint` returns. Nothing is escrowed, nothing
 
 It is the only entrypoint in the contract that modifies an existing token, and it modifies exactly one field of one token, once, but that field is the metadata pointer, so a provider publishes the piece's **whole** metadata document.
 
-That is the conventional Tezos arrangement, and the same trust every generative platform here already extends. It is bounded by being write-once, artist-authorised, and reproducible after the fact by anyone.
+That is the conventional Tezos arrangement, and the same trust every generative platform here already extends. It is bounded by being artist-authorised, revocable at any time, and reproducible after the fact by anyone.
 
 Authorised means the collection's provider, an address the artist authorised directly (`set_local_writer`), or one the resolver vouches for. The resolver is consulted through a view that may fail: if it is gone or broken the call falls through to the artist's local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
 

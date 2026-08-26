@@ -131,8 +131,9 @@ set_token_metadata(token_id: nat, metadata_uri: bytes)
 
 Rules a conforming collection enforces:
 
-- Write once. A token whose metadata has already been published rejects a
-  second write.
+- Rewritable by an authorised writer. Refusing a second write means a publish
+  whose confirmation was missed can never be corrected or retried, and the
+  writer is already trusted with the whole document.
 - The URI cannot equal the pending document, which would leave the piece
   looking unrendered forever.
 - Authorisation is the collection's business. Ours accepts the provider's

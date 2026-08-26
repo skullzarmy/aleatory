@@ -619,7 +619,7 @@ def aleatory():
 
         @sp.entrypoint
         def set_token_metadata(self, token_id, metadata_uri):
-            """(Authorised writer) Publish a piece's real metadata, once.
+            """(Authorised writer) Publish a piece's real metadata.
 
             Replaces the collection's pending document with this token's
             own, the JSON carrying its name, artifactUri, displayUri,
@@ -633,9 +633,9 @@ def aleatory():
             the artwork, and no way to publish one without saying where it
             lives.
 
-            What bounds it: it can be done once per token, only by someone
-            the artist authorised, and never for a token that already has
-            its metadata. Everything it publishes is checkable, the seed
+            What bounds it: only someone the artist authorised, and the
+            artist can revoke that at any time. Everything it publishes is
+            checkable, the seed
             comes from the mint operation, the parameters are in that
             operation too, and the code is immutable, so the correct output
             is reproducible by anyone. Detection and key rotation, not a
@@ -653,13 +653,13 @@ def aleatory():
             ), "IS_PENDING_DOC"
 
             token = self.data.token_metadata.get(token_id, error="NO_TOKEN")
-            # Write-once, and the same rule providers use off chain to find
-            # pending work: a piece still holding the collection's pending
-            # document is a piece nobody has rendered.
-            assert (
-                token.token_info[""] == self.data.art.pending_metadata
-            ), "ALREADY_PUBLISHED"
 
+            # Rewritable, on purpose. An authorised writer is already trusted
+            # with the whole document, so refusing a second write buys nothing
+            # against a hostile one and costs everything against an ordinary
+            # failure: a publish that lands without its confirmation being seen
+            # leaves a piece that can never be corrected and never be retried.
+            # Retry has to be possible, so this is a plain write.
             token.token_info[""] = metadata_uri
             self.data.token_metadata[token_id] = token
 

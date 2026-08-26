@@ -1,40 +1,63 @@
-# Provider render host
+# Isolate
 
-Where a **minted** piece is rendered for a viewer.
+Where generator code runs.
 
-This is part of the provider stack, alongside `worker/render.ts` (the headless
-capture that produces the image published on chain) and
-`netlify/functions/provider.mts` (the queue and the publish). It is the same
-harness as the worker, serving live to a browser instead of capturing.
+It executes and it never fetches. Whoever frames it already has the code and
+hands it over:
+
+```
+parent  → isolate   { type: "alea:run", code, seed, params, deps }
+isolate → parent    { type: "alea:hello" }        ready to receive
+                    { type: "alea:ready", … }     the piece signalled
+                    { type: "alea:violation", … } it reached for something
+```
+
+Fetching was the earlier shape and it contradicted this page's own
+`connect-src 'none'`. Executing is the one job it is uniquely suited to,
+because it is the one participant that must have no network at all. Every
+caller already has its own way of getting the code:
+
+| caller | where the code is |
+|---|---|
+| the studio | a draft in IndexedDB, never on chain |
+| `/piece/*`, `/collection/*` | `art.code` in contract storage |
+| the render worker | headless, no frame, its own chain reads |
+| a third party | [ALEATORY-001](../docs/interface.md), however they like |
+
+## Its own origin
 
 Deployed as its own Netlify site from this directory, at
-`isolate.aleatory.art`. Base directory `provider`, publish directory `.`, no
+`isolate.aleatory.art`. Base directory `isolate`, publish directory `.`, no
 build command.
 
-Its own origin because it executes code published by someone else, and a
-different origin is what keeps that code away from wallet state and session
-storage.
+Separate from the app because it runs code we did not write, in every
+visitor's browser. A different origin is what keeps that code away from wallet
+state and session storage.
 
-It is **not** a sandbox. A sandbox is where an artist builds and iterates
-before minting; this only ever runs a generator that is already on chain,
-addressed by CID.
+The piece itself runs one level deeper, in a nested frame with
+`sandbox="allow-scripts"` and no `allow-same-origin`, so it lands in an opaque
+origin that cannot reach this one either. Its CSP travels inside that document
+as a meta tag; a `srcdoc` child intersects its parent's policy, so it can only
+ever be stricter.
 
 ## The harness
 
-`index.html` installs the same globals as `worker/render.ts`, and the two have
-to match: a piece has to look the same here as it does in the image that ends
-up on chain.
+`$alea` is the entire surface a piece is given. Aliases for other platforms
+are not part of this, and a generator written for one is not an Aleatory piece.
 
-```
-?code=ipfs://<cid>&seed=<operation hash>&params=<json>
-```
+- `Math.random` replaced by a seeded stream, `xmur3` then `sfc32`. The seed is
+  a base58 operation hash and is **never** parsed as hex: `parseInt` stops at
+  the first character outside the radix, so hex parsing yields zero for every
+  word and every piece draws the same picture.
+- The clock is frozen, so a piece reading the date renders the same way in any
+  year.
+- Network access is blocked, and what the CSP already refused is reported so an
+  artist is told why rather than watching a piece half-run.
 
-- `Math.random` replaced by a seeded stream from the seed, via `xmur3` then
-  `sfc32`. The seed is a base58 operation hash and is never parsed as hex.
-- clock frozen, so a piece reading the date renders the same way in any year
-- `$alea` and the `$fx` aliases
-
-Change one of them and change the other in the same commit.
+`netlify/functions/lib/render.mts` carries the other implementation, the one
+that produces the image published on chain. The two agree by conforming to
+[ALEATORY-001](../docs/interface.md) §7, not by sharing a file. Change one,
+change the other, in the same commit.
 
 ## Locally
 

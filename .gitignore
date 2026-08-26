@@ -5,10 +5,22 @@ dist/
 contract/output*/
 contract/__pycache__/
 # SmartPy writes one directory per test scenario into the working directory,
-# named after the scenario. `npm run test:contracts` sets SMARTPY_OUTPUT_DIR so
-# they all land in contract/output; running a suite by hand without it scatters
-# them wherever you happened to be standing.
+# named after the scenario, so a suite run by hand scatters them wherever you
+# were standing. `npm run test:contracts` sets SMARTPY_OUTPUT_DIR to keep them
+# together, but nothing forces anyone to use it.
+#
+# So the top level is allow-listed instead. A new directory here is a
+# deliberate act and adding a line is the cost of it; a directory that
+# appeared on its own is litter and stays invisible.
 contract/output/
+/*/
+!/contract/
+!/docs/
+!/isolate/
+!/netlify/
+!/public/
+!/scripts/
+!/src/
 .DS_Store
 
 # deploy scripts

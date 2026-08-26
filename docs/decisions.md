@@ -60,7 +60,7 @@ An authorised writer publishes one token's metadata URI, once, replacing the col
 
 The consequence, stated plainly: a provider writes a token's **whole** metadata, not two fields of it. That is a real grant of trust, and it is the same one every platform doing generative art on Tezos already makes, there is no way to produce a rendered image without executing the artwork, and no way to publish one without saying where it lives.
 
-What bounds it: once per token, only by someone the artist authorised, and never for a token whose metadata is already published. Write-once, a second attempt fails.
+What bounds it: only someone the artist authorised, and the artist can revoke that at any time. It is deliberately rewritable, because a publish that lands without its confirmation being seen would otherwise strand a piece that can never be corrected and never be retried.
 
 Authorised means the collection's provider, an address the artist authorised directly (`set_local_writer`), or one the resolver vouches for. The resolver is consulted through a view that may fail, if it is gone or broken the call falls through to the local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
 
@@ -70,7 +70,7 @@ Publishing metadata that does not match the piece is possible and not preventabl
 
 **Resolver trust is opt in.** A collection is deployed with `trust_resolver` off unless the artist asks for it. On, the resolver can vouch for a writer and our provider works without further setup; off, the only addresses that can publish are the collection's own provider and whoever the artist authorised directly. `set_trust_resolver` moves it either way at any time.
 
-That default matters because `set_token_metadata` writes a token's whole document, including the royalty block a marketplace might read. The write-once guard bounds it to pieces that have not been revealed, and every collection has a window between mint and reveal.
+That default matters because `set_token_metadata` writes a token's whole document, including the royalty block a marketplace might read. Authorisation is the bound, and the artist can revoke it at any time.
 
 ---
 

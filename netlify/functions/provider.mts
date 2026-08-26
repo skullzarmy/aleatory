@@ -26,9 +26,21 @@ const TZKT = process.env.TZKT_API || "https://api.shadownet.tzkt.io";
 const RPC = process.env.TEZOS_RPC || "https://rpc.tzkt.io/shadownet";
 const PROVIDER_ADDRESS = process.env.ALEA_PROVIDER_ADDRESS || "";
 const AGENT_SK = process.env.ALEA_AGENT_SK || "";
-const RENDER_URL = process.env.ALEA_RENDER_WORKER_URL || "";
-const RENDER_TOKEN = process.env.ALEA_RENDER_TOKEN || "";
+import { render as renderPiece, renderConfigFromEnv } from "./lib/render.mts";
 const PINATA_JWT = process.env.PINATA_JWT || "";
+
+/**
+ * Factories whose collections this provider will look at.
+ *
+ * Set explicitly rather than defaulted: anyone can deploy a factory, and one
+ * we do not know is one whose collections we have no reason to spend render
+ * budget on. Storage is still the authority afterwards, this only decides
+ * where to look.
+ */
+const FACTORIES = (process.env.ALEA_FACTORIES || process.env.ALEA_FACTORY_ADDRESS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => /^KT1[1-9A-HJ-NP-Za-km-z]{33}$/.test(s));
 const PING_TOKEN = process.env.ALEA_PROVIDER_PING_TOKEN || "";
 const IPFS_GATEWAY = process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz";
 
@@ -66,6 +78,8 @@ interface PendingPiece {
     /** The buy operation hash. This is the seed. */
     seed: string;
     params: string;
+    /** The generator source, out of contract storage. */
+    code: string;
     codeUri: string;
     artist: string;
 }
@@ -98,7 +112,12 @@ function hexToUtf8(hex: string): string {
 
 interface CollectionStorage {
     administrator: string;
-    art: { code_uri: string; pending_metadata: string };
+    art: {
+        code: string;
+        code_encoding: string;
+        code_uri: string;
+        pending_metadata: string;
+    };
     render: { provider: string };
 }
 
@@ -110,9 +129,30 @@ interface CollectionStorage {
  * is then confirmed against its own storage, because a contract's event
  * payload is written by that contract and can claim anything.
  */
-async function collectionsServed(): Promise<string[]> {
+export async function collectionsServed(): Promise<string[]> {
     const candidates = new Set<string>();
 
+    // Two ways in, because neither alone finds every collection.
+    //
+    // A collection deployed by a factory names its provider in its *initial
+    // storage* and never emits `set_provider`, so an event scan alone never
+    // sees a new collection at all: it would sit unrendered until its artist
+    // happened to switch provider. Everything a factory originated is the
+    // other half.
+    for (const factory of FACTORIES) {
+        const originated = await tzkt<{ address: string }[]>("/v1/contracts", {
+            creator: factory,
+            limit: 500,
+            select: "address",
+        }).catch(() => []);
+        for (const row of originated) {
+            const addr = typeof row === "string" ? row : row.address;
+            if (addr && ADDRESS.test(addr)) candidates.add(addr);
+        }
+    }
+
+    // And a collection that switched *to* us after deploy, which a factory
+    // scan would miss if it came from a factory we do not watch.
     const events = await tzkt<{ contract: { address: string } }[]>("/v1/contracts/events", {
         tag: "set_provider",
         "sort.desc": "id",
@@ -146,17 +186,24 @@ async function collectionsServed(): Promise<string[]> {
  * this was down, and pieces inherited from a provider an artist switched away
  * from.
  */
-async function pendingIn(collection: string): Promise<PendingPiece[]> {
+export async function pendingIn(collection: string): Promise<PendingPiece[]> {
     const storage = await tzkt<CollectionStorage>(`/v1/contracts/${collection}/storage`);
     const pendingUri = hexToUtf8(storage.art.pending_metadata);
-    const codeUri = hexToUtf8(storage.art.code_uri);
+    const codeUri = hexToUtf8(storage.art.code_uri ?? "");
     requireAddress(storage.administrator, "administrator");
 
-    // A generator address is written by whoever deployed the collection, and
-    // anyone can deploy one. Only IPFS, and only a CID shape.
-    if (!codeUri.startsWith("ipfs://") || !CID.test(codeUri.slice(7).split(/[/?#]/)[0])) {
-        return [];
+    // The generator is in storage. Nothing is fetched, so there is no gateway
+    // to be lied to by and no URL to be pointed at something else.
+    let code = "";
+    if (storage.art.code) {
+        code = await decodeCode(storage.art.code, storage.art.code_encoding ?? "identity");
+    } else if (codeUri.startsWith("ipfs://") && CID.test(codeUri.slice(7).split(/[/?#]/)[0])) {
+        // Only for a generator too large to carry on chain. A pointer is
+        // written by whoever deployed the collection and anyone can deploy
+        // one, so it is IPFS only and a CID shape only.
+        code = await fetchGenerator(codeUri);
     }
+    if (!code) return [];
 
     const waiting: PendingPiece[] = [];
     let offset = 0;
@@ -185,6 +232,7 @@ async function pendingIn(collection: string): Promise<PendingPiece[]> {
                 tokenId,
                 seed: buy.hash,
                 params: buy.params,
+                code,
                 codeUri,
                 artist: storage.administrator,
             });
@@ -264,25 +312,35 @@ async function fetchGenerator(codeUri: string): Promise<string> {
     return new TextDecoder().decode(body);
 }
 
+/**
+ * Draw one piece.
+ *
+ * Goes to Browser Run's REST endpoint, which takes the document directly. The
+ * Worker this used to call is gone: Browser Rendering became Browser Run and
+ * moved off the `env.BROWSER` binding, and a REST call from here needs no
+ * deploy, no `workers.dev` URL, and no secret guarding one.
+ */
 async function render(piece: PendingPiece): Promise<Uint8Array> {
-    const html = await fetchGenerator(piece.codeUri);
-    const res = await fetch(RENDER_URL, {
-        method: "POST",
-        headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${RENDER_TOKEN}`,
-        },
-        body: JSON.stringify({
-            html,
+    const config = renderConfigFromEnv();
+    if (!config) throw new Error("rendering is not configured");
+    return renderPiece(
+        {
+            code: piece.code,
             seed: piece.seed,
-            params: piece.params,
-            width: 1000,
-            height: 1000,
-        }),
-        signal: AbortSignal.timeout(60_000),
-    });
-    if (!res.ok) throw new Error(`render ${res.status}`);
-    return new Uint8Array(await res.arrayBuffer());
+            params: piece.params ? (JSON.parse(piece.params) as Record<string, unknown>) : {},
+        },
+        config,
+    );
+}
+
+/** The generator, out of storage. `gzip` only when it would not otherwise fit. */
+async function decodeCode(hex: string, encoding: string): Promise<string> {
+    const clean = (hex || "").replace(/^0x/, "");
+    if (!clean) return "";
+    const bytes = Buffer.from(clean, "hex");
+    if (encoding !== "gzip") return bytes.toString("utf8");
+    const { gunzipSync } = await import("node:zlib");
+    return gunzipSync(bytes).toString("utf8");
 }
 
 /**
@@ -328,20 +386,82 @@ let toolkit: TezosToolkit | null = null;
 async function signer(): Promise<TezosToolkit> {
     if (!toolkit) {
         toolkit = new TezosToolkit(RPC);
-        toolkit.setSignerProvider(await InMemorySigner.fromSecretKey(AGENT_SK));
+        const s = await InMemorySigner.fromSecretKey(AGENT_SK);
+        toolkit.setSignerProvider(s);
+        await ensureRevealed(toolkit, s);
     }
     return toolkit;
+}
+
+/**
+ * Reveal the agent's key, once, before it ever sends anything.
+ *
+ * A Tezos account cannot transact until its public key is on chain. Taquito
+ * normally bundles the reveal with the first operation, and on this chain
+ * `hard_gas_limit_per_operation` equals the per-*block* limit, so a bundled
+ * reveal overflows and the whole batch is refused. The symptom is an agent
+ * that is funded, looks fine, and has never landed an operation.
+ *
+ * Sent by hand for the same reason estimation is skipped below: the estimator
+ * simulates at the operation cap, which this chain's block cap rejects.
+ */
+async function ensureRevealed(tezos: TezosToolkit, s: InMemorySigner): Promise<void> {
+    const pkh = await s.publicKeyHash();
+    if (await tezos.rpc.getManagerKey(pkh).catch(() => null)) return;
+
+    const branch = (await tezos.rpc.getBlockHeader()).hash;
+    const protocol = (await tezos.rpc.getProtocols()).protocol;
+    const counter = parseInt((await tezos.rpc.getContract(pkh)).counter ?? "0", 10);
+    const contents = [
+        {
+            kind: "reveal",
+            source: pkh,
+            fee: "1000",
+            counter: String(counter + 1),
+            gas_limit: "5000",
+            storage_limit: "0",
+            public_key: await s.publicKey(),
+        },
+    ];
+    const forged = await tezos.rpc.forgeOperations({ branch, contents } as never);
+    const sig = await s.sign(forged, new Uint8Array([3]));
+    await tezos.rpc.preapplyOperations([
+        { branch, contents, protocol, signature: sig.prefixSig },
+    ] as never);
+    const hash = await tezos.rpc.injectOperation(sig.sbytes);
+    console.log(`revealing agent key, op ${hash}`);
+
+    for (let i = 0; i < 45; i++) {
+        await new Promise((r) => setTimeout(r, 4000));
+        if (await tezos.rpc.getManagerKey(pkh).catch(() => null)) return;
+    }
+    throw new Error(`agent key reveal not confirmed (op ${hash})`);
 }
 
 async function publish(piece: PendingPiece, metadataUri: string): Promise<string> {
     const tezos = await signer();
     const collection = await tezos.contract.at(piece.collection);
-    const op = await collection.methodsObject
-        .set_token_metadata({
-            token_id: piece.tokenId,
-            metadata_uri: Buffer.from(metadataUri, "utf-8").toString("hex"),
-        })
-        .send();
+    const call = collection.methodsObject.set_token_metadata({
+        token_id: piece.tokenId,
+        metadata_uri: Buffer.from(metadataUri, "utf-8").toString("hex"),
+    });
+
+    // Explicit limits and an explicit fee, because neither can be estimated
+    // here. Taquito simulates at `hard_gas_limit_per_operation`, and on this
+    // chain that equals the per-*block* limit, so the simulation is refused
+    // with gas_exhausted.block and no estimate comes back.
+    //
+    // The fee has to be derived from the gas limit, not guessed. A baker's
+    // minimum is roughly 100 + 0.1 per gas unit + 1 per byte, in mutez, and
+    // it is charged against the limit *declared*, not the gas consumed. So a
+    // generous limit raises the fee floor, and paying below it does not fail:
+    // the operation injects, returns a hash, and then sits in the mempool
+    // until it expires. Which looks exactly like a chain that is ignoring you.
+    const GAS_LIMIT = 10_000;
+    const BYTES = 400;
+    const fee = 100 + Math.ceil(GAS_LIMIT * 0.1) + BYTES + 200;
+
+    const op = await call.send({ gasLimit: GAS_LIMIT, storageLimit: 300, fee });
 
     // The hash exists before the confirmation does, so a process that dies
     // here can tell "already sent" from "never sent".
@@ -350,7 +470,43 @@ async function publish(piece: PendingPiece, metadataUri: string): Promise<string
     return hash;
 }
 
-async function handle(piece: PendingPiece): Promise<string> {
+/**
+ * Build one piece by hand, ignoring the queue.
+ *
+ * The queue finds pieces still holding the pending document, which by
+ * definition excludes a piece that got a write and needs a better one. This is
+ * how you reach those: name the collection and the token.
+ */
+export async function pieceAt(collection: string, tokenId: string): Promise<PendingPiece> {
+    const storage = await tzkt<CollectionStorage>(`/v1/contracts/${collection}/storage`);
+    requireAddress(storage.administrator, "administrator");
+
+    let code = "";
+    if (storage.art.code) {
+        code = await decodeCode(storage.art.code, storage.art.code_encoding ?? "identity");
+    } else {
+        const codeUri = hexToUtf8(storage.art.code_uri ?? "");
+        if (codeUri.startsWith("ipfs://") && CID.test(codeUri.slice(7).split(/[/?#]/)[0])) {
+            code = await fetchGenerator(codeUri);
+        }
+    }
+    if (!code) throw new Error(`${collection} has no generator`);
+
+    const mint = await buyEvent(collection, tokenId);
+    if (!mint) throw new Error(`${collection} #${tokenId} has no mint event`);
+
+    return {
+        collection,
+        tokenId,
+        seed: mint.hash,
+        params: mint.params,
+        code,
+        codeUri: hexToUtf8(storage.art.code_uri ?? ""),
+        artist: storage.administrator,
+    };
+}
+
+export async function handle(piece: PendingPiece): Promise<string> {
     const image = await render(piece);
     const imageUri = await pin(image, `${piece.collection}-${piece.tokenId}.png`);
 
@@ -392,7 +548,7 @@ function safeParse(s: string): Record<string, unknown> {
 /**
  * One invocation at a time per piece.
  *
- * The on-chain write-once guard already stops a piece being published twice,
+ * A second publish of the same piece is harmless rather than fatal now,
  * so this is about money rather than correctness: without it, two concurrent
  * runs both render and both pin, and one of the two operations is rejected
  * after the spending has happened.
@@ -422,7 +578,8 @@ async function release(key: string): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 function configured(): string | null {
-    if (!PROVIDER_ADDRESS || !AGENT_SK || !RENDER_URL) return "provider is not configured";
+    if (!PROVIDER_ADDRESS || !AGENT_SK) return "provider is not configured";
+    if (!renderConfigFromEnv()) return "rendering is not configured";
     if (!PINATA_JWT) return "pinning is not configured";
     return null;
 }
