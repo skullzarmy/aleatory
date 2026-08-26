@@ -28,6 +28,7 @@ export function IsolateFrame({
     title = "Piece",
     onReady,
     onViolation,
+    onError,
 }: {
     /** The generator source. Decoded already: the isolate does not decompress. */
     code: string;
@@ -42,6 +43,8 @@ export function IsolateFrame({
     title?: string;
     onReady?: (detail: { digest: string; image: string | null; violations: unknown[] }) => void;
     onViolation?: (kind: string, detail: string) => void;
+    /** The piece threw. A blank frame and black paint look the same. */
+    onError?: (message: string) => void;
 }) {
     const ref = useRef<HTMLIFrameElement>(null);
 
@@ -78,8 +81,8 @@ export function IsolateFrame({
     // Held in a ref so the listener registers once. Callbacks are usually
     // inline arrows, and re-registering on every render would drop the
     // handshake message somewhere between removals.
-    const handlers = useRef({ onReady, onViolation, payload });
-    handlers.current = { onReady, onViolation, payload };
+    const handlers = useRef({ onReady, onViolation, onError, payload });
+    handlers.current = { onReady, onViolation, onError, payload };
 
     useEffect(() => {
         function onMessage(e: MessageEvent) {
@@ -100,6 +103,7 @@ export function IsolateFrame({
                 digest?: string;
                 image?: string | null;
                 violations?: unknown[];
+                message?: string;
             };
 
             if (d?.type === "alea:hello") {
@@ -120,6 +124,9 @@ export function IsolateFrame({
             }
             if (d?.type === "alea:violation") {
                 handlers.current.onViolation?.(d.kind ?? "unknown", d.detail ?? "");
+            }
+            if (d?.type === "alea:error") {
+                handlers.current.onError?.(d.message ?? "Script error");
             }
         }
 

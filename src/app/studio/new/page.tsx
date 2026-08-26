@@ -152,8 +152,8 @@ const BLANK = `<!doctype html>
 <body>
 <canvas id="c"></canvas>
 <script>
-  // $alea.random() is seeded. Math.random() is not, and a piece that uses it
-  // renders differently everywhere it is drawn.
+  // $alea.rand() is seeded from the piece's own seed. Math.random() is not,
+  // and a piece that uses it renders differently everywhere it is drawn.
   const canvas = document.getElementById("c");
   const size = Math.min(innerWidth, innerHeight);
   canvas.width = canvas.height = size;

@@ -64,11 +64,22 @@ nothing of the artist's on our infrastructure, and it means a cleared browser
 loses unpublished work, which `/studio` says on the page rather than in a
 footnote.
 
-`/studio/[draft]` is five tabs, and they are the five things a generative
-artist does before publishing: look at one piece, look at the space, decide
-what a collector may change, prove the piece behaves, and find out what it
-costs. The checks run the piece for real in detached frames, comparing one
-seed across two fresh runs by capture digest.
+`/studio/[draft]` is a split workbench: the document on the left, the piece on
+the right, typing redraws. Generative work is a loop, change a number and look,
+and the studio used to break it in half by hiding the document behind an Export
+button. The seed is held still while you type, because a piece that rerolls on
+every edit tells you nothing about the edit, and an error the piece throws is
+reported rather than swallowed, because a blank frame and black paint look the
+same.
+
+A `.html` or `.zip` dropped on the editor replaces the document in place, so
+importing is part of the loop rather than a thing you do once at the start.
+
+Under the piece sit the other four things an artist does before publishing:
+look at the space rather than one draw, decide what a collector may change,
+prove the piece behaves, and find out what it costs. The checks run the piece
+for real in detached frames, comparing one seed across two fresh runs by
+capture digest.
 
 A `.zip` is inlined into one document at load rather than at publish, so what
 runs in the studio is byte for byte what goes on chain.

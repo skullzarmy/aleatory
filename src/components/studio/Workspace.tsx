@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { CodePane } from "./CodePane";
 import { Frame } from "./Frame";
 import { SeedGrid } from "./SeedGrid";
 import { Checks } from "./Checks";
@@ -12,21 +13,32 @@ import { getKind } from "@/lib/runtimes";
 import { saveDraft, randomSeed, type Draft } from "@/lib/draft";
 import { downloadText } from "@/lib/project";
 import { resolveParams } from "@/lib/params";
+import { Dice5 } from "lucide-react";
 
 /**
- * Where an artist works.
+ * Where an artist works. Code on the left, the piece on the right.
  *
- * Five things, and they are the five things a generative artist does before
- * publishing: look at one piece, look at the space, decide what a collector
- * may change, prove the piece behaves, and find out what it costs.
+ * Generative work is a loop: change a number, look, change it back. The studio
+ * used to break that loop in half. The document was hidden behind an Export
+ * button, so editing meant downloading a file, opening another editor, and
+ * importing the result, and the preview only ever showed what you had already
+ * finished deciding.
  *
- * Everything is local. The draft lives in this browser and nothing leaves it
+ * So both halves are on screen at once and typing redraws. The seed is held
+ * still while you type, because a piece that rerolls on every edit tells you
+ * nothing about the edit.
+ *
+ * Everything below the preview is the rest of the job: the space rather than
+ * one draw, what a collector may change, proof it behaves, and what it costs.
+ * They sit under the piece rather than replacing it, so nothing you learn there
+ * costs you sight of the work.
+ *
+ * All of it is local. The draft lives in this browser and nothing leaves it
  * until publish.
  */
-type Tab = "piece" | "seeds" | "params" | "checks" | "cost";
+type Tool = "seeds" | "params" | "checks" | "cost";
 
-const TABS: { id: Tab; label: string }[] = [
-    { id: "piece", label: "Piece" },
+const TOOLS: { id: Tool; label: string }[] = [
     { id: "seeds", label: "Seeds" },
     { id: "params", label: "Parameters" },
     { id: "checks", label: "Checks" },
@@ -35,9 +47,12 @@ const TABS: { id: Tab; label: string }[] = [
 
 export function Workspace({ draft: initial }: { draft: Draft }) {
     const [draft, setDraft] = useState(initial);
-    const [tab, setTab] = useState<Tab>("piece");
+    const [tool, setTool] = useState<Tool | null>(null);
     const [values, setValues] = useState<Record<string, unknown>>({});
     const [saved, setSaved] = useState(true);
+    // What the piece last threw. Cleared on every re-run, since the point of
+    // editing is that the previous error may be the one you just fixed.
+    const [error, setError] = useState<string | null>(null);
 
     // p5 and anything like it is inlined into the document before the piece
     // runs. Until it resolves there is no point drawing: a p5 sketch with no p5
@@ -61,23 +76,36 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
         setDraft((d) => ({ ...d, ...patch }));
     }, []);
 
+    const setHtml = useCallback(
+        (html: string) => {
+            setError(null);
+            update({ html });
+        },
+        [update],
+    );
+
     return (
-        <div className="mx-auto max-w-6xl px-4 py-8">
-            <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        // Full height, not a column of content. This is a workbench.
+        <div className="flex h-[calc(100vh-5rem)] flex-col">
+            <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border px-4 py-3">
                 <div className="min-w-0">
                     <input
                         value={draft.name}
                         onChange={(e) => update({ name: e.target.value })}
-                        className="w-full max-w-sm bg-transparent text-xl font-semibold tracking-tight outline-none"
+                        className="w-full max-w-sm bg-transparent text-lg font-semibold tracking-tight outline-none"
                         aria-label="Draft name"
                     />
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                        {kind.label}
+                        {" · "}
                         {saved ? "Saved in this browser" : "Saving…"}
                         {" · "}
                         <button
                             type="button"
                             className="underline hover:text-foreground"
-                            onClick={() => downloadText(`${draft.name || "generator"}.html`, draft.html)}
+                            onClick={() =>
+                                downloadText(`${draft.name || "generator"}.html`, draft.html)
+                            }
                         >
                             Export
                         </button>
@@ -92,103 +120,136 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                 </Link>
             </header>
 
-            <nav className="mb-6 flex gap-1 border-b border-border">
-                {TABS.map((t) => (
-                    <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setTab(t.id)}
-                        className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
-                            tab === t.id
-                                ? "border-alea-600 font-medium text-foreground"
-                                : "border-transparent text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                        {t.label}
-                    </button>
-                ))}
-            </nav>
-
             {depsError && (
-                <p className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
+                <p className="shrink-0 border-b border-destructive/40 bg-destructive/10 px-4 py-2 text-sm">
                     {kind.label} needs {kind.deps.map((d) => d.label).join(", ")}, and it could
                     not be loaded: {depsError}
                 </p>
             )}
 
-            {tab === "piece" && (
-                <div className="space-y-4">
-                    <div className="relative aspect-square max-h-[70vh] overflow-hidden rounded-lg border border-border">
-                        {depsReady ? (
-                            <Frame
-                                html={draft.html}
-                                seed={draft.seed}
-                                params={draft.params}
-                                values={values}
-                                deps={deps}
-                            />
-                        ) : (
-                            <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                                {depsLoading
-                                    ? `Loading ${kind.deps.map((d) => d.label).join(", ")}…`
-                                    : "Nothing to draw."}
-                            </p>
-                        )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-xs">
+            <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+                <section
+                    className="flex min-h-[40vh] flex-col border-b border-border lg:min-h-0 lg:w-1/2 lg:border-b-0 lg:border-r"
+                    aria-label="Generator source"
+                >
+                    <CodePane value={draft.html} onChange={setHtml} onReplace={setHtml} />
+                </section>
+
+                <section
+                    className="flex min-h-0 flex-col lg:w-1/2"
+                    aria-label="Preview"
+                >
+                    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2">
+                        <code
+                            className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
+                            title={draft.seed}
+                        >
                             {draft.seed}
                         </code>
                         <button
                             type="button"
                             onClick={() => update({ seed: randomSeed() })}
-                            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
                         >
+                            <Dice5 size={12} aria-hidden />
                             New seed
                         </button>
                     </div>
-                </div>
-            )}
 
-            {tab === "seeds" &&
-                (depsReady ? (
-                    <SeedGrid
-                        html={draft.html}
-                        baseSeed={draft.seed}
-                        params={draft.params}
-                        values={values}
-                        deps={deps}
-                        onPick={(seed) => {
-                            update({ seed });
-                            setTab("piece");
-                        }}
-                    />
-                ) : (
-                    <p className="text-sm text-muted-foreground">
-                        {depsLoading ? "Loading libraries…" : "Nothing to draw."}
-                    </p>
-                ))}
+                    <div className="min-h-0 flex-1 overflow-auto p-3">
+                        <div className="relative mx-auto aspect-square w-full max-w-[min(100%,70vh)] overflow-hidden rounded-lg border border-border">
+                            {depsReady ? (
+                                <Frame
+                                    html={draft.html}
+                                    seed={draft.seed}
+                                    params={draft.params}
+                                    values={values}
+                                    deps={deps}
+                                    onError={setError}
+                                />
+                            ) : (
+                                <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                                    {depsLoading
+                                        ? `Loading ${kind.deps.map((d) => d.label).join(", ")}…`
+                                        : "Nothing to draw."}
+                                </p>
+                            )}
+                        </div>
 
-            {tab === "params" && (
-                <ParamsPanel
-                    specs={draft.params}
-                    values={resolveParams(draft.params, values)}
-                    onSpecsChange={(params) => update({ params })}
-                    onValuesChange={setValues}
-                />
-            )}
+                        {error && (
+                            <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-xs">
+                                {error}
+                            </p>
+                        )}
 
-            {tab === "checks" && (
-                <Checks
-                    html={draft.html}
-                    seed={draft.seed}
-                    params={draft.params}
-                    values={values}
-                    deps={deps}
-                />
-            )}
+                        <nav className="mt-4 flex flex-wrap gap-1 border-b border-border">
+                            {TOOLS.map((t) => (
+                                <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => setTool(tool === t.id ? null : t.id)}
+                                    className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
+                                        tool === t.id
+                                            ? "border-alea-600 font-medium text-foreground"
+                                            : "border-transparent text-muted-foreground hover:text-foreground"
+                                    }`}
+                                >
+                                    {t.label}
+                                </button>
+                            ))}
+                        </nav>
 
-            {tab === "cost" && <Cost html={draft.html} />}
+                        <div className="pt-4">
+                            {tool === null && (
+                                <p className="text-xs text-muted-foreground">
+                                    Edit on the left and this redraws. The seed stays put until
+                                    you change it.
+                                </p>
+                            )}
+
+                            {tool === "seeds" &&
+                                (depsReady ? (
+                                    <SeedGrid
+                                        html={draft.html}
+                                        baseSeed={draft.seed}
+                                        params={draft.params}
+                                        values={values}
+                                        deps={deps}
+                                        onPick={(seed) => {
+                                            update({ seed });
+                                            setTool(null);
+                                        }}
+                                    />
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">
+                                        {depsLoading ? "Loading libraries…" : "Nothing to draw."}
+                                    </p>
+                                ))}
+
+                            {tool === "params" && (
+                                <ParamsPanel
+                                    specs={draft.params}
+                                    values={resolveParams(draft.params, values)}
+                                    onSpecsChange={(params) => update({ params })}
+                                    onValuesChange={setValues}
+                                />
+                            )}
+
+                            {tool === "checks" && (
+                                <Checks
+                                    html={draft.html}
+                                    seed={draft.seed}
+                                    params={draft.params}
+                                    values={values}
+                                    deps={deps}
+                                />
+                            )}
+
+                            {tool === "cost" && <Cost html={draft.html} />}
+                        </div>
+                    </div>
+                </section>
+            </div>
         </div>
     );
 }

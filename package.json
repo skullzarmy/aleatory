@@ -25,6 +25,8 @@
     "provider:daemon": "npx tsx scripts/provider-daemon.mts"
   },
   "dependencies": {
+    "@codemirror/lang-html": "^6.4.12",
+    "@codemirror/theme-one-dark": "^6.1.3",
     "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-dropdown-menu": "^2.1.6",
     "@radix-ui/react-slider": "^1.2.3",
@@ -33,18 +35,22 @@
     "@radix-ui/react-tooltip": "^1.1.7",
     "@taquito/taquito": "^23.0.3",
     "@tezos-x/octez.connect-sdk": "^4.8.3",
+    "@uiw/react-codemirror": "^4.25.11",
+    "blakejs": "^1.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "fflate": "^0.8.2",
     "lucide-react": "^0.471.1",
     "next": "15.3.6",
     "next-themes": "^0.4.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.6.0",
-    "blakejs": "^1.2.1",
-    "fflate": "^0.8.2"
+    "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "@netlify/blobs": "^8.1.0",
+    "@netlify/functions": "^3.0.4",
+    "@netlify/plugin-nextjs": "^5.9.4",
     "@taquito/signer": "^21.0.0",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.7",
@@ -55,9 +61,6 @@
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3",
-    "@netlify/functions": "^3.0.4",
-    "@netlify/plugin-nextjs": "^5.9.4",
-    "@netlify/blobs": "^8.1.0"
+    "typescript": "^5.6.3"
   }
 }

@@ -26,6 +26,7 @@ export function Frame({
     className,
     onReady,
     onViolation,
+    onError,
 }: {
     html: string;
     seed: string;
@@ -36,6 +37,7 @@ export function Frame({
     className?: string;
     onReady?: () => void;
     onViolation?: (kind: string, detail: string) => void;
+    onError?: (message: string) => void;
 }) {
     // Resolved once per change, through the rule every reader shares. Resolving
     // inline would hand the frame a new object every render.
@@ -52,6 +54,7 @@ export function Frame({
             title="Preview"
             onReady={() => onReady?.()}
             onViolation={onViolation}
+            onError={onError}
         />
     );
 }

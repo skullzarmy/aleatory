@@ -240,6 +240,31 @@
   };
   performance.now = function () { return 0; };
 
+  // What the piece threw.
+  //
+  // A generator that throws draws nothing, and nothing is exactly what a blank
+  // frame looks like when the code is fine and the canvas is simply dark. That
+  // ambiguity is expensive in an editor, where every keystroke can break the
+  // document: the artist has to guess whether they are looking at a bug or at
+  // black paint. So an error is reported rather than swallowed, and the frame
+  // it happened in says so.
+  window.addEventListener("error", function (e) {
+    var where = e.lineno ? " (line " + e.lineno + ")" : "";
+    post({
+      type: "alea:error",
+      message: (e.message || "Script error") + where,
+      line: e.lineno || null
+    });
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    var r = e.reason;
+    post({
+      type: "alea:error",
+      message: "Unhandled rejection: " + ((r && r.message) || String(r)),
+      line: null
+    });
+  });
+
   // The CSP is the control. These report what it already blocked, so an artist
   // is told why their piece is not working instead of watching it half-run.
   window.addEventListener("securitypolicyviolation", function (e) {
