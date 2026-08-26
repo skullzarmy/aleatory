@@ -54,6 +54,32 @@ for (const kind of RUNTIME_KINDS) {
         !/Math\.random\s*\(/.test(html),
         "Math.random is replaced by the harness, but a template should not model it",
     );
+    // The seed is a base58 operation hash. parseInt of one in base 16 is NaN,
+    // and every consumer coerces NaN to 0, so a template that parses its seed
+    // as hex hands the same number to every piece. The p5 template did exactly
+    // that, and shipped: twelve seeds, one drawing, three palettes. Anything
+    // that needs a number out of the seed takes it from alea.rand(), which is
+    // already seeded from the string.
+    check(
+        `${kind.label}: does not parse the seed as hex`,
+        !/parseInt\s*\([^)]*seed/i.test(html),
+        "base 16 of a base58 hash is NaN, and NaN coerces to zero",
+    );
+    // Second generators are the other half of that: p5 keeps its own PRNG, and
+    // a piece that draws from it without seeding it is a piece the chain does
+    // not determine.
+    for (const [call, source] of [
+        ["randomSeed", /randomSeed\s*\(\s*alea\./],
+        ["noiseSeed", /noiseSeed\s*\(\s*alea\./],
+    ] as const) {
+        if (html.includes(`${call}(`)) {
+            check(
+                `${kind.label}: seeds ${call} from alea`,
+                source.test(html),
+                "a second PRNG seeded from anything else is not bound to the piece",
+            );
+        }
+    }
     check(
         `${kind.label}: fits in one operation (${bytes.toLocaleString()} bytes)`,
         bytes <= MAX_OPERATION_BYTES,

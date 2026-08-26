@@ -13,7 +13,7 @@ import { tzktApi } from "./config";
 import { allFactories } from "./router";
 import { isBlockedCollection } from "./blocklist";
 import { bytesToString, convertIpfsToGatewayUrl } from "@/utils/ipfs";
-import type { FeedPiece } from "./feed";
+import { coversFor, type FeedPiece } from "./feed";
 import type { ParamsSchema } from "./params";
 import { decodeCode } from "./piece";
 
@@ -43,6 +43,7 @@ export interface Collection {
     address: string;
     artist: string;
     name?: string;
+    description?: string;
     /** The generator source, decoded from storage. Empty when it is a pointer. */
     code: string;
     codeUri: string;
@@ -79,8 +80,12 @@ export async function fetchCollection(address: string): Promise<Collection | nul
         bps: parseInt(String(bps), 10),
     }));
 
+    const meta: CollectionMeta = await fetchCollectionMeta(address).catch(() => ({}));
+
     return {
         address,
+        name: meta.name,
+        description: meta.description,
         paramsSchema: await fetchParamsSchema(address),
         artist: s.administrator,
         // The generator itself, out of storage. A viewer needs no gateway
@@ -179,8 +184,46 @@ export async function fetchCollectionPieces(
 export interface CollectionSummary {
     address: string;
     name?: string;
+    description?: string;
+    /** The newest piece that has an image. Absent until one is published. */
+    coverUrl?: string;
     minted: number;
     firstActivity?: string;
+}
+
+/**
+ * A collection's own name and description.
+ *
+ * From the `content` key of its metadata big_map, decoded here. TzKT does
+ * resolve TZIP-16 documents into a `metadata` field, but on its own schedule,
+ * it is null on this network today, and it cannot be asked for in a `select`,
+ * so waiting for it means every collection is a KT1 address until it catches
+ * up. Reading the big_map is the same request count and never lags.
+ */
+export interface CollectionMeta {
+    name?: string;
+    description?: string;
+}
+
+export async function fetchCollectionMeta(address: string): Promise<CollectionMeta> {
+    const row = await fetch(
+        `${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/content`,
+        { next: { revalidate: 300 } },
+    )
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+
+    const raw = (row as { value?: string } | null)?.value;
+    if (!raw) return {};
+    try {
+        const doc = JSON.parse(bytesToString(raw)) as {
+            name?: string;
+            description?: string;
+        };
+        return { name: doc.name, description: doc.description };
+    } catch {
+        return {};
+    }
 }
 
 export async function fetchAllCollections(): Promise<CollectionSummary[]> {
@@ -194,9 +237,21 @@ export async function fetchAllCollections(): Promise<CollectionSummary[]> {
         .flat()
         .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
         .filter((c) => !isBlockedCollection(c.address));
-    return rows.map((c) => ({
+    const addresses = rows.map((c) => c.address);
+    const [metas, covers] = await Promise.all([
+        Promise.all(
+            addresses.map((a): Promise<CollectionMeta> => fetchCollectionMeta(a).catch(() => ({}))),
+        ),
+        coversFor(addresses).catch(() => new Map<string, string>()),
+    ]);
+
+    return rows.map((c, i) => ({
         address: c.address,
-        name: c.alias,
+        // The artist's own name for it. `alias` is TzKT's, which it sets for
+        // contracts it happens to know and never for ours.
+        name: metas[i].name || c.alias,
+        description: metas[i].description,
+        coverUrl: covers.get(c.address),
         minted: c.tokensCount ?? 0,
         firstActivity: c.firstActivityTime,
     }));

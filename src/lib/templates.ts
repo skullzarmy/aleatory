@@ -19,8 +19,21 @@ const DEV_SHIM = `    // Dev harness, only used when this file is opened outside
       var q = query.get("seed");
       var seed = q || Array.from(crypto.getRandomValues(new Uint8Array(32)))
         .map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
-      var a = parseInt(seed.substr(0, 8), 16) >>> 0, b = parseInt(seed.substr(8, 8), 16) >>> 0,
-          c = parseInt(seed.substr(16, 8), 16) >>> 0, d = parseInt(seed.substr(24, 8), 16) >>> 0;
+      // xmur3, the same construction the isolate and the renderer use, so a
+      // seed pinned here draws what it will draw on chain. Never parseInt: a
+      // real seed is a base58 operation hash, base 16 of it is NaN, and NaN
+      // coerced by an unsigned shift is 0, which is a stream of nothing.
+      var h = 1779033703 ^ seed.length;
+      for (var si = 0; si < seed.length; si++) {
+        h = Math.imul(h ^ seed.charCodeAt(si), 3432918353);
+        h = (h << 13) | (h >>> 19);
+      }
+      var next = function () {
+        h = Math.imul(h ^ (h >>> 16), 2246822507);
+        h = Math.imul(h ^ (h >>> 13), 3266489909);
+        return (h ^= h >>> 16) >>> 0;
+      };
+      var a = next(), b = next(), c = next(), d = next();
       var rand = function () {
         a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
         var t = (a + b) | 0; a = b ^ (b >>> 9); b = (c + (c << 3)) | 0;
@@ -301,10 +314,16 @@ function setup() {
   pixelDensity(min(window.devicePixelRatio || 1, 2));
   noLoop();
 
-  // Seed p5's own generators from the piece's seed, or nothing here is
-  // reproducible. These are the two most important lines in a p5 template.
-  randomSeed(parseInt(alea.seed.substr(0, 8), 16));
-  noiseSeed(parseInt(alea.seed.substr(8, 8), 16));
+  // Seed p5's own generators, or nothing here is reproducible. These are the
+  // two most important lines in a p5 template.
+  //
+  // Draw them from alea.rand(), which is already seeded from the piece's seed.
+  // Not from the seed string: that is a base58 operation hash, parseInt of it
+  // in base 16 is NaN, and p5 coerces its seed with an unsigned shift, which
+  // turns NaN into 0. Every piece then shares one perlin table, so every piece
+  // is the same drawing in a different palette.
+  randomSeed(alea.rand() * 4294967296);
+  noiseSeed(alea.rand() * 4294967296);
 
   palette = alea.pick([
     ["#0b0b0c", "#e6e1d3", "#d4462f"],

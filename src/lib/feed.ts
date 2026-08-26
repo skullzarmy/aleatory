@@ -114,6 +114,38 @@ async function docsFor(tokens: TzktToken[]): Promise<Map<string, TokenDoc>> {
     return out;
 }
 
+/**
+ * One rendered image per collection, for a list that would otherwise be rows of
+ * KT1 addresses.
+ *
+ * The newest piece that has an image, which is the truthful answer to "what
+ * does this collection look like now" and costs one request for the whole page:
+ * `contract.in` returns tokens across every collection at once, newest first,
+ * and the first hit per collection wins.
+ *
+ * A collection whose pieces are all still rendering has no cover, and the
+ * caller shows the generator instead.
+ */
+export async function coversFor(collections: string[]): Promise<Map<string, string>> {
+    if (collections.length === 0) return new Map();
+
+    // Enough rows that a busy collection at the front cannot crowd a quiet one
+    // off the end before every collection has been seen once.
+    const tokens = await fetchRecentTokens(collections, Math.min(collections.length * 8, 400))
+        .catch(() => []);
+    const docs = await docsFor(tokens);
+
+    const out = new Map<string, string>();
+    for (const t of tokens) {
+        const address = t.contract.address;
+        if (out.has(address)) continue;
+        const m = t.metadata ?? docs.get(key(t));
+        const display = m?.displayUri || m?.thumbnailUri;
+        if (display) out.set(address, convertIpfsToGatewayUrl(display));
+    }
+    return out;
+}
+
 export interface FeedPiece {
     key: string;
     contract: string;
