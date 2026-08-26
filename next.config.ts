@@ -57,8 +57,15 @@ function csp(): string {
         [
             "connect-src 'self'",
             ...CHAIN_HOSTS,
-            "wss://*.walletbeacon.io",
+            // Beacon's relay servers. The octez SDK uses octez.io; the
+            // walletbeacon hosts are the older Beacon network and are kept
+            // because a wallet may still pair through them. Blocking these
+            // does not fail visibly as a CSP error to a user: the SDK reports
+            // "No server responded" and the connect dialog simply gives up.
+            "https://*.octez.io",
+            "wss://*.octez.io",
             "https://*.walletbeacon.io",
+            "wss://*.walletbeacon.io",
             // Dev servers move ports and HMR needs a socket back.
             ...(isDev ? ["ws://localhost:*", "http://localhost:*"] : []),
         ].join(" "),
