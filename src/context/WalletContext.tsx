@@ -48,6 +48,28 @@ async function getClient(): Promise<DAppClient> {
     return client;
 }
 
+/**
+ * Drop a session and start over with a clean client.
+ *
+ * Clearing the active account alone is not enough: the client keeps its
+ * transport and peer, so the next request talks to a link that is no longer
+ * there and falls back to the P2P relay, which answers "no server responded"
+ * instead of opening the extension. The instance has to go too.
+ */
+async function resetClient(c: DAppClient): Promise<void> {
+    try {
+        await c.clearActiveAccount();
+    } catch {
+        /* already gone */
+    }
+    try {
+        await (c as unknown as { destroy?: () => Promise<void> }).destroy?.();
+    } catch {
+        /* older SDKs have no destroy */
+    }
+    client = null;
+}
+
 interface WalletState {
     address: string | null;
     connecting: boolean;
@@ -120,7 +142,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 if (account && !matchesNetwork(account)) {
                     // Someone else's session, or one from before a network
                     // change. Drop it rather than sign against the wrong chain.
-                    await c.clearActiveAccount().catch(() => {});
+                    await resetClient(c);
                     if (!cancelled) setAddress(null);
                     return;
                 }
@@ -147,16 +169,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 setAddress(existing.address);
                 return;
             }
+            let active = c;
             if (existing) {
                 // Connected, to the wrong chain. Ask again rather than let a
                 // signature go out against a network this site does not use.
-                await c.clearActiveAccount().catch(() => {});
+                await resetClient(c);
+                active = await getClient();
             }
             const sdk = await loadSDK();
-            await c.requestPermissions({
+            await active.requestPermissions({
                 scopes: [sdk.PermissionScope.OPERATION_REQUEST],
             });
-            const account = await c.getActiveAccount();
+            const account = await active.getActiveAccount();
             setAddress(account?.address ?? null);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Could not connect");
