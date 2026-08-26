@@ -8,6 +8,7 @@ import {
     fetchCollections,
     fetchCollectionsDeployedBy,
     fetchRecentTokens,
+    fetchTokensIn,
     fetchTokensHeldBy,
     fetchTokenUris,
     type TzktToken,
@@ -190,6 +191,44 @@ function toPiece(
         artifactUrl: m?.artifactUri ? convertIpfsToGatewayUrl(m.artifactUri) : undefined,
         pending,
     };
+}
+
+/**
+ * Turn a set of (collection, token) pairs into real pieces.
+ *
+ * The market knows which tokens are for sale and nothing else about them: a
+ * listing carries a collection, a token id and a price. Everything a person
+ * needs to decide whether they want it, the image, the name, who made it, is a
+ * separate read, which is why the market page was a list of numbers.
+ *
+ * One query for the whole page. `contract.in` and `tokenId.in` are independent
+ * filters rather than a set of pairs, so this over-fetches the cross product
+ * and then keeps only the pairs actually asked for. At a page of listings that
+ * is cheaper than one query per row by an order of magnitude.
+ */
+export async function piecesFor(
+    pairs: { collection: string; tokenId: string }[],
+    /** Collection names, when the caller already has them. */
+    names?: Map<string, string>,
+): Promise<Map<string, FeedPiece>> {
+    if (pairs.length === 0) return new Map();
+
+    const wanted = new Set(pairs.map((p) => `${p.collection}:${p.tokenId}`));
+    const collections = [...new Set(pairs.map((p) => p.collection))];
+    const tokenIds = [...new Set(pairs.map((p) => p.tokenId))];
+
+    const tokens = (
+        await fetchTokensIn(collections, tokenIds).catch(() => [])
+    ).filter((t) => wanted.has(key(t)));
+
+    const docs = await docsFor(tokens);
+
+    return new Map(
+        tokens.map((t) => [
+            key(t),
+            toPiece(t, names?.get(t.contract.address), docs.get(key(t))),
+        ]),
+    );
 }
 
 export interface RecentFeed {

@@ -1,23 +1,51 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchListings } from "@/lib/market";
+import { fetchAllCollections } from "@/lib/collection";
+import { piecesFor } from "@/lib/feed";
+import { ListingCard } from "@/components/feed/ListingCard";
 import { addresses } from "@/lib/router";
-import { formatTez, shortAddress } from "@/lib/utils";
-import { AccountName } from "@/components/account/AccountName";
+import { formatTez } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Market" };
 export const revalidate = 15;
 
+/**
+ * Everything for sale.
+ *
+ * A listing carries a collection, a token id and a price, and nothing else, so
+ * this page used to be rows of numbers: it asked people to decide whether they
+ * wanted an artwork without showing it to them. The images and names are a
+ * second read, done here in two queries for the whole page rather than one per
+ * row.
+ */
 export default async function MarketPage() {
-    const marketplace = (await addresses()).marketplace;
-    const listings = await fetchListings().catch(() => []);
+    const [marketplace, listings] = await Promise.all([
+        addresses().then((a) => a.marketplace),
+        fetchListings().catch(() => []),
+    ]);
+
+    // Collection names first, so a card can say "Drift" rather than a KT1.
+    // TzKT's own alias is null for every contract we deploy, so the name comes
+    // from the collection's metadata.
+    const collections = await fetchAllCollections().catch(() => []);
+    const names = new Map(
+        collections.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])),
+    );
+    const pieces = await piecesFor(listings, names).catch(() => new Map());
+
+    const cheapest = listings.reduce(
+        (low, l) => (low === null || l.priceMutez < low ? l.priceMutez : low),
+        null as bigint | null,
+    );
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-8">
-            <div className="mb-6 flex items-baseline justify-between">
+            <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
                 <h1 className="text-xl font-semibold tracking-tight">Market</h1>
                 <p className="text-sm text-muted-foreground">
-                    2.5% of each sale, royalties paid from the collection
+                    {listings.length > 0 && cheapest !== null
+                        ? `${listings.length} for sale, from ${formatTez(cheapest)} ꜩ`
+                        : "2.5% of each sale, royalties paid from the collection"}
                 </p>
             </div>
 
@@ -31,28 +59,15 @@ export default async function MarketPage() {
                     </p>
                 </div>
             ) : (
-                <ul className="divide-y divide-border rounded-lg border border-border">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                     {listings.map((l) => (
-                        <li key={l.id}>
-                            <Link
-                                href={`/piece/${l.collection}/${l.tokenId}`}
-                                className="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-accent"
-                            >
-                                <span className="min-w-0">
-                                    <span className="block truncate font-medium">
-                                        #{Number(l.tokenId) + 1}
-                                    </span>
-                                    <span className="block truncate text-xs text-muted-foreground">
-                                        {shortAddress(l.collection)} by <AccountName address={l.seller} />
-                                    </span>
-                                </span>
-                                <span className="shrink-0 font-medium">
-                                    {formatTez(l.priceMutez)} ꜩ
-                                </span>
-                            </Link>
-                        </li>
+                        <ListingCard
+                            key={l.id}
+                            listing={l}
+                            piece={pieces.get(`${l.collection}:${l.tokenId}`)}
+                        />
                     ))}
-                </ul>
+                </div>
             )}
         </div>
     );

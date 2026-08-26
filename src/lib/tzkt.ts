@@ -128,6 +128,25 @@ export async function fetchRecentTokens(
 }
 
 /**
+ * Specific tokens, across collections, in one query.
+ *
+ * `contract.in` and `tokenId.in` filter independently rather than as a set of
+ * pairs, so this returns the cross product and the caller keeps only what it
+ * asked for. For a page of listings that is one request instead of forty.
+ */
+export async function fetchTokensIn(
+    collections: string[],
+    tokenIds: string[],
+): Promise<TzktToken[]> {
+    if (collections.length === 0 || tokenIds.length === 0) return [];
+    return get<TzktToken[]>("/v1/tokens", {
+        "contract.in": collections.join(","),
+        "tokenId.in": tokenIds.join(","),
+        limit: Math.min(collections.length * tokenIds.length, 1000),
+    });
+}
+
+/**
  * What one account holds, across a set of collections.
  *
  * Balance zero rows are excluded, so a piece someone sold stops appearing the
