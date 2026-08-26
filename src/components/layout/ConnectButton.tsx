@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { shortAddress } from "@/lib/utils";
-import { LogOut, Wallet } from "lucide-react";
+import { tzktLink } from "@/lib/config";
+import { ChevronDown, ExternalLink, Images, LogOut, Wallet } from "lucide-react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function ConnectButton() {
     const { address, connecting, restoring, connect, disconnect } = useWallet();
@@ -12,27 +21,44 @@ export function ConnectButton() {
 
     if (address) {
         return (
-            <div className="inline-flex h-9 items-center rounded-md border border-border">
-                {/* The address is the way to your own pieces, so it goes
-                    somewhere. Disconnect is next to it rather than under it. */}
-                <Link
-                    href={`/wallet/${address}`}
-                    title="What you own"
-                    className="inline-flex h-full items-center gap-2 rounded-l-md px-3 text-sm font-medium transition-colors hover:bg-accent"
-                >
+            <DropdownMenu>
+                <DropdownMenuTrigger className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-accent data-[state=open]:bg-accent">
                     <span className="h-2 w-2 rounded-full bg-success" />
                     {shortAddress(address)}
-                </Link>
-                <button
-                    type="button"
-                    onClick={() => void disconnect()}
-                    title="Disconnect"
-                    className="inline-flex h-full items-center rounded-r-md border-l border-border px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                    <LogOut className="h-3.5 w-3.5" />
-                    <span className="sr-only">Disconnect</span>
-                </button>
-            </div>
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent align="end" className="w-56">
+                    {/* The full address, because the trigger only ever shows
+                        the ends of it and that is the thing worth checking. */}
+                    <DropdownMenuLabel className="font-mono text-xs font-normal text-muted-foreground">
+                        {address}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+
+                    <DropdownMenuItem asChild>
+                        <Link href="/mine">
+                            <Images />
+                            What you own
+                        </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                        <a href={tzktLink(address)} target="_blank" rel="noreferrer">
+                            <ExternalLink />
+                            View on TzKT
+                        </a>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                        onSelect={() => void disconnect()}
+                        className="text-destructive focus:text-destructive"
+                    >
+                        <LogOut />
+                        Disconnect
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         );
     }
 
