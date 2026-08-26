@@ -18,13 +18,17 @@ Three sources, tried in order, first answer wins:
 1. **The Tezos Domains reverse record.** There is at most one, it points at the
    wallet rather than being merely owned by it, and the holder sets it
    deliberately. That makes it the closest thing to a declared identity.
-2. **A hack.tez subdomain they own.** There is no primary flag yet, so the first
-   one is taken. When that changes, the order here does not.
+2. **The hack.tez domain the owner designated as their identity.** A wallet can
+   own several, and one is marked on chain.
 3. **Their TzKT profile alias.**
 
 The first two arrive together from `GET /api/v1/resolve/:address` on hack.tez,
 whose `primary` field is already that order. One CDN-cached call rather than two
 GraphQL round trips against Tezos Domains.
+
+**Read `hackTezPrimary`, never `hackTez[0]`.** The array is not ordered by
+significance. Taking its first entry showed the operator of hack.tez as
+`admin.hack.tez`, the site's own admin account, rather than as themselves.
 
 No answer means no name, and the caller shows the truncated address. Callers are
 never handed a pre-truncated string, so how to abbreviate stays with the surface
@@ -35,7 +39,9 @@ doing the rendering.
 Two sources, and the order is the point.
 
 **hack.tez is primary.** It is a profile its owner edits directly, in on-chain
-records they hold, and it is where we ask people to keep this.
+records they hold, and it is where we ask people to keep this. The profile read
+is the one attached to their designated domain, so someone holding ten domains
+gets the one that is actually them.
 
 **objkt is the fallback**, because its `holder` row aggregates tzprofiles and
 objkt's own profiles and therefore already knows almost every Tezos artist who

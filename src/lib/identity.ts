@@ -32,8 +32,15 @@ const TIMEOUT_MS = 4_000;
 
 interface Resolved {
     name: string | null;
-    /** Every hack.tez subdomain this address owns. The first one carries the profile. */
-    hackTez: string[];
+    /**
+     * The hack.tez domain that is this wallet's identity.
+     *
+     * A wallet can own several, and the owner marks one on chain. Not the
+     * first of the list: that ordering carries no meaning, and taking it
+     * showed the operator of hack.tez as their own admin bot rather than as
+     * themselves.
+     */
+    handle: string | null;
 }
 
 interface Cached extends Resolved {
@@ -85,29 +92,34 @@ async function timed(url: string): Promise<Response | null> {
 
 async function lookup(address: string): Promise<Resolved> {
     const res = await timed(`${RESOLVER}/api/v1/resolve/${address}`);
-    let hackTez: string[] = [];
+    let handle: string | null = null;
     if (res) {
         const body = (await res.json().catch(() => null)) as {
             primary?: string | null;
+            hackTezPrimary?: string | null;
             hackTez?: string[];
         } | null;
-        hackTez = body?.hackTez ?? [];
-        const name = body?.primary ?? hackTez[0] ?? null;
-        if (name) return { name, hackTez };
+        // `hackTez[0]` only as a last resort, for a resolver deployed before
+        // primaries existed.
+        handle = body?.hackTezPrimary ?? body?.hackTez?.[0] ?? null;
+        // `primary` is already the reverse record, falling back to the
+        // designated hack.tez domain, so it needs no reassembling here.
+        const name = body?.primary ?? handle;
+        if (name) return { name, handle };
     }
 
     const account = await timed(`${tzktApi()}/v1/accounts/${address}`);
     if (account) {
         const body = (await account.json().catch(() => null)) as { alias?: string } | null;
-        if (body?.alias) return { name: body.alias, hackTez };
+        if (body?.alias) return { name: body.alias, handle };
     }
 
-    return { name: null, hackTez };
+    return { name: null, handle };
 }
 
 /** The whole answer, cached and deduped. `resolveName` is the common case of it. */
 async function resolve(address: string): Promise<Resolved> {
-    if (!address) return { name: null, hackTez: [] };
+    if (!address) return { name: null, handle: null };
 
     const hit = cache.get(address);
     if (hit && Date.now() - hit.at < TTL_MS) return hit;
@@ -120,7 +132,7 @@ async function resolve(address: string): Promise<Resolved> {
             cache.set(address, { ...r, at: Date.now() });
             return r;
         })
-        .catch(() => ({ name: null, hackTez: [] }) as Resolved)
+        .catch(() => ({ name: null, handle: null }) as Resolved)
         .finally(() => inflight.delete(address));
 
     inflight.set(address, run);
@@ -251,9 +263,8 @@ function linksFrom(raw: Record<string, unknown>): ProfileLink[] {
 const profiles = new Map<string, { profile: Profile | null; at: number }>();
 
 async function fromHackTez(address: string): Promise<Profile | null> {
-    const { hackTez } = await resolve(address);
     // No subdomain, no profile. A reverse record is a name and nothing else.
-    const handle = hackTez[0];
+    const { handle } = await resolve(address);
     if (!handle) return null;
 
     const res = await timed(`${RESOLVER}/api/v1/profile/${handle}`);
