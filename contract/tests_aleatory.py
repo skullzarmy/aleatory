@@ -26,6 +26,10 @@ _META = sp.big_map(
     }
 )
 _CODE_URI = "ipfs://QmGeneratorCode"
+# The generator, on chain. Short here because these tests are about the
+# contract's rules; the real cost of a real generator is measured against a
+# live chain, not asserted in a scenario.
+_CODE = sp.bytes("0x3c68746d6c3e3c2f68746d6c3e")  # <html></html>
 # The collection's "not revealed yet" metadata document.
 _PENDING = sp.bytes("0x697066733a2f2f516d50656e64696e67")
 # One piece's real metadata, published after rendering.
@@ -39,7 +43,7 @@ _TOTAL = _PRICE + _GAS
 
 def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
                      price=_PRICE, edition_size=10, start_paused=False,
-                     agent=None, royalties=None):
+                     agent=None, royalties=None, trust_resolver=True):
     royalties = (
         sp.cast({}, sp.map[sp.address, sp.nat])
         if royalties is None
@@ -51,13 +55,16 @@ def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
         provider=provider.address,
         provider_agent=(minter if agent is None else agent).address,
         render_gas=sp.mutez(render_gas),
-        code_uri=_CODE_URI,
+        code=_CODE,
+        code_encoding="identity",
         code_hash=sp.bytes("0xaa"),
+        code_uri="",
         edition_size=edition_size,
         price=sp.mutez(price),
         royalties=royalties,
         pending_metadata=_PENDING,
         start_paused=start_paused,
+        trust_resolver=trust_resolver,
         metadata=_META,
     )
 
@@ -105,10 +112,14 @@ def _collection(scenario, artist, resolver, provider, minter, **kw):
 
 def _deploy_params(provider, price=_PRICE, edition_size=10,
                    max_render_gas=1_000_000, start_paused=False,
-                   royalties=None):
+                   royalties=None, trust_resolver=True,
+                   code=_CODE, code_encoding="identity",
+                   code_hash=sp.bytes("0xaa"), code_uri=""):
     return sp.record(
-        code_uri=_CODE_URI,
-        code_hash=sp.bytes("0xaa"),
+        code=code,
+        code_encoding=code_encoding,
+        code_hash=code_hash,
+        code_uri=code_uri,
         edition_size=edition_size,
         price=sp.mutez(price),
         royalties=(
@@ -118,6 +129,7 @@ def _deploy_params(provider, price=_PRICE, edition_size=10,
         ),
         pending_metadata=_PENDING,
         start_paused=start_paused,
+        trust_resolver=trust_resolver,
         provider=provider.address,
         max_render_gas=sp.mutez(max_render_gas),
         metadata=_META,
@@ -164,8 +176,8 @@ def test_buy_mints_with_pending_metadata():
     c = _collection(scenario, artist, resolver, provider, minter)
 
     # Price is the piece plus the render gas, neither alone is enough.
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_PRICE), _valid=False)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_PRICE), _valid=False)
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     scenario.verify(c.data.ledger[0] == alice.address)
     scenario.verify(c.data.next_token_id == 1)
@@ -189,10 +201,10 @@ def test_start_paused():
     c = _collection(scenario, artist, resolver, provider, minter,
                     start_paused=True)
 
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
     c.set_paused(False, _sender=alice, _valid=False)
     c.set_paused(False, _sender=artist)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
 
 @sp.add_test()
@@ -205,7 +217,7 @@ def test_metadata_published_once():
     alice = sp.test_account("Alice")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
     c = _collection(scenario, artist, resolver, provider, minter)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     # Not the artist, not the owner, not a stranger.
     c.set_token_metadata(_publish(), _sender=artist, _valid=False)
@@ -237,9 +249,9 @@ def test_publishing_touches_one_token_and_nothing_else():
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
     c = _collection(scenario, artist, resolver, provider, minter)
 
-    c.buy(sp.bytes("0x7b2264223a317d"), _sender=alice,
+    c.mint(sp.bytes("0x7b2264223a317d"), _sender=alice,
           _amount=sp.mutez(_TOTAL))
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
     c.set_token_metadata(_publish(), _sender=minter)
 
     # The neighbouring token is untouched.
@@ -272,8 +284,8 @@ def test_edition_size_shrinks_never_grows():
     c = _collection(scenario, artist, resolver, provider, minter,
                     edition_size=10)
 
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     c.set_edition_size(5, _sender=alice, _valid=False)
     c.set_edition_size(20, _sender=artist, _valid=False)   # never grows
@@ -284,7 +296,7 @@ def test_edition_size_shrinks_never_grows():
 
     # Closing is setting it to what is already minted.
     c.set_edition_size(2, _sender=artist)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
 
     # Pieces already sold are still publishable after closing.
     c.set_token_metadata(_publish(), _sender=minter)
@@ -305,13 +317,13 @@ def test_open_edition_can_be_closed():
                     edition_size=0)
 
     for _ in range(3):
-        c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+        c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
     scenario.verify(c.data.next_token_id == 3)
 
     c.set_edition_size(2, _sender=artist, _valid=False)  # below minted
     c.set_edition_size(4, _sender=artist)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
 
 
 @sp.add_test()
@@ -329,7 +341,7 @@ def test_provider_switch():
     rival = _provider(scenario, rival_op, rival_key, render_gas=50_000)
 
     c = _collection(scenario, artist, resolver, provider, minter)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     switch = sp.record(provider=rival.address, max_price=sp.mutez(100_000))
     c.set_provider(switch, _sender=alice, _valid=False)
@@ -340,8 +352,8 @@ def test_provider_switch():
     c.set_token_metadata(_publish(), _sender=rival_key)
 
     # New sales are at the new render gas.
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_PRICE + 50_000))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_PRICE + 50_000))
 
 
 @sp.add_test()
@@ -364,7 +376,7 @@ def test_resolver_rotation_and_local_override():
     theirs = _provider(scenario, admin, other_agent)
     c = _collection(scenario, artist, resolver, theirs, minter,
                     agent=other_agent)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     resolver.remove_writer(minter.address, _sender=admin)
     c.set_token_metadata(_publish(), _sender=minter, _valid=False)
@@ -397,8 +409,8 @@ def test_artist_can_revoke_resolver_trust():
     c = _collection(scenario, artist, resolver, theirs, minter,
                     agent=other_agent)
 
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     # A resolver-vouched key can publish while trust is on.
     c.set_token_metadata(_publish(token_id=0), _sender=minter)
@@ -434,8 +446,8 @@ def test_provider_can_rotate_its_agent_without_resnapshot():
         _sender=artist,
     )
     c.set_trust_resolver(False, _sender=artist)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     c.set_token_metadata(_publish(token_id=0), _sender=old_agent)
 
@@ -459,8 +471,8 @@ def test_provider_income_is_separate_from_its_signing_key():
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
     c = _collection(scenario, artist, resolver, provider, minter)
 
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
     scenario.verify(provider.balance == sp.mutez(2 * _GAS))
 
     sweep = sp.record(amount=sp.mutez(2 * _GAS), to_=admin.address)
@@ -610,7 +622,7 @@ def test_fa2_operators():
     market = sp.test_account("Market")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
     c = _collection(scenario, artist, resolver, provider, minter)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     op = sp.record(owner=alice.address, operator=market.address, token_id=0)
 
@@ -657,7 +669,7 @@ def test_fa2_operator_removal():
     market = sp.test_account("Market")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
     c = _collection(scenario, artist, resolver, provider, minter)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     op = sp.record(owner=alice.address, operator=market.address, token_id=0)
     c.update_operators([sp.variant.add_operator(op)], _sender=alice)
@@ -691,7 +703,7 @@ def test_fa2_transfer_edges():
                     edition_size=0)
 
     for _ in range(3):
-        c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+        c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     # Two tokens in one batch, one operation.
     c.transfer(
@@ -786,7 +798,7 @@ def test_fa2_balance_of():
     bob = sp.test_account("Bob")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
     c = _collection(scenario, artist, resolver, provider, minter)
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
     # `balance_of` proper is the callback entrypoint; `get_balance_of` is
     # fa2_lib's on-chain view equivalent, which is what an indexer or a
@@ -826,13 +838,13 @@ def test_free_mint_and_zero_render_gas():
     c = _collection(scenario, artist, resolver, provider, minter,
                     price=0, render_gas=0)
 
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(0))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(0))
     scenario.verify(c.data.ledger[0] == alice.address)
     scenario.verify(c.balance == sp.mutez(0))
     scenario.verify(provider.balance == sp.mutez(0))
 
     # Overpaying a free mint is still refused: the price is exact.
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(1), _valid=False)
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(1), _valid=False)
 
 
 @sp.add_test()
@@ -847,8 +859,8 @@ def test_edition_of_one():
     c = _collection(scenario, artist, resolver, provider, minter,
                     edition_size=1)
 
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
     # Already at its own floor; setting it there again is a no-op, not an
     # error, and it cannot go lower.
     c.set_edition_size(1, _sender=artist)
@@ -873,8 +885,8 @@ def test_params_survive_the_round_trip():
     params = sp.bytes(
         "0x7b2264656e73697479223a3134302c22696e6b223a22626c61636b227d"
     )
-    c.buy(params, _sender=alice, _amount=sp.mutez(_TOTAL))
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(params, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
     scenario.verify(c.data.ledger[0] == alice.address)
     scenario.verify(c.data.ledger[1] == alice.address)
 
@@ -928,7 +940,7 @@ def test_collection_never_holds_tez():
                     edition_size=0)
 
     for _ in range(5):
-        c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+        c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
         scenario.verify(c.balance == sp.mutez(0))
 
     # Every entrypoint that is not `buy` refuses tez outright, so there is
@@ -940,3 +952,97 @@ def test_collection_never_holds_tez():
     c.set_token_metadata(_publish(), _sender=minter, _amount=sp.mutez(1),
                          _valid=False)
     scenario.verify(c.balance == sp.mutez(0))
+
+
+@sp.add_test()
+def test_resolver_trust_is_opt_in():
+    """A collection deployed without asking for it owes the resolver nothing,
+    so our keys reach it only where an artist said so."""
+    scenario = sp.test_scenario("Resolver opt-in", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    other_agent = sp.test_account("OtherAgent")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    theirs = _provider(scenario, artist, other_agent)
+
+    closed = _collection(
+        scenario, artist, resolver, theirs, minter,
+        agent=other_agent, trust_resolver=False,
+    )
+    closed.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    # `minter` is vouched for by the resolver and nothing else.
+    closed.set_token_metadata(_publish(), _sender=minter, _valid=False)
+
+    # And an artist who asked for it gets the convenience.
+    opened = _collection(
+        scenario, artist, resolver, theirs, minter,
+        agent=other_agent, trust_resolver=True,
+    )
+    opened.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    opened.set_token_metadata(_publish(), _sender=minter)
+
+
+@sp.add_test()
+def test_the_generator_is_on_chain():
+    """Fully on chain has to mean the art is in storage. A collection either
+    carries its generator or points at one, never both and never neither,
+    because none of it is changeable afterwards."""
+    scenario = sp.test_scenario("On-chain code", aleatory)
+    admin = sp.test_account("Admin")
+    artist = sp.test_account("Artist")
+    agent = sp.test_account("Agent")
+
+    resolver = aleatory.AleatoryResolver(administrator=admin.address, writers=sp.set())
+    scenario += resolver
+    provider = aleatory.AleatoryProvider(
+        operator=admin.address, agent=agent.address,
+        render_gas=sp.mutez(0), metadata=_META,
+    )
+    scenario += provider
+    factory = aleatory.AleatoryFactory(
+        administrator=admin.address, treasury=admin.address,
+        deploy_price=sp.mutez(0), resolver=resolver.address,
+    )
+    scenario += factory
+
+    # The normal case: the generator is in the operation and ends up in
+    # storage, readable by anyone with an RPC and nothing else.
+    factory.deploy(_deploy_params(provider), _sender=artist)
+    c = scenario.dynamic_contract(aleatory.AleatoryCollection)
+    scenario.verify(c.data.art.code == _CODE)
+    scenario.verify(c.data.art.code_encoding == "identity")
+    scenario.verify(c.data.art.code_uri == "")
+
+    # A generator past the operation cap may point instead.
+    factory.deploy(
+        _deploy_params(provider, code=sp.bytes("0x"), code_uri=_CODE_URI),
+        _sender=artist,
+    )
+
+    # Neither is a collection with no art in it.
+    factory.deploy(
+        _deploy_params(provider, code=sp.bytes("0x"), code_uri=""),
+        _sender=artist, _valid=False,
+    )
+    # Both is two sources that can disagree about what the art is.
+    factory.deploy(
+        _deploy_params(provider, code=_CODE, code_uri=_CODE_URI),
+        _sender=artist, _valid=False,
+    )
+    # An encoding nothing can decode is a generator nobody can ever run.
+    factory.deploy(
+        _deploy_params(provider, code_encoding="brotli"),
+        _sender=artist, _valid=False,
+    )
+    # gzip is allowed, for a generator that would not otherwise fit.
+    factory.deploy(
+        _deploy_params(provider, code_encoding="gzip"), _sender=artist,
+    )
+    # The hash is what a reader checks the storage against.
+    factory.deploy(
+        _deploy_params(provider, code_hash=sp.bytes("0x")),
+        _sender=artist, _valid=False,
+    )

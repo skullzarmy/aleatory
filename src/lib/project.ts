@@ -108,7 +108,7 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
     };
 
     // <script src="…"></script> → inline
-    html = html.replace(/<script\b([^>]*?)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>\s*<\/script>/gi, (match, _pre, src: string) => {
+    html = html.replace(/<script\b([^>]*?)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>\s*<\/script>/gi, (match: string, _pre: string, src: string) => {
         if (/^(https?:)?\/\//.test(src)) {
             notes.push(`Left a remote script reference in place: ${src}, it will be blocked and reported at render time.`);
             return match;
@@ -123,7 +123,7 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
     });
 
     // <link rel="stylesheet" href="…"> → inline
-    html = html.replace(/<link\b[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>/gi, (match, href: string) => {
+    html = html.replace(/<link\b[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>/gi, (match: string, href: string) => {
         if (!/stylesheet/i.test(match)) return match;
         const file = lookup(href);
         if (!file) {
@@ -134,7 +134,7 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
     });
 
     // Any remaining src="…" (images, audio, video) → data URI
-    html = html.replace(/\bsrc\s*=\s*["']([^"']+)["']/gi, (match, src: string) => {
+    html = html.replace(/\bsrc\s*=\s*["']([^"']+)["']/gi, (match: string, src: string) => {
         const file = lookup(src);
         if (!file) return match;
         const mime = MIME[ext(src)] ?? "application/octet-stream";

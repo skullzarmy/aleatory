@@ -99,7 +99,9 @@ function fallbackLimits(limits: ChainLimits) {
   const ceiling = Math.min(limits.gasPerOperation, limits.gasPerBlock)
   return {
     gasLimit: Math.floor(ceiling * 0.75),
-    storageLimit: limits.storagePerOperation,
+    // A measured ceiling rather than the protocol maximum. Burn is charged on
+    // bytes used, so the maximum is not a cost, but it authorises one.
+    storageLimit: Math.min(40_000, limits.storagePerOperation),
     fee: 100_000,
   }
 }
@@ -209,9 +211,31 @@ async function main() {
   tezos.setSignerProvider(signer)
   const deployer = await signer.publicKeyHash()
 
-  const admin = process.env.ALEA_ADMIN_ADDRESS || deployer
+  // Roles are separate on purpose: the agent is a hot key that lives in a
+  // Netlify environment variable so the provider can sign, and the admin
+  // holds the resolver, the factory lambda, the marketplace and the
+  // treasury. Defaulting both to the deployer collapses that into one key,
+  // and a leak of the hot one takes everything with it.
+  const admin = process.env.ALEA_ADMIN_ADDRESS || ''
   const treasury = process.env.ALEA_TREASURY_ADDRESS || admin
-  const agent = process.env.ALEA_AGENT_ADDRESS || deployer
+  const agent = process.env.ALEA_AGENT_ADDRESS || ''
+
+  for (const [name, value] of [
+    ['ALEA_ADMIN_ADDRESS', admin],
+    ['ALEA_AGENT_ADDRESS', agent],
+  ] as const) {
+    if (!value) {
+      console.error(`\n✗ REFUSING: ${name} is not set.`)
+      console.error('  Set every role explicitly. A collapsed key means one leak takes all of them.')
+      process.exit(1)
+    }
+  }
+  if (agent === admin) {
+    console.error(`\n✗ REFUSING: the agent and the admin are the same address.`)
+    console.error('  The agent signs from a server. The admin holds the resolver, the factory')
+    console.error('  lambda, the marketplace and the treasury. Keep them apart.')
+    process.exit(1)
+  }
   const feeBps = parseInt(process.env.ALEA_MARKET_FEE_BPS || '250', 10)
   const deployPrice = parseInt(process.env.ALEA_DEPLOY_PRICE_MUTEZ || '0', 10)
 
@@ -266,6 +290,7 @@ async function main() {
           fee_bps: feeBps,
           treasury,
           fees_accrued: 0,
+          royalties_owed: new MichelsonMap(),
           listings: new MichelsonMap(),
           next_listing_id: 0,
           offers: new MichelsonMap(),
@@ -286,6 +311,9 @@ async function main() {
           fees_accrued: 0,
           resolver: resolverAddress,
           collections: new MichelsonMap(),
+          // Every address this factory has originated, so `is_collection`
+          // can answer without an indexer. Audit C3.
+          deployed: new MichelsonMap(),
           next_collection_id: 0,
         }
       }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useWallet } from "@/context/WalletContext";
-import { formatTez, shortAddress } from "@/lib/utils";
+import { formatTez, shortAddress, parseTez, CONFIRM_ABOVE_MUTEZ } from "@/lib/utils";
 import { proceeds, type Listing, type Offer } from "@/lib/market";
 import { CONTRACTS } from "@/lib/config";
 import * as ops from "@/lib/ops";
@@ -35,6 +35,11 @@ export function PieceMarket({
     const [price, setPrice] = useState("");
     const [offer, setOffer] = useState("");
 
+    // Parsed once. The preview and the operation read the same number, so
+    // what a person is shown is what they sign for.
+    const priceMutez = parseTez(price);
+    const offerMutez = parseTez(offer);
+
     const isOwner = Boolean(address && owner && address === owner);
     const isSeller = Boolean(address && listing && address === listing.seller);
 
@@ -58,7 +63,7 @@ export function PieceMarket({
         }
     }
 
-    const tez = (mutez: number) => `${formatTez(mutez)} ꜩ`;
+    const tez = (mutez: bigint) => `${formatTez(mutez)} ꜩ`;
 
     return (
         <div className="space-y-3 rounded-lg border border-border p-4">
@@ -113,10 +118,10 @@ export function PieceMarket({
                         />
                         <button
                             type="button"
-                            disabled={busy !== null || !price}
+                            disabled={busy !== null || priceMutez === null}
                             onClick={() =>
                                 run("list", async () => {
-                                    const mutez = Math.round(parseFloat(price) * 1_000_000);
+                                    const mutez = priceMutez as bigint;
                                     const client = await getClient();
                                     // The marketplace escrows the token, which
                                     // it can only do as an operator.
@@ -135,11 +140,13 @@ export function PieceMarket({
                             {busy === "list" ? "Listing" : "List"}
                         </button>
                     </div>
-                    {price && (
-                        <PriceBreakdown
-                            mutez={Math.round(parseFloat(price || "0") * 1_000_000)}
-                            royaltyBps={royaltyBps}
-                        />
+                    {price !== "" && priceMutez === null && (
+                        <p className="text-xs text-destructive">
+                            Enter an amount in tez.
+                        </p>
+                    )}
+                    {priceMutez !== null && (
+                        <PriceBreakdown mutez={priceMutez} royaltyBps={royaltyBps} />
                     )}
                     <p className="text-xs text-muted-foreground">
                         Two prompts: one to let the marketplace hold the piece, one to list it.
@@ -160,17 +167,30 @@ export function PieceMarket({
                     />
                     <button
                         type="button"
-                        disabled={busy !== null || !offer}
+                        disabled={busy !== null || offerMutez === null}
                         onClick={() =>
                             address
-                                ? run("offer", async () =>
-                                      ops.makeOffer(
+                                ? run("offer", async () => {
+                                      const mutez = offerMutez as bigint;
+                                      // An offer escrows real money the moment
+                                      // it is signed, so a fat finger costs
+                                      // more here than anywhere else on the
+                                      // page.
+                                      if (
+                                          mutez >= CONFIRM_ABOVE_MUTEZ &&
+                                          !window.confirm(
+                                              `Offer ${formatTez(mutez)} tez? This escrows the amount until the offer is accepted or cancelled.`,
+                                          )
+                                      ) {
+                                          return;
+                                      }
+                                      return ops.makeOffer(
                                           await getClient(),
                                           contract,
                                           tokenId,
-                                          Math.round(parseFloat(offer) * 1_000_000),
-                                      ),
-                                  )
+                                          mutez,
+                                      );
+                                  })
                                 : void connect()
                         }
                         className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-60"
@@ -235,10 +255,10 @@ export function PieceMarket({
 }
 
 /** Where the money goes, shown before the seller signs. */
-function PriceBreakdown({ mutez, royaltyBps }: { mutez: number; royaltyBps: number }) {
-    if (!Number.isFinite(mutez) || mutez <= 0) return null;
+function PriceBreakdown({ mutez, royaltyBps }: { mutez: bigint; royaltyBps: number }) {
+    if (mutez <= 0n) return null;
     const split = proceeds(mutez, 250, royaltyBps);
-    const row = (label: string, v: number) => (
+    const row = (label: string, v: bigint) => (
         <div className="flex justify-between">
             <span className="text-muted-foreground">{label}</span>
             <span>{formatTez(v)} ꜩ</span>

@@ -36,14 +36,46 @@ interface RenderRequest {
 
 const MAX_TIMEOUT_MS = 30_000;
 const HARD_KILL_MS = 45_000;
+const LAUNCH_TIMEOUT_MS = 20_000;
+const MAX_BODY_BYTES = 8 * 1024 * 1024;
+
+function constantTimeEquals(a: string, b: string): boolean {
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    return diff === 0;
+}
+
+/** Reject rather than hang, since a hung launch leaves nothing to kill. */
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+    return Promise.race([
+        p,
+        new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error(`${what} timed out`)), ms),
+        ),
+    ]);
+}
 
 export default {
     async fetch(request: Request, env: Env): Promise<Response> {
         if (request.method !== "POST") {
             return new Response("POST only", { status: 405 });
         }
-        if (request.headers.get("authorization") !== `Bearer ${env.RENDER_TOKEN}`) {
+        // Without a secret configured this worker is open to the internet,
+        // since a workers.dev URL is public. Refuse to run rather than fall
+        // back to comparing against the string "Bearer undefined".
+        if (!env.RENDER_TOKEN) {
+            return new Response("Not configured", { status: 503 });
+        }
+        const given = (request.headers.get("authorization") || "").replace(/^Bearer /, "");
+        if (!constantTimeEquals(given, env.RENDER_TOKEN)) {
             return new Response("Unauthorized", { status: 401 });
+        }
+
+        // A body this large is a memory problem before it is a render.
+        const declared = Number(request.headers.get("content-length") || 0);
+        if (declared > MAX_BODY_BYTES) {
+            return new Response("Payload too large", { status: 413 });
         }
 
         let body: RenderRequest;
@@ -68,7 +100,11 @@ export default {
         }, HARD_KILL_MS);
 
         try {
-            browser = await puppeteer.launch(env.BROWSER);
+            browser = await withTimeout(
+                puppeteer.launch(env.BROWSER),
+                LAUNCH_TIMEOUT_MS,
+                "browser launch",
+            );
             const page = await browser.newPage();
             await page.setViewport({ width, height, deviceScaleFactor: 1 });
 
@@ -91,7 +127,16 @@ export default {
             // a piece that reads the date renders the same way in 2029.
             await page.evaluateOnNewDocument(harness(), body.seed, body.params ?? "");
 
-            await page.setContent(body.html, { waitUntil: "domcontentloaded" });
+            // Request interception covers HTTP and misses WebSocket and
+            // WebRTC, so the document carries a policy of its own. This is
+            // the control; the JS overrides in the harness are reporting.
+            const csp =
+                `<meta http-equiv="Content-Security-Policy" content="` +
+                `default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; ` +
+                `style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; ` +
+                `font-src data:; connect-src 'none'; frame-src 'none'; child-src 'none'; ` +
+                `object-src 'none'; base-uri 'none'; form-action 'none'">`;
+            await page.setContent(csp + body.html, { waitUntil: "domcontentloaded" });
 
             // The piece signals its capture point. Falling through on timeout
             // captures whatever is on screen, which is what a piece without a
@@ -210,8 +255,6 @@ function harness() {
                 return mathRandomCalls;
             },
         };
-        // fxhash era names, so existing work runs unchanged.
-        w.$fx = {
             hash: seed,
             rand,
             getParam: (n: string) => (params as Record<string, unknown>)[n],

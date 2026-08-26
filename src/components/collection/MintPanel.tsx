@@ -4,6 +4,13 @@ import { useState } from "react";
 import { useWallet } from "@/context/WalletContext";
 import { formatTez } from "@/lib/utils";
 import type { Collection } from "@/lib/collection";
+import {
+    resolveParams,
+    encodeParams,
+    randomValues,
+    type ParamsSchema,
+    type ParamSpec,
+} from "@/lib/params";
 import * as ops from "@/lib/ops";
 
 /**
@@ -13,11 +20,41 @@ import * as ops from "@/lib/ops";
  * hash becomes the seed, so the outcome is fixed by the collector's own
  * signature and known to nobody beforehand.
  */
-export function MintPanel({ collection }: { collection: Collection }) {
+export function MintPanel({
+    collection,
+    schema,
+    onPreview,
+}: {
+    collection: Collection;
+    /** The generator's declared parameters, when it has any. */
+    schema?: ParamsSchema | null;
+    /**
+     * Show the collector what a set of values looks like before they sign.
+     * The seed here is a stand-in: theirs does not exist until their operation
+     * lands, and the panel says so rather than implying they are choosing it.
+     */
+    onPreview?: (values: Record<string, unknown>, previewSeed: string) => void;
+}) {
     const { address, connect, getClient } = useWallet();
     const [busy, setBusy] = useState(false);
     const [hash, setHash] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [chosen, setChosen] = useState<Record<string, unknown>>({});
+
+    /**
+     * Reroll the parameters, and the seed the preview is drawn from.
+     *
+     * Two different things, deliberately. The parameters are the collector's
+     * to choose and are committed by their signature. The seed is not: it is
+     * the hash of the operation they are about to send, so what this rerolls
+     * is only the draw being *shown*, to give a sense of the space they are
+     * buying into.
+     */
+    function randomize() {
+        const values = schema?.params.length ? randomValues(schema.params) : {};
+        setChosen(values);
+        onPreview?.(values, randomPreviewSeed());
+    }
 
     const remaining =
         collection.editionSize > 0 ? collection.editionSize - collection.minted : null;
@@ -27,10 +64,22 @@ export function MintPanel({ collection }: { collection: Collection }) {
         setError(null);
         try {
             const client = await getClient();
-            // Parameters are not exposed in this panel yet, so an empty
-            // document goes on chain.
-            const res = await ops.buy(client, collection.address, "", collection.totalMutez);
+            // Resolved through the one rule every reader shares, so the values
+            // recorded in the operation are the values the piece will run
+            // with. See docs/params.md §3.
+            const params = schema
+                ? encodeParams(schema.params, resolveParams(schema.params, chosen))
+                : "";
+            const res = await ops.mint(
+                client,
+                collection.address,
+                params,
+                collection.totalMutez,
+            );
             setHash(res.hash);
+            // Ask the provider to look now. It polls anyway, so a failure
+            // here costs nothing but a slower reveal.
+            void fetch("/api/render-ping", { method: "POST" }).catch(() => {});
         } catch (e) {
             setError(e instanceof Error ? e.message : "That did not go through");
         } finally {
@@ -43,7 +92,7 @@ export function MintPanel({ collection }: { collection: Collection }) {
             <div className="space-y-2 rounded-lg border border-border p-4">
                 <p className="text-sm font-medium">Minted</p>
                 <p className="text-xs text-muted-foreground">
-                    This operation hash is your piece&apos;s seed.
+                    This is your piece&apos;s seed.
                 </p>
                 <p className="break-all font-mono text-xs">{hash}</p>
             </div>
@@ -74,6 +123,44 @@ export function MintPanel({ collection }: { collection: Collection }) {
                     : `${remaining} of ${collection.editionSize} left`}
             </p>
 
+            <div className="space-y-3 border-t border-border pt-3">
+                <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-muted-foreground">
+                        {schema && schema.params.length > 0 ? "Parameters" : "Preview"}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={randomize}
+                        disabled={busy}
+                        className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-60"
+                    >
+                        Randomize
+                    </button>
+                </div>
+                {schema && schema.params.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                        This generator has no settings. Randomize shows you another draw.
+                    </p>
+                )}
+            </div>
+
+            {schema && schema.params.length > 0 && (
+                <div className="space-y-3">
+                    {schema.params.map((spec) => (
+                        <ParamControl
+                            key={spec.id}
+                            spec={spec}
+                            value={chosen[spec.id]}
+                            onChange={(v) => {
+                                const next = { ...chosen, [spec.id]: v };
+                                setChosen(next);
+                                onPreview?.(next, "");
+                            }}
+                        />
+                    ))}
+                </div>
+            )}
+
             {collection.soldOut ? (
                 <p className="rounded-md bg-muted px-3 py-2 text-sm">Sold out</p>
             ) : collection.paused ? (
@@ -90,11 +177,96 @@ export function MintPanel({ collection }: { collection: Collection }) {
             )}
 
             <p className="text-xs text-muted-foreground">
-                Your signature fixes the seed. The piece is yours the moment it lands, and its
-                image follows.
+                Your signature decides the seed. The piece is yours as soon as it lands, and
+                the image follows shortly after.
             </p>
 
             {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
+    );
+}
+
+/**
+ * One control, per the type in the declaration.
+ *
+ * Values are held loosely here and resolved once, at mint, through the rule
+ * every reader shares. A control that clamps as you type would be a second
+ * implementation of that rule.
+ */
+function ParamControl({
+    spec,
+    value,
+    onChange,
+}: {
+    spec: ParamSpec;
+    value: unknown;
+    onChange: (v: unknown) => void;
+}) {
+    const current = value ?? spec.default;
+
+    return (
+        <label className="block space-y-1">
+            <span className="flex items-baseline justify-between text-sm">
+                <span>{spec.label}</span>
+                <span className="text-xs text-muted-foreground">{String(current)}</span>
+            </span>
+
+            {spec.type === "number" || spec.type === "int" ? (
+                <input
+                    type="range"
+                    min={spec.min}
+                    max={spec.max}
+                    step={spec.step}
+                    value={Number(current)}
+                    onChange={(e) => onChange(Number(e.target.value))}
+                    className="w-full"
+                />
+            ) : spec.type === "bool" ? (
+                <input
+                    type="checkbox"
+                    checked={Boolean(current)}
+                    onChange={(e) => onChange(e.target.checked)}
+                />
+            ) : spec.type === "color" ? (
+                <input
+                    type="color"
+                    value={String(current)}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="h-8 w-full"
+                />
+            ) : (
+                <select
+                    value={String(current)}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                >
+                    {(spec.options ?? []).map((o) => (
+                        <option key={o} value={o}>
+                            {o}
+                        </option>
+                    ))}
+                </select>
+            )}
+
+            {spec.hint && <span className="block text-xs text-muted-foreground">{spec.hint}</span>}
+        </label>
+    );
+}
+
+/**
+ * A stand-in seed for the preview.
+ *
+ * Shaped like an operation hash so what a collector sees is the same kind of
+ * value a real mint produces. It is not their seed and cannot be: that one is
+ * the hash of an operation that does not exist yet.
+ */
+function randomPreviewSeed(): string {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    return (
+        "oo" +
+        Array.from(bytes)
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("")
+            .slice(0, 49)
     );
 }

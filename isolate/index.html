@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Aleatory isolate</title>
+<style>
+  html,body { margin:0; padding:0; height:100%; background:#0f1b1a; overflow:hidden; }
+  #err { color:#e8e8e8; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; padding:20px; white-space:pre-wrap; }
+  iframe { display:block; border:0; width:100%; height:100%; }
+</style>
+</head>
+<body>
+<div id="err" hidden></div>
+<script>
+/**
+ * The isolated execution environment.
+ *
+ * Artist code runs here, on its own origin, and nowhere else. It executes and
+ * it does not fetch: the code arrives from whoever framed it, already in hand.
+ *
+ *   parent -> isolate   { type: "alea:run", code, seed, params, deps }
+ *   isolate -> parent   { type: "alea:hello" }        ready to receive
+ *                       { type: "alea:ready", ... }   the piece signalled
+ *                       { type: "alea:violation", … } it reached for something
+ *
+ * Fetching was the older shape, and it contradicted this page's own
+ * `connect-src 'none'`. It could never have worked, and the contradiction was
+ * only hidden because nothing had reached that path yet. Executing is the one
+ * job this page is uniquely suited to, because it is the one participant that
+ * must have no network at all. Reading the chain belongs to whoever calls it,
+ * and every caller already has its own way of doing that:
+ *
+ *   the studio      the draft is in IndexedDB, never on chain
+ *   /piece/*        the app already reads collection storage
+ *   render worker   headless, no frame, does its own reads
+ *   a third party   implements ALEATORY-001 however they like
+ *
+ * One executor, so there is one harness on this side. `worker/render.ts` has
+ * the other, and the two agree by conforming to the spec rather than by
+ * sharing a file. When they disagreed on seeding, that was a bug in one of
+ * them, not an argument for merging them.
+ */
+(function () {
+  function fail(msg) {
+    var el = document.getElementById("err");
+    el.hidden = false;
+    el.textContent = msg;
+  }
+
+  // Refuse to run outside a frame. Top-level would put artist code on this
+  // origin directly rather than in the opaque origin the sandbox attribute
+  // creates for the nested frame below.
+  if (window.top === window.self) {
+    fail("This page runs generator code and has to be framed to do it safely.");
+    return;
+  }
+
+  var ran = false;
+
+  window.addEventListener("message", function (e) {
+    // Only the window that framed us. Nothing else can reach this frame, so
+    // this is the check that matters; the parent's origin is not known here
+    // and does not need to be.
+    if (e.source !== window.parent) return;
+    var d = e.data;
+    if (!d || d.type !== "alea:run") return;
+    if (ran) return;
+    ran = true;
+
+    try {
+      run(String(d.code || ""), String(d.seed || ""), d.params || {}, d.paramsSchema || [], d.deps || [], Boolean(d.wantImage));
+    } catch (err) {
+      fail(String((err && err.message) || err));
+    }
+  });
+
+  // Say when we are listening, rather than making the parent guess.
+  //
+  // Repeated until answered, because one announcement is a race: a parent that
+  // has not attached its listener yet misses it, and nothing renders, with no
+  // error anywhere to say why. The parent keeps its listener for the life of
+  // the frame, so a late hello is always heard.
+  var hello = window.setInterval(function () {
+    if (ran) { window.clearInterval(hello); return; }
+    window.parent.postMessage({ type: "alea:hello" }, "*");
+  }, 50);
+  window.parent.postMessage({ type: "alea:hello" }, "*");
+
+  // Give up eventually rather than announcing into an empty room forever.
+  window.setTimeout(function () {
+    window.clearInterval(hello);
+    if (!ran) fail("Nothing sent this frame a generator to run.");
+  }, 10000);
+
+  /**
+   * Build the document and hand it to a nested frame.
+   *
+   * The piece gets its own document with `sandbox="allow-scripts"` and no
+   * `allow-same-origin`, so it lands in an opaque origin that cannot reach
+   * this one. Its CSP travels inside that document as a meta tag, and a
+   * srcdoc child intersects its parent's policy, so it can only ever be
+   * stricter than this page. Stricter is the direction we want.
+   */
+  function run(code, seed, params, paramsSchema, deps, wantImage) {
+    var CSP = [
+      "default-src 'none'",
+      "script-src 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'unsafe-inline'",
+      "img-src data: blob:",
+      "media-src data: blob:",
+      "font-src data:",
+      "connect-src 'none'",
+      "frame-src 'none'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'none'"
+    ].join("; ");
+
+    var config = JSON.stringify({
+      seed: seed,
+      params: params,
+      paramsSchema: paramsSchema,
+      wantImage: wantImage,
+      timeout: 8000
+    }).replace(/<\/script/gi, "<\\/script");
+
+    var harness = HARNESS.replace("__ALEA_CONFIG__", config);
+    var libs = deps.map(function (src) {
+      return "<script>" + String(src).replace(/<\/script/gi, "<\\/script") + "<\/script>";
+    }).join("\n");
+
+    var injected =
+      '<meta charset="utf-8">\n' +
+      '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">\n' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">\n' +
+      "<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}" +
+      "canvas{display:block}svg{display:block;width:100%;height:100%}<\/style>\n" +
+      "<script>" + harness + "<\/script>\n" + libs;
+
+    // As early as the document allows, so the CSP covers everything and the
+    // harness wins every race against the artist's first line.
+    var doc;
+    var head = code.match(/<head[^>]*>/i);
+    var htmlTag = code.match(/<html[^>]*>/i);
+    if (head && head.index !== undefined) {
+      var at = head.index + head[0].length;
+      doc = code.slice(0, at) + "\n" + injected + code.slice(at);
+    } else if (htmlTag && htmlTag.index !== undefined) {
+      var at2 = htmlTag.index + htmlTag[0].length;
+      doc = code.slice(0, at2) + "\n<head>\n" + injected + "\n</head>" + code.slice(at2);
+    } else {
+      doc = "<!doctype html><html><head>\n" + injected + "\n</head><body>\n" + code + "\n</body></html>";
+    }
+
+    var frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.setAttribute("title", "piece");
+    frame.srcdoc = doc;
+    document.body.appendChild(frame);
+
+    // Anything the piece reports goes straight through to whoever framed us.
+    // The studio uses these for its checks; a viewer ignores them.
+    window.addEventListener("message", function (e) {
+      if (e.source !== frame.contentWindow) return;
+      var d = e.data;
+      if (d && typeof d.type === "string" && d.type.indexOf("alea:") === 0) {
+        window.parent.postMessage(d, "*");
+      }
+    });
+  }
+
+  /* --- the harness, installed before any artist code runs --- */
+  var HARNESS = String.raw`
+(function () {
+  "use strict";
+  var CFG = __ALEA_CONFIG__;
+  var t0 = Date.now();
+  var violations = [];
+  var featureStore = {};
+  var captured = false;
+
+  function post(msg) { try { parent.postMessage(msg, "*"); } catch (e) {} }
+  function violate(kind, detail) {
+    for (var i = 0; i < violations.length; i++) {
+      if (violations[i].kind === kind && violations[i].detail === detail) return;
+    }
+    var v = { kind: kind, detail: detail };
+    violations.push(v);
+    post({ type: "alea:violation", violation: v, kind: kind, detail: detail });
+  }
+
+  // xmur3 then sfc32. The seed is a string and is never hex: it derives from a
+  // Tezos operation hash, which is base58. Parsing it as hex yields zero for
+  // every word and every piece draws the same picture. worker/render.ts does
+  // exactly this, and the two have to agree or a piece looks one way here and
+  // another in the image that goes on chain.
+  function xmur3(str) {
+    var h = 1779033703 ^ str.length;
+    for (var i = 0; i < str.length; i++) {
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return function () {
+      h = Math.imul(h ^ (h >>> 16), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      h ^= h >>> 16;
+      return h >>> 0;
+    };
+  }
+  function sfc32(a, b, c, d) {
+    return function () {
+      a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+      var t = (a + b) | 0;
+      a = b ^ (b >>> 9);
+      b = (c + (c << 3)) | 0;
+      c = (c << 21) | (c >>> 11);
+      d = (d + 1) | 0;
+      t = (t + d) | 0;
+      c = (c + t) | 0;
+      return (t >>> 0) / 4294967296;
+    };
+  }
+  var s = xmur3(String(CFG.seed || "unseeded"));
+  var rand = sfc32(s(), s(), s(), s());
+
+  // Substituted, not forbidden: a piece reaching for Math.random still runs
+  // reproducibly. Counted rather than reported, because libraries call it too
+  // and a warning every p5 author can do nothing about is noise.
+  var mathRandomCalls = 0;
+  Math.random = function () { mathRandomCalls++; return rand(); };
+
+  // Frozen clock, so a piece that branches on the date draws the same way in
+  // any year. Matches worker/render.ts.
+  var FIXED = 0;
+  var RealDate = Date;
+  Date = class extends RealDate {
+    constructor() { if (arguments.length === 0) super(FIXED); else super(...arguments); }
+    static now() { return FIXED; }
+  };
+  performance.now = function () { return 0; };
+
+  // The CSP is the control. These report what it already blocked, so an artist
+  // is told why their piece is not working instead of watching it half-run.
+  window.addEventListener("securitypolicyviolation", function (e) {
+    violate("network", e.violatedDirective + " " + (e.blockedURI || ""));
+  });
+  ["fetch", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon"].forEach(function (name) {
+    var target = name === "sendBeacon" ? navigator : window;
+    var original = target[name];
+    if (!original) return;
+    target[name] = function () {
+      violate("network", name + "()");
+      throw new Error("Network access is not available to a piece.");
+    };
+  });
+
+  var schema = CFG.paramsSchema || [];
+  var declared = {};
+  for (var i = 0; i < schema.length; i++) declared[schema[i].id] = true;
+
+  function readParam(name, fallback) {
+    if (!(name in declared) && schema.length > 0) {
+      violate("runtime", 'param("' + name + '") is not declared');
+    }
+    return name in CFG.params ? CFG.params[name] : fallback;
+  }
+
+  function finish() {
+    if (captured) return;
+    captured = true;
+    var canvas = document.querySelector("canvas");
+    var digest = "";
+    var image = null;
+    try {
+      if (canvas && canvas.toDataURL) {
+        var url = canvas.toDataURL("image/png");
+        // The digest is the tail of the encoding, which is enough to tell two
+        // runs of one seed apart without shipping a megabyte to say so.
+        digest = url.slice(-64);
+        // The whole image only when someone asked, because a collection cover
+        // is the one case that needs the pixels rather than a comparison.
+        if (CFG.wantImage) image = url;
+      } else {
+        digest = String(document.body.innerHTML.length);
+      }
+    } catch (e) { digest = "unreadable"; }
+    post({
+      type: "alea:ready",
+      seed: CFG.seed,
+      digest: digest,
+      image: image,
+      features: featureStore,
+      violations: violations,
+      mathRandomCalls: mathRandomCalls,
+      elapsed: RealDate.now() - t0
+    });
+  }
+
+  var alea = {
+    version: 2,
+    seed: CFG.seed,
+    hash: CFG.seed,
+    params: CFG.params,
+    paramsSchema: schema,
+    random: rand,
+    rand: rand,
+    randInt: function (lo, hi) { return Math.floor(rand() * (hi - lo + 1)) + lo; },
+    randBetween: function (lo, hi) { return lo + rand() * (hi - lo); },
+    pick: function (arr) { return arr[Math.floor(rand() * arr.length)]; },
+    chance: function (p) { return rand() < p; },
+    param: readParam,
+    features: function (obj) {
+      if (!obj) return featureStore;
+      for (var k in obj) if (Object.prototype.hasOwnProperty.call(obj, k)) featureStore[k] = obj[k];
+      return featureStore;
+    },
+    ready: finish
+  };
+  window.$alea = alea;
+
+  // A piece that never signals is captured on a timeout rather than never.
+  setTimeout(finish, CFG.timeout || 8000);
+})();
+`;
+})();
+</script>
+</body>
+</html>

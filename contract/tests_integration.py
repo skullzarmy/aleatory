@@ -28,6 +28,10 @@ _META = sp.big_map(
     }
 )
 _CODE_URI = "ipfs://QmGeneratorCode"
+# The generator, on chain. Short here because these tests are about the
+# contract's rules; the real cost of a real generator is measured against a
+# live chain, not asserted in a scenario.
+_CODE = sp.bytes("0x3c68746d6c3e3c2f68746d6c3e")  # <html></html>
 _PENDING = sp.bytes("0x697066733a2f2f516d50656e64696e67")
 _REVEALED = sp.bytes("0x697066733a2f2f516d5265616c")
 _NONE = sp.bytes("0x")
@@ -71,13 +75,16 @@ def _world(scenario, admin, agent, treasury, artist, royalties):
     # A collection the artist owns, deployed the way an artist deploys one.
     factory.deploy(
         sp.record(
-            code_uri=_CODE_URI,
+            code=_CODE,
+            code_encoding="identity",
             code_hash=sp.bytes("0xaa"),
+            code_uri="",
             edition_size=0,
             price=sp.mutez(_PRICE),
             royalties=royalties,
             pending_metadata=_PENDING,
             start_paused=False,
+            trust_resolver=True,
             provider=provider.address,
             max_render_gas=sp.mutez(_GAS),
             metadata=_META,
@@ -118,7 +125,7 @@ def test_full_lifecycle():
     collection_address = c.address
 
     # --- primary: one signature, token exists immediately ---
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
     scenario.verify(c.data.ledger[0] == alice.address)
     scenario.verify(c.data.token_metadata[0].token_info[""] == _PENDING)
     # The collection kept nothing; the provider was paid.
@@ -160,8 +167,20 @@ def test_full_lifecycle():
     # 2.5% of 100 tez to the platform, and the royalties came from the
     # collection's own storage rather than from anything Alice supplied.
     scenario.verify(market.data.fees_accrued == sp.mutez(2_500_000))
-    # Fee retained, everything else forwarded in the same operation.
-    scenario.verify(market.balance == sp.mutez(2_500_000))
+    # 10% and 2.5% of 100 tez, credited to the two recipients the
+    # collection named. This is the crossing the test exists to prove:
+    # nothing in the listing or in Alice's hands set these numbers.
+    scenario.verify(market.royalties_owed_to(artist.address) == sp.mutez(10_000_000))
+    scenario.verify(market.royalties_owed_to(collab.address) == sp.mutez(2_500_000))
+    # The seller was paid during the sale. The fee and the credited
+    # royalties stay behind until each is claimed.
+    scenario.verify(market.balance == sp.mutez(15_000_000))
+
+    # And the credit is really payable, rather than a number that only
+    # looks right in storage.
+    market.claim_royalties(artist.address, _sender=bob)
+    scenario.verify(market.royalties_owed_to(artist.address) == sp.mutez(0))
+    scenario.verify(market.balance == sp.mutez(5_000_000))
 
 
 @sp.add_test()
@@ -191,7 +210,7 @@ def test_royalties_actually_cross_the_contract_boundary():
         sp.View(c, "get_royalties")()[artist.address] == 2500
     )
 
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
     c.update_operators(
         [
             sp.variant.add_operator(
@@ -214,9 +233,10 @@ def test_royalties_actually_cross_the_contract_boundary():
     )
     market.buy(0, _sender=bob, _amount=sp.mutez(40_000_000))
 
-    # 2.5% platform on 40 tez; the 25% royalty left in the same operation.
+    # 2.5% platform on 40 tez, and the 25% royalty the collection declared.
     scenario.verify(market.data.fees_accrued == sp.mutez(1_000_000))
-    scenario.verify(market.balance == sp.mutez(1_000_000))
+    scenario.verify(market.royalties_owed_to(artist.address) == sp.mutez(10_000_000))
+    scenario.verify(market.balance == sp.mutez(11_000_000))
 
 
 @sp.add_test()
@@ -241,7 +261,7 @@ def test_an_unrevealed_piece_still_trades():
     c = scenario.dynamic_contract(aleatory.AleatoryCollection)
     collection_address = c.address
 
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
     c.update_operators(
         [
             sp.variant.add_operator(
@@ -291,7 +311,7 @@ def test_offer_on_a_piece_pays_royalties_too():
     c = scenario.dynamic_contract(aleatory.AleatoryCollection)
     collection_address = c.address
 
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
     market.make_offer(
         sp.record(collection=collection_address, token_id=0),
         _sender=bob,
@@ -314,7 +334,10 @@ def test_offer_on_a_piece_pays_royalties_too():
     market.accept_offer(0, _sender=alice)
     scenario.verify(c.data.ledger[0] == bob.address)
     scenario.verify(market.data.fees_accrued == sp.mutez(500_000))
-    scenario.verify(market.balance == sp.mutez(500_000))
+    # The offer path reads the same view and credits the same way the
+    # listing path does, which is the point of testing it separately.
+    scenario.verify(market.royalties_owed_to(artist.address) == sp.mutez(2_000_000))
+    scenario.verify(market.balance == sp.mutez(2_500_000))
 
 
 @sp.add_test()
@@ -348,7 +371,7 @@ def test_a_dead_provider_does_not_stop_the_market():
     c.set_trust_resolver(False, _sender=artist)
 
     # Minting still works; the piece is just never revealed.
-    c.buy(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
     scenario.verify(c.data.ledger[0] == alice.address)
     c.set_token_metadata(
         sp.record(token_id=0, metadata_uri=_REVEALED),

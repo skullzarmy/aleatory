@@ -1,0 +1,32 @@
+# The isolated execution environment. Deploys from this directory, on its own
+# domain. Site code: it is framed by the studio and by /piece/*, and it is not
+# part of the provider stack that other people run.
+#
+# Netlify site settings: base directory `provider`, publish directory `.`,
+# no build command. Domain: isolate.aleatory.art
+#
+# Separate from the app on purpose. Generator code is untrusted and runs in
+# every visitor's browser, and a different origin is what keeps it away from
+# wallet state and session storage.
+
+[build]
+  publish = "."
+
+# The app frames /render?code=…&seed=…&params=…. There is one document here
+# and it reads its arguments from the query string, so every path serves it.
+[[redirects]]
+  from = "/render"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # connect-src 'none' is what makes "a piece never touches the network"
+    # structural. The harness overrides in JS are reporting; this is the
+    # control. script-src carries no https:, so a piece cannot pull in a
+    # remote script either.
+    Content-Security-Policy = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; frame-src 'self'; child-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://aleatory.art https://*.aleatory.art http://localhost:*"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=(), payment=(), usb=()"

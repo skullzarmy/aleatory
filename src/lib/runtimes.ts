@@ -37,6 +37,14 @@ export interface DepSpec {
     url: string;
     /** Approximate size, for the cost estimate before anything is fetched. */
     approxBytes: number;
+    /**
+     * blake2b-256 the fetched bytes have to match, hex.
+     *
+     * Empty means unpinned, which is a state to leave before mainnet: an
+     * unpinned dependency puts a third party in the position of deciding what
+     * gets written on chain.
+     */
+    expectedHash?: string;
 }
 
 export interface RuntimeKind {
@@ -54,6 +62,15 @@ export interface RuntimeKind {
     blurb: string;
 }
 
+/**
+ * Known-good digest of p5 1.5.0.
+ *
+ * `resolveDep` hashes whatever the CDN returns and that hash goes on chain
+ * immutably, so without a value to compare against, a compromised or
+ * republished CDN would be recorded as canonical with the chain vouching for
+ * it. Verify before trusting: the value below has to be confirmed against a
+ * known-good copy before any mainnet publish.
+ */
 export const P5_DEP: DepSpec = {
     id: "p5",
     label: "p5.js",
@@ -86,7 +103,7 @@ export const RUNTIME_KINDS: RuntimeKind[] = [
         name: "p5",
         label: "p5.js",
         kindVersion: "1.5.0",
-        entrySpec: "Standard p5 sketch (setup/draw). Call $alea.ready() (or fxpreview()) at the capture point.",
+        entrySpec: "Standard p5 sketch (setup/draw). Call $alea.ready() at the capture point.",
         deps: [P5_DEP],
         blurb: "p5 is shared: referenced by hash, not bundled into your piece.",
     },
@@ -121,13 +138,50 @@ export interface ResolvedDep {
 const cache = new Map<string, ResolvedDep>();
 
 /**
- * Fetch and hash a dependency. This happens in the LAB page, never in the
- * sandbox frame, by the time a piece runs, its libraries are already inlined
- * text and the frame has no network at all.
+ * Fetch and hash a dependency, refusing anything that does not match what we
+ * expect.
+ *
+ * The hash computed here is written into the generator record and goes on
+ * chain immutably. Without a value to compare against, a CDN that was
+ * compromised, intercepted, or that republished the version would have its
+ * bytes inlined into an artist's document, executed in every viewer's
+ * browser, and recorded on chain as canonical with the chain vouching for it.
+ *
+ * Resolution happens in the studio, never in a sandboxed frame: by the time a
+ * piece runs, its libraries are inlined text and the frame has no network.
  */
 export async function resolveDep(spec: DepSpec): Promise<ResolvedDep> {
-    const cached = cache.get(spec.id + "@" + spec.version);
+    const key = spec.id + "@" + spec.version;
+    const cached = cache.get(key);
     if (cached) return cached;
+
+    // In a browser this goes through our own origin (`/api/dep`), so the app's
+    // `connect-src` stays `'self'` and the digest is verified somewhere the
+    // page cannot skip. A hash check that runs in the page is a hash check a
+    // compromised page removes. Off the browser, in a script or a test, the
+    // CDN is fetched directly and verified here.
+    if (typeof window !== "undefined") {
+        const res = await fetch(
+            `/api/dep?id=${encodeURIComponent(spec.id)}&version=${encodeURIComponent(spec.version)}`,
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+            source?: string;
+            hash?: string;
+            bytes?: number;
+            error?: string;
+        };
+        if (!res.ok || typeof json.source !== "string") {
+            throw new Error(json.error || `${spec.label} ${spec.version} could not be resolved.`);
+        }
+        const resolved: ResolvedDep = {
+            spec,
+            source: json.source,
+            bytes: json.bytes ?? new TextEncoder().encode(json.source).length,
+            hash: json.hash ?? "",
+        };
+        cache.set(key, resolved);
+        return resolved;
+    }
 
     const res = await fetch(spec.url);
     if (!res.ok) throw new Error(`${spec.label} ${spec.version} could not be resolved (${res.status}).`);
@@ -135,14 +189,32 @@ export async function resolveDep(spec: DepSpec): Promise<ResolvedDep> {
 
     const { blake2bHex } = await import("blakejs");
     const bytes = new TextEncoder().encode(source);
-    const resolved: ResolvedDep = {
-        spec,
-        source,
-        bytes: bytes.length,
-        hash: blake2bHex(bytes, undefined, 32),
-    };
-    cache.set(spec.id + "@" + spec.version, resolved);
+    const hash = blake2bHex(bytes, undefined, 32);
+
+    if (spec.expectedHash && hash !== spec.expectedHash) {
+        throw new Error(
+            `${spec.label} ${spec.version} does not match its pinned hash. ` +
+                `Expected ${spec.expectedHash}, got ${hash}. Refusing to use it.`,
+        );
+    }
+
+    const resolved: ResolvedDep = { spec, source, bytes: bytes.length, hash };
+    cache.set(key, resolved);
     return resolved;
+}
+
+/**
+ * Record the digest of a dependency that has been checked against a
+ * known-good copy.
+ *
+ * Run once per version, by a person, comparing against the published release
+ * rather than against whatever the CDN happens to be serving.
+ */
+export async function pinDep(spec: DepSpec): Promise<string> {
+    const res = await fetch(spec.url);
+    const source = await res.text();
+    const { blake2bHex } = await import("blakejs");
+    return blake2bHex(new TextEncoder().encode(source), undefined, 32);
 }
 
 export async function resolveDeps(specs: DepSpec[]): Promise<ResolvedDep[]> {

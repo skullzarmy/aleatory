@@ -9,6 +9,7 @@
  * inputs are public, so anyone can recompute this and rank us lower.
  */
 import { CONTRACTS, tzktApi } from "./config";
+import { isBlockedProvider } from "./blocklist";
 
 export interface Provider {
     address: string;
@@ -50,10 +51,12 @@ interface RegistryRow {
 }
 
 /**
- * Every registered provider.
+ * Every registered provider, minus anything this site declines to show.
  *
- * The registry lists them. It makes no claim about whether any of them are
- * any good, which is what the measured ranking answers.
+ * The registry lists them and makes no claim about whether any of them are
+ * any good, which is what the measured ranking answers. Hiding one here is a
+ * display decision and changes nothing on chain: the provider keeps working
+ * for every collection that names it.
  */
 export async function fetchProviders(): Promise<Provider[]> {
     if (!CONTRACTS.registry) return [];
@@ -83,12 +86,148 @@ export async function fetchProviders(): Promise<Provider[]> {
         }),
     );
 
-    return providers.sort(compareProviders);
+    return providers.filter((p) => !isBlockedProvider(p.address)).sort(compareProviders);
+}
+
+/** A publish, with the token it was for. */
+interface Publish {
+    level: number;
+    timestamp: string;
+    collection: string;
+    tokenId: string;
 }
 
 /**
- * Delivery record for one provider, from `set_token_metadata` calls its agent
- * has made.
+ * How many publishes to pair with their buys.
+ *
+ * Each pairing is a request, so the median is taken over a sample rather than
+ * over everything. Fifty is enough for the number to mean something and few
+ * enough that the page does not spend a minute assembling itself.
+ */
+const PAIRING_SAMPLE = 50;
+
+/** Collections to scan for unrendered pieces. */
+const OUTSTANDING_SCAN = 20;
+
+/** A piece older than this and still unrendered counts against a provider. */
+const OUTSTANDING_AFTER_MINUTES = 30;
+
+/**
+ * Everything this provider has published in the window.
+ *
+ * Read from its agent's calls to `set_token_metadata`, which is the only
+ * action a provider takes on chain, so a provider that has done nothing has
+ * nothing here and one that has worked cannot hide it.
+ */
+async function publishes(agent: string, since: string): Promise<Publish[]> {
+    const rows = await tzkt<
+        {
+            level: number;
+            timestamp: string;
+            target: { address: string };
+            parameter: { value: { token_id: string } };
+        }[]
+    >("/v1/operations/transactions", {
+        sender: agent,
+        entrypoint: "set_token_metadata",
+        "timestamp.ge": since,
+        status: "applied",
+        limit: 1000,
+        select: "level,timestamp,target,parameter",
+    }).catch(() => []);
+
+    return rows
+        .filter((r) => r.target?.address && r.parameter?.value?.token_id)
+        .map((r) => ({
+            level: r.level,
+            timestamp: r.timestamp,
+            collection: r.target.address,
+            tokenId: String(r.parameter.value.token_id),
+        }));
+}
+
+/** The block a piece was minted at, which is when its clock started. */
+async function mintLevel(collection: string, tokenId: string): Promise<number | null> {
+    const rows = await tzkt<{ level: number }[]>("/v1/contracts/events", {
+        contract: collection,
+        tag: "mint",
+        "payload.token_id": tokenId,
+        limit: 1,
+        select: "level",
+    }).catch(() => []);
+    const row = rows[0];
+    return typeof row === "number" ? row : (row?.level ?? null);
+}
+
+function median(xs: number[]): number | null {
+    if (xs.length === 0) return null;
+    const sorted = [...xs].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0
+        ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+        : sorted[mid];
+}
+
+/** Collections whose storage names this provider. */
+async function collectionsNaming(provider: string): Promise<string[]> {
+    const events = await tzkt<{ contract: { address: string } }[]>(
+        "/v1/contracts/events",
+        { tag: "set_provider", "sort.desc": "id", limit: 500 },
+    ).catch(() => []);
+
+    const candidates = [...new Set(events.map((e) => e.contract?.address).filter(Boolean))];
+    const naming: string[] = [];
+
+    for (const address of candidates.slice(0, OUTSTANDING_SCAN)) {
+        const storage = await tzkt<{ render?: { provider?: string } }>(
+            `/v1/contracts/${address}/storage`,
+        ).catch(() => null);
+        // Storage is what actually points work at a provider. An event
+        // payload is written by the contract that emits it.
+        if (storage?.render?.provider === provider) naming.push(address);
+    }
+    return naming;
+}
+
+/**
+ * Pieces this provider was asked for and has not delivered.
+ *
+ * A piece still carrying its collection's pending document, bought long
+ * enough ago that a working provider would have got to it.
+ */
+async function outstandingFor(provider: string): Promise<number> {
+    const collections = await collectionsNaming(provider);
+    const cutoff = Date.now() - OUTSTANDING_AFTER_MINUTES * 60 * 1000;
+    let waiting = 0;
+
+    for (const collection of collections) {
+        const storage = await tzkt<{ art?: { pending_metadata?: string } }>(
+            `/v1/contracts/${collection}/storage`,
+        ).catch(() => null);
+        const pending = storage?.art?.pending_metadata;
+        if (!pending) continue;
+
+        const rows = await tzkt<
+            { value: { token_info: Record<string, string> }; firstTime: string }[]
+        >(`/v1/contracts/${collection}/bigmaps/token_metadata/keys`, {
+            active: "true",
+            limit: 200,
+        }).catch(() => []);
+
+        for (const row of rows) {
+            if (row.value?.token_info?.[""] !== pending) continue;
+            if (Date.parse(row.firstTime) < cutoff) waiting++;
+        }
+    }
+    return waiting;
+}
+
+/**
+ * What a provider has actually done, from chain events alone.
+ *
+ * Every figure here is derived from actions a provider takes by working, so
+ * none of it can be asserted by a provider about itself, and anyone can
+ * recompute all of it.
  */
 export async function fetchProviderStats(address: string): Promise<ProviderStats> {
     const since = new Date(
@@ -102,42 +241,52 @@ export async function fetchProviderStats(address: string): Promise<ProviderStats
         return { delivered: 0, medianBlocksToPublish: null, outstanding: 0 };
     }
 
-    const published = await tzkt<{ level: number; timestamp: string }[]>(
-        "/v1/operations/transactions",
-        {
-            sender: storage.agent,
-            entrypoint: "set_token_metadata",
-            "timestamp.ge": since,
-            status: "applied",
-            limit: 1000,
-            select: "level,timestamp",
-        },
-    ).catch(() => []);
+    const done = await publishes(storage.agent, since);
+
+    // Pair each publish with the buy that asked for it. The gap in blocks is
+    // how long a collector waited.
+    const sample = done.slice(0, PAIRING_SAMPLE);
+    const gaps: number[] = [];
+    for (const p of sample) {
+        const minted = await mintLevel(p.collection, p.tokenId);
+        if (minted !== null && p.level >= minted) gaps.push(p.level - minted);
+    }
 
     return {
-        delivered: published.length,
-        // Time to publish needs pairing each call to the buy that preceded
-        // it. Left for the indexer, which already walks both event streams.
-        medianBlocksToPublish: null,
-        outstanding: 0,
-        firstSeen: published.at(-1)?.timestamp,
+        delivered: done.length,
+        medianBlocksToPublish: median(gaps),
+        outstanding: await outstandingFor(address).catch(() => 0),
+        firstSeen: done.at(-1)?.timestamp,
     };
 }
 
 /**
  * Sort by what a provider has actually done.
  *
- * Delivery count first, then how long they have been at it. A provider with
- * no record sorts last, which is where a brand new one starts and where a
- * junk registration stays.
+ * Delivered first, because a provider that has published nothing has told you
+ * nothing. Then the share of work still waiting, then how fast the delivered
+ * work landed, then time in service as the tiebreak.
+ *
+ * A brand new provider sorts near the bottom, and so does a junk
+ * registration. That is the same treatment, and a new provider climbs out of
+ * it by working.
  */
 export function compareProviders(a: Provider, b: Provider): number {
     if (b.stats.delivered !== a.stats.delivered) {
         return b.stats.delivered - a.stats.delivered;
     }
-    const aFirst = a.stats.firstSeen ? Date.parse(a.stats.firstSeen) : Infinity;
-    const bFirst = b.stats.firstSeen ? Date.parse(b.stats.firstSeen) : Infinity;
-    return aFirst - bFirst;
+
+    const backlog = (p: Provider) =>
+        p.stats.delivered + p.stats.outstanding === 0
+            ? 0
+            : p.stats.outstanding / (p.stats.delivered + p.stats.outstanding);
+    if (backlog(a) !== backlog(b)) return backlog(a) - backlog(b);
+
+    const speed = (p: Provider) => p.stats.medianBlocksToPublish ?? Number.MAX_SAFE_INTEGER;
+    if (speed(a) !== speed(b)) return speed(a) - speed(b);
+
+    const first = (p: Provider) => (p.stats.firstSeen ? Date.parse(p.stats.firstSeen) : Infinity);
+    return first(a) - first(b);
 }
 
-export const RANKING_METHOD = `Sorted by pieces published in the last ${RANKING_WINDOW_DAYS} days, then by time in service. Computed from public chain events; the query is in src/lib/providers.ts.`;
+export const RANKING_METHOD = `Sorted by pieces published in the last ${RANKING_WINDOW_DAYS} days, then by the share still waiting, then by median blocks from buy to publish, then by time in service. Every figure is computed from public chain events, and the queries are in src/lib/providers.ts.`;

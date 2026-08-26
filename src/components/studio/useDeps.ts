@@ -1,0 +1,61 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { getKind, resolveDeps, type ResolvedDep } from "@/lib/runtimes";
+
+/**
+ * The libraries a runtime kind needs, resolved once for the whole workspace.
+ *
+ * Resolution is a pre-render step on purpose: a library is fetched here, in the
+ * studio, and inlined into the document before it runs. The frame itself has
+ * `connect-src 'none'` and reaches nothing, which is what makes "a piece never
+ * touches the network" structural rather than a promise.
+ *
+ * Resolving per frame would fetch p5 seventeen times to draw a seed grid, so it
+ * happens here and every frame is handed the same already-resolved sources.
+ */
+export function useDeps(kindId: number): {
+    deps: string[];
+    resolved: ResolvedDep[];
+    loading: boolean;
+    error: string | null;
+} {
+    const [resolved, setResolved] = useState<ResolvedDep[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const specs = getKind(kindId).deps;
+        if (specs.length === 0) {
+            setResolved([]);
+            setLoading(false);
+            setError(null);
+            return;
+        }
+
+        let cancelled = false;
+        setLoading(true);
+        setError(null);
+        void resolveDeps(specs)
+            .then((r) => {
+                if (cancelled) return;
+                setResolved(r);
+                setLoading(false);
+            })
+            .catch((e: unknown) => {
+                if (cancelled) return;
+                setError(e instanceof Error ? e.message : "A library could not be loaded.");
+                setLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [kindId]);
+
+    // Memoised. Returning a fresh array each render makes every consumer's
+    // dependency arrays unstable, and a consumer that remounts a frame on
+    // change then remounts it forever.
+    const deps = useMemo(() => resolved.map((r) => r.source), [resolved]);
+
+    return { deps, resolved, loading, error };
+}

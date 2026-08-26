@@ -125,6 +125,9 @@ async function main() {
     royalties,
     pending_metadata: hex(pending),
     start_paused: true, // deploy, check, announce, then open, decisions.md §5
+    // Opt in explicitly. This extends metadata-write authority to whoever the
+    // resolver vouches for, so it is a choice rather than a default.
+    trust_resolver: process.env.ALEA_TRUST_RESOLVER === "true",
     provider: d.provider,
     max_render_gas: Number(renderGas),
     metadata: collectionMeta,

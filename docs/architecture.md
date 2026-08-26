@@ -56,7 +56,7 @@ The template is Michelson code compiled into the factory, and contract code is i
 
 ### The template is not required
 
-Anything that is standard FA2 + TZIP-21 gets indexed, rendered and traded, by us, by objkt, by anyone. What a third-party contract must match in order to use our render-and-mint backend is the `buy`/`mint` **interface**, not this implementation.
+Anything that is standard FA2 + TZIP-21 gets indexed, rendered and traded, by us, by objkt, by anyone. What a third-party contract must match in order to use our render-and-mint backend is the `mint` **interface**, not this implementation.
 
 So the artifact that has to be right is the published interface. The template is its reference implementation, and someone who writes their own to that interface is a first-class citizen. Someone who writes something else entirely still gets indexed and displayed; they just mint their own way.
 
@@ -156,9 +156,9 @@ This is what makes "custom code" a first-class kind rather than an escape hatch.
 
 ## 4. Supply and sale, on-demand only
 
-**Pieces are minted on demand, against a purchase.** A collector calls `buy` and pays; nothing is minted in advance and put up for sale.
+**Pieces are minted on demand, against a purchase.** A collector calls `mint` and pays; nothing is minted in advance and put up for sale.
 
-This is not a preference, it is what makes the seed honest: the seed comes from the buy operation's hash, so a preminted piece would be one whose seed the artist saw before deciding to sell it. On-demand minting and unpredictable seeds are the same mechanism.
+This is not a preference, it is what makes the seed honest: the seed comes from the mint operation's hash, so a preminted piece would be one whose seed the artist saw before deciding to sell it. On-demand minting and unpredictable seeds are the same mechanism.
 
 An artist who wants pieces of their own buys them like anyone else and lists them wherever they like. The platform has no "put these finished pieces up for sale" flow, because that is the thing on-demand minting exists to avoid.
 
@@ -201,7 +201,7 @@ If any address may write a token's URIs, then anyone can point a token at any CI
 
 Modelled on `zolturd_nft.py` in tezoshitcoin.xyz, which already solves this and is in production.
 
-Only an authorised address may call `set_token_metadata`. Authorisation is the collection's provider, asked live, so rotating a leaked key revokes it everywhere at once, or an address the artist authorised locally, or one the Resolver contract (§2) vouches for while `trust_resolver` is on. Such an address cannot pause, cannot reprice, cannot change the edition, and cannot mint anything: minting happens in `buy`, by the collector.
+Only an authorised address may call `set_token_metadata`. Authorisation is the collection's provider, asked live, so rotating a leaked key revokes it everywhere at once, or an address the artist authorised locally, or one the Resolver contract (§2) vouches for while `trust_resolver` is on. Such an address cannot pause, cannot reprice, cannot change the edition, and cannot mint anything: minting happens in `mint`, by the collector.
 
 Because no open URI-writing entrypoint exists, the arbitrary-CID hole never exists to be defended against.
 
@@ -211,12 +211,12 @@ Because no open URI-writing entrypoint exists, the arbitrary-CID hole never exis
 
 | | Who signs | What happens |
 |---|---|---|
-| 1. **`buy`** | the collector, once | Pays `price + render_gas`, split in that same operation, price to the artist, render gas to the provider. **Mints the token**: code, parameters, royalties, owner and name, showing the collection's placeholder image. **This operation's hash is the seed.** |
+| 1. **`mint`** | the collector, once | Pays `price + render_gas`, split in that same operation, price to the artist, render gas to the provider. **Mints the token**: code, parameters, royalties, owner and name, showing the collection's placeholder image. **This operation's hash is the seed.** |
 | 2. **`set_token_metadata`** | a render provider | Publishes that piece's metadata URI, once, replacing the collection's pending document. |
 
 **The token is minted in the collector's own operation.** An unrevealed piece is a complete artwork with a pending thumbnail, not a promise of a future token, which is why there is no reservation to strand, no refund to argue about, and nothing a failed provider can take away. It is also why the seed needs no extra record: a token's seed derives from the hash of the operation that created it.
 
-The contract's balance is zero when `buy` returns. Nothing is escrowed, nothing is held, there is no withdraw entrypoint.
+The contract's balance is zero when `mint` returns. Nothing is escrowed, nothing is held, there is no withdraw entrypoint.
 
 **The reveal is a UI moment, not a transaction for the collector.** The wrapped-present framing is presentation over the window while a provider works, and it costs the buyer no second signature.
 
@@ -236,7 +236,7 @@ Writing an image that does not match the piece is possible and not preventable o
 
 ### The artwork is on chain; the metadata is a description of it
 
-`code_uri` and `code_hash` are immutable collection storage, the seed is the buy operation's hash, and the parameters are in that same operation. So a piece is fully determined by chain state, before any metadata is published and regardless of what is published.
+`code_uri` and `code_hash` are immutable collection storage, the seed is the mint operation's hash, and the parameters are in that same operation. So a piece is fully determined by chain state, before any metadata is published and regardless of what is published.
 
 The metadata JSON is where a marketplace reads *about* the piece: its name, its `displayUri`, its royalties. Useful, and not the artwork.
 
@@ -272,9 +272,9 @@ Two supported policies, chosen per project at publish time and recorded immutabl
 
 **Policy A, operation-hash seed (default).**
 ```
-seed = blake2b(buy_op_hash ‖ token_id ‖ generator_id)
+seed = blake2b(mint_op_hash ‖ token_id ‖ generator_id)
 ```
-`buy_op_hash` is the hash of the collector's `buy` operation (§4a), fixed by the buyer's own signature, before the backend renders anything. The operation hash is chain state, an indexer reads it, anyone can recompute it, no trust involved, it just isn't readable *inside* Michelson, so the binding happens at the metadata/render layer rather than in contract storage. Simple, cheap, and the convention artists coming from other platforms already understand.
+`mint_op_hash` is the hash of the collector's `mint` operation (§4a), fixed by the buyer's own signature, before the backend renders anything. The operation hash is chain state, an indexer reads it, anyone can recompute it, no trust involved, it just isn't readable *inside* Michelson, so the binding happens at the metadata/render layer rather than in contract storage. Simple, cheap, and the convention artists coming from other platforms already understand.
 
 Honest limitation: the op hash is computable before submission, so a determined minter can grind counters and fees offline to fish for a seed. This is a known, real, and historically tolerated weakness, it costs effort and gets much worse for the sniper as demand rises. Document it, don't hide it.
 
@@ -359,6 +359,8 @@ Next on Netlify, React, Tailwind and Radix, the same stack as [rejkt.xyz](https:
 Brand strings live in one module so that forks and the eventual rename are a one-file change (see [roadmap.md](roadmap.md) §4).
 
 **One hard constraint: generator code never renders on the app's own origin.** Artist JavaScript is untrusted, it runs in every visitor's browser, and same-origin would give it reach into wallet state and session storage. Artifacts are served from a separate host in a sandboxed frame, the arrangement fxhash uses, and a DNS decision far cheaper to make before the first piece renders than after.
+
+That host is `provider.aleatory.art`, and it belongs to the provider stack: it is the same harness `worker/render.ts` uses to capture the image that goes on chain, serving live to a browser instead of headless. It renders a piece that is already minted, addressed by CID. It is not a sandbox, and calling it one obscured for a while that there was no sandbox: a sandbox is where an artist builds and iterates before minting.
 
 Wallet stack reuses what hack.tez already runs (octez.connect / Beacon), which is also what makes v0 in the labs nearly free.
 

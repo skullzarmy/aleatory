@@ -12,8 +12,8 @@ against.
 ## 1. What a collection is
 
 A standard FA2 (TZIP-012) contract holding one generator and its edition.
-Beyond FA2 it emits two events, exposes one view, and follows one rule about
-token metadata.
+Beyond FA2 it exposes one entrypoint and one view, emits two events, and
+follows one rule about token metadata.
 
 Declare conformance in TZIP-016 contract metadata so an indexer can find you:
 
@@ -23,6 +23,47 @@ Declare conformance in TZIP-016 contract metadata so an indexer can find you:
   "interfaces": ["TZIP-012", "TZIP-016", "ALEATORY-001"]
 }
 ```
+
+### `mint`
+
+The collector-facing primary sale. Payable, callable by anyone, and it
+creates the token in the caller's own operation.
+
+```
+mint :: bytes -> unit
+```
+
+The argument is the collector's parameters as canonical JSON, or empty when
+the generator declares none (§8 of [params.md](params.md)). The amount must
+cover the price and the render gas together.
+
+It is called `mint` because it mints. `buy` is the marketplace verb, for a
+token that already exists, and a collection that names its creation path
+`buy` will be read wrong by everyone who has used any other Tezos contract.
+
+### The generator
+
+Four immutable fields, and none has a setter anywhere:
+
+| field | meaning |
+|---|---|
+| `code` | the generator itself, a self-contained HTML document, as `bytes` |
+| `code_encoding` | `identity` or `gzip` |
+| `code_hash` | **SHA-256** of the DECODED source, raw, as `bytes` |
+| `code_uri` | `ipfs://` pointer, only for a generator past the operation cap |
+
+**Exactly one of `code` and `code_uri` is set.** The generator belongs in
+storage: a typical one is well under 10KB, which is about half a dollar of
+storage burn paid once by the artist, and a pointer costs less while being
+worth less. A gateway's content policy can change and the art stops resolving.
+
+`code_uri` exists because a protocol operation is capped at 32,768 bytes and a
+generator larger than that cannot be carried on chain. `gzip` buys roughly
+2.5x before that limit bites.
+
+The hash covers the decoded source either way, so it verifies what actually
+runs. For a pointer it is the only defence against a gateway handing back
+something other than what was published.
 
 ---
 
@@ -49,7 +90,7 @@ Expose the pending document so a provider can make that comparison. Ours is
 
 Two, both required.
 
-### `buy`
+### `mint`
 
 Emitted when a piece is sold and minted.
 
@@ -113,7 +154,7 @@ That is the entire membership test. Deploy one, list it in the registry for
 free, and set your own price.
 
 The contract has to be able to receive tez, since a collection pays it on
-every `buy`.
+every mint.
 
 Advertise a push endpoint in your TZIP-016 metadata if you want mint UIs to
 notify you directly. Polling the chain works without it.
@@ -149,18 +190,20 @@ A generator receives its seed and parameters from globals installed before its
 first line runs:
 
 ```js
-$alea.seed      // the buy operation hash
+$alea.seed      // the mint operation hash
 $alea.random()  // seeded stream, deterministic
 $alea.params    // resolved parameter values
 $alea.param(name, fallback)
 $alea.ready()   // signal the capture point
 ```
 
-fxhash era names are aliased, so existing work runs unchanged: `$fx.hash`,
-`$fx.rand`, `$fx.getParam`, `$fx.getParams`, `$fx.preview`.
+`$alea` is the entire surface. A conforming renderer installs that and
+nothing else: aliases for other platforms are not part of this interface, and a
+generator written for one is not an Aleatory piece.
 
 Two substitutions make a render reproducible, and any conforming renderer
-installs both:
+installs both. Artist code runs afterwards and can undo them, so a generator
+that varies will vary: a provider renders once, and that render is the piece.
 
 - `Math.random` is replaced by the seeded stream.
 - The clock is frozen. `Date.now()` and `performance.now()` return a fixed
@@ -181,7 +224,7 @@ Everything a front end needs, from public chain data:
 | Which collections came from a factory | contracts where `creator` is the factory |
 | Which collections a provider serves | `set_provider` events naming its address |
 | Which pieces need rendering | tokens whose `token_info[""]` is the pending document |
-| A piece's seed | the hash of the `buy` operation that minted it |
+| A piece's seed | the hash of the `mint` operation that created it |
 | A piece's parameters | the `params` field of that same event |
 | Who to pay on a sale | `get_royalties()` on the collection |
 

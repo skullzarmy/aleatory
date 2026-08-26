@@ -16,7 +16,7 @@ An indie, community-run home for generative art on Tezos, pupating here in the l
 
 v0 puts every stage of the pipeline in one place:
 
-- **studio**, four runtime kinds (Canvas 2D, SVG, p5, custom). Load a template, or drop the .html / .zip you already have. Existing fxhash-era code runs unmodified: `fxrand`, `fxpreview` and `$fx` are aliased onto the harness.
+- **studio**, four runtime kinds (Canvas 2D, SVG, p5, custom). Load a template, or drop the .html / .zip you already have. `$alea` is the only surface a piece is given.
 - **params**, declare up to five inputs a collector tunes at mint. You name them and set the range; the declaration is published with the generator and readable from contract storage on its own, so a mint page anywhere can build the controls without our front end. Always optional, most pieces are the seed alone.
 - **grid**, sixteen seeds at once, because the real question is what the space looks like, not whether one output is good. Params are held fixed there; the grid varies the seed and nothing else.
 - **checks**, the same mechanical gate the mint pipeline runs. Two runs of one seed compared byte for byte, network access blocked and reported, `Math.random` caught, capture point verified. No reviewer, no queue.

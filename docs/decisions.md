@@ -34,21 +34,21 @@ Set at deploy and immutable thereafter: `code_uri`, `code_hash`, `params_schema`
 
 ---
 
-## 3. Sale, `buy`
+## 3. Sale, `mint`
 
 One signature. Pays `price + render_gas`, split in that same operation: price to the artist, render gas to the provider. The contract's balance is zero when it returns, nothing to drain, no withdraw entrypoint.
 
-**The token is minted here, in the collector's own operation.** It exists, is owned, and is tradeable the moment `buy` returns, carrying the collection's "not revealed yet" metadata document until a provider publishes the piece's own.
+**The token is minted here, in the collector's own operation.** It exists, is owned, and is tradeable the moment `mint` returns, carrying the collection's "not revealed yet" metadata document until a provider publishes the piece's own.
 
 An unrevealed piece is a real token, not a promise of one. That is why there is nothing to strand, nothing to refund, and nothing a failed provider can take away.
 
 What the artwork *is* does not depend on that metadata: the code is immutable in contract storage, the seed is the buy operation's hash, and the parameters are in that operation. Metadata is where a marketplace reads *about* a piece, not where the piece is defined.
 
-**The seed is the hash of this operation.** Always, commit-reveal is not offered. Since `buy` both pays and mints, the binding needs no extra record: a token's seed derives from the hash of the operation that created it.
+**The seed is the hash of this operation.** Always, commit-reveal is not offered. Since `mint` both pays and creates the token, the binding needs no extra record: a token's seed derives from the hash of the operation that created it.
 
 This does not make grinding expensive. The operation hash covers sender-controlled fields, so candidates are enumerated offline and only the chosen one is injected, one payment, arbitrarily many attempts. Documented, accepted, not hidden.
 
-**Parameters** are chosen by the collector, resolved per [params.md](params.md) §3, and written into the token by `buy` itself. Their own signature commits what they chose; nobody can alter it afterwards.
+**Parameters** are chosen by the collector, resolved per [params.md](params.md) §3, and written into the token by `mint` itself. Their own signature commits what they chose; nobody can alter it afterwards.
 
 ---
 
@@ -68,7 +68,9 @@ Authorised means the collection's provider, an address the artist authorised dir
 
 Publishing metadata that does not match the piece is possible and not preventable on chain. It is detectable by anyone: the seed comes from the mint operation, the parameters are in that same operation, and the code is immutable, so the correct output is reproducible. Detection and key rotation, not a guarantee we cannot make.
 
-**The artist can sever our access entirely.** `trust_resolver` starts on, so our provider works out of the box, and `set_trust_resolver(false)` removes the resolver as an authorisation path, otherwise an artist who moved to a rival provider would still leave us able to publish into their collection forever.
+**Resolver trust is opt in.** A collection is deployed with `trust_resolver` off unless the artist asks for it. On, the resolver can vouch for a writer and our provider works without further setup; off, the only addresses that can publish are the collection's own provider and whoever the artist authorised directly. `set_trust_resolver` moves it either way at any time.
+
+That default matters because `set_token_metadata` writes a token's whole document, including the royalty block a marketplace might read. The write-once guard bounds it to pieces that have not been revealed, and every collection has a window between mint and reveal.
 
 ---
 
@@ -114,9 +116,9 @@ Conventions enforced in the UI: total at most 25%, shares summing to 100%, remai
 
 **A provider is any contract exposing a `get_render_gas` view.** That view is the entire membership test. Deploying one is how you join; there is no application, no allowlist, and no fee.
 
-The artist picks a provider at deploy and can switch any time. The price is **snapshotted** when they pick, `buy` never calls out to the provider's contract, because a sale must not depend on a contract we cannot audit, and a price change mid-block would fail the amount check.
+The artist picks a provider at deploy and can switch any time. The price is **snapshotted** when they pick, `mint` never calls out to the provider's contract, because a sale must not depend on a contract we cannot audit, and a price change mid-block would fail the amount check.
 
-Providers are paid at `buy`, before delivering. If one takes fees and stops rendering, the artist switches and stops paying them; the backlog is already paid to the wrong party and is the artist's to settle. Bounded, because a stuck piece is missing a thumbnail, not an artwork.
+Providers are paid at `mint`, before delivering. If one takes fees and stops rendering, the artist switches and stops paying them; the backlog is already paid to the wrong party and is the artist's to settle. Bounded, because a stuck piece is missing a thumbnail, not an artwork.
 
 **We only ever pin what our own renderer produced.** Never client-submitted bytes, regardless of who is asking or what they signed, verifying someone else's image costs the same as rendering it ourselves, and accepting arbitrary bytes makes us a host for arbitrary content.
 
@@ -127,7 +129,7 @@ Providers are paid at `buy`, before delivering. If one takes fees and stops rend
 The chain is the authoritative work queue. Any push notification is a latency optimisation, never the mechanism.
 
 - **Which collections a provider serves**, `set_provider` events naming their address.
-- **Which pieces need rendering**, `buy` events, plus a sweep for pieces whose `token_info[""]` still equals the collection's pending document. That rule covers backlogs, restarts, and collections inherited from another provider, with no state of the provider's own.
+- **Which pieces need rendering**, `mint` events, plus a sweep for pieces whose `token_info[""]` still equals the collection's pending document. That rule covers backlogs, restarts, and collections inherited from another provider, with no state of the provider's own.
 - **Where to push**, the provider's TZIP-16 contract metadata, not storage. URLs rot; metadata is free to update and a provider who advertises nothing still works by polling.
 
 This works identically for collections our factory did not deploy. Anything emitting those two events and honouring the placeholder rule is servable by any provider, which is the openness actually paying off: the standard is events and a view, not our contracts.
@@ -136,7 +138,7 @@ This works identically for collections our factory did not deploy. Anything emit
 
 ## 9. Ranking providers
 
-Every trust signal an artist needs is derivable from events we already index: pieces delivered, median reveal time as a block delta from `buy` to `set_token_metadata`, failure rate from pieces still holding the pending document past a window, time in service.
+Every trust signal an artist needs is derivable from events we already index: pieces delivered, median reveal time as a block delta from `mint` to `set_token_metadata`, failure rate from pieces still holding the pending document past a window, time in service.
 
 Precomputed hourly into a small JSON so the UI loads instantly, with a TzKT fallback for when our API is down. Same numbers, slower.
 
@@ -175,6 +177,10 @@ Worth leaving the door open for: because a piece is code plus a seed plus params
 We run a secondary market for pieces minted here: listings and offers, both escrowed, 2.5% deducted from the sale. Copied from objkt and Teia rather than invented.
 
 **Royalties come from the collection, not the listing.** A listing carries no royalty information at all, so there is nothing for a seller to misstate. This is why royalties are kept on chain as a typed map as well as in the metadata JSON, a contract cannot read IPFS.
+
+**Royalties are credited, then claimed.** A sale adds to each recipient's balance and `claim_royalties` pays it out. Sending during the sale would mean a recipient that cannot receive tez reverts the whole operation, and since a collection's royalty map has no setter, every token in that collection would be untradeable here forever. An artist naming a contract address by accident produces that outcome as readily as a hostile one.
+
+**Listings are shown only for collections a known factory originated.** The contract accepts any address exposing an FA2 `transfer`, so a listing can name a contract that accepts the token and does nothing with it, leaving a buyer paying for nothing. The filter is in the front end today; the contract-level check needs a redeploy.
 
 **The fee is snapshotted into each listing and offer**, so a change is never retroactive, and it is capped in the contract so no future administrator can turn it into a toll.
 

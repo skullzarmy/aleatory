@@ -4,6 +4,11 @@ dist/
 .env.*
 contract/output*/
 contract/__pycache__/
+# SmartPy writes one directory per test scenario into the working directory,
+# named after the scenario. `npm run test:contracts` sets SMARTPY_OUTPUT_DIR so
+# they all land in contract/output; running a suite by hand without it scatters
+# them wherever you happened to be standing.
+contract/output/
 .DS_Store
 
 # deploy scripts
@@ -14,3 +19,6 @@ contract/build/
 .next/
 next-env.d.ts
 out/
+
+# Local Netlify folder
+.netlify

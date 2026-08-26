@@ -15,6 +15,7 @@ A generator is code, published once and immutable. A piece is that code plus a s
 | [docs/interface.md](docs/interface.md) | ALEATORY-001. Two events, one view, one rule. Build against this and any provider renders your work. |
 | [docs/params.md](docs/params.md) | Mint-time parameters. A spec: another platform can build a mint UI from it alone. |
 | [docs/pipeline.md](docs/pipeline.md) | What the artist actually touches: template, sandbox, publish, market. |
+| [docs/audit-response.md](docs/audit-response.md) | Security review findings and what was done about each. |
 | [docs/open-questions.md](docs/open-questions.md) | Decisions not yet made, with a recommendation where there is one. |
 
 ## The shape
@@ -56,6 +57,12 @@ SMARTPY_OUTPUT_DIR=contract/output-mkt python3 contract/marketplace.py
 ```
 
 Exit 0 means the test scenarios passed; the suite runs inline, no CLI needed. Always set `SMARTPY_OUTPUT_DIR` or SmartPy writes a folder per scenario into the repo root.
+
+## Determinism, and what it rests on
+
+A piece is rendered with `Math.random` replaced by a seeded stream and the clock frozen, in a frame whose CSP sets `connect-src 'none'`. The CSP is the control. The JavaScript substitutions are reporting, and artist code runs after them, so a piece that goes looking can reach a fresh realm and get an unpatched `Math.random` back.
+
+What that means in practice: a determined piece can render differently in the sandbox than at reveal. A provider renders once and that render is the piece, so testing a generator, including on shadownet against the provider you intend to use, is the artist's job.
 
 ## Provenance
 

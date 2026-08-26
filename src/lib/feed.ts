@@ -6,9 +6,12 @@
 import { CONTRACTS } from "./config";
 import {
     fetchCollections,
+    fetchCollectionsDeployedBy,
     fetchRecentTokens,
+    fetchTokensHeldBy,
     type TzktToken,
 } from "./tzkt";
+import { isBlockedCollection } from "./blocklist";
 import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
 
 export interface FeedPiece {
@@ -78,6 +81,46 @@ export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
     return {
         pieces: tokens.map((t) => toPiece(t, aliasByAddress.get(t.contract.address))),
         collectionCount: collections.length,
+        unconfigured: false,
+    };
+}
+
+export interface WalletView {
+    /** Pieces this account holds now. */
+    held: FeedPiece[];
+    /** Collections this account deployed. */
+    made: { address: string; name?: string; minted: number }[];
+    unconfigured: boolean;
+}
+
+/**
+ * One account, both ways round: what they hold and what they made.
+ *
+ * A single page for both because on this chain they are the same person as
+ * often as not, and an artist's public page and a collector's public page would
+ * otherwise be two views of one address.
+ */
+export async function fetchWallet(account: string, limit = 48): Promise<WalletView> {
+    if (!CONTRACTS.factory) {
+        return { held: [], made: [], unconfigured: true };
+    }
+    const collections = (await fetchCollections(CONTRACTS.factory)).filter(
+        (c) => !isBlockedCollection(c.address),
+    );
+    const aliasByAddress = new Map(collections.map((c) => [c.address, c.alias] as const));
+    const addresses = collections.map((c) => c.address);
+
+    const [tokens, deployed] = await Promise.all([
+        fetchTokensHeldBy(account, addresses, limit).catch(() => []),
+        fetchCollectionsDeployedBy(account, CONTRACTS.factory).catch(() => []),
+    ]);
+
+    const madeSet = new Set(deployed);
+    return {
+        held: tokens.map((t) => toPiece(t, aliasByAddress.get(t.contract.address))),
+        made: collections
+            .filter((c) => madeSet.has(c.address))
+            .map((c) => ({ address: c.address, name: c.alias, minted: c.tokensCount ?? 0 })),
         unconfigured: false,
     };
 }

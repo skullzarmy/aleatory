@@ -4,3 +4,13 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Security headers are set in next.config.ts, not here.
+#
+# They name the provider's render host, which is an environment variable, and
+# a static string here could only ever be right in production. Two sources
+# would also both be sent, and a browser enforces the intersection of two CSPs,
+# so the stricter one silently wins and the looser one reads as ignored.
+#
+# `netlify dev` applies this file, so anything added back here breaks local
+# development in a way that only shows up in the browser console.

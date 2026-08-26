@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { fetchProviders, RANKING_METHOD, RANKING_WINDOW_DAYS } from "@/lib/providers";
 import { CONTRACTS } from "@/lib/config";
 import { formatTez, shortAddress } from "@/lib/utils";
@@ -19,21 +20,25 @@ export default async function ProvidersPage() {
         <div className="mx-auto max-w-3xl px-4 py-8">
             <h1 className="text-xl font-semibold tracking-tight">Render providers</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-                A provider renders pieces and publishes their metadata. Anyone can run one, list
-                it here for free, and set their own price.
+                A provider draws the images for minted pieces. Anyone can run one, list it
+                here for free, and set their own price.
             </p>
 
             {providers.length === 0 ? (
                 <div className="mt-8 rounded-lg border border-dashed border-border px-6 py-16 text-center">
-                    <h2 className="text-base font-medium">No providers registered</h2>
+                    <h2 className="text-base font-medium">No providers yet</h2>
                     <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                        The registry is open and waiting for its first entry.
+                        Nobody has listed one yet.
                     </p>
                 </div>
             ) : (
                 <ul className="mt-8 divide-y divide-border rounded-lg border border-border">
                     {providers.map((p) => (
-                        <li key={p.address} className="flex items-center justify-between gap-4 px-4 py-3">
+                        <li key={p.address}>
+                        <Link
+                            href={`/providers/${p.address}`}
+                            className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-accent"
+                        >
                             <span className="min-w-0">
                                 <span className="flex items-center gap-2">
                                     <span className="truncate font-medium">
@@ -47,11 +52,15 @@ export default async function ProvidersPage() {
                                 </span>
                                 <span className="block text-xs text-muted-foreground">
                                     {p.stats.delivered} published in {RANKING_WINDOW_DAYS} days
+                                    {p.stats.medianBlocksToPublish !== null &&
+                                        `, ${p.stats.medianBlocksToPublish} blocks to publish`}
+                                    {p.stats.outstanding > 0 && `, ${p.stats.outstanding} waiting`}
                                 </span>
                             </span>
                             <span className="shrink-0 text-sm font-medium">
                                 {formatTez(p.renderGasMutez)} ꜩ
                             </span>
+                        </Link>
                         </li>
                     ))}
                 </ul>

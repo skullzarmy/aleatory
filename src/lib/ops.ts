@@ -6,7 +6,7 @@
  * to sign.
  */
 import type { DAppClient, TezosOperationType } from "@tezos-x/octez.connect-sdk";
-import { CONTRACTS } from "./config";
+import { CONTRACTS, rpcUrl } from "./config";
 
 interface OpResult {
     hash: string;
@@ -17,7 +17,7 @@ async function send(
     destination: string,
     entrypoint: string,
     value: unknown,
-    amountMutez = 0,
+    amountMutez: number | bigint = 0,
 ): Promise<OpResult> {
     const result = await client.requestOperation({
         operationDetails: [
@@ -33,7 +33,7 @@ async function send(
 }
 
 const str = (v: string) => ({ string: v });
-const int = (v: number | string) => ({ int: String(v) });
+const int = (v: number | string | bigint) => ({ int: String(v) });
 const bytes = (hex: string) => ({ bytes: hex.replace(/^0x/, "") });
 
 export function utf8ToHex(s: string): string {
@@ -43,18 +43,21 @@ export function utf8ToHex(s: string): string {
 }
 
 /**
- * Buy one edition. The collector's single signature.
+ * Mint one edition. The collector's single signature.
  *
  * The amount covers the price and the render gas together, and this
  * operation's hash becomes the piece's seed.
+ *
+ * `mint` on a collection creates a token. `buyListing` below buys one that
+ * already exists. Those are different things and they no longer share a name.
  */
-export function buy(
+export function mint(
     client: DAppClient,
     collection: string,
     params: string,
-    totalMutez: number,
+    totalMutez: bigint,
 ): Promise<OpResult> {
-    return send(client, collection, "buy", bytes(utf8ToHex(params)), totalMutez);
+    return send(client, collection, "mint", bytes(utf8ToHex(params)), totalMutez);
 }
 
 /** Grant the marketplace the right to move one token, which listing needs. */
@@ -82,7 +85,7 @@ export function listToken(
     client: DAppClient,
     collection: string,
     tokenId: string,
-    priceMutez: number,
+    priceMutez: bigint,
 ): Promise<OpResult> {
     return send(client, CONTRACTS.marketplace, "list_token", {
         prim: "Pair",
@@ -97,7 +100,7 @@ export function delist(client: DAppClient, listingId: number): Promise<OpResult>
 export function buyListing(
     client: DAppClient,
     listingId: number,
-    priceMutez: number,
+    priceMutez: bigint,
 ): Promise<OpResult> {
     return send(client, CONTRACTS.marketplace, "buy", int(listingId), priceMutez);
 }
@@ -106,7 +109,7 @@ export function makeOffer(
     client: DAppClient,
     collection: string,
     tokenId: string,
-    amountMutez: number,
+    amountMutez: bigint,
 ): Promise<OpResult> {
     return send(
         client,
@@ -137,7 +140,7 @@ export function setPaused(
 export function setPrice(
     client: DAppClient,
     collection: string,
-    priceMutez: number,
+    priceMutez: bigint,
 ): Promise<OpResult> {
     return send(client, collection, "set_price", int(priceMutez));
 }
@@ -148,4 +151,131 @@ export function setEditionSize(
     size: number,
 ): Promise<OpResult> {
     return send(client, collection, "set_edition_size", int(size));
+}
+
+/**
+ * Switch who renders this collection's images.
+ *
+ * `maxPriceMutez` is the artist's ceiling. The contract reads the provider's
+ * live price and fails if it exceeds this, so a provider that raises their
+ * price between the quote on screen and the signature cannot silently charge
+ * more.
+ */
+export function setProvider(
+    client: DAppClient,
+    collection: string,
+    provider: string,
+    maxPriceMutez: bigint,
+): Promise<OpResult> {
+    return send(client, collection, "set_provider", {
+        prim: "Pair",
+        args: [str(provider), int(maxPriceMutez)],
+    });
+}
+
+/** Let Aleatory's keys publish metadata for unrevealed pieces, or stop them. */
+export function setTrustResolver(
+    client: DAppClient,
+    collection: string,
+    trusted: boolean,
+): Promise<OpResult> {
+    return send(client, collection, "set_trust_resolver", {
+        prim: trusted ? "True" : "False",
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Deploying a collection
+// ---------------------------------------------------------------------------
+
+export interface DeployParams {
+    /**
+     * The generator itself, hex, no prefix. This is the normal case: the art
+     * goes into contract storage and depends on nobody's gateway.
+     */
+    codeHex: string;
+    /** How `codeHex` is encoded. `identity` unless it needed compressing. */
+    codeEncoding: "identity" | "gzip";
+    /** SHA-256 of the DECODED source, hex, no prefix. */
+    codeHashHex: string;
+    /** Only for a generator past the operation cap. Empty when `codeHex` is set. */
+    codeUri: string;
+    /** 0 for an open edition. */
+    editionSize: number;
+    priceMutez: bigint;
+    /** Address to basis points. The contract caps the total at 2500. */
+    royalties: Record<string, number>;
+    /** `ipfs://` pointer to the document every piece mints carrying. */
+    pendingMetadataUri: string;
+    startPaused: boolean;
+    trustResolver: boolean;
+    provider: string;
+    /** The artist's ceiling on the provider's per-piece charge. */
+    maxRenderGasMutez: bigint;
+    /** TZIP-016 contract metadata, key to UTF-8 string. */
+    metadata: Record<string, string>;
+}
+
+/**
+ * Originate a collection through the factory. The artist's one signature.
+ *
+ * The parameter is encoded by Taquito against the factory's own type read from
+ * the chain, rather than assembled by hand here. A record's Michelson layout
+ * sorts its fields, and a map's keys have to be in the protocol's order for
+ * their type, which for addresses is their binary form and not their text. Both
+ * are easy to get wrong in a way that is invisible until an artist's signature
+ * is rejected, and neither has to be guessed when the type is public.
+ *
+ * The caller is written in as administrator in the collection's initial
+ * storage, so nothing passes through us, and the storage burn is charged to the
+ * artist's own wallet. The wallet estimates the storage limit: anything
+ * hardcoded breaks the day the template grows.
+ */
+export async function deployCollection(
+    client: DAppClient,
+    params: DeployParams,
+): Promise<OpResult> {
+    if (!CONTRACTS.factory) throw new Error("No factory is configured for this network.");
+
+    const { TezosToolkit, MichelsonMap } = await import("@taquito/taquito");
+    const factory = await new TezosToolkit(rpcUrl()).contract.at(CONTRACTS.factory);
+
+    const royalties = new MichelsonMap<string, number>();
+    for (const [address, bps] of Object.entries(params.royalties)) {
+        if (bps > 0) royalties.set(address, bps);
+    }
+
+    const metadata = new MichelsonMap<string, string>();
+    for (const [key, value] of Object.entries(params.metadata)) {
+        metadata.set(key, utf8ToHex(value));
+    }
+
+    const transfer = factory.methodsObject
+        .deploy({
+            code: params.codeHex.replace(/^0x/, ""),
+            code_encoding: params.codeEncoding,
+            code_hash: params.codeHashHex.replace(/^0x/, ""),
+            code_uri: params.codeUri,
+            edition_size: params.editionSize,
+            price: params.priceMutez.toString(),
+            royalties,
+            pending_metadata: utf8ToHex(params.pendingMetadataUri),
+            start_paused: params.startPaused,
+            trust_resolver: params.trustResolver,
+            provider: params.provider,
+            max_render_gas: params.maxRenderGasMutez.toString(),
+            metadata,
+        })
+        .toTransferParams();
+
+    const parameter = transfer.parameter;
+    if (!parameter) throw new Error("The factory's deploy entrypoint encoded to nothing.");
+
+    return send(
+        client,
+        CONTRACTS.factory,
+        parameter.entrypoint,
+        parameter.value,
+        transfer.amount ?? 0,
+    );
 }

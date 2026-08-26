@@ -9,12 +9,15 @@
     "start": "next start",
     "lint": "next lint",
     "build:contracts": "python3 contract/build.py",
-    "test:contracts": "SMARTPY_OUTPUT_DIR=contract/output-aleatory python3 contract/tests_aleatory.py && SMARTPY_OUTPUT_DIR=contract/output-marketplace python3 contract/tests_marketplace.py && SMARTPY_OUTPUT_DIR=contract/output-integration python3 contract/tests_integration.py",
+    "test:contracts": "SMARTPY_OUTPUT_DIR=contract/output python3 contract/tests_aleatory.py && SMARTPY_OUTPUT_DIR=contract/output python3 contract/tests_marketplace.py && SMARTPY_OUTPUT_DIR=contract/output python3 contract/tests_integration.py",
     "deploy": "npx tsx contract/deploy.ts",
     "deploy:collection": "npx tsx contract/deploy-collection.ts",
     "test:metadata": "npx tsx src/lib/metadata.test.ts",
     "build:icons": "npx tsx scripts/build-icons.mts",
-    "logo": "npx tsx scripts/logo-preview.mts"
+    "logo": "npx tsx scripts/logo-preview.mts",
+    "dev:isolate": "node scripts/dev-isolate.mjs",
+    "test:studio": "npx tsx src/lib/studio.test.ts",
+    "test": "npm run test:metadata && npm run test:studio"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.6",
@@ -32,7 +35,9 @@
     "next-themes": "^0.4.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^2.6.0",
+    "blakejs": "^1.2.1",
+    "fflate": "^0.8.2"
   },
   "devDependencies": {
     "@taquito/signer": "^21.0.0",
@@ -49,6 +54,7 @@
     "@netlify/functions": "^3.0.4",
     "@netlify/plugin-nextjs": "^5.9.4",
     "@cloudflare/puppeteer": "^1.0.2",
-    "wrangler": "^3.99.0"
+    "wrangler": "^3.99.0",
+    "@netlify/blobs": "^8.1.0"
   }
 }

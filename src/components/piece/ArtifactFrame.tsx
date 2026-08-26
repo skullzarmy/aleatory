@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ImageIcon, Play } from "lucide-react";
+import { IsolateFrame } from "@/components/IsolateFrame";
 
 /**
  * The artwork.
@@ -14,26 +15,31 @@ import { ImageIcon, Play } from "lucide-react";
  * click away. Where no image exists yet, the live render is the piece.
  */
 export function ArtifactFrame({
-    renderUrl,
+    code,
+    seed,
+    params,
     imageUrl,
     name,
 }: {
-    renderUrl?: string;
+    /** The generator, decoded from contract storage. */
+    code?: string;
+    seed?: string;
+    params?: Record<string, unknown>;
     imageUrl?: string;
     name: string;
 }) {
+    const runnable = Boolean(code && seed);
     const [live, setLive] = useState(!imageUrl);
 
     return (
         <div className="relative aspect-square overflow-hidden rounded-lg border border-border bg-card-background">
-            {live && renderUrl ? (
-                <iframe
-                    src={renderUrl}
+            {live && runnable ? (
+                <IsolateFrame
+                    code={code as string}
+                    seed={seed as string}
+                    params={params}
                     title={name}
-                    className="h-full w-full"
-                    sandbox="allow-scripts"
-                    referrerPolicy="no-referrer"
-                    loading="lazy"
+                    className="h-full w-full border-0"
                 />
             ) : imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -44,7 +50,7 @@ export function ArtifactFrame({
                 </div>
             )}
 
-            {renderUrl && imageUrl && (
+            {runnable && imageUrl && (
                 <button
                     type="button"
                     onClick={() => setLive((v) => !v)}

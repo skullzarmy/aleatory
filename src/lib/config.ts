@@ -28,6 +28,14 @@ export const TZKT_UI: Record<Network, string> = {
     mainnet: "https://tzkt.io",
 };
 
+/** The node reads go through: protocol constants, contract types, estimation. */
+export const RPC: Record<Network, string> = {
+    shadownet: "https://rpc.tzkt.io/shadownet",
+    mainnet: "https://rpc.tzkt.io/mainnet",
+};
+
+export const rpcUrl = () => RPC[NETWORK];
+
 /**
  * Contract addresses, written by contract/deploy.ts into
  * contract/deployments/<network>.json and copied into the environment.
@@ -49,8 +57,8 @@ export const CONTRACTS = {
  * origin would give it reach into wallet state and session storage, so
  * artifacts are framed from a separate host. See docs/architecture.md §10.
  */
-export const SANDBOX_ORIGIN =
-    process.env.NEXT_PUBLIC_SANDBOX_ORIGIN || "https://sandbox.aleatory.art";
+export const ISOLATE_ORIGIN =
+    process.env.NEXT_PUBLIC_ISOLATE_ORIGIN || "https://isolate.aleatory.art";
 
 export const tzktApi = () => TZKT_API[NETWORK];
 export const tzktLink = (hashOrAddress: string) =>

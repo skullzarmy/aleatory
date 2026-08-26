@@ -10,6 +10,9 @@ export function Footer() {
                     <Link href="/about" className="hover:text-foreground">
                         About
                     </Link>
+                    <Link href="/docs/interface" className="hover:text-foreground">
+                        ALEATORY-001
+                    </Link>
                     <a
                         href={BRAND.repo}
                         className="hover:text-foreground"

@@ -146,11 +146,33 @@ def test_list_buy_and_split():
     scenario.verify(fa2.data.ledger[0] == bob.address)
     # 2.5% of 10 tez.
     scenario.verify(m.data.fees_accrued == sp.mutez(250_000))
-    # Nothing else is retained: fee held, everything else forwarded.
-    scenario.verify(m.balance == sp.mutez(250_000))
+
+    # Royalties are credited, not pushed. A recipient can be a contract
+    # that rejects transfers or burns gas, and pushing to one during the
+    # sale lets any single recipient make every sale of that collection
+    # fail. So each share is booked here and the recipient pulls it.
+    scenario.verify(m.royalties_owed_to(artist.address) == sp.mutez(1_000_000))
+    scenario.verify(m.royalties_owed_to(collab.address) == sp.mutez(250_000))
+
+    # The seller is paid during the sale. What stays behind is exactly the
+    # fee plus the credited royalties, and nothing else.
+    scenario.verify(m.balance == sp.mutez(1_500_000))
 
     m.withdraw_fees(_sender=bob)
     scenario.verify(m.data.fees_accrued == sp.mutez(0))
+    scenario.verify(m.balance == sp.mutez(1_250_000))
+
+    # Anyone may trigger a claim, and it pays the recipient, so an artist
+    # is never dependent on us to be paid.
+    m.claim_royalties(artist.address, _sender=bob)
+    scenario.verify(m.royalties_owed_to(artist.address) == sp.mutez(0))
+    scenario.verify(m.balance == sp.mutez(250_000))
+
+    m.claim_royalties(collab.address, _sender=collab)
+    scenario.verify(m.balance == sp.mutez(0))
+
+    # Nothing owed means nothing to claim, rather than a zero transfer.
+    m.claim_royalties(artist.address, _sender=artist, _valid=False)
 
 
 @sp.add_test()
@@ -406,9 +428,11 @@ def test_hostile_collection_cannot_take_the_sellers_proceeds():
     m.buy(0, _sender=bob, _amount=sp.mutez(4_000_000))
     scenario.verify(fa2.data.ledger[0] == bob.address)
     scenario.verify(m.data.fees_accrued == sp.mutez(100_000))
-    # 2.5% fee and at most 25% royalty were taken; the rest is the
-    # seller's, and the contract kept only the fee.
-    scenario.verify(m.balance == sp.mutez(100_000))
+    # It asked for 100% and was credited 25%, the cap.
+    scenario.verify(m.royalties_owed_to(greedy.address) == sp.mutez(1_000_000))
+    # 2.5% fee plus the capped royalty stay behind; the remaining 72.5%
+    # went to the seller during the sale.
+    scenario.verify(m.balance == sp.mutez(1_100_000))
 
 
 @sp.add_test()

@@ -42,6 +42,18 @@ export interface TokenMetadata {
     aleaCodeHash?: string;
 }
 
+/** Tezos address shape. Route params reach path building, so they are checked. */
+const ADDRESS = /^(tz[123]|KT1)[A-Za-z0-9]{33}$/;
+
+export function isAddress(a: string): boolean {
+    return ADDRESS.test(a);
+}
+
+function requireAddress(a: string): string {
+    if (!ADDRESS.test(a)) throw new Error("not an address");
+    return a;
+}
+
 async function get<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
     const url = new URL(`${tzktApi()}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
@@ -68,6 +80,34 @@ export async function fetchCollections(factory: string): Promise<TzktContract[]>
     });
 }
 
+/**
+ * Every collection one artist deployed.
+ *
+ * A collection is originated by the factory, so its `creator` is the factory
+ * and not the artist. What identifies the artist is `initiator`: the account
+ * whose operation caused the internal origination. Filtering on storage would
+ * be the obvious approach and TzKT does not support it, it ignores unknown
+ * query parameters and answers with an unfiltered page, which reads as success.
+ */
+export async function fetchCollectionsDeployedBy(
+    artist: string,
+    factory: string,
+): Promise<string[]> {
+    if (!factory || !isAddress(artist)) return [];
+    const rows = await get<{ originatedContract?: { address: string } }[]>(
+        "/v1/operations/originations",
+        {
+            initiator: requireAddress(artist),
+            sender: requireAddress(factory),
+            status: "applied",
+            "sort.desc": "id",
+            limit: 200,
+            select: "originatedContract",
+        },
+    );
+    return rows.map((r) => r.originatedContract?.address).filter((a): a is string => Boolean(a));
+}
+
 /** Tokens across a set of collections, newest first. */
 export async function fetchRecentTokens(
     collections: string[],
@@ -83,9 +123,31 @@ export async function fetchRecentTokens(
     });
 }
 
+/**
+ * What one account holds, across a set of collections.
+ *
+ * Balance zero rows are excluded, so a piece someone sold stops appearing the
+ * moment the transfer settles rather than lingering as something they own.
+ */
+export async function fetchTokensHeldBy(
+    account: string,
+    collections: string[],
+    limit = 48,
+): Promise<TzktToken[]> {
+    if (collections.length === 0 || !isAddress(account)) return [];
+    const rows = await get<{ token: TzktToken }[]>("/v1/tokens/balances", {
+        account: requireAddress(account),
+        "token.contract.in": collections.join(","),
+        "balance.gt": 0,
+        "sort.desc": "lastLevel",
+        limit,
+    });
+    return rows.map((r) => r.token).filter(Boolean);
+}
+
 export async function fetchToken(contract: string, tokenId: string): Promise<TzktToken | null> {
     const rows = await get<TzktToken[]>("/v1/tokens", {
-        contract,
+        contract: requireAddress(contract),
         tokenId,
         limit: 1,
     });
@@ -94,7 +156,7 @@ export async function fetchToken(contract: string, tokenId: string): Promise<Tzk
 
 /** Raw contract storage, for the fields TzKT does not model. */
 export async function fetchStorage<T = unknown>(address: string): Promise<T> {
-    return get<T>(`/v1/contracts/${address}/storage`);
+    return get<T>(`/v1/contracts/${requireAddress(address)}/storage`);
 }
 
 /** Who holds a token now. */

@@ -87,6 +87,12 @@ def marketplace():
         fee_bps=sp.nat,
         treasury=sp.address,
         fees_accrued=sp.mutez,
+        # Royalties owed, by recipient. Held rather than sent, because a
+        # recipient that rejects tez would otherwise revert the sale, and a
+        # collection's royalty map has no setter: every token in it would be
+        # untradeable here forever. An artist naming a contract address by
+        # accident produces the same outcome as a hostile one.
+        royalties_owed=sp.big_map[sp.address, sp.mutez],
         listings=sp.big_map[sp.nat, t_listing],
         next_listing_id=sp.nat,
         offers=sp.big_map[sp.nat, t_offer],
@@ -96,12 +102,20 @@ def marketplace():
 
     class AleatoryMarketplace(sp.Contract):
         def __init__(self, administrator, treasury, fee_bps, metadata):
+            # The same ceiling `set_fee` applies. A deployment above it would
+            # make every sale fail on an underflow until an administrator
+            # fixed it, and the promise that no administrator can turn the fee
+            # into a toll has to hold from origination.
+            assert fee_bps <= 1000, "FEE_TOO_HIGH"
             self.data.administrator = administrator
             self.data.proposed_admin = sp.cast(None, sp.option[sp.address])
             self.data.paused = False
             self.data.fee_bps = fee_bps
             self.data.treasury = treasury
             self.data.fees_accrued = sp.mutez(0)
+            self.data.royalties_owed = sp.cast(
+                sp.big_map(), sp.big_map[sp.address, sp.mutez]
+            )
             self.data.listings = sp.cast(
                 sp.big_map(), sp.big_map[sp.nat, t_listing]
             )
@@ -237,7 +251,12 @@ def marketplace():
                     cut = sp.split_tokens(sp.amount, share, 10000)
                     if cut > sp.mutez(0):
                         remaining -= cut
-                        sp.send(recipient.key, cut)
+                        self.data.royalties_owed[recipient.key] = (
+                            self.data.royalties_owed.get(
+                                recipient.key, default=sp.mutez(0)
+                            )
+                            + cut
+                        )
 
             if remaining > sp.mutez(0):
                 sp.send(listing.seller, remaining)
@@ -371,7 +390,12 @@ def marketplace():
                     cut = sp.split_tokens(offer.amount, share, 10000)
                     if cut > sp.mutez(0):
                         remaining -= cut
-                        sp.send(recipient.key, cut)
+                        self.data.royalties_owed[recipient.key] = (
+                            self.data.royalties_owed.get(
+                                recipient.key, default=sp.mutez(0)
+                            )
+                            + cut
+                        )
 
             if remaining > sp.mutez(0):
                 sp.send(sp.sender, remaining)
@@ -389,6 +413,29 @@ def marketplace():
             )
 
         # --- administration ---
+
+        @sp.entrypoint
+        def claim_royalties(self, recipient):
+            """(Anyone) Pay out what a sale set aside for a recipient.
+
+            Permissionless because the destination is the recipient, so there
+            is nothing to steal by calling it, and an artist should not need
+            to be present for their own royalties to move.
+            """
+            sp.cast(recipient, sp.address)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            owed = self.data.royalties_owed.get(recipient, default=sp.mutez(0))
+            assert owed > sp.mutez(0), "NOTHING_OWED"
+            del self.data.royalties_owed[recipient]
+            sp.send(recipient, owed)
+            sp.emit(
+                sp.record(recipient=recipient, amount=owed), tag="claim_royalties"
+            )
+
+        @sp.onchain_view()
+        def royalties_owed_to(self, recipient):
+            sp.cast(recipient, sp.address)
+            return self.data.royalties_owed.get(recipient, default=sp.mutez(0))
 
         @sp.entrypoint
         def set_fee(self, fee_bps):
@@ -434,7 +481,12 @@ def marketplace():
             Permissionless because the destination is fixed in storage.
             """
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            # Never more than the contract holds. Royalties owed and offers in
+            # escrow are also in this balance, so the accrued figure is what
+            # is claimable and the balance is the hard ceiling.
             amount = self.data.fees_accrued
+            if amount > sp.balance:
+                amount = sp.balance
             assert amount > sp.mutez(0), "NOTHING_TO_WITHDRAW"
             self.data.fees_accrued = sp.mutez(0)
             sp.send(self.data.treasury, amount)

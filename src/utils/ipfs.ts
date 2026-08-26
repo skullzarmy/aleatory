@@ -15,23 +15,35 @@ export function cidOf(uri: string): string {
     return isIpfsUri(uri) ? uri.slice("ipfs://".length) : uri;
 }
 
-/** ipfs://Qm... to a fetchable https URL. Non-IPFS URIs pass through. */
+const CID = /^[A-Za-z0-9]{46,64}$/;
+
+/**
+ * ipfs://Qm... to a fetchable https URL.
+ *
+ * Anything that is not an IPFS URI with a CID shape returns empty. Token
+ * metadata is written by whoever rendered a piece, so a displayUri could
+ * name any host, and passing it through would make every visitor's browser
+ * beacon to an address of someone else's choosing.
+ */
 export function convertIpfsToGatewayUrl(uri: string | undefined): string {
-    if (!uri) return "";
-    if (!isIpfsUri(uri)) return uri;
-    return `${GATEWAY}/${cidOf(uri)}`;
+    if (!uri || !isIpfsUri(uri)) return "";
+    const cid = cidOf(uri).split(/[/?#]/)[0];
+    if (!CID.test(cid)) return "";
+    return `${GATEWAY}/${cid}`;
 }
 
 /** Michelson bytes (hex) to the UTF-8 string they encode. */
 export function bytesToString(hex: string): string {
     const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
     if (clean.length === 0) return "";
-    try {
-        const bytes = clean.match(/.{1,2}/g) || [];
-        return new TextDecoder().decode(
-            new Uint8Array(bytes.map((b) => parseInt(b, 16))),
-        );
-    } catch {
-        return "";
-    }
+
+    // Reject rather than mangle. `parseInt("ip", 16)` is NaN and `Uint8Array`
+    // turns NaN into 0 without complaining, so decoding a plain string like
+    // "ipfs://Qm..." used to return zero-filled garbage. Garbage is truthy, so
+    // every `bytesToString(x) || x` fallback in the codebase silently kept the
+    // garbage and the real value never surfaced.
+    if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(clean)) return "";
+
+    const bytes = clean.match(/.{2}/g) ?? [];
+    return new TextDecoder().decode(new Uint8Array(bytes.map((b) => parseInt(b, 16))));
 }

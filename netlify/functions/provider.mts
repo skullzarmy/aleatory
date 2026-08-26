@@ -2,25 +2,25 @@
  * The render provider.
  *
  * Finds pieces waiting for their metadata, renders them, pins them, and
- * publishes. Everything privileged lives here: the pinning key, the agent
- * key that signs, and the queue. The render worker holds none of it.
+ * publishes. Everything privileged lives here: the pinning key, the agent key
+ * that signs, and the work queue. The render worker holds none of it.
  *
  * Two ways work arrives, and the chain is the one that counts:
  *
- *   1. Poll. Collections that name us, then pieces still carrying the
- *      collection's pending document. This works with no cooperation from
+ *   1. The cron, every five minutes. This works with no cooperation from
  *      anyone and survives our own UI being down.
- *   2. Ping. The mint UI calls this after a buy lands, which turns a polling
- *      interval into a couple of seconds.
+ *   2. A ping from the mint UI, which turns a polling interval into a couple
+ *      of seconds. The ping carries a shared secret.
  *
- * Idempotency follows zolturd-mint.mts: claim a row with a conditional
- * update so exactly one attempt wins, persist the operation hash at injection
- * before waiting for confirmation, and reconcile against the chain with three
- * outcomes where the indeterminate one is never retried.
+ * Everything a candidate collection asserts about itself is checked against
+ * its own storage before any of it is used. An event payload is written by
+ * the contract that emits it, so it can say anything, and it is treated as a
+ * hint about where to look rather than as evidence.
  */
 import type { Config, Context } from "@netlify/functions";
 import { TezosToolkit } from "@taquito/taquito";
 import { InMemorySigner } from "@taquito/signer";
+import { getStore } from "@netlify/blobs";
 
 const TZKT = process.env.TZKT_API || "https://api.shadownet.tzkt.io";
 const RPC = process.env.TEZOS_RPC || "https://rpc.tzkt.io/shadownet";
@@ -29,9 +29,36 @@ const AGENT_SK = process.env.ALEA_AGENT_SK || "";
 const RENDER_URL = process.env.ALEA_RENDER_WORKER_URL || "";
 const RENDER_TOKEN = process.env.ALEA_RENDER_TOKEN || "";
 const PINATA_JWT = process.env.PINATA_JWT || "";
+const PING_TOKEN = process.env.ALEA_PROVIDER_PING_TOKEN || "";
+const IPFS_GATEWAY = process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz";
+
+/**
+ * Collections this provider declines to render for.
+ *
+ * A provider serves anything that names it and pays render gas, which is the
+ * arrangement the interface describes. This list is one operator saying no,
+ * and it changes nothing for anyone else: the collection keeps working, and
+ * another provider can pick it up.
+ */
+const BLOCKED_COLLECTIONS = new Set(
+    (process.env.ALEA_BLOCKED_COLLECTIONS || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+);
 
 /** How many pieces one invocation will take on. */
 const BATCH = 5;
+
+/** Generators larger than this are refused rather than rendered. */
+const MAX_GENERATOR_BYTES = 5 * 1024 * 1024;
+const FETCH_TIMEOUT_MS = 15_000;
+
+/** How long a claim is held before another invocation may retry a piece. */
+const CLAIM_TTL_MS = 5 * 60 * 1000;
+
+const ADDRESS = /^(tz[123]|KT1)[A-Za-z0-9]{33}$/;
+const CID = /^[A-Za-z0-9]{46,64}$/;
 
 interface PendingPiece {
     collection: string;
@@ -40,97 +67,132 @@ interface PendingPiece {
     seed: string;
     params: string;
     codeUri: string;
-    collectionName: string;
     artist: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* Reading the chain                                                   */
+/* ------------------------------------------------------------------ */
 
 async function tzkt<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
     const url = new URL(`${TZKT}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`TzKT ${res.status} ${path}`);
     return (await res.json()) as T;
 }
 
+function requireAddress(a: string, what: string): string {
+    if (!ADDRESS.test(a)) throw new Error(`${what} is not an address`);
+    return a;
+}
+
 function hexToUtf8(hex: string): string {
     const clean = hex.replace(/^0x/, "");
-    const bytes = clean.match(/.{1,2}/g) || [];
+    if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(clean)) {
+        throw new Error("not hex");
+    }
+    const bytes = clean.match(/.{2}/g) || [];
     return new TextDecoder().decode(new Uint8Array(bytes.map((b) => parseInt(b, 16))));
 }
 
+interface CollectionStorage {
+    administrator: string;
+    art: { code_uri: string; pending_metadata: string };
+    render: { provider: string };
+}
+
 /**
- * Collections that name this provider.
+ * Collections this provider actually serves.
  *
- * Read from each collection's own storage, so a collection deployed by
- * somebody else's factory is served the same way ours is.
+ * Candidates come from two places: contracts a trusted factory originated,
+ * and `set_provider` events naming us. Both are only hints. Every candidate
+ * is then confirmed against its own storage, because a contract's event
+ * payload is written by that contract and can claim anything.
  */
 async function collectionsServed(): Promise<string[]> {
-    const events = await tzkt<{ payload: { provider: string } }[]>("/v1/contracts/events", {
+    const candidates = new Set<string>();
+
+    const events = await tzkt<{ contract: { address: string } }[]>("/v1/contracts/events", {
         tag: "set_provider",
+        "sort.desc": "id",
         limit: 1000,
     }).catch(() => []);
-
-    const named = new Set<string>();
     for (const e of events) {
-        if (e.payload?.provider === PROVIDER_ADDRESS) named.add((e as unknown as { contract: { address: string } }).contract.address);
+        const addr = e.contract?.address;
+        if (addr && ADDRESS.test(addr)) candidates.add(addr);
     }
 
-    const factory = process.env.ALEA_FACTORY_ADDRESS;
-    if (factory) {
-        const deployed = await tzkt<{ address: string }[]>("/v1/contracts", {
-            creator: factory,
-            limit: 200,
-            select: "address",
-        }).catch(() => []);
-        for (const c of deployed) {
-            const addr = typeof c === "string" ? c : c.address;
-            const storage = await tzkt<{ render: { provider: string } }>(
-                `/v1/contracts/${addr}/storage`,
-            ).catch(() => null);
-            if (storage?.render?.provider === PROVIDER_ADDRESS) named.add(addr);
-        }
+    // Storage is the authority, and it is the only check that matters here.
+    // An event payload is written by the contract that emits it, so a
+    // contract can claim anything; its storage is what actually points work
+    // at us. A collection that no longer names us has switched away, and its
+    // old event is still in the stream.
+    const served: string[] = [];
+    for (const address of candidates) {
+        if (BLOCKED_COLLECTIONS.has(address)) continue;
+        const storage = await tzkt<CollectionStorage>(`/v1/contracts/${address}/storage`).catch(
+            () => null,
+        );
+        if (storage?.render?.provider === PROVIDER_ADDRESS) served.push(address);
     }
-
-    return [...named];
+    return served;
 }
 
 /**
  * Pieces still carrying their collection's pending document.
  *
- * This is the whole backlog: new buys, pieces missed while we were down, and
- * pieces inherited from a provider an artist switched away from. One rule
- * covers all three, and it needs no state of ours.
+ * That one comparison is the whole work queue: new buys, pieces missed while
+ * this was down, and pieces inherited from a provider an artist switched away
+ * from.
  */
 async function pendingIn(collection: string): Promise<PendingPiece[]> {
-    const storage = await tzkt<{
-        administrator: string;
-        art: { code_uri: string; pending_metadata: string };
-    }>(`/v1/contracts/${collection}/storage`);
-
+    const storage = await tzkt<CollectionStorage>(`/v1/contracts/${collection}/storage`);
     const pendingUri = hexToUtf8(storage.art.pending_metadata);
-    const codeUri = hexToUtf8(storage.art.code_uri) || storage.art.code_uri;
+    const codeUri = hexToUtf8(storage.art.code_uri);
+    requireAddress(storage.administrator, "administrator");
 
-    const tokens = await tzkt<
-        { tokenId: string; metadata?: { "": string }; firstTime: string }[]
-    >("/v1/tokens", { contract: collection, limit: 200, "sort.desc": "firstTime" });
+    // A generator address is written by whoever deployed the collection, and
+    // anyone can deploy one. Only IPFS, and only a CID shape.
+    if (!codeUri.startsWith("ipfs://") || !CID.test(codeUri.slice(7).split(/[/?#]/)[0])) {
+        return [];
+    }
 
     const waiting: PendingPiece[] = [];
-    for (const t of tokens) {
-        const rawUri = await tokenMetadataUri(collection, t.tokenId);
-        if (rawUri !== pendingUri) continue;
+    let offset = 0;
 
-        const seed = await mintOperationHash(collection, t.tokenId);
-        if (!seed) continue;
-
-        waiting.push({
-            collection,
-            tokenId: t.tokenId,
-            seed,
-            params: await buyParams(collection, t.tokenId),
-            codeUri,
-            collectionName: collection,
-            artist: storage.administrator,
+    // Paginated, because a collection past one page of tokens would otherwise
+    // have pieces that never reveal and never report why.
+    for (;;) {
+        const tokens = await tzkt<{ tokenId: string }[]>("/v1/tokens", {
+            contract: collection,
+            limit: 200,
+            offset,
+            "sort.asc": "tokenId",
+            select: "tokenId",
         });
+        if (tokens.length === 0) break;
+
+        for (const t of tokens) {
+            const tokenId = typeof t === "string" ? t : t.tokenId;
+            if (await tokenMetadataUri(collection, tokenId) !== pendingUri) continue;
+
+            const buy = await buyEvent(collection, tokenId);
+            if (!buy) continue;
+
+            waiting.push({
+                collection,
+                tokenId,
+                seed: buy.hash,
+                params: buy.params,
+                codeUri,
+                artist: storage.administrator,
+            });
+            if (waiting.length >= BATCH) return waiting;
+        }
+
+        offset += tokens.length;
+        if (tokens.length < 200) break;
     }
     return waiting;
 }
@@ -141,45 +203,69 @@ async function tokenMetadataUri(contract: string, tokenId: string): Promise<stri
         { key: tokenId, limit: 1 },
     ).catch(() => []);
     const raw = rows[0]?.value?.token_info?.[""] ?? "";
-    return raw ? hexToUtf8(raw) : "";
+    if (!raw) return "";
+    try {
+        return hexToUtf8(raw);
+    } catch {
+        return "";
+    }
 }
 
-async function mintOperationHash(contract: string, tokenId: string): Promise<string | null> {
-    const events = await tzkt<{ payload: { token_id: string }; transactionId: number }[]>(
-        "/v1/contracts/events",
-        { contract, tag: "buy", limit: 200 },
-    ).catch(() => []);
-    const match = events.find((e) => e.payload?.token_id === tokenId);
+/** The buy that minted a piece: its hash is the seed, its payload the params. */
+async function buyEvent(
+    contract: string,
+    tokenId: string,
+): Promise<{ hash: string; params: string } | null> {
+    const events = await tzkt<
+        { payload: { token_id: string; params: string }; transactionId: number }[]
+    >("/v1/contracts/events", {
+        contract,
+        tag: "mint",
+        "payload.token_id": tokenId,
+        limit: 1,
+    }).catch(() => []);
+
+    const match = events[0];
     if (!match) return null;
+
     const ops = await tzkt<string[]>("/v1/operations/transactions", {
         id: match.transactionId,
         limit: 1,
         select: "hash",
     }).catch(() => []);
-    return ops[0] ?? null;
+    if (!ops[0]) return null;
+
+    let params = "";
+    try {
+        params = match.payload?.params ? hexToUtf8(match.payload.params) : "";
+    } catch {
+        params = "";
+    }
+    return { hash: ops[0], params };
 }
 
-async function buyParams(contract: string, tokenId: string): Promise<string> {
-    const events = await tzkt<{ payload: { token_id: string; params: string } }[]>(
-        "/v1/contracts/events",
-        { contract, tag: "buy", limit: 200 },
-    ).catch(() => []);
-    const match = events.find((e) => e.payload?.token_id === tokenId);
-    const raw = match?.payload?.params ?? "";
-    return raw ? hexToUtf8(raw) : "";
-}
+/* ------------------------------------------------------------------ */
+/* Doing the work                                                      */
+/* ------------------------------------------------------------------ */
 
-/** Fetch the generator, render it, and get PNG bytes back. */
-async function render(piece: PendingPiece): Promise<Uint8Array> {
-    const codeUrl = piece.codeUri.startsWith("ipfs://")
-        ? `https://ipfs.fileship.xyz/${piece.codeUri.slice(7)}`
-        : piece.codeUri;
-
-    const html = await fetch(codeUrl).then((r) => {
-        if (!r.ok) throw new Error(`generator ${r.status}`);
-        return r.text();
+/** Fetch a generator, with a ceiling and a clock on it. */
+async function fetchGenerator(codeUri: string): Promise<string> {
+    const cid = codeUri.slice(7).split(/[/?#]/)[0];
+    const res = await fetch(`${IPFS_GATEWAY}/${cid}`, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
+    if (!res.ok) throw new Error(`generator ${res.status}`);
 
+    const declared = Number(res.headers.get("content-length") || 0);
+    if (declared > MAX_GENERATOR_BYTES) throw new Error("generator too large");
+
+    const body = await res.arrayBuffer();
+    if (body.byteLength > MAX_GENERATOR_BYTES) throw new Error("generator too large");
+    return new TextDecoder().decode(body);
+}
+
+async function render(piece: PendingPiece): Promise<Uint8Array> {
+    const html = await fetchGenerator(piece.codeUri);
     const res = await fetch(RENDER_URL, {
         method: "POST",
         headers: {
@@ -193,8 +279,9 @@ async function render(piece: PendingPiece): Promise<Uint8Array> {
             width: 1000,
             height: 1000,
         }),
+        signal: AbortSignal.timeout(60_000),
     });
-    if (!res.ok) throw new Error(`render ${res.status}: ${await res.text()}`);
+    if (!res.ok) throw new Error(`render ${res.status}`);
     return new Uint8Array(await res.arrayBuffer());
 }
 
@@ -202,7 +289,7 @@ async function render(piece: PendingPiece): Promise<Uint8Array> {
  * Pin bytes this renderer produced.
  *
  * Only ever our own output. Accepting bytes from a caller would make this an
- * open upload endpoint, and verifying someone else's image costs the same as
+ * open upload endpoint, and checking someone else's image costs the same as
  * rendering it.
  */
 async function pin(bytes: Uint8Array, name: string): Promise<string> {
@@ -214,8 +301,7 @@ async function pin(bytes: Uint8Array, name: string): Promise<string> {
         body: form,
     });
     if (!res.ok) throw new Error(`pin ${res.status}`);
-    const json = (await res.json()) as { IpfsHash: string };
-    return `ipfs://${json.IpfsHash}`;
+    return `ipfs://${((await res.json()) as { IpfsHash: string }).IpfsHash}`;
 }
 
 async function pinJson(doc: unknown, name: string): Promise<string> {
@@ -228,15 +314,28 @@ async function pinJson(doc: unknown, name: string): Promise<string> {
         body: JSON.stringify({ pinataContent: doc, pinataMetadata: { name } }),
     });
     if (!res.ok) throw new Error(`pin json ${res.status}`);
-    const json = (await res.json()) as { IpfsHash: string };
-    return `ipfs://${json.IpfsHash}`;
+    return `ipfs://${((await res.json()) as { IpfsHash: string }).IpfsHash}`;
+}
+
+/**
+ * One toolkit for the whole invocation.
+ *
+ * Each publish reads the agent's counter, so separate instances issuing
+ * concurrently collide and one operation is rejected. Sharing the instance
+ * and awaiting each confirmation keeps a single operation in flight.
+ */
+let toolkit: TezosToolkit | null = null;
+async function signer(): Promise<TezosToolkit> {
+    if (!toolkit) {
+        toolkit = new TezosToolkit(RPC);
+        toolkit.setSignerProvider(await InMemorySigner.fromSecretKey(AGENT_SK));
+    }
+    return toolkit;
 }
 
 async function publish(piece: PendingPiece, metadataUri: string): Promise<string> {
-    const tezos = new TezosToolkit(RPC);
-    tezos.setSignerProvider(await InMemorySigner.fromSecretKey(AGENT_SK));
+    const tezos = await signer();
     const collection = await tezos.contract.at(piece.collection);
-
     const op = await collection.methodsObject
         .set_token_metadata({
             token_id: piece.tokenId,
@@ -244,8 +343,8 @@ async function publish(piece: PendingPiece, metadataUri: string): Promise<string
         })
         .send();
 
-    // The hash exists before confirmation does. A process that dies here has
-    // to be able to tell "already published" from "never sent".
+    // The hash exists before the confirmation does, so a process that dies
+    // here can tell "already sent" from "never sent".
     const hash = op.hash;
     await op.confirmation();
     return hash;
@@ -255,7 +354,7 @@ async function handle(piece: PendingPiece): Promise<string> {
     const image = await render(piece);
     const imageUri = await pin(image, `${piece.collection}-${piece.tokenId}.png`);
 
-    const params = piece.params ? safeParse(piece.params) : {};
+    const params = safeParse(piece.params);
     const doc = {
         name: `#${Number(piece.tokenId) + 1}`,
         decimals: 0,
@@ -286,13 +385,74 @@ function safeParse(s: string): Record<string, unknown> {
     }
 }
 
-export default async function handler(req: Request, _context: Context): Promise<Response> {
-    if (!PROVIDER_ADDRESS || !AGENT_SK || !RENDER_URL) {
-        return new Response("Provider is not configured", { status: 503 });
+/* ------------------------------------------------------------------ */
+/* Claims                                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One invocation at a time per piece.
+ *
+ * The on-chain write-once guard already stops a piece being published twice,
+ * so this is about money rather than correctness: without it, two concurrent
+ * runs both render and both pin, and one of the two operations is rejected
+ * after the spending has happened.
+ */
+async function claim(key: string): Promise<boolean> {
+    try {
+        const store = getStore("aleatory-provider");
+        const held = await store.get(key, { type: "json" }) as { at: number } | null;
+        if (held && Date.now() - held.at < CLAIM_TTL_MS) return false;
+        await store.setJSON(key, { at: Date.now() });
+        return true;
+    } catch {
+        // Blobs unavailable. Proceed rather than stall the queue: the
+        // on-chain guard still prevents a double write.
+        return true;
+    }
+}
+
+async function release(key: string): Promise<void> {
+    try {
+        await getStore("aleatory-provider").delete(key);
+    } catch {
+        /* the TTL covers it */
+    }
+}
+
+/* ------------------------------------------------------------------ */
+
+function configured(): string | null {
+    if (!PROVIDER_ADDRESS || !AGENT_SK || !RENDER_URL) return "provider is not configured";
+    if (!PINATA_JWT) return "pinning is not configured";
+    return null;
+}
+
+/** Constant-time compare, so a token cannot be guessed a byte at a time. */
+function tokenMatches(given: string, expected: string): boolean {
+    if (!expected || given.length !== expected.length) return false;
+    let diff = 0;
+    for (let i = 0; i < given.length; i++) diff |= given.charCodeAt(i) ^ expected.charCodeAt(i);
+    return diff === 0;
+}
+
+export default async function handler(req: Request, context: Context): Promise<Response> {
+    const problem = configured();
+    if (problem) return new Response(problem, { status: 503 });
+
+    // The cron carries no headers of ours, so a scheduled run is identified
+    // by Netlify rather than by a secret. Every other caller needs the token:
+    // each invocation spends render budget, pinning quota, and gas.
+    const scheduled = req.headers.get("x-nf-event") === "schedule";
+    if (!scheduled) {
+        const given = (req.headers.get("authorization") || "").replace(/^Bearer /, "");
+        if (!tokenMatches(given, PING_TOKEN)) {
+            return new Response("Unauthorized", { status: 401 });
+        }
     }
 
-    const results: Record<string, string> = {};
-    const errors: Record<string, string> = {};
+    const runId = crypto.randomUUID();
+    let published = 0;
+    let failed = 0;
 
     try {
         const collections = await collectionsServed();
@@ -300,35 +460,38 @@ export default async function handler(req: Request, _context: Context): Promise<
 
         for (const collection of collections) {
             if (budget <= 0) break;
-            const waiting = await pendingIn(collection).catch(() => []);
+            const waiting = await pendingIn(collection).catch((e) => {
+                console.error(`[${runId}] scan ${collection}`, e);
+                return [] as PendingPiece[];
+            });
+
             for (const piece of waiting) {
                 if (budget <= 0) break;
-                budget--;
                 const key = `${piece.collection}:${piece.tokenId}`;
+                if (!(await claim(key))) continue;
+                budget--;
                 try {
-                    results[key] = await handle(piece);
+                    await handle(piece);
+                    published++;
                 } catch (e) {
-                    // One failure leaves that piece pending, which is the
-                    // same state it was already in, and the next run picks it
-                    // up. Nothing is lost by stopping here.
-                    errors[key] = (e as Error).message;
+                    // The piece stays pending, which is the state it was
+                    // already in, and the next run picks it up.
+                    failed++;
+                    console.error(`[${runId}] publish ${key}`, e);
+                    await release(key);
                 }
             }
         }
 
-        return Response.json({
-            collections: collections.length,
-            published: Object.keys(results).length,
-            results,
-            errors,
-        });
+        // Counts and a correlation id. Internal error text stays in the logs,
+        // where it is not also a probe channel for an unauthenticated caller.
+        return Response.json({ runId, collections: collections.length, published, failed });
     } catch (e) {
-        return new Response(`Provider run failed: ${(e as Error).message}`, { status: 500 });
+        console.error(`[${runId}] run failed`, e);
+        return Response.json({ runId, error: "run failed" }, { status: 500 });
     }
 }
 
 export const config: Config = {
-    // Polling keeps the backlog draining without anyone calling us. The mint
-    // UI also pings this endpoint, which is what makes a reveal feel quick.
     schedule: "*/5 * * * *",
 };

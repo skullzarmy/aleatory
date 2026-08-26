@@ -4,8 +4,18 @@ import { useMemo, useState } from "react";
 import { useWallet } from "@/context/WalletContext";
 import { CONTRACTS } from "@/lib/config";
 import { royaltyPreview, type RoyaltySplit } from "@/lib/metadata";
-import { shortAddress } from "@/lib/utils";
+import { parseTez, shortAddress } from "@/lib/utils";
+import { tzktLink } from "@/lib/config";
 import type { Provider } from "@/lib/providers";
+import type { Draft } from "@/lib/draft";
+import { getKind } from "@/lib/runtimes";
+import { CoverPicker } from "./CoverPicker";
+import { useDeps } from "./useDeps";
+import {
+    publishCollection,
+    type PublishResult,
+    type PublishStage,
+} from "@/lib/publish";
 
 /**
  * Deploy a collection.
@@ -14,11 +24,17 @@ import type { Provider } from "@/lib/providers";
  * from the moment the collection exists, so the permanent fields say so, and
  * the royalty preview shows what each recipient will receive on a sale before
  * anything is signed.
+ *
+ * Given a draft, the generator comes from the studio rather than from a pointer
+ * the artist types: the bytes that were checked are the bytes that get pinned.
+ * Without one the form still accepts an `ipfs://` pointer, so a generator built
+ * entirely outside this site can be published through it.
  */
-export function DeployForm({ providers }: { providers: Provider[] }) {
-    const { address, connect } = useWallet();
+export function DeployForm({ providers, draft }: { providers: Provider[]; draft?: Draft }) {
+    const { address, connect, getClient } = useWallet();
 
-    const [name, setName] = useState("");
+    const [name, setName] = useState(draft?.name ?? "");
+    const [description, setDescription] = useState("");
     const [codeUri, setCodeUri] = useState("");
     const [editionSize, setEditionSize] = useState("10");
     const [price, setPrice] = useState("1");
@@ -26,8 +42,24 @@ export function DeployForm({ providers }: { providers: Provider[] }) {
     const [platformShare, setPlatformShare] = useState(false);
     const [platformPercent, setPlatformPercent] = useState("10");
     const [providerAddress, setProviderAddress] = useState(providers[0]?.address ?? "");
+    const [trustResolver, setTrustResolver] = useState(false);
+    // Deploy, look at it, announce it, then open it. A collection that opens
+    // the instant it exists cannot be checked before someone mints from it.
+    const [startPaused, setStartPaused] = useState(true);
+    const [cover, setCover] = useState<{
+        uri: string;
+        thumbUri: string;
+        seed: string;
+    } | null>(null);
+
+    const [stage, setStage] = useState<PublishStage | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [done, setDone] = useState<PublishResult | null>(null);
 
     const provider = providers.find((p) => p.address === providerAddress);
+    // The cover renders through the same isolate as everything else, so it
+    // needs the same libraries the generator does.
+    const { deps } = useDeps(draft?.kindId ?? 1);
 
     const split: RoyaltySplit = useMemo(() => {
         const total = parseFloat(royaltyTotal) || 0;
@@ -44,11 +76,133 @@ export function DeployForm({ providers }: { providers: Provider[] }) {
 
     const preview = useMemo(() => royaltyPreview(split), [split]);
 
+    /**
+     * Everything that has to be true before a wallet is opened.
+     *
+     * Checked here rather than left to the contract, because a rejected
+     * operation still costs an artist a signature and a confusing failure,
+     * and every one of these is knowable beforehand.
+     */
+    function problem(): string | null {
+        if (!address) return "Connect a wallet first.";
+        if (!name.trim()) return "The collection needs a name.";
+        if (!draft && !/^ipfs:\/\/.+/.test(codeUri.trim())) {
+            return "Point at a generator with an ipfs:// URI.";
+        }
+        if (!provider) return "Choose a render provider.";
+        if (draft && !cover) {
+            return "Pick a cover. It is what your collection looks like everywhere it is listed.";
+        }
+        const size = Number.parseInt(editionSize, 10);
+        if (!Number.isFinite(size) || size < 0) return "Edition size must be 0 or more.";
+        const tez = parseTez(price);
+        if (tez === null) return "That price is not an amount.";
+        const royalty = parseFloat(royaltyTotal);
+        if (!Number.isFinite(royalty) || royalty < 0 || royalty > 25) {
+            return "Royalty must be between 0 and 25 percent, which is what marketplaces honour.";
+        }
+        return null;
+    }
+
+    async function submit() {
+        const bad = problem();
+        if (bad) {
+            setError(bad);
+            return;
+        }
+        if (!draft) {
+            // Publishing a pointer someone else pinned is a different flow:
+            // there are no bytes here to hash, so the guarantee that chain
+            // state matches the document cannot be made from this page.
+            setError("Open your generator in the studio to publish it.");
+            return;
+        }
+
+        setError(null);
+        setStage("encoding");
+        try {
+            const result = await publishCollection(
+                await getClient(),
+                {
+                    draft,
+                    name: name.trim(),
+                    description: description.trim(),
+                    artist: address as string,
+                    editionSize: Number.parseInt(editionSize, 10),
+                    priceMutez: parseTez(price) as bigint,
+                    split,
+                    provider: provider!.address,
+                    maxRenderGasMutez: BigInt(provider!.renderGasMutez),
+                    startPaused,
+                    trustResolver,
+                    coverUri: cover?.uri,
+                    coverThumbUri: cover?.thumbUri,
+                    coverSeed: cover?.seed,
+                },
+                setStage,
+            );
+            setDone(result);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "The wallet refused it.");
+        } finally {
+            setStage(null);
+        }
+    }
+
+    if (done) {
+        return (
+            <div className="space-y-4 rounded-lg border border-success/40 bg-success/10 p-6">
+                <h2 className="text-lg font-semibold">{name} is on chain</h2>
+                <p className="text-sm">
+                    {startPaused
+                        ? "It is paused, so nothing can mint until you open it."
+                        : "It is open for minting."}
+                </p>
+                <dl className="space-y-1 text-xs">
+                    <Fact label="Operation" value={done.hash} />
+                    <Fact
+                        label="Generator"
+                        value={
+                            done.codeBytes > 0
+                                ? `${done.codeBytes.toLocaleString()} bytes in contract storage` +
+                                  (done.codeEncoding === "gzip" ? ", gzipped" : "") +
+                                  `, ${(done.codeBurnMutez / 1e6).toFixed(3)} \u2721 of storage`
+                                : `too large for one operation, stored at ${done.codeUri}`
+                        }
+                    />
+                    <Fact label="SHA-256" value={done.codeHashHex} />
+                </dl>
+                {done.codeBytes > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                        Your generator is stored in the contract itself, so the piece will
+                        always render.
+                    </p>
+                )}
+                <a
+                    href={tzktLink(done.hash)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-block rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+                >
+                    Watch it settle
+                </a>
+                <p className="text-xs text-muted-foreground">
+                    Once it settles, the collection appears under{" "}
+                    <a href="/manage" className="underline hover:text-foreground">
+                        your collections
+                    </a>
+                    .
+                </p>
+            </div>
+        );
+    }
+
     return (
         <form
             className="space-y-6"
             onSubmit={(e) => {
                 e.preventDefault();
+                void submit();
             }}
         >
             <Field label="Collection name" permanent>
@@ -60,14 +214,63 @@ export function DeployForm({ providers }: { providers: Provider[] }) {
                 />
             </Field>
 
-            <Field label="Generator" permanent hint="ipfs:// pointer to your code">
-                <input
-                    value={codeUri}
-                    onChange={(e) => setCodeUri(e.target.value)}
-                    placeholder="ipfs://Qm..."
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm"
+            <Field
+                label="Description"
+                permanent
+                hint="Shown on your collection and on every piece."
+            >
+                <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    placeholder="What the generator does, in a sentence or two."
+                    className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm"
                 />
             </Field>
+
+            {draft && (
+                <Field
+                    label="Cover"
+                    hint="Shown wherever your collection is listed."
+                >
+                    <CoverPicker
+                        html={draft.html}
+                        params={draft.params}
+                        deps={deps}
+                        baseSeed={draft.seed}
+                        onCaptured={setCover}
+                    />
+                </Field>
+            )}
+
+            {draft ? (
+                <Field
+                    label="Generator"
+                    permanent
+                    hint="Stored in the contract when you publish."
+                >
+                    <div className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm">
+                        <p className="font-medium">{getKind(draft.kindId).label}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                            {new TextEncoder().encode(draft.html).length.toLocaleString()} bytes
+                            from your draft
+                            {draft.params.length > 0 &&
+                                `, ${draft.params.length} parameter${draft.params.length === 1 ? "" : "s"}: ${draft.params
+                                    .map((p) => p.label || p.id)
+                                    .join(", ")}`}
+                        </p>
+                    </div>
+                </Field>
+            ) : (
+                <Field label="Generator" permanent hint="ipfs:// pointer to your code">
+                    <input
+                        value={codeUri}
+                        onChange={(e) => setCodeUri(e.target.value)}
+                        placeholder="ipfs://Qm..."
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm"
+                    />
+                </Field>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Edition size" hint="0 for an open edition. It can shrink later, never grow.">
@@ -93,7 +296,18 @@ export function DeployForm({ providers }: { providers: Provider[] }) {
                 label="Render provider"
                 hint={
                     provider
-                        ? `${provider.stats.delivered} pieces published. Switchable later.`
+                        ? [
+                              `${provider.stats.delivered} published`,
+                              provider.stats.medianBlocksToPublish !== null
+                                  ? `${provider.stats.medianBlocksToPublish} blocks to publish`
+                                  : null,
+                              provider.stats.outstanding > 0
+                                  ? `${provider.stats.outstanding} waiting`
+                                  : null,
+                              "switchable later",
+                          ]
+                              .filter(Boolean)
+                              .join(", ")
                         : "Who renders your pieces."
                 }
             >
@@ -112,6 +326,25 @@ export function DeployForm({ providers }: { providers: Provider[] }) {
                     ))}
                 </select>
             </Field>
+
+            <div className="space-y-3 rounded-lg border border-border p-4">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <p className="text-sm font-medium">Let Aleatory publish images</p>
+                        <p className="text-xs text-muted-foreground">
+                            We can publish images if your provider does not, so nothing gets
+                            stuck. You can turn this off at any time.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setTrustResolver((v) => !v)}
+                        className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+                    >
+                        {trustResolver ? "On" : "Off"}
+                    </button>
+                </div>
+            </div>
 
             <div className="space-y-3 rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-4">
@@ -145,7 +378,7 @@ export function DeployForm({ providers }: { providers: Provider[] }) {
                 )}
             </div>
 
-            <Field label="Royalty on each sale" permanent hint="0, or 10 to 25 percent.">
+            <Field label="Royalty on each sale" permanent hint="0, or between 10 and 25 percent.">
                 <input
                     inputMode="decimal"
                     value={royaltyTotal}
@@ -168,26 +401,68 @@ export function DeployForm({ providers }: { providers: Provider[] }) {
                         </div>
                     ))}
                     <p className="pt-2 text-xs text-muted-foreground">
-                        This split is written into every piece this collection mints, and it holds
-                        for as long as the pieces exist.
+                        This split is fixed once you publish.
                     </p>
                 </div>
             )}
 
+            <div className="space-y-3 rounded-lg border border-border p-4">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <p className="text-sm font-medium">Open for minting immediately</p>
+                        <p className="text-xs text-muted-foreground">
+                            Off means it publishes paused, so you can check it over and
+                            announce it first.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setStartPaused((v) => !v)}
+                        className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+                    >
+                        {startPaused ? "Off" : "On"}
+                    </button>
+                </div>
+            </div>
+
+            {error && (
+                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
+                    {error}
+                </p>
+            )}
+
             <button
-                type="button"
-                onClick={() => void connect()}
-                disabled={Boolean(address)}
+                type={address ? "submit" : "button"}
+                onClick={address ? undefined : () => void connect()}
+                disabled={stage !== null}
                 className="w-full rounded-md bg-alea-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
             >
-                {address ? "Deploy collection" : "Connect to deploy"}
+                {!address
+                    ? "Connect to deploy"
+                    : stage
+                      ? STAGE_LABEL[stage]
+                      : "Deploy collection"}
             </button>
 
             <p className="text-xs text-muted-foreground">
-                One signature. You own the contract from the moment it exists, and Aleatory keeps
-                no authority over it. Your wallet pays the origination.
+                One signature. The collection is yours, and we have no control over it.
             </p>
         </form>
+    );
+}
+
+const STAGE_LABEL: Record<PublishStage, string> = {
+    encoding: "Preparing the generator…",
+    "pinning-metadata": "Pinning the metadata…",
+    signing: "Waiting for your signature…",
+};
+
+function Fact({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex gap-2">
+            <dt className="shrink-0 text-muted-foreground">{label}</dt>
+            <dd className="min-w-0 truncate font-mono">{value}</dd>
+        </div>
     );
 }
 

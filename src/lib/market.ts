@@ -2,13 +2,15 @@
  * Marketplace state, read from the contract's storage through TzKT.
  */
 import { CONTRACTS, tzktApi } from "./config";
+import { isBlockedCollection } from "./blocklist";
 
 export interface Listing {
     id: number;
     seller: string;
     collection: string;
     tokenId: string;
-    priceMutez: number;
+    /** Mutez. Chain amounts are arbitrary precision, so they stay bigint. */
+    priceMutez: bigint;
     feeBps: number;
 }
 
@@ -17,7 +19,7 @@ export interface Offer {
     buyer: string;
     collection: string;
     tokenId: string;
-    amountMutez: number;
+    amountMutez: bigint;
 }
 
 interface BigMapRow<V> {
@@ -56,7 +58,7 @@ function toListing(r: BigMapRow<RawListing>): Listing {
         seller: r.value.seller,
         collection: r.value.collection,
         tokenId: r.value.token_id,
-        priceMutez: parseInt(r.value.price, 10),
+        priceMutez: BigInt(r.value.price),
         feeBps: parseInt(r.value.fee_bps, 10),
     };
 }
@@ -67,7 +69,7 @@ function toOffer(r: BigMapRow<RawOffer>): Offer {
         buyer: r.value.buyer,
         collection: r.value.collection,
         tokenId: r.value.token_id,
-        amountMutez: parseInt(r.value.amount, 10),
+        amountMutez: BigInt(r.value.amount),
     };
 }
 
@@ -79,8 +81,12 @@ async function bigmapPath(name: string): Promise<string | null> {
 export async function fetchListings(limit = 48): Promise<Listing[]> {
     const path = await bigmapPath("listings");
     if (!path) return [];
-    const rows = await bigmap<RawListing>(path, { active: "true", "sort.desc": "id", limit });
-    return rows.map(toListing);
+    const rows = await bigmap<RawListing>(path, {
+        active: "true",
+        "sort.desc": "id",
+        limit,
+    });
+    return rows.map(toListing).filter((l) => !isBlockedCollection(l.collection));
 }
 
 /** The live listing for one token, when there is one. */
@@ -90,6 +96,7 @@ export async function fetchListingFor(
 ): Promise<Listing | null> {
     const path = await bigmapPath("listings");
     if (!path) return null;
+    if (isBlockedCollection(collection)) return null;
     const rows = await bigmap<RawListing>(path, {
         active: "true",
         "value.collection": collection,
@@ -115,14 +122,19 @@ export async function fetchOffersFor(
     return rows.map(toOffer);
 }
 
-/** What a seller nets after the platform fee and royalties. */
+/**
+ * What a seller nets after the platform fee and royalties.
+ *
+ * The arithmetic matches the contract's: floor at each step, and the royalty
+ * total clamped at 25% the way the marketplace clamps it.
+ */
 export function proceeds(
-    priceMutez: number,
+    priceMutez: bigint,
     feeBps: number,
     royaltyBps: number,
-): { fee: number; royalties: number; seller: number } {
-    const fee = Math.floor((priceMutez * feeBps) / 10000);
-    const capped = Math.min(royaltyBps, 2500);
-    const royalties = Math.floor((priceMutez * capped) / 10000);
+): { fee: bigint; royalties: bigint; seller: bigint } {
+    const fee = (priceMutez * BigInt(feeBps)) / 10000n;
+    const capped = BigInt(Math.min(royaltyBps, 2500));
+    const royalties = (priceMutez * capped) / 10000n;
     return { fee, royalties, seller: priceMutez - fee - royalties };
 }

@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function PiecePage({ params }: { params: Params }) {
     const { contract, tokenId } = await params;
     const piece = await fetchPiece(contract, tokenId);
-    if (!piece) notFound();
+    if (!piece) return notFound();
 
     const [listing, offers] = await Promise.all([
         fetchListingFor(contract, tokenId).catch(() => null),
@@ -42,7 +42,8 @@ export default async function PiecePage({ params }: { params: Params }) {
         <div className="mx-auto max-w-6xl px-4 py-8">
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <ArtifactFrame
-                    renderUrl={piece.renderUrl}
+                    code={piece.code}
+                    seed={piece.seed}
                     imageUrl={piece.imageUrl}
                     name={piece.name}
                 />
@@ -55,8 +56,8 @@ export default async function PiecePage({ params }: { params: Params }) {
 
                     {piece.pending && (
                         <p className="mt-4 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                            This piece is awaiting its render. It is owned and tradeable now, and
-                            the artwork runs from chain state above.
+                            The image is still being made. You own this piece and can trade it
+                            now, and it is running live above.
                         </p>
                     )}
 

@@ -5,7 +5,7 @@
  * that same operation, and the code is immutable in the collection's storage.
  * Those three determine the artwork, and this function collects them.
  */
-import { CONTRACTS, SANDBOX_ORIGIN } from "./config";
+import { CONTRACTS, ISOLATE_ORIGIN } from "./config";
 import {
     fetchToken,
     fetchOwner,
@@ -19,6 +19,8 @@ import { bytesToString, convertIpfsToGatewayUrl } from "@/utils/ipfs";
 interface CollectionStorage {
     administrator: string;
     art: {
+        code: string;
+        code_encoding: string;
         code_uri: string;
         code_hash: string;
         royalties: Record<string, string>;
@@ -41,6 +43,8 @@ export interface Piece {
     mintedAt?: string;
     /** Canonical JSON of the collector's chosen parameters. */
     params?: string;
+    /** The generator source, decoded from storage. Empty when it is a pointer. */
+    code: string;
     codeUri: string;
     codeHash: string;
     editionSize: number;
@@ -55,11 +59,34 @@ export interface Piece {
 }
 
 /**
- * Where a piece renders. The sandbox host loads the generator, injects the
- * seed and parameters, and runs it. It is a separate origin from this app.
+ * Where a minted piece renders.
+ *
+ * The provider's render host loads the generator from its CID, injects the seed
+ * and parameters, and runs it. Separate origin from this app on purpose: it is
+ * executing code published by someone else.
  */
+/**
+ * The generator, decoded, from contract storage.
+ *
+ * `identity` is the normal case and needs nothing. `gzip` is for a generator
+ * that would not otherwise fit one operation, and `DecompressionStream` is
+ * native everywhere this runs, so decoding costs no dependency.
+ */
+export async function decodeCode(hex: string, encoding: string): Promise<string> {
+    const clean = hex.replace(/^0x/, "");
+    if (clean.length === 0) return "";
+    const bytes = new Uint8Array(
+        (clean.match(/.{2}/g) ?? []).map((b) => parseInt(b, 16)),
+    );
+    if (encoding !== "gzip") return new TextDecoder().decode(bytes);
+    const stream = new Blob([bytes as unknown as BlobPart])
+        .stream()
+        .pipeThrough(new DecompressionStream("gzip"));
+    return await new Response(stream).text();
+}
+
 export function renderUrl(codeUri: string, seed?: string, params?: string): string {
-    const u = new URL("/render", SANDBOX_ORIGIN);
+    const u = new URL("/render", ISOLATE_ORIGIN);
     u.searchParams.set("code", codeUri);
     if (seed) u.searchParams.set("seed", seed);
     if (params) u.searchParams.set("params", params);
@@ -81,7 +108,14 @@ export async function fetchPiece(
 
     const m = token.metadata;
     const display = m?.displayUri || m?.thumbnailUri;
-    const codeUri = storage ? bytesToString(storage.art.code_uri) || storage.art.code_uri : "";
+    // sp.string on chain, so it needs no decoding. `pending_metadata` below
+    // is sp.bytes and does.
+    const codeUri = storage ? storage.art.code_uri : "";
+    // The generator itself, when it is on chain, which is the normal case.
+    // A viewer needs no gateway and no pin to see the piece.
+    const code = storage
+        ? await decodeCode(storage.art.code, storage.art.code_encoding).catch(() => "")
+        : "";
     const pendingDoc = storage ? bytesToString(storage.art.pending_metadata) : "";
 
     const royalties = storage
@@ -102,6 +136,7 @@ export async function fetchPiece(
         seed: mint?.hash,
         mintedAt: mint?.timestamp ?? token.firstTime,
         params: m?.aleaParams,
+        code,
         codeUri,
         codeHash: storage?.art.code_hash ?? "",
         editionSize: storage ? parseInt(storage.sale.edition_size, 10) : 0,

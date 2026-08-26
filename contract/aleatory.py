@@ -70,8 +70,22 @@ def aleatory():
         provider=sp.address,
         provider_agent=sp.address,
         render_gas=sp.mutez,
-        code_uri=sp.string,
+        # The generator itself, on chain. This is what "fully on-chain"
+        # has to mean: the art is in storage, not behind a pointer to a
+        # host whose content policy can change. ~$0.50 of storage burn for
+        # a typical generator, paid once by the artist at deploy.
+        code=sp.bytes,
+        # "identity" or "gzip". A reader has to know before it can run the
+        # bytes. Default to identity so the code stays readable straight
+        # off the chain, which is half the point; gzip is for a generator
+        # that would not otherwise fit one operation.
+        code_encoding=sp.string,
+        # sha256 of the DECODED source, so it verifies what actually runs
+        # rather than whatever encoding it happened to arrive in.
         code_hash=sp.bytes,
+        # Escape hatch for a generator past the operation cap. Empty
+        # whenever `code` is populated, and exactly one of the two is.
+        code_uri=sp.string,
         edition_size=sp.nat,
         price=sp.mutez,
         # Royalty shares in basis points of the sale price, by recipient.
@@ -85,6 +99,11 @@ def aleatory():
         # it per token with that piece's real metadata once rendered.
         pending_metadata=sp.bytes,
         start_paused=sp.bool,
+        # Whether addresses the resolver vouches for may publish metadata
+        # here. Off unless an artist asks for it: the resolver's operator can
+        # authorise a writer into every collection that trusts it, and a
+        # default that hands out authority points the wrong way.
+        trust_resolver=sp.bool,
         metadata=sp.big_map[sp.string, sp.bytes],
     )
 
@@ -105,8 +124,22 @@ def aleatory():
     # `sp.create_contract`; the child casts `self.data` to it so the two
     # cannot drift apart silently.
     t_art: type = sp.record(
-        code_uri=sp.string,
+        # The generator itself, on chain. This is what "fully on-chain"
+        # has to mean: the art is in storage, not behind a pointer to a
+        # host whose content policy can change. ~$0.50 of storage burn for
+        # a typical generator, paid once by the artist at deploy.
+        code=sp.bytes,
+        # "identity" or "gzip". A reader has to know before it can run the
+        # bytes. Default to identity so the code stays readable straight
+        # off the chain, which is half the point; gzip is for a generator
+        # that would not otherwise fit one operation.
+        code_encoding=sp.string,
+        # sha256 of the DECODED source, so it verifies what actually runs
+        # rather than whatever encoding it happened to arrive in.
         code_hash=sp.bytes,
+        # Escape hatch for a generator past the operation cap. Empty
+        # whenever `code` is populated, and exactly one of the two is.
+        code_uri=sp.string,
         # Royalty shares in basis points of the sale price, by recipient.
         # 1250 = 12.5%. Kept on chain *as well as* in the metadata JSON:
         # a marketplace contract cannot read IPFS, so without this it would
@@ -255,8 +288,10 @@ def aleatory():
             self.data.proposed_admin = sp.cast(None, sp.option[sp.address])
 
             self.data.art = sp.record(
-                code_uri=init.code_uri,
+                code=init.code,
+                code_encoding=init.code_encoding,
                 code_hash=init.code_hash,
+                code_uri=init.code_uri,
                 royalties=init.royalties,
                 pending_metadata=init.pending_metadata,
             )
@@ -271,7 +306,7 @@ def aleatory():
                 # would be one whose authority we could seize after the
                 # fact. The artist may switch it off entirely, not move it.
                 resolver=init.resolver,
-                trust_resolver=True,
+                trust_resolver=init.trust_resolver,
                 local_writers=sp.cast(set(), sp.set[sp.address]),
                 provider=init.provider,
                 provider_agent=init.provider_agent,
@@ -444,9 +479,15 @@ def aleatory():
         # --- sale ---
 
         @sp.entrypoint
-        def buy(self, params):
-            """(Anyone, payable) Buy one edition. One signature, and the
+        def mint(self, params):
+            """(Anyone, payable) Mint one edition. One signature, and the
             token exists when it returns.
+
+            Named for what it does, and named the way the rest of the
+            ecosystem names it: on Tezos a collector-facing primary sale
+            that creates the token is `mint`. `buy` is the marketplace
+            verb, for a token that already exists, and the marketplace in
+            this repository uses it for exactly that. One name per meaning.
 
             **The piece is minted here, in the collector's own operation.**
             The token exists, is owned, and is tradeable the moment this
@@ -529,7 +570,7 @@ def aleatory():
                     paid=sp.amount,
                     render_gas=self.data.render.render_gas,
                 ),
-                tag="buy",
+                tag="mint",
             )
 
         # --- media ---
@@ -657,8 +698,10 @@ def aleatory():
             """Everything needed to rebuild the edition from chain state."""
             return sp.record(
                 artist=self.data.administrator,
-                code_uri=self.data.art.code_uri,
+                code=self.data.art.code,
+                code_encoding=self.data.art.code_encoding,
                 code_hash=self.data.art.code_hash,
+                code_uri=self.data.art.code_uri,
                 royalties=self.data.art.royalties,
                 edition_size=self.data.sale.edition_size,
                 minted=self.data.next_token_id,
@@ -820,6 +863,13 @@ def aleatory():
             agent = sp.view(
                 "get_agent", provider, (), sp.address
             ).unwrap_some(error="NOT_A_PROVIDER")
+            # Asked for at registration too, so an entry nobody could ever
+            # remove cannot be created. A contract satisfying only the first
+            # two views would otherwise register and then sit here for good,
+            # because deregistration has nothing to ask.
+            _ = sp.view(
+                "get_operator", provider, (), sp.address
+            ).unwrap_some(error="NOT_A_PROVIDER")
             self.data.providers[provider] = sp.now
             self.data.count += 1
             sp.emit(
@@ -864,6 +914,11 @@ def aleatory():
         fees_accrued=sp.mutez,
         resolver=sp.address,
         collections=sp.big_map[sp.nat, sp.address],
+        # The same set keyed the other way, so the question "did you deploy
+        # this address" can be answered in one lookup. A marketplace paying
+        # out real money needs to ask it, and walking a numbered map to find
+        # out is not something a contract can do.
+        deployed=sp.big_map[sp.address, sp.unit],
         next_collection_id=sp.nat,
     )
 
@@ -896,6 +951,9 @@ def aleatory():
             self.data.resolver = resolver
             self.data.collections = sp.cast(
                 sp.big_map(), sp.big_map[sp.nat, sp.address]
+            )
+            self.data.deployed = sp.cast(
+                sp.big_map(), sp.big_map[sp.address, sp.unit]
             )
             self.data.next_collection_id = 0
             sp.cast(self.data, t_factory_storage)
@@ -932,13 +990,16 @@ def aleatory():
             sp.cast(
                 params,
                 sp.record(
-                    code_uri=sp.string,
+                    code=sp.bytes,
+                    code_encoding=sp.string,
                     code_hash=sp.bytes,
+                    code_uri=sp.string,
                     edition_size=sp.nat,
                     price=sp.mutez,
                     royalties=sp.map[sp.address, sp.nat],
                     pending_metadata=sp.bytes,
                     start_paused=sp.bool,
+                    trust_resolver=sp.bool,
                     provider=sp.address,
                     max_render_gas=sp.mutez,
                     metadata=sp.big_map[sp.string, sp.bytes],
@@ -946,7 +1007,27 @@ def aleatory():
             )
             assert not self.data.paused, "PAUSED"
             assert sp.amount == self.data.deploy_price, "WRONG_FEE"
-            assert sp.len(params.code_uri) > 0, "EMPTY_CODE_URI"
+
+            # The generator lives on chain, or it lives behind a pointer, and
+            # exactly one of those is true. Both set means two sources that can
+            # disagree about what the art is; neither set means a collection
+            # with no art in it, which nothing downstream can recover from
+            # because none of this is changeable afterwards.
+            on_chain = sp.len(params.code) > 0
+            by_pointer = sp.len(params.code_uri) > 0
+            assert on_chain or by_pointer, "NO_CODE"
+            assert not (on_chain and by_pointer), "CODE_AMBIGUOUS"
+
+            # A reader has to know how to decode the bytes before it can run
+            # them, and an unknown encoding is unrunnable forever.
+            assert (
+                params.code_encoding == "identity" or params.code_encoding == "gzip"
+            ), "BAD_ENCODING"
+
+            # The hash covers the decoded source either way, so it verifies what
+            # actually runs. Required when the code is on chain, because that is
+            # the value a reader checks the storage against.
+            assert sp.len(params.code_hash) > 0, "EMPTY_CODE_HASH"
 
             # Marketplace convention rather than protocol rule, but it is
             # enforced here because royalties are immutable once a
@@ -987,8 +1068,10 @@ def aleatory():
                     administrator=sp.sender,
                     proposed_admin=None,
                     art=sp.record(
-                        code_uri=params.code_uri,
+                        code=params.code,
+                        code_encoding=params.code_encoding,
                         code_hash=params.code_hash,
+                        code_uri=params.code_uri,
                         royalties=params.royalties,
                         pending_metadata=params.pending_metadata,
                     ),
@@ -999,7 +1082,7 @@ def aleatory():
                     ),
                     render=sp.record(
                         resolver=self.data.resolver,
-                        trust_resolver=True,
+                        trust_resolver=params.trust_resolver,
                         local_writers=sp.set(),
                         provider=params.provider,
                         provider_agent=agent,
@@ -1026,6 +1109,7 @@ def aleatory():
 
             collection_id = self.data.next_collection_id
             self.data.collections[collection_id] = address
+            self.data.deployed[address] = ()
             self.data.next_collection_id += 1
 
             sp.emit(
@@ -1033,8 +1117,10 @@ def aleatory():
                     collection_id=collection_id,
                     address=address,
                     artist=sp.sender,
-                    code_uri=params.code_uri,
+                    code=params.code,
+                    code_encoding=params.code_encoding,
                     code_hash=params.code_hash,
+                    code_uri=params.code_uri,
                     edition_size=params.edition_size,
                 ),
                 tag="deploy",
@@ -1131,6 +1217,16 @@ def aleatory():
             sp.cast(f, sp.lambda_(t_factory_storage, t_factory_storage))
             self.data = f(self.data)
             sp.emit(sp.record(executed=True), tag="admin_lambda")
+
+        @sp.onchain_view()
+        def is_collection(self, address):
+            """Whether this factory originated that contract.
+
+            What a marketplace calls before it will hold someone's token or
+            take someone's money for one.
+            """
+            sp.cast(address, sp.address)
+            return self.data.deployed.contains(address)
 
         @sp.onchain_view()
         def get_collection(self, collection_id):

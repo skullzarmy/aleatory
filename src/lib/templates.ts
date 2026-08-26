@@ -48,16 +48,7 @@ const DEV_SHIM = `    // Dev harness, only used when this file is opened outside
         ready: function () { console.log("ready, captured here"); }
       };
       window.$alea.paramsSchema = [];
-      // The fxhash-era names, so a sketch written against them runs locally too.
-      window.fxhash = seed;
-      window.fxrand = rand;
-      window.fxpreview = function () { console.log("fxpreview, captured here"); };
-      window.$fx = {
-        hash: seed, rand: rand, isPreview: false,
-        preview: window.fxpreview,
-        features: function (o) { window.$fxhashFeatures = o; return o; },
-        getFeature: function (n) { return (window.$fxhashFeatures || {})[n]; },
-        getFeatures: function () { return window.$fxhashFeatures || {}; },
+},
         getParam: function (n) { return window.$alea.param(n, undefined); },
         getParams: function () { return window.$alea.params; },
         params: function (d) { console.log("params declared in code, move them to the params panel to publish", d); return d; }
@@ -358,8 +349,7 @@ function draw() {
     endShape();
   }
 
-  // The capture point. fxpreview() is aliased to this, so existing sketches
-  // that already call it need no edit at all.
+  // The capture point. Fire it once, when the piece is finished.
   alea.ready();
 }
 </script>
