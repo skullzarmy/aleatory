@@ -13,12 +13,49 @@ interface OpResult {
     hash: string;
 }
 
+/**
+ * What an operation declares, so nothing has to estimate it.
+ *
+ * Estimation does not work on this chain. `hard_gas_limit_per_operation`
+ * equals the per-*block* limit, so a simulation submitted at the operation
+ * maximum, which is what every estimator does, is refused by the node before
+ * it ever reaches the contract. The error it comes back with is whatever the
+ * simulator hit first and is usually misleading: `non_existing_contract`, for
+ * a contract that plainly exists.
+ *
+ * Declaring limits skips the simulation entirely. The fee has to be derived
+ * from the gas limit rather than guessed, because a baker's minimum is roughly
+ * 100 + 0.1 per gas unit + 1 per byte, in mutez, charged against the limit
+ * *declared* and not the gas consumed. Paying under it does not fail loudly:
+ * the operation injects, returns a hash, and sits in the mempool until it
+ * expires.
+ *
+ * Unused gas is not charged, so these are generous rather than tight.
+ */
+interface Limits {
+    gas: number;
+    storage: number;
+}
+
+/** Creating a token: ledger, token_metadata, and two payouts. */
+const MINT: Limits = { gas: 90_000, storage: 700 };
+/** A big_map write or a small storage change. */
+const SMALL: Limits = { gas: 30_000, storage: 400 };
+/** Moving a token, which touches the ledger and an operator set. */
+const TRANSFER: Limits = { gas: 60_000, storage: 500 };
+
+function feeFor(limits: Limits): number {
+    // Bytes are approximate and generous; the floor scales with gas anyway.
+    return 100 + Math.ceil(limits.gas * 0.1) + 500;
+}
+
 async function send(
     client: DAppClient,
     destination: string,
     entrypoint: string,
     value: unknown,
     amountMutez: number | bigint = 0,
+    limits: Limits = SMALL,
 ): Promise<OpResult> {
     const result = await client.requestOperation({
         operationDetails: [
@@ -27,7 +64,10 @@ async function send(
                 destination,
                 amount: String(amountMutez),
                 parameters: { entrypoint, value: value as never },
-            },
+                fee: String(feeFor(limits)),
+                gas_limit: String(limits.gas),
+                storage_limit: String(limits.storage),
+            } as never,
         ],
     });
     return { hash: (result as { transactionHash: string }).transactionHash };
@@ -65,7 +105,7 @@ export function mint(
     params: string,
     totalMutez: bigint,
 ): Promise<OpResult> {
-    return send(client, collection, "mint", bytes(utf8ToHex(params)), totalMutez);
+    return send(client, collection, "mint", bytes(utf8ToHex(params)), totalMutez, MINT);
 }
 
 /** Grant the marketplace the right to move one token, which listing needs. */
@@ -86,7 +126,7 @@ export function addOperator(
                 },
             ],
         },
-    ]);
+    ], 0, TRANSFER);
 }
 
 export async function listToken(
@@ -110,7 +150,7 @@ export async function buyListing(
     listingId: number,
     priceMutez: bigint,
 ): Promise<OpResult> {
-    return send(client, await marketplace(), "buy", int(listingId), priceMutez);
+    return send(client, await marketplace(), "buy", int(listingId), priceMutez, TRANSFER);
 }
 
 export async function makeOffer(
@@ -125,6 +165,7 @@ export async function makeOffer(
         "make_offer",
         { prim: "Pair", args: [str(collection), int(tokenId)] },
         amountMutez,
+        TRANSFER,
     );
 }
 
@@ -133,7 +174,7 @@ export async function cancelOffer(client: DAppClient, offerId: number): Promise<
 }
 
 export async function acceptOffer(client: DAppClient, offerId: number): Promise<OpResult> {
-    return send(client, await marketplace(), "accept_offer", int(offerId));
+    return send(client, await marketplace(), "accept_offer", int(offerId), 0, TRANSFER);
 }
 
 /** Artist controls on their own collection. */
