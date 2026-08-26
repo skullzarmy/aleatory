@@ -24,7 +24,7 @@ import dotenv from "dotenv";
 // with no configuration at all while this script reported everything fine.
 dotenv.config();
 
-const { collectionsServed, pendingIn, handle } = await import(
+const { collectionsServed, collectionsFactories, pendingIn, handle } = await import(
     "../netlify/functions/provider.mts"
 );
 const { renderConfigFromEnv } = await import("../netlify/functions/lib/render.mts");
@@ -37,17 +37,46 @@ function check(name: string, ok: boolean, detail = ""): boolean {
     return ok;
 }
 
+const router = (
+    process.env.ALEA_ROUTER_ADDRESS ||
+    process.env.NEXT_PUBLIC_ROUTER_ADDRESS ||
+    ""
+).trim();
+const override = (
+    process.env.ALEA_FACTORIES ||
+    process.env.ALEA_FACTORY_ADDRESS ||
+    ""
+).trim();
+
 console.log("\nConfiguration");
 const ready = [
     check("provider address", Boolean(process.env.ALEA_PROVIDER_ADDRESS), process.env.ALEA_PROVIDER_ADDRESS ?? ""),
     check("agent key", Boolean(process.env.ALEA_AGENT_SK)),
     check("pinning", Boolean(process.env.PINATA_JWT)),
     check("rendering", Boolean(renderConfigFromEnv())),
+    // Where the daemon looks for work. Unset, it scans nothing and reports
+    // serving no collections, which reads exactly like "nobody has named you
+    // as their provider" while every check above passes.
+    check(
+        "router",
+        Boolean(router || override),
+        override ? `overridden: ${override}` : router,
+    ),
 ].every(Boolean);
 
 if (!ready) {
     console.log("\nSomething is unset. See .env.example.\n");
     process.exit(1);
+}
+
+const factories = await collectionsFactories();
+console.log(
+    `\nFactories watched (${factories.length})` +
+        (override ? ", from ALEA_FACTORIES" : ", from the router"),
+);
+for (const f of factories) console.log(`  ${f}`);
+if (factories.length === 0) {
+    console.log("  none. Nothing will be found, whoever names this provider.");
 }
 
 console.log("\nCollections this provider serves");

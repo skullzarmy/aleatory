@@ -70,7 +70,7 @@ let factoryCache: { at: number; addresses: string[] } | null = null;
  * Storage is still the authority afterwards. This only decides where to look,
  * and a collection is served because its own storage names this provider.
  */
-async function factories(): Promise<string[]> {
+export async function collectionsFactories(): Promise<string[]> {
     if (FACTORY_OVERRIDE.length > 0) return FACTORY_OVERRIDE;
     if (!ROUTER) return [];
 
@@ -189,7 +189,7 @@ export async function collectionsServed(): Promise<string[]> {
     // sees a new collection at all: it would sit unrendered until its artist
     // happened to switch provider. Everything a factory originated is the
     // other half.
-    for (const factory of await factories()) {
+    for (const factory of await collectionsFactories()) {
         const originated = await tzkt<{ address: string }[]>("/v1/contracts", {
             creator: factory,
             limit: 500,
