@@ -9,6 +9,7 @@ import { Checks } from "./Checks";
 import { Cost } from "./Cost";
 import { ParamsPanel } from "./ParamsPanel";
 import { LibraryPicker } from "./LibraryPicker";
+import { useDeps } from "./useDeps";
 import { getKind } from "@/lib/runtimes";
 import { saveDraft, randomSeed, type Draft } from "@/lib/draft";
 import { downloadText } from "@/lib/project";
@@ -55,9 +56,10 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
     // editing is that the previous error may be the one you just fixed.
     const [error, setError] = useState<string | null>(null);
 
-    // Nothing is resolved here any more. A draft carries its own libraries
-    // from the moment it is created, so the document on the left is the whole
-    // piece and the frame on the right runs exactly what gets published.
+    // Libraries the document declares, resolved once for the whole workspace
+    // and handed to every frame. A p5 sketch with no p5 draws nothing and says
+    // nothing about why, so the failure is surfaced rather than swallowed.
+    const { deps, loading: depsLoading, error: depsError } = useDeps(draft.html);
     const kind = getKind(draft.kindId);
 
     // Autosave. A draft that only survives an explicit save is a draft that
@@ -149,14 +151,27 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
 
                     <div className="min-h-0 flex-1 overflow-auto p-3">
                         <div className="relative mx-auto aspect-square w-full max-w-[min(100%,70vh)] overflow-hidden rounded-lg border border-border">
-                            <Frame
-                                html={draft.html}
-                                seed={draft.seed}
-                                params={draft.params}
-                                values={values}
-                                onError={setError}
-                            />
+                            {depsLoading ? (
+                                <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                                    Loading {kind.deps.map((d) => d.label).join(", ") || "libraries"}…
+                                </p>
+                            ) : (
+                                <Frame
+                                    html={draft.html}
+                                    seed={draft.seed}
+                                    params={draft.params}
+                                    values={values}
+                                    deps={deps}
+                                    onError={setError}
+                                />
+                            )}
                         </div>
+
+                        {depsError && (
+                            <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
+                                {depsError}
+                            </p>
+                        )}
 
                         {error && (
                             <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-xs">
@@ -191,6 +206,7 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
 
                             {tool === "seeds" && (
                                 <SeedGrid
+                                    deps={deps}
                                     html={draft.html}
                                     baseSeed={draft.seed}
                                     params={draft.params}
@@ -217,6 +233,7 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
 
                             {tool === "checks" && (
                                 <Checks
+                                    deps={deps}
                                     html={draft.html}
                                     seed={draft.seed}
                                     params={draft.params}

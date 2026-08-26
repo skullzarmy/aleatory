@@ -197,6 +197,30 @@ console.log("\nLibraries");
 
     // And a piece has to say what it needs, on chain, or a renderer that has
     // never heard of our catalogue cannot draw it.
+    // Resolving a library and never handing it to a frame looks exactly like
+    // not resolving one: a p5 sketch with no p5 draws a blank square and says
+    // nothing. The studio shipped that way for an afternoon because a revert
+    // restored every consumer of useDeps except the one that calls it.
+    const workspace = readFileSync("src/components/studio/Workspace.tsx", "utf8");
+    check(
+        "the workspace resolves the document's libraries",
+        workspace.includes("useDeps("),
+        "nothing else in the studio calls it",
+    );
+    for (const consumer of ["Frame", "SeedGrid", "Checks"]) {
+        const at = workspace.indexOf(`<${consumer}`);
+        check(
+            `${consumer} is handed them`,
+            at !== -1 && /deps=\{deps\}/.test(workspace.slice(at, at + 400)),
+            "a frame without them renders blank with no error",
+        );
+    }
+    check(
+        "a library that will not load is reported",
+        workspace.includes("depsError"),
+        "silently blank is the worst of the available failures",
+    );
+
     const publish = readFileSync("src/lib/publish.ts", "utf8");
     check(
         "a collection records the libraries it expects",
