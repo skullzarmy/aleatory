@@ -246,9 +246,28 @@ is the piece.
   `add_writer` and `remove_writer` on the resolver. It cannot touch a deployed
   collection, move anyone's tokens, or change published code.
 
-- `npm audit` reports 22 vulnerabilities (12 low, 7 moderate, 3 high) against
-  the current lockfile. Not triaged. Needs a pass before mainnet to separate
-  what actually reaches production from what lives in the build chain.
+- ~~`npm audit`~~ **Triaged 2026-08-26.** 24 down to 3, and the three that
+  remain do not reach anything.
+
+  The one that mattered was **`@stablelib/ed25519`, signature malleability via
+  a missing `S < L` check**, reached through `@taquito/signer@21`. That is the
+  library every operation this project signs goes through: the deploy script,
+  the provider agent, and the browser wallet path. Taquito is on 25 now, along
+  with `@taquito/taquito`, `next` 15.5.24, `@netlify/functions` and the octez
+  connect SDK. `tsc` is clean and a provider dry run exercises the signer for
+  real against shadownet.
+
+  Left open, deliberately:
+
+  - **`postcss`**, XSS via an unescaped `</style>` in stringify output. Runs at
+    build time over CSS we wrote. Nothing untrusted reaches it, and the fix is
+    Next 16, a major upgrade with no benefit here.
+  - **`sharp`**, libvips CVEs. It arrives as a Next dependency for the image
+    optimiser, and `next/image` is not imported anywhere in this codebase: every
+    image is a plain `<img>` against an IPFS gateway. Nothing calls it.
+  - **`next`**, moderate, no effects listed and no fix short of Next 16.
+
+  Recheck at the next Next major.
 
 ---
 

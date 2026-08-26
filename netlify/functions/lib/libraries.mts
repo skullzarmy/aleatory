@@ -17,7 +17,12 @@
  * to try anything at all in any order, and will arrive at identical bytes or
  * at an error.
  */
-import { blake2bHex } from "blakejs";
+// blakejs is CommonJS. A named import works under a bundler and throws under
+// plain Node, which is where the daemon runs, so the default export is
+// destructured instead.
+import blakejs from "blakejs";
+
+const { blake2bHex } = blakejs;
 
 export interface DeclaredLibrary {
     id: string;
