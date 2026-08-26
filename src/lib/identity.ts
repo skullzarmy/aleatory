@@ -21,7 +21,7 @@
  * not disappear when they are testing. The alias is the exception: that is a
  * per-instance TzKT profile, so it comes from the network in use.
  */
-import { tzktApi } from "./config";
+import { tzktApi, tzktLink } from "./config";
 
 const RESOLVER = process.env.NEXT_PUBLIC_HACKTEZ_API || "https://hacktez.com";
 
@@ -30,8 +30,27 @@ const RESOLVER = process.env.NEXT_PUBLIC_HACKTEZ_API || "https://hacktez.com";
 const TTL_MS = 10 * 60_000;
 const TIMEOUT_MS = 4_000;
 
+/**
+ * Who told us. Shown on a profile, because a name and a face that arrive from
+ * somewhere are worth attributing, and because it tells a person where to go
+ * and change them.
+ */
+export type Source = "tezos-domains" | "hacktez" | "objkt" | "tzkt";
+
+export const SOURCE_LABEL: Record<Source, { name: string; href: (a: string) => string }> = {
+    "tezos-domains": {
+        name: "Tezos Domains",
+        href: () => "https://tezos.domains",
+    },
+    hacktez: { name: "hack.tez", href: () => RESOLVER },
+    objkt: { name: "objkt", href: (a) => `https://objkt.com/profile/${a}` },
+    tzkt: { name: "TzKT", href: (a) => tzktLink(a) },
+};
+
 interface Resolved {
     name: string | null;
+    /** Which of them answered, for attribution. */
+    nameSource: Source | null;
     /**
      * The hack.tez domain that is this wallet's identity.
      *
@@ -105,21 +124,29 @@ async function lookup(address: string): Promise<Resolved> {
         // `primary` is already the reverse record, falling back to the
         // designated hack.tez domain, so it needs no reassembling here.
         const name = body?.primary ?? handle;
-        if (name) return { name, handle };
+        if (name) {
+            // The reverse record and the hack.tez domain arrive in the same
+            // response, and only their equality tells them apart.
+            return {
+                name,
+                nameSource: name === handle ? "hacktez" : "tezos-domains",
+                handle,
+            };
+        }
     }
 
     const account = await timed(`${tzktApi()}/v1/accounts/${address}`);
     if (account) {
         const body = (await account.json().catch(() => null)) as { alias?: string } | null;
-        if (body?.alias) return { name: body.alias, handle };
+        if (body?.alias) return { name: body.alias, nameSource: "tzkt", handle };
     }
 
-    return { name: null, handle };
+    return { name: null, nameSource: null, handle };
 }
 
 /** The whole answer, cached and deduped. `resolveName` is the common case of it. */
 async function resolve(address: string): Promise<Resolved> {
-    if (!address) return { name: null, handle: null };
+    if (!address) return { name: null, nameSource: null, handle: null };
 
     const hit = cache.get(address);
     if (hit && Date.now() - hit.at < TTL_MS) return hit;
@@ -132,7 +159,7 @@ async function resolve(address: string): Promise<Resolved> {
             cache.set(address, { ...r, at: Date.now() });
             return r;
         })
-        .catch(() => ({ name: null, handle: null }) as Resolved)
+        .catch(() => ({ name: null, nameSource: null, handle: null }) as Resolved)
         .finally(() => inflight.delete(address));
 
     inflight.set(address, run);
@@ -148,6 +175,19 @@ async function resolve(address: string): Promise<Resolved> {
  */
 export async function resolveName(address: string): Promise<string | null> {
     return (await resolve(address)).name;
+}
+
+/**
+ * Where what is on screen came from.
+ *
+ * A profile's own source when there is one, and otherwise whoever supplied the
+ * name. Free after `resolveName` or `fetchProfile`, both of which fill the same
+ * cache.
+ */
+export async function sourceFor(address: string): Promise<Source | null> {
+    const profile = await fetchProfile(address);
+    if (profile) return profile.source;
+    return (await resolve(address)).nameSource;
 }
 
 

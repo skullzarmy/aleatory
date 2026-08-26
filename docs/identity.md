@@ -95,6 +95,17 @@ and a market row are links across their whole body, and an anchor inside an
 anchor is invalid HTML that React refuses to hydrate. The rule is the container:
 if it is a link, the account is a name.
 
+## Crediting it
+
+`<ProfileCard>` names the source underneath, linked to where it can be changed:
+Tezos Domains, hack.tez, objkt, or TzKT. It reads "Profile from" when there is
+one and "Name from" when a name is all that resolved.
+
+Two reasons. Everything on that block is someone else's work and it should say
+so, and a person who does not like what it shows needs to know which of four
+places to go and edit. `sourceFor()` returns it, and costs nothing after
+`resolveName` or `fetchProfile` because they fill the same cache.
+
 `<Avatar>` never renders an empty circle. Their picture, else the hackatar when
 they have a hack.tez name, else their initial. A grid of identical blank discs
 reads as broken rather than as absent.

@@ -1,5 +1,5 @@
 import { Avatar } from "./Avatar";
-import { avatarUrl, type Profile } from "@/lib/identity";
+import { avatarUrl, SOURCE_LABEL, type Profile, type Source } from "@/lib/identity";
 import { shortAddress } from "@/lib/utils";
 import { tzktLink } from "@/lib/config";
 
@@ -17,11 +17,14 @@ export function ProfileCard({
     address,
     name,
     profile,
+    source,
 }: {
     address: string;
     /** The resolved domain name, which is not the same as a chosen display name. */
     name: string | null;
     profile: Profile | null;
+    /** Who supplied what is shown. Credited, and it says where to change it. */
+    source?: Source | null;
 }) {
     const heading = profile?.name || name || shortAddress(address);
     // Show the domain underneath only when it is not already the heading.
@@ -91,6 +94,20 @@ export function ProfileCard({
                 {profile?.skills && profile.skills.length > 0 && (
                     <p className="mt-2 text-xs text-muted-foreground">
                         {profile.skills.join(" · ")}
+                    </p>
+                )}
+
+                {source && (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                        {profile ? "Profile" : "Name"} from{" "}
+                        <a
+                            href={SOURCE_LABEL[source].href(address)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline hover:text-foreground"
+                        >
+                            {SOURCE_LABEL[source].name}
+                        </a>
                     </p>
                 )}
             </div>

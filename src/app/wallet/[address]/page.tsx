@@ -6,7 +6,7 @@ import { ProfileNudge } from "@/components/account/ProfileNudge";
 import { fetchWallet } from "@/lib/feed";
 import { isAddress } from "@/lib/tzkt";
 import { shortAddress } from "@/lib/utils";
-import { resolveName, fetchProfile, avatarUrl } from "@/lib/identity";
+import { resolveName, fetchProfile, avatarUrl, sourceFor } from "@/lib/identity";
 import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
 
 export const revalidate = 60;
@@ -60,15 +60,16 @@ export default async function WalletPage({
     const { address } = await params;
     if (!isAddress(address)) notFound();
 
-    const [{ held, made, unconfigured }, name, profile] = await Promise.all([
+    const [{ held, made, unconfigured }, name, profile, source] = await Promise.all([
         fetchWallet(address),
         resolveName(address),
         fetchProfile(address),
+        sourceFor(address),
     ]);
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-8">
-            <ProfileCard address={address} name={name} profile={profile} />
+            <ProfileCard address={address} name={name} profile={profile} source={source} />
             <ProfileNudge address={address} profile={profile} />
 
             {unconfigured ? (
