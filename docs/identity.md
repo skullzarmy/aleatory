@@ -84,6 +84,11 @@ to a block explorer was the old behaviour, and an explorer is where you go to
 check an operation, not to find out who made something. The explorer link still
 exists: once, in `<ProfileCard>`, next to the address it verifies.
 
+**Inside something that is already a link, use `<AccountName>`.** A feed card
+and a market row are links across their whole body, and an anchor inside an
+anchor is invalid HTML that React refuses to hydrate. The rule is the container:
+if it is a link, the account is a name.
+
 `<Avatar>` never renders an empty circle. Their picture, else the hackatar when
 they have a hack.tez name, else their initial. A grid of identical blank discs
 reads as broken rather than as absent.

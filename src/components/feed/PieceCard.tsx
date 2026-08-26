@@ -2,13 +2,17 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { FeedPiece } from "@/lib/feed";
-import { AccountLink } from "@/components/account/AccountLink";
+import { AccountName } from "@/components/account/AccountName";
 
 /**
  * One piece in a feed.
  *
  * A piece awaiting its render shows an "awaiting render" state. It is a real
  * token, owned and tradeable, and the card says so.
+ *
+ * The artist is a name, not a link. The whole card is already a link to the
+ * piece, and an anchor inside an anchor is invalid HTML that React refuses to
+ * hydrate. Where a card is the link, accounts render as AccountName.
  */
 export function PieceCard({ piece }: { piece: FeedPiece }) {
     return (
@@ -41,7 +45,7 @@ export function PieceCard({ piece }: { piece: FeedPiece }) {
                 </p>
                 <div className="flex items-center justify-between pt-1 text-xs text-muted-foreground">
                     <span className="truncate">
-                        {piece.artist ? <AccountLink address={piece.artist} /> : ""}
+                        {piece.artist ? <AccountName address={piece.artist} /> : ""}
                     </span>
                     {piece.mintedAt ? <TimeAgo iso={piece.mintedAt} /> : <span />}
                 </div>
