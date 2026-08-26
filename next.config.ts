@@ -92,7 +92,12 @@ function csp(): string {
             ...(isDev ? ["ws://localhost:*", "http://localhost:*"] : []),
         ].join(" "),
         // Generator code runs on the provider's render host and nowhere else.
-        `frame-src ${ISOLATE_ORIGIN}`,
+        // The isolate, and WalletConnect's origin-verification iframe. Wallets
+        // load the second to attest which site is asking, and refusing it makes
+        // a connection request read as unverified in the wallet, or time out.
+        // It is an iframe from their own infrastructure and gets no access to
+        // this page; frame-src grants embedding, not reach.
+        `frame-src ${ISOLATE_ORIGIN} https://verify.walletconnect.org https://verify.walletconnect.com`,
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "object-src 'none'",
