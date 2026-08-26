@@ -222,7 +222,64 @@ async function ensureRevealed(tezos: TezosToolkit, signer: InMemorySigner) {
   throw new Error(`Reveal not confirmed (op ${opHash}).`)
 }
 
+/**
+ * Every role, explicitly, and no two of them the same.
+ *
+ * Runs before the deployer key is read, because a misconfigured deployment
+ * should fail on the configuration rather than after unlocking a wallet.
+ */
+function roles(): { admin: string; treasury: string; agent: string } {
+// Roles are separate on purpose: the agent is a hot key that lives in a
+// Netlify environment variable so the provider can sign, and the admin
+// holds the resolver, the factory lambda, the marketplace and the
+// treasury. Defaulting both to the deployer collapses that into one key,
+// and a leak of the hot one takes everything with it.
+const admin = process.env.ALEA_ADMIN_ADDRESS || ''
+// Never defaulted to the admin. It was, and the shadownet deployment took
+// that path in silence: the factory and the marketplace both went out with
+// administrator == treasury, which is precisely the collapse this block
+// exists to prevent. A default that quietly does the wrong thing is not a
+// guard, so this one is required like the others.
+const treasury = process.env.ALEA_TREASURY_ADDRESS || ''
+const agent = process.env.ALEA_AGENT_ADDRESS || ''
+
+for (const [name, value] of [
+  ['ALEA_ADMIN_ADDRESS', admin],
+  ['ALEA_TREASURY_ADDRESS', treasury],
+  ['ALEA_AGENT_ADDRESS', agent],
+] as const) {
+  if (!value) {
+    console.error(`\n✗ REFUSING: ${name} is not set.`)
+    console.error('  Set every role explicitly. A collapsed key means one leak takes all of them.')
+    process.exit(1)
+  }
+}
+for (const [a, b, why] of [
+  ['ALEA_AGENT_ADDRESS', 'ALEA_ADMIN_ADDRESS',
+   'The agent signs from a server. The admin holds the resolver, the factory lambda and the marketplace.'],
+  ['ALEA_TREASURY_ADDRESS', 'ALEA_ADMIN_ADDRESS',
+   'Fees land in the treasury. The admin can redirect them, so sharing the key removes the only step between a leak and the money.'],
+  ['ALEA_TREASURY_ADDRESS', 'ALEA_AGENT_ADDRESS',
+   'The agent is a hot key in a server environment. Fees must not land where a leak reaches them.'],
+] as const) {
+  const values: Record<string, string> = {
+    ALEA_ADMIN_ADDRESS: admin,
+    ALEA_TREASURY_ADDRESS: treasury,
+    ALEA_AGENT_ADDRESS: agent,
+  }
+  if (values[a] === values[b]) {
+    console.error(`\n✗ REFUSING: ${a} and ${b} are the same address.`)
+    console.error(`  ${why}`)
+    process.exit(1)
+  }
+}
+
+  return { admin, treasury, agent }
+}
+
 async function main() {
+  const { admin, treasury, agent } = roles()
+
   const secretKey = process.env.TEZOS_WALLET_PRIV_KEY
   if (!secretKey || !/^(edsk|spsk|p2sk)/.test(secretKey)) {
     console.error('Set TEZOS_WALLET_PRIV_KEY.')
@@ -233,31 +290,6 @@ async function main() {
   tezos.setSignerProvider(signer)
   const deployer = await signer.publicKeyHash()
 
-  // Roles are separate on purpose: the agent is a hot key that lives in a
-  // Netlify environment variable so the provider can sign, and the admin
-  // holds the resolver, the factory lambda, the marketplace and the
-  // treasury. Defaulting both to the deployer collapses that into one key,
-  // and a leak of the hot one takes everything with it.
-  const admin = process.env.ALEA_ADMIN_ADDRESS || ''
-  const treasury = process.env.ALEA_TREASURY_ADDRESS || admin
-  const agent = process.env.ALEA_AGENT_ADDRESS || ''
-
-  for (const [name, value] of [
-    ['ALEA_ADMIN_ADDRESS', admin],
-    ['ALEA_AGENT_ADDRESS', agent],
-  ] as const) {
-    if (!value) {
-      console.error(`\n✗ REFUSING: ${name} is not set.`)
-      console.error('  Set every role explicitly. A collapsed key means one leak takes all of them.')
-      process.exit(1)
-    }
-  }
-  if (agent === admin) {
-    console.error(`\n✗ REFUSING: the agent and the admin are the same address.`)
-    console.error('  The agent signs from a server. The admin holds the resolver, the factory')
-    console.error('  lambda, the marketplace and the treasury. Keep them apart.')
-    process.exit(1)
-  }
   const feeBps = parseInt(process.env.ALEA_MARKET_FEE_BPS || '250', 10)
   const deployPrice = parseInt(process.env.ALEA_DEPLOY_PRICE_MUTEZ || '0', 10)
 

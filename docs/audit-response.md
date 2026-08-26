@@ -204,17 +204,37 @@ is the piece.
 
 ## Still to do before mainnet
 
-- Fill `expectedHash` for p5 from a known-good copy.
-- Verify whether the shadownet deployment took the collapsed-key path, and
-  rotate if so. `deploy.ts` now refuses to run without both addresses set and
-  refuses when they match, so it cannot recur.
-- Redeploy the contracts carrying H3, M3, M6, M10, the factory's
-  `is_collection` view, and the `buy` to `mint` rename. The addresses in
-  `contract/deployments/shadownet.json` predate all of it. The rename changes
-  the entrypoint and the event tag, so the front end and the provider queue
-  only match the new contracts, not the deployed ones.
-- `npm audit` with the lockfile, now that the two hidden dependencies are
-  declared.
+- ~~Fill `expectedHash` for p5 from a known-good copy.~~ **Done 2026-08-26.**
+  The npm tarball for `p5@1.5.0` was fetched from `registry.npmjs.org`, checked
+  against the `dist.integrity` npm publishes for that version, and
+  `lib/p5.min.js` extracted from it. The hash is mandatory now: a library
+  without one is refused rather than loaded, and the check is unconditional
+  instead of `if a hash was provided`. Re-derivable by anyone:
+  `npm pack p5@1.5.0 && tar xzOf p5-1.5.0.tgz package/lib/p5.min.js | sha256sum`.
+
+- ~~Redeploy the contracts carrying H3, M3, M6, M10, the factory's
+  `is_collection` view, and the `buy` to `mint` rename.~~ **Done.** The live
+  collection exposes `mint`, and the front end and provider queue match.
+
+- **The collapsed-key path was taken, and the guard did not cover it.**
+  Confirmed 2026-08-26: the deployed factory and marketplace both carry
+  `administrator == treasury` (`tz1ahmJ…Gobw5V`). This response previously
+  claimed `deploy.ts` "refuses when they match, so it cannot recur", and that
+  was false. It checked the agent against the admin and never checked the
+  treasury at all, which defaulted to the admin silently. A default that
+  quietly does the wrong thing is not a guard.
+
+  Now: all three roles are required explicitly, no two may be equal, and the
+  check runs before the deployer key is read so a misconfigured deployment
+  fails on the configuration. Verified against all three cases.
+
+  Shadownet is a testnet and these keys hold nothing, so rotation there is
+  optional. Mainnet must be deployed with three distinct addresses, which the
+  script now enforces rather than documents.
+
+- `npm audit` reports 22 vulnerabilities (12 low, 7 moderate, 3 high) against
+  the current lockfile. Not triaged. Needs a pass before mainnet to separate
+  what actually reaches production from what lives in the build chain.
 
 ---
 
