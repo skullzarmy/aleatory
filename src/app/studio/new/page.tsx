@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { RUNTIME_KINDS } from "@/lib/runtimes";
 import { templateFor, templateParamsFor } from "@/lib/templates";
 import { packageFromFile, packageFromHtml } from "@/lib/project";
+import { inlineDeps } from "@/lib/runtimes";
 import { newDraft, saveDraft } from "@/lib/draft";
 
 /**
@@ -28,7 +29,10 @@ export default function NewGeneratorPage() {
         setBusy(true);
         setError(null);
         try {
-            const draft = newDraft(name, kindId, packageFromHtml(html), params);
+            // The libraries go in the document now, not at render time. What is
+            // stored has to be everything needed to draw the piece.
+            const bundled = await inlineDeps(html, kindId);
+            const draft = newDraft(name, kindId, packageFromHtml(bundled), params);
             await saveDraft(draft);
             router.push(`/studio/${draft.id}`);
         } catch (e) {
@@ -41,6 +45,10 @@ export default function NewGeneratorPage() {
         setBusy(true);
         setError(null);
         try {
+            // Nothing is added to a file an artist brings. Their bundle is
+            // already the whole piece: a zip has its libraries inlined from its
+            // own contents, and adding ours on top would ship p5 twice. If they
+            // left something out, the checks say so before they publish.
             const project = await packageFromFile(file);
             const draft = newDraft(
                 file.name.replace(/\.(html?|zip)$/i, ""),

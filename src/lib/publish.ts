@@ -162,7 +162,6 @@ export async function publishCollection(
     });
 
     onStage?.("signing");
-    const kind = getKind(draft.kindId);
     const schema = schemaForRecord(draft.params);
 
     const result = await deployCollection(client, {
@@ -193,8 +192,6 @@ export async function publishCollection(
                           thumbnailUri: input.coverThumbUri ?? input.coverUri,
                       }
                     : {}),
-                aleaKind: kind.name,
-                aleaKindVersion: kind.kindVersion,
                 // Recorded so the cover can be redrawn from chain state rather
                 // than only existing as a pinned file.
                 ...(input.coverSeed ? { aleaCoverSeed: input.coverSeed } : {}),

@@ -108,29 +108,22 @@ export function hashBytes(text: string): { hash: string; bytes: number } {
 }
 
 /**
- * Class is derived, never chosen, and it is displayed on the piece rather than
- * enforced. An artist may publish anything; a collector always sees what the
- * work depends on.
+ * Derived from one thing: did the bundle fit in contract storage. Displayed on
+ * the piece rather than enforced. An artist may publish either way; a collector
+ * always sees which.
  */
-export function storageClassOf(deps: ResolvedDep[], codeOnChain: boolean): StorageClassId {
-    if (!codeOnChain) return "ipfs";
-    return deps.length === 0 ? "foc" : "shared";
+export function storageClassOf(codeOnChain: boolean): StorageClassId {
+    return codeOnChain ? "foc" : "ipfs";
 }
 
 export const STORAGE_CLASS_LABEL: Record<StorageClassId, { name: string; blurb: string }> = {
     foc: {
         name: "fully on-chain",
-        blurb: "Your code and everything it needs are stored in the contract. The piece renders from Tezos alone, no IPFS, no server, nothing to keep paying for.",
-    },
-    shared: {
-        name: "on-chain + shared library",
-        blurb:
-            "Your code is stored in the contract; the library it uses is referenced by hash. In v0 that library is fetched from a CDN, " +
-            "so a piece like this is not fully on-chain yet, the shared library contract is v1 work.",
+        blurb: "Your piece and everything it needs are stored in the contract. It renders from Tezos alone: no IPFS, no server, nothing to keep paying for.",
     },
     ipfs: {
         name: "IPFS",
-        blurb: "Your code or assets live on IPFS with the hash recorded on chain. The piece stays available for as long as someone keeps it pinned.",
+        blurb: "Your piece lives on IPFS with its hash recorded on chain. It stays available for as long as someone keeps it pinned.",
     },
 };
 
@@ -312,7 +305,7 @@ export function buildRecord(input: BuildRecordInput): GeneratorRecord {
             location: "manifest" as const,
             ref: `${d.spec.id}@${d.spec.version}`,
         })),
-        storage_class: storageClassOf(input.deps, true),
+        storage_class: storageClassOf(true),
         seed_policy: { kind: "op-hash", version: 1, formula: OP_HASH_SEED_FORMULA },
         params_schema: schemaForRecord(input.paramSpecs ?? []),
         params_resolution: PARAMS_RESOLUTION,

@@ -12,16 +12,20 @@
  */
 
 /**
- * How a piece is stored, in the words the Tezos art community already uses.
+ * Where a piece's bytes live.
  *
- *   foc    fully on-chain, code and everything it needs live in contract storage
- *   shared on-chain code, plus a shared library referenced by hash
- *   ipfs   code or assets off-chain, content hash recorded on chain
+ *   foc   in contract storage
+ *   ipfs  on IPFS, content hash recorded on chain
  *
- * Displayed on every piece. Not a ranking and not a gate, a collector should
- * be able to see what a work depends on before they buy it.
+ * Only two, because a generator is always the whole piece. There was a third,
+ * "shared", for code on chain that referenced a library resolved at render
+ * time. That was never a storage class, it was a piece with a hole in it, and
+ * the hole was filled by this website being in the room.
+ *
+ * Displayed on every piece. Not a ranking and not a gate: a collector should be
+ * able to see where a work is kept before they buy it.
  */
-export type StorageClassId = "foc" | "shared" | "ipfs";
+export type StorageClassId = "foc" | "ipfs";
 
 export interface DepSpec {
     /** Stable id, recorded in the generator record. */
@@ -105,7 +109,7 @@ export const RUNTIME_KINDS: RuntimeKind[] = [
         kindVersion: "1.5.0",
         entrySpec: "Standard p5 sketch (setup/draw). Call $alea.ready() at the capture point.",
         deps: [P5_DEP],
-        blurb: "p5 is shared: referenced by hash, not bundled into your piece.",
+        blurb: "p5 is bundled into your piece. Larger, and it renders anywhere.",
     },
     {
         kindId: 4,
@@ -187,7 +191,17 @@ export async function resolveDep(spec: DepSpec): Promise<ResolvedDep> {
     if (!res.ok) throw new Error(`${spec.label} ${spec.version} could not be resolved (${res.status}).`);
     const source = await res.text();
 
-    const { blake2bHex } = await import("blakejs");
+    // blakejs is CommonJS. A bundler gives the named export; plain Node hands
+    // back a namespace with everything under `default`, and destructuring it
+    // there yields undefined rather than an import error, so it fails at the
+    // call. Take whichever is actually there.
+    const blake = (await import("blakejs")) as unknown as {
+        blake2bHex?: typeof import("blakejs").blake2bHex;
+        default?: { blake2bHex: typeof import("blakejs").blake2bHex };
+    };
+    const blake2bHex = blake.blake2bHex ?? blake.default?.blake2bHex;
+    if (!blake2bHex) throw new Error("blakejs did not load.");
+
     const bytes = new TextEncoder().encode(source);
     const hash = blake2bHex(bytes, undefined, 32);
 
@@ -221,4 +235,41 @@ export async function resolveDeps(specs: DepSpec[]): Promise<ResolvedDep[]> {
     const out: ResolvedDep[] = [];
     for (const spec of specs) out.push(await resolveDep(spec));
     return out;
+}
+
+/**
+ * Put a kind's libraries inside the document, once, when the draft is made.
+ *
+ * This is the fxhash model and it is the only honest one: what gets stored is
+ * everything needed to draw the piece. The studio used to fetch p5 and hand it
+ * to the frame at render time, so a p5 collection minted tokens whose stored
+ * code was a sketch with no p5 in it. It drew here because we were injecting
+ * the missing half on the way past, and it would have drawn nowhere else, ever,
+ * the moment this site stopped doing that.
+ *
+ * Inlined ahead of the artist's own scripts, because a sketch that runs before
+ * its library is a sketch that throws.
+ */
+export async function inlineDeps(html: string, kindId: number): Promise<string> {
+    const specs = getKind(kindId).deps;
+    if (specs.length === 0) return html;
+
+    const resolved = await resolveDeps(specs);
+    const blocks = resolved
+        .map(
+            (r) =>
+                `<!-- ${r.spec.label} ${r.spec.version}, bundled with this piece. ` +
+                `sha ${r.hash.slice(0, 16)} -->\n<script>${r.source}</script>`,
+        )
+        .join("\n");
+
+    // Straight after <head>, or at the top if the document has no head. Never
+    // appended: order is the whole point.
+    if (/<head[^>]*>/i.test(html)) {
+        return html.replace(/<head[^>]*>/i, (m) => `${m}\n${blocks}`);
+    }
+    if (/<body[^>]*>/i.test(html)) {
+        return html.replace(/<body[^>]*>/i, (m) => `${m}\n${blocks}`);
+    }
+    return `${blocks}\n${html}`;
 }

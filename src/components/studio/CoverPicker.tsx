@@ -65,14 +65,12 @@ export function CoverPicker({
     html,
     params,
     values,
-    deps,
     baseSeed,
     onCaptured,
 }: {
     html: string;
     params: ParamSpec[];
     values?: Record<string, unknown>;
-    deps?: string[];
     /** The draft's seed, so the choices here match the grid the artist knows. */
     baseSeed: string;
     onCaptured: (
@@ -146,7 +144,6 @@ export function CoverPicker({
                     seed={seed}
                     params={resolved}
                     paramsSchema={params}
-                    deps={deps}
                     wantImage
                     title="Cover"
                     onReady={onReady}

@@ -111,32 +111,55 @@ for (const kind of RUNTIME_KINDS) {
         validateSchema(params).join("; "));
 }
 
-console.log("\nDependencies");
+console.log("\nBundles are whole");
 {
-    // A kind that declares a library and does not get it renders a blank
-    // frame and says nothing about why. The isolate inlines deps ahead of the
-    // artist's code; this asserts it still does, and that the studio still
-    // resolves them rather than handing over an empty list.
+    // A generator carries everything it needs, the way an fxhash bundle does.
+    //
+    // It did not. The studio resolved p5 and handed it to the frame at render
+    // time, so a p5 collection minted tokens whose stored code was a sketch
+    // with no p5 in it. It drew in the studio because we were injecting the
+    // missing half on the way past. The render worker never injected anything,
+    // so the image that went on chain was of nothing at all, and the piece
+    // would have been dead everywhere else the moment this site stopped
+    // patching it.
+    //
+    // These assert that neither executor completes a piece for it.
+    const isolateSrc = readFileSync("isolate/index.html", "utf8");
+    check(
+        "the isolate injects no libraries",
+        !isolateSrc.includes("deps.map(") && !/\bvar libs\b/.test(isolateSrc),
+        "whatever it adds here is missing everywhere else the piece is drawn",
+    );
+
+    const renderer = readFileSync("netlify/functions/lib/render.mts", "utf8");
+    check(
+        "the renderer injects no libraries",
+        !/\bconst libs\b/.test(renderer) && !renderer.includes("input.deps"),
+        "the image on chain has to be of the piece as stored",
+    );
+
+    // Which leaves one place a library may be added: the draft, at the moment
+    // it is created, into the document itself.
+    const runtimes = readFileSync("src/lib/runtimes.ts", "utf8");
+    check("libraries are inlined into the document", runtimes.includes("export async function inlineDeps"));
+    check(
+        "they land ahead of the artist's code",
+        runtimes.includes("<head[^>]*>") || runtimes.includes("/<head[^>]*>/i"),
+        "a sketch that runs before its library is a sketch that throws",
+    );
+
+    const newDraftPage = readFileSync("src/app/studio/new/page.tsx", "utf8");
+    check(
+        "a template is bundled before the draft exists",
+        newDraftPage.includes("inlineDeps("),
+        "otherwise the document on screen is not the document that gets stored",
+    );
+
     const withDeps = RUNTIME_KINDS.filter((k) => k.deps.length > 0);
     check(
         "at least one kind declares a library, so this test means something",
         withDeps.length > 0,
     );
-
-    const isolateSrc = readFileSync("isolate/index.html", "utf8");
-    check(
-        "the isolate inlines the deps it is handed",
-        isolateSrc.includes("deps.map("),
-    );
-    check(
-        "the deps land before the artist's code",
-        isolateSrc.indexOf("var libs") < isolateSrc.indexOf("var injected"),
-        "a library that lands after the sketch is one the sketch could not use",
-    );
-
-    const useDeps = readFileSync("src/components/studio/useDeps.ts", "utf8");
-    check("the studio resolves a kind's libraries", useDeps.includes("resolveDeps"));
-
     for (const kind of withDeps) {
         check(
             `${kind.label}: declares ${kind.deps.map((d) => d.label).join(", ")}`,
@@ -144,13 +167,15 @@ console.log("\nDependencies");
         );
     }
 
-    const plain = RUNTIME_KINDS.find((k) => k.deps.length === 0);
-    if (plain) {
-        check(
-            `${plain.label}: declares no library`,
-            getKind(plain.kindId).deps.length === 0,
-        );
-    }
+    // Nothing about the runtime kind is written on chain. It picks a template
+    // and a starting schema, and that is the whole of its job. It was only ever
+    // recorded so a renderer could look up which library to inject.
+    const publish = readFileSync("src/lib/publish.ts", "utf8");
+    check(
+        "the kind is not published",
+        !publish.includes("aleaKind"),
+        "nothing needs it: the stored bytes are the whole piece",
+    );
 }
 
 console.log("\nOne harness");
@@ -161,9 +186,14 @@ console.log("\nOne harness");
     // worker, and they agree by conforming to ALEATORY-001 §7 rather than by
     // sharing a file. This asserts the third copy has not come back.
     const appHarness = readFileSync("src/lib/runtime.ts", "utf8");
+    // Identifiers, not the letters. This was a substring search for "fx" and
+    // it failed the moment a comment mentioned fxhash, which is a check that
+    // tests the prose rather than the code.
     check(
         "no dead-platform aliases in the harness",
-        !readFileSync("isolate/index.html", "utf8").includes("fx"),
+        !/\$fx\b|\bfxrand\b|\bfxhash\b\s*[=:]|window\.fx/.test(
+            readFileSync("isolate/index.html", "utf8"),
+        ),
         "this runs Aleatory pieces; $alea is the only surface",
     );
     check(

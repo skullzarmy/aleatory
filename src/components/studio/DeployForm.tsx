@@ -11,7 +11,6 @@ import type { Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
 import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
-import { useDeps } from "./useDeps";
 import {
     publishCollection,
     type PublishResult,
@@ -60,7 +59,6 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const provider = providers.find((p) => p.address === providerAddress);
     // The cover renders through the same isolate as everything else, so it
     // needs the same libraries the generator does.
-    const { deps } = useDeps(draft?.kindId ?? 1);
     // Where a shared royalty goes. Resolved from the router.
     const [platformAddress, setPlatformAddress] = useState("");
     useEffect(() => {
@@ -242,7 +240,6 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     <CoverPicker
                         html={draft.html}
                         params={draft.params}
-                        deps={deps}
                         baseSeed={draft.seed}
                         onCaptured={setCover}
                     />

@@ -289,16 +289,15 @@ const P5_TEMPLATE = `<!doctype html>
   <title>untitled sketch</title>
   <style>html,body{margin:0;height:100%;background:#0b0b0c;overflow:hidden}canvas{display:block}</style>
   <!--
-    p5 is NOT bundled here. It is a shared dependency, resolved by hash before
-    the piece boots, paid for once by the commons, referenced by every project
-    after that. Publishing records the pinned version (1.5.0) in the generator
-    record, so this sketch boots into this p5 forever.
+    p5 1.5.0 is inlined above this comment, in full. It is part of your piece,
+    the same way it is part of an fxhash bundle: whatever is not in this file is
+    not in the artwork, and a piece that needs this website to fill in the
+    missing half is a piece that dies with this website.
 
-    Working on this file locally? Uncomment the next line to load p5 from a CDN.
-    Leave it commented for publishing: a piece must not reach the network at
-    render time, and the sandbox will report it if it tries.
+    It is large, so a p5 collection is published to IPFS with its hash on chain
+    rather than into contract storage. The Cost panel says which you are getting
+    before you sign anything.
   -->
-  <!-- <script src="https://cdn.jsdelivr.net/npm/p5@1.5.0/lib/p5.min.js"></script> -->
 </head>
 <body>
 <script>

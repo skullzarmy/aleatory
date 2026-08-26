@@ -8,7 +8,6 @@ import { SeedGrid } from "./SeedGrid";
 import { Checks } from "./Checks";
 import { Cost } from "./Cost";
 import { ParamsPanel } from "./ParamsPanel";
-import { useDeps } from "./useDeps";
 import { getKind } from "@/lib/runtimes";
 import { saveDraft, randomSeed, type Draft } from "@/lib/draft";
 import { downloadText } from "@/lib/project";
@@ -54,13 +53,10 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
     // editing is that the previous error may be the one you just fixed.
     const [error, setError] = useState<string | null>(null);
 
-    // p5 and anything like it is inlined into the document before the piece
-    // runs. Until it resolves there is no point drawing: a p5 sketch with no p5
-    // is a blank frame, and a blank frame that explains nothing is worse than
-    // an error.
-    const { deps, loading: depsLoading, error: depsError } = useDeps(draft.kindId);
+    // Nothing is resolved here any more. A draft carries its own libraries
+    // from the moment it is created, so the document on the left is the whole
+    // piece and the frame on the right runs exactly what gets published.
     const kind = getKind(draft.kindId);
-    const depsReady = !depsLoading && !depsError;
 
     // Autosave. A draft that only survives an explicit save is a draft that
     // gets lost.
@@ -120,13 +116,6 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                 </Link>
             </header>
 
-            {depsError && (
-                <p className="shrink-0 border-b border-destructive/40 bg-destructive/10 px-4 py-2 text-sm">
-                    {kind.label} needs {kind.deps.map((d) => d.label).join(", ")}, and it could
-                    not be loaded: {depsError}
-                </p>
-            )}
-
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
                 <section
                     className="flex min-h-[40vh] flex-col border-b border-border lg:min-h-0 lg:w-1/2 lg:border-b-0 lg:border-r"
@@ -158,22 +147,13 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
 
                     <div className="min-h-0 flex-1 overflow-auto p-3">
                         <div className="relative mx-auto aspect-square w-full max-w-[min(100%,70vh)] overflow-hidden rounded-lg border border-border">
-                            {depsReady ? (
-                                <Frame
-                                    html={draft.html}
-                                    seed={draft.seed}
-                                    params={draft.params}
-                                    values={values}
-                                    deps={deps}
-                                    onError={setError}
-                                />
-                            ) : (
-                                <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                                    {depsLoading
-                                        ? `Loading ${kind.deps.map((d) => d.label).join(", ")}…`
-                                        : "Nothing to draw."}
-                                </p>
-                            )}
+                            <Frame
+                                html={draft.html}
+                                seed={draft.seed}
+                                params={draft.params}
+                                values={values}
+                                onError={setError}
+                            />
                         </div>
 
                         {error && (
@@ -207,24 +187,18 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                 </p>
                             )}
 
-                            {tool === "seeds" &&
-                                (depsReady ? (
-                                    <SeedGrid
-                                        html={draft.html}
-                                        baseSeed={draft.seed}
-                                        params={draft.params}
-                                        values={values}
-                                        deps={deps}
-                                        onPick={(seed) => {
-                                            update({ seed });
-                                            setTool(null);
-                                        }}
-                                    />
-                                ) : (
-                                    <p className="text-sm text-muted-foreground">
-                                        {depsLoading ? "Loading libraries…" : "Nothing to draw."}
-                                    </p>
-                                ))}
+                            {tool === "seeds" && (
+                                <SeedGrid
+                                    html={draft.html}
+                                    baseSeed={draft.seed}
+                                    params={draft.params}
+                                    values={values}
+                                    onPick={(seed) => {
+                                        update({ seed });
+                                        setTool(null);
+                                    }}
+                                />
+                            )}
 
                             {tool === "params" && (
                                 <ParamsPanel
@@ -241,7 +215,6 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                     seed={draft.seed}
                                     params={draft.params}
                                     values={values}
-                                    deps={deps}
                                 />
                             )}
 
