@@ -9,6 +9,7 @@ import { tzktLink } from "@/lib/config";
 import type { Provider } from "@/lib/providers";
 import type { Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
+import { AccountName } from "@/components/AccountName";
 import { CoverPicker } from "./CoverPicker";
 import { useDeps } from "./useDeps";
 import {
@@ -399,7 +400,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     </p>
                     {preview.map((r) => (
                         <div key={r.address} className="flex justify-between">
-                            <span className="text-muted-foreground">{shortAddress(r.address)}</span>
+                            <span className="text-muted-foreground">
+                                <AccountName address={r.address} />
+                            </span>
                             <span className="font-medium">
                                 {r.percentOfSale.toFixed(2)}% of the sale price
                             </span>

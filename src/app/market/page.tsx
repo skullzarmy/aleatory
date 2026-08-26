@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { fetchListings } from "@/lib/market";
 import { addresses } from "@/lib/router";
 import { formatTez, shortAddress } from "@/lib/utils";
+import { AccountName } from "@/components/AccountName";
 
 export const metadata: Metadata = { title: "Market" };
 export const revalidate = 15;
@@ -42,7 +43,7 @@ export default async function MarketPage() {
                                         #{Number(l.tokenId) + 1}
                                     </span>
                                     <span className="block truncate text-xs text-muted-foreground">
-                                        {shortAddress(l.collection)} by {shortAddress(l.seller)}
+                                        {shortAddress(l.collection)} by <AccountName address={l.seller} />
                                     </span>
                                 </span>
                                 <span className="shrink-0 font-medium">

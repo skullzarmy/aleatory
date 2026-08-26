@@ -12,6 +12,7 @@ import { formatParamValue, specsOf, resolveParams } from "@/lib/params";
 import { useWallet } from "@/context/WalletContext";
 import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
+import { AccountName } from "@/components/AccountName";
 
 /**
  * The moment after a mint.
@@ -129,7 +130,7 @@ export default function MintedPage({
                                     href={`/wallet/${piece.owner}`}
                                     className="hover:underline"
                                 >
-                                    {shortAddress(piece.owner)}
+                                    <AccountName address={piece.owner} />
                                 </Link>
                             ) : (
                                 "You"

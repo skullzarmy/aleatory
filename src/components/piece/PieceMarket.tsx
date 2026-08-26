@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useWallet } from "@/context/WalletContext";
-import { formatTez, shortAddress, parseTez, CONFIRM_ABOVE_MUTEZ } from "@/lib/utils";
+import { formatTez, parseTez, CONFIRM_ABOVE_MUTEZ } from "@/lib/utils";
 import { proceeds, type Listing, type Offer } from "@/lib/market";
 import { addresses } from "@/lib/router";
 import * as ops from "@/lib/ops";
+import { AccountName } from "@/components/AccountName";
 
 /**
  * Buying, listing and offers for one piece.
@@ -209,7 +210,9 @@ export function PieceMarket({
                     <ul className="mt-3 space-y-1.5">
                         {offers.map((o) => (
                             <li key={o.id} className="flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">{shortAddress(o.buyer)}</span>
+                                <span className="text-muted-foreground">
+                                    <AccountName address={o.buyer} />
+                                </span>
                                 <span className="flex items-center gap-2">
                                     <span className="font-medium">{tez(o.amountMutez)}</span>
                                     {isOwner && (

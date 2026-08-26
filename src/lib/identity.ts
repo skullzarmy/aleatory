@@ -39,6 +39,31 @@ const cache = new Map<string, Cached>();
 /** In-flight requests, so a grid of forty pieces by one artist asks once. */
 const inflight = new Map<string, Promise<string | null>>();
 
+/**
+ * How many addresses may be in flight at once.
+ *
+ * A feed of forty cards by forty different artists is forty lookups, and
+ * firing them together buries the requests that actually matter, the chain
+ * reads, behind a queue of decoration. Names arrive progressively instead,
+ * which costs nothing: every one of them is already showing an address.
+ */
+const MAX_CONCURRENT = 6;
+let active = 0;
+const queue: (() => void)[] = [];
+
+async function gate<T>(run: () => Promise<T>): Promise<T> {
+    if (active >= MAX_CONCURRENT) {
+        await new Promise<void>((resolve) => queue.push(resolve));
+    }
+    active++;
+    try {
+        return await run();
+    } finally {
+        active--;
+        queue.shift()?.();
+    }
+}
+
 async function timed(url: string): Promise<Response | null> {
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
@@ -89,7 +114,7 @@ export async function resolveName(address: string): Promise<string | null> {
     const pending = inflight.get(address);
     if (pending) return pending;
 
-    const run = lookup(address)
+    const run = gate(() => lookup(address))
         .then((name) => {
             cache.set(address, { name, at: Date.now() });
             return name;

@@ -5,6 +5,7 @@ import { MintView } from "@/components/collection/MintView";
 import { FeedGrid } from "@/components/feed/FeedGrid";
 import { shortAddress } from "@/lib/utils";
 import { tzktLink } from "@/lib/config";
+import { AccountName } from "@/components/AccountName";
 
 export const revalidate = 30;
 
@@ -38,7 +39,7 @@ export default async function CollectionPage({ params }: { params: Params }) {
                         rel="noreferrer"
                         className="hover:underline"
                     >
-                        {shortAddress(collection.artist)}
+                        <AccountName address={collection.artist} />
                     </a>
                 </p>
             </header>
@@ -51,7 +52,7 @@ export default async function CollectionPage({ params }: { params: Params }) {
                     {collection.royalties.map((r) => (
                         <div key={r.address} className="flex justify-between text-sm">
                             <span className="text-muted-foreground">
-                                {shortAddress(r.address)}
+                                <AccountName address={r.address} />
                             </span>
                             <span className="font-medium">{(r.bps / 100).toFixed(2)}%</span>
                         </div>

@@ -3,6 +3,7 @@ import { tzktLink } from "@/lib/config";
 import { shortAddress } from "@/lib/utils";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { Piece } from "@/lib/piece";
+import { AccountName } from "@/components/AccountName";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
     return (
@@ -35,13 +36,13 @@ export function PieceFacts({ piece }: { piece: Piece }) {
             </Row>
             <Row label="Artist">
                 <a href={tzktLink(piece.artist)} target="_blank" rel="noreferrer" className="hover:underline">
-                    {shortAddress(piece.artist)}
+                    <AccountName address={piece.artist} />
                 </a>
             </Row>
             {piece.owner && (
                 <Row label="Owner">
                     <a href={tzktLink(piece.owner)} target="_blank" rel="noreferrer" className="hover:underline">
-                        {shortAddress(piece.owner)}
+                        <AccountName address={piece.owner} />
                     </a>
                 </Row>
             )}
@@ -98,7 +99,9 @@ export function PieceFacts({ piece }: { piece: Piece }) {
                     <dl className="space-y-1">
                         {piece.royalties.map((r) => (
                             <div key={r.address} className="flex justify-between text-sm">
-                                <dt className="text-muted-foreground">{shortAddress(r.address)}</dt>
+                                <dt className="text-muted-foreground">
+                                    <AccountName address={r.address} />
+                                </dt>
                                 <dd className="font-medium">{(r.bps / 100).toFixed(2)}%</dd>
                             </div>
                         ))}

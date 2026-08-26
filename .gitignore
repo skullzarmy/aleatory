@@ -2,6 +2,9 @@ node_modules/
 dist/
 .env
 .env.*
+# The example is the one that is meant to be read. Without this it matches
+# `.env.*` and a checkout arrives with nothing documenting what to set.
+!.env.example
 contract/output*/
 contract/__pycache__/
 # SmartPy writes one directory per test scenario into the working directory,
