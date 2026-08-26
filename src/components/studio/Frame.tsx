@@ -22,6 +22,7 @@ export function Frame({
     seed,
     params,
     values,
+    deps,
     className,
     onReady,
     onViolation,
@@ -31,6 +32,8 @@ export function Frame({
     seed: string;
     params: ParamSpec[];
     values?: Record<string, unknown>;
+    /** Library sources, already resolved, inlined ahead of the artist's code. */
+    deps?: string[];
     className?: string;
     onReady?: () => void;
     onViolation?: (kind: string, detail: string) => void;
@@ -46,6 +49,7 @@ export function Frame({
             seed={seed}
             params={resolved}
             paramsSchema={params}
+            deps={deps}
             className={className}
             title="Preview"
             onReady={() => onReady?.()}

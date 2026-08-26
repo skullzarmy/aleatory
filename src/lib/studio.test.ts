@@ -111,70 +111,96 @@ for (const kind of RUNTIME_KINDS) {
         validateSchema(params).join("; "));
 }
 
-console.log("\nBundles are whole");
+console.log("\nLibraries");
 {
-    // A generator carries everything it needs, the way an fxhash bundle does.
+    // A generator may carry everything it needs, or it may name a standard
+    // library and let a renderer load it. The second is the point: an artist
+    // should not spend their bytes on p5.
     //
-    // It did not. The studio resolved p5 and handed it to the frame at render
-    // time, so a p5 collection minted tokens whose stored code was a sketch
-    // with no p5 in it. It drew in the studio because we were injecting the
-    // missing half on the way past. The render worker never injected anything,
-    // so the image that went on chain was of nothing at all, and the piece
-    // would have been dead everywhere else the moment this site stopped
-    // patching it.
+    // Two things have to hold for that to be safe rather than a hole.
     //
-    // These assert that neither executor completes a piece for it.
-    const isolateSrc = readFileSync("isolate/index.html", "utf8");
-    check(
-        "the isolate injects no libraries",
-        !isolateSrc.includes("deps.map(") && !/\bvar libs\b/.test(isolateSrc),
-        "whatever it adds here is missing everywhere else the piece is drawn",
-    );
+    // First, every declared library has a hash and it is checked. It was
+    // optional once and empty in practice, which meant whatever a CDN returned
+    // got written into an artist's immutable record with the chain vouching
+    // for it.
+    for (const kind of RUNTIME_KINDS) {
+        for (const dep of kind.deps) {
+            check(
+                `${dep.label} ${dep.version}: has a hash`,
+                /^[0-9a-f]{64}$/.test(dep.hash),
+                "an unhashed library is an unverifiable one",
+            );
+            check(
+                `${dep.label} ${dep.version}: cites a registry it can be checked against`,
+                dep.registry.integrity.startsWith("sha512-") && dep.registry.path.length > 0,
+                "we must not be the authority for what a library is",
+            );
+            check(
+                `${dep.label} ${dep.version}: served same-origin`,
+                dep.url.startsWith("/"),
+                "a CDN in the path is a third party deciding what runs",
+            );
+        }
+    }
 
-    const renderer = readFileSync("netlify/functions/lib/render.mts", "utf8");
-    check(
-        "the renderer injects no libraries",
-        !/\bconst libs\b/.test(renderer) && !renderer.includes("input.deps"),
-        "the image on chain has to be of the piece as stored",
-    );
-
-    // Which leaves one place a library may be added: the draft, at the moment
-    // it is created, into the document itself.
     const runtimes = readFileSync("src/lib/runtimes.ts", "utf8");
-    check("libraries are inlined into the document", runtimes.includes("export async function inlineDeps"));
+    check(
+        "an unhashed library is refused",
+        /if \(!spec\.hash\)/.test(runtimes),
+        "the check has to be unconditional, not `if a hash was provided`",
+    );
+    check(
+        "the library cache is keyed by hash",
+        runtimes.includes("cache.get(spec.hash)") && runtimes.includes("cache.set(spec.hash"),
+        "keyed by name+version, one bad declaration poisons every other piece",
+    );
+
+    // Second, whatever a piece declares reaches every renderer. This is the
+    // one that shipped broken: the studio resolved libraries and handed them
+    // to the frame, the render worker never did, so the image published on
+    // chain for a p5 piece was of an empty frame and nothing said so.
+    const isolateSrc = readFileSync("isolate/index.html", "utf8");
+    check("the isolate inlines the libraries it is handed", isolateSrc.includes("deps.map("));
     check(
         "they land ahead of the artist's code",
-        runtimes.includes("<head[^>]*>") || runtimes.includes("/<head[^>]*>/i"),
+        isolateSrc.indexOf("var libs") < isolateSrc.indexOf("var injected"),
         "a sketch that runs before its library is a sketch that throws",
     );
 
-    const newDraftPage = readFileSync("src/app/studio/new/page.tsx", "utf8");
+    const renderer = readFileSync("netlify/functions/lib/render.mts", "utf8");
+    check("the renderer inlines them too", renderer.includes("input.deps"));
+
+    const provider = readFileSync("netlify/functions/provider.mts", "utf8");
     check(
-        "a template is bundled before the draft exists",
-        newDraftPage.includes("inlineDeps("),
-        "otherwise the document on screen is not the document that gets stored",
+        "the provider reads what a collection declared",
+        provider.includes("aleatory:libraries") && provider.includes("parseLibraries"),
+        "a provider must not infer a piece's needs, only resolve what it was told",
+    );
+    check(
+        "the provider resolves them and hands them to the renderer",
+        provider.includes("resolveLibraries") && /\bdeps[,:]/.test(provider),
+        "this is the one that shipped wrong: accepted by the renderer, never sent",
     );
 
-    const withDeps = RUNTIME_KINDS.filter((k) => k.deps.length > 0);
+    const libs = readFileSync("netlify/functions/lib/libraries.mts", "utf8");
     check(
-        "at least one kind declares a library, so this test means something",
-        withDeps.length > 0,
+        "the provider verifies every candidate before use",
+        libs.includes("hash !== lib.hash"),
+        "a mirror that is stale, wrong or hostile has to be skipped, not used",
     );
-    for (const kind of withDeps) {
-        check(
-            `${kind.label}: declares ${kind.deps.map((d) => d.label).join(", ")}`,
-            kind.deps.every((d) => Boolean(d.url)),
-        );
-    }
+    check(
+        "an unresolvable library fails the render",
+        libs.includes("could not be resolved to its recorded hash"),
+        "a p5 sketch drawn with no p5 publishes a permanent image of an error",
+    );
 
-    // Nothing about the runtime kind is written on chain. It picks a template
-    // and a starting schema, and that is the whole of its job. It was only ever
-    // recorded so a renderer could look up which library to inject.
+    // And a piece has to say what it needs, on chain, or a renderer that has
+    // never heard of our catalogue cannot draw it.
     const publish = readFileSync("src/lib/publish.ts", "utf8");
     check(
-        "the kind is not published",
-        !publish.includes("aleaKind"),
-        "nothing needs it: the stored bytes are the whole piece",
+        "a collection records the libraries it expects",
+        publish.includes("aleatory:libraries"),
+        "a renderer is not required to know anything about our catalogue",
     );
 }
 

@@ -38,6 +38,7 @@ export interface RenderInput {
     /** Resolved parameter values, as the token records them. */
     params?: Record<string, unknown>;
     /** Library sources, inlined ahead of the artist's code. */
+    deps?: string[];
 }
 
 export interface RenderConfig {
@@ -169,12 +170,17 @@ export function buildDocument(input: RenderInput): string {
         "form-action 'none'",
     ].join("; ");
 
+    const libs = (input.deps ?? [])
+        .map((src) => `<script>${src.replace(/<\/script/gi, "<\\/script")}<\/script>`)
+        .join("\n");
+
     const injected =
         `<meta charset="utf-8">\n` +
         `<meta http-equiv="Content-Security-Policy" content="${csp}">\n` +
         `<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}` +
         `canvas{display:block}svg{display:block;width:100%;height:100%}</style>\n` +
-        `<script>${harness(input.seed, input.params ?? {})}<\/script>`;
+        `<script>${harness(input.seed, input.params ?? {})}<\/script>\n` +
+        libs;
 
     const code = input.code;
     const head = code.match(/<head[^>]*>/i);

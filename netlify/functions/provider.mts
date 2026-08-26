@@ -27,6 +27,11 @@ const RPC = process.env.TEZOS_RPC || "https://rpc.tzkt.io/shadownet";
 const PROVIDER_ADDRESS = process.env.ALEA_PROVIDER_ADDRESS || "";
 const AGENT_SK = process.env.ALEA_AGENT_SK || "";
 import { render as renderPiece, renderConfigFromEnv } from "./lib/render.mts";
+import {
+    parseLibraries,
+    resolveLibraries,
+    type DeclaredLibrary,
+} from "./lib/libraries.mts";
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
 /**
@@ -81,6 +86,8 @@ interface PendingPiece {
     /** The generator source, out of contract storage. */
     code: string;
     codeUri: string;
+    /** Libraries the collection says its generator expects to be loaded. */
+    libraries: DeclaredLibrary[];
     artist: string;
 }
 
@@ -186,6 +193,15 @@ export async function collectionsServed(): Promise<string[]> {
  * this was down, and pieces inherited from a provider an artist switched away
  * from.
  */
+/** One key out of a collection's metadata big_map, decoded. */
+async function metadataKey(collection: string, key: string): Promise<string | undefined> {
+    const row = await tzkt<{ value?: string } | null>(
+        `/v1/contracts/${collection}/bigmaps/metadata/keys/${encodeURIComponent(key)}`,
+    ).catch(() => null);
+    const value = row?.value;
+    return value ? hexToUtf8(value) : undefined;
+}
+
 export async function pendingIn(collection: string): Promise<PendingPiece[]> {
     const storage = await tzkt<CollectionStorage>(`/v1/contracts/${collection}/storage`);
     const pendingUri = hexToUtf8(storage.art.pending_metadata);
@@ -204,6 +220,14 @@ export async function pendingIn(collection: string): Promise<PendingPiece[]> {
         code = await fetchGenerator(codeUri);
     }
     if (!code) return [];
+
+    // What the collection says its generator needs loaded. Read from the
+    // collection's own metadata rather than inferred from anything here: a
+    // provider is not required to know what a "p5 collection" is, only how to
+    // resolve what it was told.
+    const libraries = parseLibraries(
+        await metadataKey(collection, "aleatory:libraries").catch(() => undefined),
+    );
 
     const waiting: PendingPiece[] = [];
     let offset = 0;
@@ -234,6 +258,7 @@ export async function pendingIn(collection: string): Promise<PendingPiece[]> {
                 params: buy.params,
                 code,
                 codeUri,
+                libraries,
                 artist: storage.administrator,
             });
             if (waiting.length >= BATCH) return waiting;
@@ -323,11 +348,18 @@ async function fetchGenerator(codeUri: string): Promise<string> {
 async function render(piece: PendingPiece): Promise<Uint8Array> {
     const config = renderConfigFromEnv();
     if (!config) throw new Error("rendering is not configured");
+    // Refused rather than rendered without them. A p5 sketch drawn with no p5
+    // produces a blank frame, and publishing that as the piece is worse than
+    // publishing nothing: the token would carry a permanent image of an error
+    // nobody was told about.
+    const deps = await resolveLibraries(piece.libraries);
+
     return renderPiece(
         {
             code: piece.code,
             seed: piece.seed,
             params: piece.params ? (JSON.parse(piece.params) as Record<string, unknown>) : {},
+            deps,
         },
         config,
     );

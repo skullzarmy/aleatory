@@ -50,11 +50,13 @@ export function Checks({
     seed,
     params,
     values,
+    deps,
 }: {
     html: string;
     seed: string;
     params: ParamSpec[];
     values?: Record<string, unknown>;
+    deps?: string[];
 }) {
     const [checks, setChecks] = useState<Check[]>(INITIAL);
     const [running, setRunning] = useState(false);
@@ -117,6 +119,7 @@ export function Checks({
                                 seed: runSeed,
                                 params: resolveParams(params, values ?? {}),
                                 paramsSchema: params,
+                                deps: deps ?? [],
                             },
                             // Opaque origin: it cannot be named, so "*" is the
                             // only targetOrigin that reaches it. Only this
@@ -140,7 +143,7 @@ export function Checks({
                 // signals a generous window before calling it.
                 window.setTimeout(() => finish(null), CAPTURE_TIMEOUT + 2000);
             }),
-        [html, params, values],
+        [html, params, values, deps],
     );
 
     const run = useCallback(async () => {

@@ -164,6 +164,18 @@ export async function publishCollection(
     onStage?.("signing");
     const schema = schemaForRecord(draft.params);
 
+    // What this generator expects a renderer to load for it. Recorded on chain
+    // because a renderer that cannot see this cannot draw the piece, and a
+    // renderer is not required to know anything about our catalogue. Id,
+    // version and package path make it resolvable from any registry mirror;
+    // the hash makes every one of those answers checkable.
+    const libraries = getKind(draft.kindId).deps.map((d) => ({
+        id: d.id,
+        version: d.version,
+        path: d.registry.path,
+        hash: d.hash,
+    }));
+
     const result = await deployCollection(client, {
         codeHex: tooLarge ? "" : toHex(codeBytes),
         codeEncoding,
@@ -199,6 +211,9 @@ export async function publishCollection(
             // Held under its own key so a mint UI built by someone else needs
             // one value rather than the whole record. docs/params.md §4.
             ...(schema ? { "aleatory:params": JSON.stringify(schema) } : {}),
+            ...(libraries.length > 0
+                ? { "aleatory:libraries": JSON.stringify(libraries) }
+                : {}),
         },
     });
 

@@ -18,6 +18,7 @@ export function SeedGrid({
     baseSeed,
     params,
     values,
+    deps,
     count = 16,
     onPick,
 }: {
@@ -25,6 +26,7 @@ export function SeedGrid({
     baseSeed: string;
     params: ParamSpec[];
     values?: Record<string, unknown>;
+    deps?: string[];
     count?: number;
     onPick?: (seed: string) => void;
 }) {
@@ -48,6 +50,7 @@ export function SeedGrid({
                                 seed={seed}
                                 params={params}
                                 values={values}
+                                deps={deps}
                             />
                         </span>
                         <span className="absolute bottom-0 left-0 right-0 bg-background/80 px-1.5 py-0.5 text-[10px] opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">

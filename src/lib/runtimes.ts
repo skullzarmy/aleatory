@@ -27,28 +27,46 @@
  */
 export type StorageClassId = "foc" | "ipfs";
 
+/**
+ * A library a generator asks for instead of carrying.
+ *
+ * An artist can bundle anything they like, up to whatever fits. This exists so
+ * they do not have to spend their bytes on p5: name a standard library and a
+ * renderer loads it for them.
+ *
+ * What makes that safe to do is the hash, and what makes the hash trustworthy
+ * is that we are not the authority behind it. The coordinates point at a public
+ * registry, the registry publishes its own integrity digest, and anyone can
+ * check ours against theirs at any time, forever, without asking us. We host a
+ * copy for speed and we are never the thing being trusted.
+ */
 export interface DepSpec {
     /** Stable id, recorded in the generator record. */
     id: string;
     label: string;
-    /** Pinned version, a generator records this, never "latest". */
+    /** Pinned, never "latest". A generator records the version it was made against. */
     version: string;
-    /**
-     * v0 resolves dependency source from this URL and records the blake2b of
-     * what it fetched. v1 resolves the same bytes from the on-chain Deps
-     * contract by hash; the artist-facing behaviour does not change.
-     */
+    /** Registry coordinates. The independent authority anyone can re-check against. */
+    registry: {
+        /** `npm view p5@1.5.0 dist.integrity` returns this. */
+        integrity: string;
+        /** Path inside the published package. */
+        path: string;
+    };
+    /** Where we serve our verified copy from. Same-origin, so no CDN is trusted. */
     url: string;
     /** Approximate size, for the cost estimate before anything is fetched. */
     approxBytes: number;
     /**
-     * blake2b-256 the fetched bytes have to match, hex.
+     * blake2b-256 of the exact bytes, hex. Mandatory.
      *
-     * Empty means unpinned, which is a state to leave before mainnet: an
-     * unpinned dependency puts a third party in the position of deciding what
-     * gets written on chain.
+     * This is what a generator records and what a renderer checks before it
+     * runs anything. It was optional once and empty in practice, which meant
+     * whatever a CDN happened to return got written into an artist's immutable
+     * record with the chain vouching for it. There is no version of this that
+     * is safe to leave blank.
      */
-    expectedHash?: string;
+    hash: string;
 }
 
 export interface RuntimeKind {
@@ -67,20 +85,30 @@ export interface RuntimeKind {
 }
 
 /**
- * Known-good digest of p5 1.5.0.
+ * p5 1.5.0.
  *
- * `resolveDep` hashes whatever the CDN returns and that hash goes on chain
- * immutably, so without a value to compare against, a compromised or
- * republished CDN would be recorded as canonical with the chain vouching for
- * it. Verify before trusting: the value below has to be confirmed against a
- * known-good copy before any mainnet publish.
+ * Verified end to end, not copied off a CDN: the npm tarball was fetched from
+ * registry.npmjs.org, checked against the `dist.integrity` npm publishes for
+ * that exact version, and `lib/p5.min.js` extracted from it. The file in
+ * `public/vendor` is that extraction, byte for byte.
+ *
+ * To re-check, from anything, with no reference to us:
+ *
+ *   npm view p5@1.5.0 dist.integrity
+ *   npm pack p5@1.5.0 && tar xzOf p5-1.5.0.tgz package/lib/p5.min.js | sha256sum
  */
 export const P5_DEP: DepSpec = {
     id: "p5",
     label: "p5.js",
     version: "1.5.0",
-    url: "https://cdn.jsdelivr.net/npm/p5@1.5.0/lib/p5.min.js",
-    approxBytes: 1_050_000,
+    registry: {
+        integrity:
+            "sha512-zZFMVUmGkXe2G5H6Sw7xsVhgdxMyEN/6SZnZqYdQ51513kTqPslLnukkwTbGf8YtW0RetTU0FTjYQMXnFD7KnQ==",
+        path: "lib/p5.min.js",
+    },
+    url: "/vendor/p5-1.5.0.min.js",
+    approxBytes: 898_364,
+    hash: "16f48a5a83acb2a5c6d2597097de5c22e9230d4593ea08074372283817154d47",
 };
 
 export const RUNTIME_KINDS: RuntimeKind[] = [
@@ -109,7 +137,7 @@ export const RUNTIME_KINDS: RuntimeKind[] = [
         kindVersion: "1.5.0",
         entrySpec: "Standard p5 sketch (setup/draw). Call $alea.ready() at the capture point.",
         deps: [P5_DEP],
-        blurb: "p5 is bundled into your piece. Larger, and it renders anywhere.",
+        blurb: "p5 is loaded for you, so your bytes go to your art.",
     },
     {
         kindId: 4,
@@ -154,122 +182,63 @@ const cache = new Map<string, ResolvedDep>();
  * Resolution happens in the studio, never in a sandboxed frame: by the time a
  * piece runs, its libraries are inlined text and the frame has no network.
  */
-export async function resolveDep(spec: DepSpec): Promise<ResolvedDep> {
-    const key = spec.id + "@" + spec.version;
-    const cached = cache.get(key);
-    if (cached) return cached;
-
-    // In a browser this goes through our own origin (`/api/dep`), so the app's
-    // `connect-src` stays `'self'` and the digest is verified somewhere the
-    // page cannot skip. A hash check that runs in the page is a hash check a
-    // compromised page removes. Off the browser, in a script or a test, the
-    // CDN is fetched directly and verified here.
-    if (typeof window !== "undefined") {
-        const res = await fetch(
-            `/api/dep?id=${encodeURIComponent(spec.id)}&version=${encodeURIComponent(spec.version)}`,
-        );
-        const json = (await res.json().catch(() => ({}))) as {
-            source?: string;
-            hash?: string;
-            bytes?: number;
-            error?: string;
-        };
-        if (!res.ok || typeof json.source !== "string") {
-            throw new Error(json.error || `${spec.label} ${spec.version} could not be resolved.`);
-        }
-        const resolved: ResolvedDep = {
-            spec,
-            source: json.source,
-            bytes: json.bytes ?? new TextEncoder().encode(json.source).length,
-            hash: json.hash ?? "",
-        };
-        cache.set(key, resolved);
-        return resolved;
-    }
-
-    const res = await fetch(spec.url);
-    if (!res.ok) throw new Error(`${spec.label} ${spec.version} could not be resolved (${res.status}).`);
-    const source = await res.text();
-
-    // blakejs is CommonJS. A bundler gives the named export; plain Node hands
-    // back a namespace with everything under `default`, and destructuring it
-    // there yields undefined rather than an import error, so it fails at the
-    // call. Take whichever is actually there.
-    const blake = (await import("blakejs")) as unknown as {
+/** blake2b-256, hex. CommonJS module, so both export shapes are handled. */
+async function blake2b(bytes: Uint8Array): Promise<string> {
+    const mod = (await import("blakejs")) as unknown as {
         blake2bHex?: typeof import("blakejs").blake2bHex;
         default?: { blake2bHex: typeof import("blakejs").blake2bHex };
     };
-    const blake2bHex = blake.blake2bHex ?? blake.default?.blake2bHex;
-    if (!blake2bHex) throw new Error("blakejs did not load.");
+    const fn = mod.blake2bHex ?? mod.default?.blake2bHex;
+    if (!fn) throw new Error("blakejs did not load.");
+    return fn(bytes, undefined, 32);
+}
 
-    const bytes = new TextEncoder().encode(source);
-    const hash = blake2bHex(bytes, undefined, 32);
-
-    if (spec.expectedHash && hash !== spec.expectedHash) {
+/**
+ * Load a library, and refuse it unless it is byte for byte what was recorded.
+ *
+ * The copy is ours, served same-origin out of `public/vendor`, so the app's
+ * `connect-src` stays `'self'` and no CDN sits in the path. The hash is checked
+ * anyway, every time, because serving the file is not the same as being trusted
+ * for it: a fork serving its own copy, or a renderer pulling from npm, has to
+ * arrive at the identical answer or refuse to draw.
+ *
+ * Keyed by hash, never by name and version. Otherwise a generator declaring
+ * "p5 1.5.0" with different bytes would poison the entry every other p5 piece
+ * reads, and a mislabelled library has to be able to harm only the piece that
+ * asked for it.
+ */
+export async function resolveDep(spec: DepSpec): Promise<ResolvedDep> {
+    if (!spec.hash) {
         throw new Error(
-            `${spec.label} ${spec.version} does not match its pinned hash. ` +
-                `Expected ${spec.expectedHash}, got ${hash}. Refusing to use it.`,
+            `${spec.label} ${spec.version} carries no hash. Refusing to load it.`,
+        );
+    }
+
+    const cached = cache.get(spec.hash);
+    if (cached) return cached;
+
+    const res = await fetch(spec.url);
+    if (!res.ok) {
+        throw new Error(`${spec.label} ${spec.version} could not be loaded (${res.status}).`);
+    }
+    const source = await res.text();
+    const bytes = new TextEncoder().encode(source);
+    const hash = await blake2b(bytes);
+
+    if (hash !== spec.hash) {
+        throw new Error(
+            `${spec.label} ${spec.version} is not what it claims to be. ` +
+                `Expected ${spec.hash}, got ${hash}.`,
         );
     }
 
     const resolved: ResolvedDep = { spec, source, bytes: bytes.length, hash };
-    cache.set(key, resolved);
+    cache.set(spec.hash, resolved);
     return resolved;
-}
-
-/**
- * Record the digest of a dependency that has been checked against a
- * known-good copy.
- *
- * Run once per version, by a person, comparing against the published release
- * rather than against whatever the CDN happens to be serving.
- */
-export async function pinDep(spec: DepSpec): Promise<string> {
-    const res = await fetch(spec.url);
-    const source = await res.text();
-    const { blake2bHex } = await import("blakejs");
-    return blake2bHex(new TextEncoder().encode(source), undefined, 32);
 }
 
 export async function resolveDeps(specs: DepSpec[]): Promise<ResolvedDep[]> {
     const out: ResolvedDep[] = [];
     for (const spec of specs) out.push(await resolveDep(spec));
     return out;
-}
-
-/**
- * Put a kind's libraries inside the document, once, when the draft is made.
- *
- * This is the fxhash model and it is the only honest one: what gets stored is
- * everything needed to draw the piece. The studio used to fetch p5 and hand it
- * to the frame at render time, so a p5 collection minted tokens whose stored
- * code was a sketch with no p5 in it. It drew here because we were injecting
- * the missing half on the way past, and it would have drawn nowhere else, ever,
- * the moment this site stopped doing that.
- *
- * Inlined ahead of the artist's own scripts, because a sketch that runs before
- * its library is a sketch that throws.
- */
-export async function inlineDeps(html: string, kindId: number): Promise<string> {
-    const specs = getKind(kindId).deps;
-    if (specs.length === 0) return html;
-
-    const resolved = await resolveDeps(specs);
-    const blocks = resolved
-        .map(
-            (r) =>
-                `<!-- ${r.spec.label} ${r.spec.version}, bundled with this piece. ` +
-                `sha ${r.hash.slice(0, 16)} -->\n<script>${r.source}</script>`,
-        )
-        .join("\n");
-
-    // Straight after <head>, or at the top if the document has no head. Never
-    // appended: order is the whole point.
-    if (/<head[^>]*>/i.test(html)) {
-        return html.replace(/<head[^>]*>/i, (m) => `${m}\n${blocks}`);
-    }
-    if (/<body[^>]*>/i.test(html)) {
-        return html.replace(/<body[^>]*>/i, (m) => `${m}\n${blocks}`);
-    }
-    return `${blocks}\n${html}`;
 }

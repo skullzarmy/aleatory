@@ -22,6 +22,7 @@ export function IsolateFrame({
     seed,
     params,
     paramsSchema,
+    deps,
     wantImage,
     className,
     title = "Piece",
@@ -35,6 +36,7 @@ export function IsolateFrame({
     params?: Record<string, unknown>;
     paramsSchema?: unknown[];
     /** Library sources, inlined ahead of the artist's code. */
+    deps?: string[];
     /** Ask for the pixels back, not just a digest. Used to capture a cover. */
     wantImage?: boolean;
     className?: string;
@@ -58,9 +60,10 @@ export function IsolateFrame({
                 seed,
                 params: params ?? {},
                 paramsSchema: paramsSchema ?? [],
+                deps: deps ?? [],
                 wantImage: Boolean(wantImage),
             }),
-        [code, seed, params, paramsSchema, wantImage],
+        [code, seed, params, paramsSchema, deps, wantImage],
     );
 
     // A fresh document per change. Swapping the source underneath a piece that
