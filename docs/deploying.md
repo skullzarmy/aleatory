@@ -122,13 +122,61 @@ comes up next picks up everything missed.
 left half published. A second signal exits immediately. Give it a
 `TimeoutStopSec` long enough to finish a render, around 60 seconds.
 
-### Before wiring up a service
+---
+
+## Setting up the box
+
+Everything below assumes a checkout with its dependencies installed and an
+`.env` beside it. The service definitions in the next section point at all
+three, and systemd reports a missing one as
+`Failed to spawn 'start' task: No such file or directory`, which does not say
+what is missing.
+
+```
+cd ~
+git clone https://github.com/skullzarmy/aleatory.git
+cd aleatory
+npm ci
+```
+
+`npm ci` and not `npm install`: the daemon runs from `node_modules/.bin/tsx`,
+and the service references it by absolute path.
+
+Then write `.env` in that directory, containing **only** section 2 of
+[.env.example](../.env.example):
+
+```
+ALEA_PROVIDER_ADDRESS=
+ALEA_AGENT_SK=
+PINATA_JWT=
+CF_ACCOUNT_ID=
+CF_API_TOKEN=
+```
+
+The agent key is a secret and belongs on this box only. It signs
+`set_token_metadata` and nothing else, so a leak costs the tez in it and
+nothing more, and rotating it is one `set_agent` on the provider contract.
+
+Nothing else from your laptop's `.env` goes here. Not the deploy key, not the
+admin or treasury addresses, not the `NEXT_PUBLIC_` values.
+
+### Prove it before involving systemd
 
 ```
 npm run provider:check
 ```
 
-Reports what is waiting and changes nothing. If that works, the service will.
+Reports what is waiting and changes nothing. It fails loudly on a missing
+credential, which is much easier to read than a service that will not spawn.
+If this works, the service will.
+
+Note the three values the next section needs:
+
+```
+pwd                             # WorkingDirectory and EnvironmentFile
+readlink -f "$(which node)"     # the first half of ExecStart
+ls node_modules/.bin/tsx        # the second half
+```
 
 ---
 
@@ -193,9 +241,18 @@ systemctl status aleatory-provider --no-pager -l
 > Job for aleatory-provider.service failed because of unavailable resources or
 > another system error.
 
-That is systemd saying it could not launch the process at all, before any of
-our code ran. It means `User=`, `WorkingDirectory=` or `ExecStart=` names
-something that does not exist. Check all three; the message does not say which.
+That is systemd failing to launch the process at all, before any of our code
+runs. The journal splits it into two lines that are more specific than the
+summary:
+
+| line | what is missing |
+|---|---|
+| `Failed to load environment files` | the `EnvironmentFile=` path |
+| `Failed to spawn 'start' task` | the `ExecStart=` binary |
+
+Both at once usually means the checkout is not where the unit says, or
+[Setting up the box](#setting-up-the-box) has not been done and there is no
+`node_modules` to run from.
 
 ```
 journalctl -u aleatory-provider --no-pager -n 50
