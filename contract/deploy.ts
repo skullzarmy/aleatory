@@ -287,8 +287,25 @@ async function main() {
   }
   const tezos = new TezosToolkit(RPC_URL)
   const signer = await InMemorySigner.fromSecretKey(secretKey)
-  tezos.setSignerProvider(signer)
+
+  // The deployer is the fourth role, and the only one whose address is not
+  // configured but derived. It pays for the originations and then has no
+  // standing at all, which is the point: it is a hot key on whatever machine
+  // ran this. Letting it double as the admin would leave that machine holding
+  // `admin_lambda` over the factory permanently.
   const deployer = await signer.publicKeyHash()
+  for (const [name, address] of [
+    ['ALEA_ADMIN_ADDRESS', admin],
+    ['ALEA_TREASURY_ADDRESS', treasury],
+    ['ALEA_AGENT_ADDRESS', agent],
+  ] as const) {
+    if (address === deployer) {
+      console.error(`\n✗ REFUSING: ${name} is the deployer key (${deployer}).`)
+      console.error('  The deployer pays for this and should keep no power afterwards.')
+      process.exit(1)
+    }
+  }
+  tezos.setSignerProvider(signer)
 
   const feeBps = parseInt(process.env.ALEA_MARKET_FEE_BPS || '250', 10)
   const deployPrice = parseInt(process.env.ALEA_DEPLOY_PRICE_MUTEZ || '0', 10)

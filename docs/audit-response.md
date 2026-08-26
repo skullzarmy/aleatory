@@ -224,13 +224,27 @@ is the piece.
   treasury at all, which defaulted to the admin silently. A default that
   quietly does the wrong thing is not a guard.
 
-  Now: all three roles are required explicitly, no two may be equal, and the
-  check runs before the deployer key is read so a misconfigured deployment
-  fails on the configuration. Verified against all three cases.
+  Now: all three roles are required explicitly, no two may be equal, none may
+  be the deployer, and the configuration check runs before the deployer key is
+  read so a bad setup fails on its configuration. Verified against every case.
+
+  The deployer is the fourth role and the only one derived rather than
+  configured. It signs and pays for the originations and holds nothing
+  afterwards, which is the point: it is a hot key on whatever machine ran the
+  script, and letting it double as the admin would leave that machine holding
+  `admin_lambda` over the factory permanently.
 
   Shadownet is a testnet and these keys hold nothing, so rotation there is
-  optional. Mainnet must be deployed with three distinct addresses, which the
-  script now enforces rather than documents.
+  optional. Mainnet needs four distinct addresses, which the script now
+  enforces rather than documents.
+
+  What the admin key actually holds, so the custody decision is made with the
+  list in view: `admin_lambda` over factory storage, `set_deploy_price`,
+  `set_resolver`, `set_paused` and `set_treasury` on the factory; `set_fee`,
+  `set_treasury` and `set_paused` on the marketplace; `add_factory`,
+  `set_marketplace`, `set_registry` and `set_resolver` on the router;
+  `add_writer` and `remove_writer` on the resolver. It cannot touch a deployed
+  collection, move anyone's tokens, or change published code.
 
 - `npm audit` reports 22 vulnerabilities (12 low, 7 moderate, 3 high) against
   the current lockfile. Not triaged. Needs a pass before mainnet to separate
