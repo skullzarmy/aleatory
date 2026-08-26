@@ -35,6 +35,15 @@ const NAME_RESOLVER = new URL(
 ).origin;
 
 /**
+ * Profile pictures. See src/lib/identity.ts.
+ *
+ * The resolver serves hackatars, and objkt serves the logo on a profile we fall
+ * back to. Neither failure is loud: a blocked avatar renders as the initial,
+ * which looks like a deliberate design.
+ */
+const AVATAR_HOSTS = [NAME_RESOLVER, "https://assets.objkt.media"];
+
+/**
  * Gateways an image may be loaded from.
  *
  * The configured one is included by origin, so changing the gateway does not
@@ -60,7 +69,7 @@ function csp(): string {
         // Next injects inline bootstrap script; dev additionally evaluates.
         `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
         "style-src 'self' 'unsafe-inline'",
-        `img-src 'self' data: blob: ${IPFS_HOSTS.join(" ")}`,
+        `img-src 'self' data: blob: ${[...IPFS_HOSTS, ...AVATAR_HOSTS].join(" ")}`,
         "font-src 'self' data: https://fonts.gstatic.com",
         // The dependency proxy keeps this 'self': the studio never reaches a
         // CDN directly, /api/dep does it server-side. See src/app/api/dep.
@@ -68,6 +77,8 @@ function csp(): string {
             "connect-src 'self'",
             ...CHAIN_HOSTS,
             NAME_RESOLVER,
+            // objkt's indexer, the profile fallback.
+            "https://data.objkt.com",
             // Beacon's relay servers. The octez SDK uses octez.io; the
             // walletbeacon hosts are the older Beacon network and are kept
             // because a wallet may still pair through them. Blocking these

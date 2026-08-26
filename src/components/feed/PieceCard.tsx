@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { FeedPiece } from "@/lib/feed";
-import { AccountName } from "@/components/AccountName";
+import { AccountLink } from "@/components/account/AccountLink";
 
 /**
  * One piece in a feed.
@@ -41,7 +41,7 @@ export function PieceCard({ piece }: { piece: FeedPiece }) {
                 </p>
                 <div className="flex items-center justify-between pt-1 text-xs text-muted-foreground">
                     <span className="truncate">
-                        {piece.artist ? <AccountName address={piece.artist} /> : ""}
+                        {piece.artist ? <AccountLink address={piece.artist} /> : ""}
                     </span>
                     {piece.mintedAt ? <TimeAgo iso={piece.mintedAt} /> : <span />}
                 </div>

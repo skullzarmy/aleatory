@@ -24,12 +24,19 @@ Grouped by who is on the page.
 /mine                 shortcut to your own wallet page
 ```
 
-`/wallet/[address]` is keyed by an address and needs no account, no connection
-and no permission, so a collector can send someone the link to what they hold
-and an artist has a public page from the moment they deploy. It answers both
+`/wallet/[address]` is the page about a person: who they are, what they made,
+what they hold. Created leads, because on a site about generative art the work
+someone published is the reason to be on their page at all. It answers both
 questions about one address because on this chain they are usually the same
-person. `/mine` redirects to it, so "what you own" is one link from anywhere
-without being a second copy of the same view behind a connection.
+person, and it is keyed by an address alone, so it needs no account, no
+connection and no permission. `/mine` redirects to it, so "what you own" is one
+link from anywhere without being a second copy of the same view behind a
+connection.
+
+The profile on top is theirs from elsewhere: hack.tez first, objkt as a
+fallback. Nothing about a person is stored here. See [identity](identity.md),
+which is also the one place that decides how any account is displayed anywhere
+on the site.
 
 `/minted/[c]/[id]` is where a mint lands. It runs the piece live from the
 generator in the collection's storage and the seed the collector's signature
@@ -106,3 +113,8 @@ origination: the account whose operation caused it. `/manage` and
 Filtering contracts by a storage field is the obvious approach and TzKT does
 not support it. It ignores unknown query parameters and answers with an
 unfiltered page, which reads as success.
+
+A single-field `select` is flattened: TzKT answers with the field's own value
+per row, not a row containing that field. Reading `row.originatedContract` found
+`undefined` on every row, so both pages told every artist they had published
+nothing.

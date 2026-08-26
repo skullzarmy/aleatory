@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FeedGrid } from "@/components/feed/FeedGrid";
+import { WalletTabs } from "@/components/account/WalletTabs";
+import { ProfileCard } from "@/components/account/ProfileCard";
+import { ProfileNudge } from "@/components/account/ProfileNudge";
 import { fetchWallet } from "@/lib/feed";
 import { isAddress } from "@/lib/tzkt";
-import { tzktLink } from "@/lib/config";
 import { shortAddress } from "@/lib/utils";
-import { resolveName } from "@/lib/identity";
+import { resolveName, fetchProfile, avatarUrl } from "@/lib/identity";
+import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
 
 export const revalidate = 60;
 
@@ -16,17 +17,40 @@ export async function generateMetadata({
     params: Promise<{ address: string }>;
 }): Promise<Metadata> {
     const { address } = await params;
-    const name = await resolveName(address);
-    return { title: name ?? shortAddress(address) };
+    const [name, profile] = await Promise.all([
+        resolveName(address),
+        fetchProfile(address),
+    ]);
+    const title = profile?.name || name || shortAddress(address);
+    const picture = avatarUrl(profile);
+    const image = picture?.startsWith("ipfs://")
+        ? convertIpfsToGatewayUrl(picture)
+        : picture;
+
+    return {
+        title,
+        description: profile?.bio,
+        openGraph: {
+            title,
+            description: profile?.bio,
+            images: image ? [{ url: image }] : undefined,
+        },
+    };
 }
 
 /**
- * One address, both ways round.
+ * One person: what they made, what they hold, and who they are.
  *
- * Everything here is public chain state keyed by an address, so this page needs
- * no account, no connection and no permission: a collector can send someone the
- * link to what they hold, and an artist's page exists from the moment they
- * deploy rather than when they get round to filling in a profile.
+ * Keyed by an address and needing no account, no connection and no permission,
+ * so a collector can send someone the link to what they hold and an artist has
+ * a page from the moment they deploy rather than when they get round to filling
+ * one in. It answers both questions about one address because on this chain
+ * they are usually the same person.
+ *
+ * The profile on top is theirs from elsewhere: a hack.tez record they own and
+ * edit, or an objkt profile if that is all there is. Nothing about a person is
+ * stored here, which is why this page exists for people who have never used the
+ * site.
  */
 export default async function WalletPage({
     params,
@@ -36,75 +60,23 @@ export default async function WalletPage({
     const { address } = await params;
     if (!isAddress(address)) notFound();
 
-    const [{ held, made, unconfigured }, name] = await Promise.all([
+    const [{ held, made, unconfigured }, name, profile] = await Promise.all([
         fetchWallet(address),
         resolveName(address),
+        fetchProfile(address),
     ]);
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-8">
-            <header>
-                <h1 className="text-xl font-semibold tracking-tight">
-                    {name ?? shortAddress(address)}
-                </h1>
-                <p className="mt-1 text-xs text-muted-foreground">
-                    <a
-                        href={tzktLink(address)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline hover:text-foreground"
-                    >
-                        {address}
-                    </a>
-                </p>
-            </header>
+            <ProfileCard address={address} name={name} profile={profile} />
+            <ProfileNudge address={address} profile={profile} />
 
             {unconfigured ? (
                 <p className="mt-8 text-sm text-muted-foreground">
                     Nothing to show on this network yet.
                 </p>
             ) : (
-                <>
-                    {made.length > 0 && (
-                        <section className="mt-8">
-                            <h2 className="mb-3 text-sm font-medium">
-                                Made {made.length === 1 ? "one collection" : `${made.length} collections`}
-                            </h2>
-                            <ul className="divide-y divide-border rounded-lg border border-border">
-                                {made.map((c) => (
-                                    <li key={c.address}>
-                                        <Link
-                                            href={`/collection/${c.address}`}
-                                            className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-accent"
-                                        >
-                                            <span className="min-w-0 truncate text-sm font-medium">
-                                                {c.name || shortAddress(c.address)}
-                                            </span>
-                                            <span className="shrink-0 text-xs text-muted-foreground">
-                                                {c.minted} minted
-                                            </span>
-                                        </Link>
-                                    </li>
-                                ))}
-                            </ul>
-                        </section>
-                    )}
-
-                    <section className="mt-10">
-                        <h2 className="mb-3 text-sm font-medium">
-                            {held.length === 0
-                                ? "Holds nothing yet"
-                                : `Holds ${held.length === 1 ? "one piece" : `${held.length} pieces`}`}
-                        </h2>
-                        {held.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">
-                                Pieces bought here show up on this page.
-                            </p>
-                        ) : (
-                            <FeedGrid pieces={held} />
-                        )}
-                    </section>
-                </>
+                <WalletTabs made={made} held={held} />
             )}
         </div>
     );

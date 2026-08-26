@@ -6,7 +6,7 @@ import { formatTez, parseTez, CONFIRM_ABOVE_MUTEZ } from "@/lib/utils";
 import { proceeds, type Listing, type Offer } from "@/lib/market";
 import { addresses } from "@/lib/router";
 import * as ops from "@/lib/ops";
-import { AccountName } from "@/components/AccountName";
+import { AccountLink } from "@/components/account/AccountLink";
 
 /**
  * Buying, listing and offers for one piece.
@@ -211,7 +211,7 @@ export function PieceMarket({
                         {offers.map((o) => (
                             <li key={o.id} className="flex items-center justify-between text-sm">
                                 <span className="text-muted-foreground">
-                                    <AccountName address={o.buyer} />
+                                    <AccountLink address={o.buyer} />
                                 </span>
                                 <span className="flex items-center gap-2">
                                     <span className="font-medium">{tez(o.amountMutez)}</span>

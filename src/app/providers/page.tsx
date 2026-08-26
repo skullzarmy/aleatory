@@ -6,8 +6,8 @@ import {
     RANKING_WINDOW_DAYS,
     type Provider,
 } from "@/lib/providers";
-import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
 import { formatTez, shortAddress } from "@/lib/utils";
+import { Avatar } from "@/components/account/Avatar";
 
 export const metadata: Metadata = { title: "Render providers" };
 export const revalidate = 300;
@@ -44,7 +44,7 @@ export default async function ProvidersPage() {
                             href={`/providers/${p.address}`}
                             className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-accent"
                         >
-                            <Avatar provider={p} />
+                            <Avatar address={p.address} src={p.avatarUri ?? null} shape="square" size={40} fallback={p.name} />
                             <span className="min-w-0 flex-1">
                                 <span className="flex items-center gap-2">
                                     <span className="truncate font-medium">
@@ -82,22 +82,3 @@ export default async function ProvidersPage() {
     );
 }
 
-/** A provider's own logo, or its initial. Presentation only. */
-function Avatar({ provider }: { provider: Provider }) {
-    const url = provider.avatarUri ? convertIpfsToGatewayUrl(provider.avatarUri) : "";
-    if (url) {
-        // eslint-disable-next-line @next/next/no-img-element
-        return (
-            <img
-                src={url}
-                alt=""
-                className="h-10 w-10 shrink-0 rounded-md object-cover"
-            />
-        );
-    }
-    return (
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted text-sm font-medium text-muted-foreground">
-            {(provider.name || provider.address.slice(3, 4)).slice(0, 1).toUpperCase()}
-        </span>
-    );
-}

@@ -3,7 +3,7 @@ import { tzktLink } from "@/lib/config";
 import { shortAddress } from "@/lib/utils";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { Piece } from "@/lib/piece";
-import { AccountName } from "@/components/AccountName";
+import { AccountLink } from "@/components/account/AccountLink";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
     return (
@@ -35,15 +35,11 @@ export function PieceFacts({ piece }: { piece: Piece }) {
                 {piece.editionSize > 0 ? ` of ${piece.editionSize}` : " of an open edition"}
             </Row>
             <Row label="Artist">
-                <a href={tzktLink(piece.artist)} target="_blank" rel="noreferrer" className="hover:underline">
-                    <AccountName address={piece.artist} />
-                </a>
+                <AccountLink address={piece.artist} />
             </Row>
             {piece.owner && (
                 <Row label="Owner">
-                    <a href={tzktLink(piece.owner)} target="_blank" rel="noreferrer" className="hover:underline">
-                        <AccountName address={piece.owner} />
-                    </a>
+                    <AccountLink address={piece.owner} />
                 </Row>
             )}
             {piece.mintedAt && <Row label="Minted"><TimeAgo iso={piece.mintedAt} /></Row>}
@@ -100,7 +96,7 @@ export function PieceFacts({ piece }: { piece: Piece }) {
                         {piece.royalties.map((r) => (
                             <div key={r.address} className="flex justify-between text-sm">
                                 <dt className="text-muted-foreground">
-                                    <AccountName address={r.address} />
+                                    <AccountLink address={r.address} />
                                 </dt>
                                 <dd className="font-medium">{(r.bps / 100).toFixed(2)}%</dd>
                             </div>

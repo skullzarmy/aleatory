@@ -90,24 +90,26 @@ export async function fetchCollections(factory: string): Promise<TzktContract[]>
  * whose operation caused the internal origination. Filtering on storage would
  * be the obvious approach and TzKT does not support it, it ignores unknown
  * query parameters and answers with an unfiltered page, which reads as success.
+ *
+ * A single-field `select` is flattened: TzKT answers with the field's own value
+ * per row, not with a row containing that field. Reading `row.originatedContract`
+ * therefore found `undefined` on every row and the filter below dropped the lot,
+ * so every artist's page said they had published nothing.
  */
 export async function fetchCollectionsDeployedBy(
     artist: string,
     factory: string,
 ): Promise<string[]> {
     if (!factory || !isAddress(artist)) return [];
-    const rows = await get<{ originatedContract?: { address: string } }[]>(
-        "/v1/operations/originations",
-        {
-            initiator: requireAddress(artist),
-            sender: requireAddress(factory),
-            status: "applied",
-            "sort.desc": "id",
-            limit: 200,
-            select: "originatedContract",
-        },
-    );
-    return rows.map((r) => r.originatedContract?.address).filter((a): a is string => Boolean(a));
+    const rows = await get<{ address?: string }[]>("/v1/operations/originations", {
+        initiator: requireAddress(artist),
+        sender: requireAddress(factory),
+        status: "applied",
+        "sort.desc": "id",
+        limit: 200,
+        select: "originatedContract",
+    });
+    return rows.map((r) => r?.address).filter((a): a is string => Boolean(a));
 }
 
 /** Tokens across a set of collections, newest first. */

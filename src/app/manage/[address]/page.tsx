@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { fetchCollection, type Collection } from "@/lib/collection";
 import { fetchProviders, type Provider } from "@/lib/providers";
-import {tzktLink} from "@/lib/config";
+import { tzktLink } from "@/lib/config";
+import { AccountLink } from "@/components/account/AccountLink";
 import { formatTez, parseTez, shortAddress } from "@/lib/utils";
 import {
     setEditionSize,
@@ -262,7 +263,7 @@ export default function ManageCollectionPage({
                             collection.royalties.length
                         } recipient${collection.royalties.length === 1 ? "" : "s"}`}
                     />
-                    <Row label="Owner" value={shortAddress(collection.artist)} />
+                    <Row label="Owner" value={<AccountLink address={collection.artist} />} />
                 </dl>
             </section>
         </div>
@@ -330,7 +331,7 @@ function ValueControl({
     );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Row({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
     return (
         <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
             <dt className="shrink-0 text-muted-foreground">{label}</dt>

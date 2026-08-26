@@ -6,6 +6,8 @@ import { isAddress } from "@/lib/tzkt";
 import { tzktLink } from "@/lib/config";
 import { formatTez, shortAddress, timeAgo } from "@/lib/utils";
 import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
+import { Avatar } from "@/components/account/Avatar";
+import { AccountLink } from "@/components/account/AccountLink";
 
 export const revalidate = 300;
 
@@ -68,14 +70,13 @@ export default async function ProviderPage({
             </Link>
 
             <h1 className="mt-3 flex flex-wrap items-center gap-3 text-xl font-semibold tracking-tight">
-                {provider.avatarUri && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={convertIpfsToGatewayUrl(provider.avatarUri)}
-                        alt=""
-                        className="h-12 w-12 rounded-md object-cover"
-                    />
-                )}
+                <Avatar
+                    address={provider.address}
+                    src={provider.avatarUri ?? null}
+                    shape="square"
+                    size={48}
+                    fallback={provider.name}
+                />
                 {provider.name || shortAddress(provider.address)}
                 {provider.isOurs && (
                     <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -127,7 +128,13 @@ export default async function ProviderPage({
                 <Row label="Price per piece" value={`${formatTez(provider.renderGasMutez)} ꜩ`} />
                 <Row
                     label="Signing address"
-                    value={provider.agent ? shortAddress(provider.agent) : "not published"}
+                    value={
+                        provider.agent ? (
+                            <AccountLink address={provider.agent} />
+                        ) : (
+                            "not published"
+                        )
+                    }
                 />
                 {provider.endpoint && <Row label="Push endpoint" value={provider.endpoint} />}
                 <Row
@@ -159,7 +166,7 @@ function Stat({ value, label, detail }: { value: string; label: string; detail: 
     );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
     return (
         <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
             <dt className="shrink-0 text-muted-foreground">{label}</dt>

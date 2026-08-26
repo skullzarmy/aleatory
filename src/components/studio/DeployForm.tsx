@@ -9,7 +9,7 @@ import { tzktLink } from "@/lib/config";
 import type { Provider } from "@/lib/providers";
 import type { Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
-import { AccountName } from "@/components/AccountName";
+import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
 import { useDeps } from "./useDeps";
 import {

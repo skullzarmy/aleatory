@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
-import { AccountName } from "@/components/AccountName";
+import { AccountName } from "@/components/account/AccountName";
 import { ChevronDown, Images, LogOut, Wallet } from "lucide-react";
 import {
     DropdownMenu,

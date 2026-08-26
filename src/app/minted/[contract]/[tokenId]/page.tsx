@@ -12,7 +12,7 @@ import { formatParamValue, specsOf, resolveParams } from "@/lib/params";
 import { useWallet } from "@/context/WalletContext";
 import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
-import { AccountName } from "@/components/AccountName";
+import { AccountLink } from "@/components/account/AccountLink";
 
 /**
  * The moment after a mint.
@@ -126,12 +126,7 @@ export default function MintedPage({
                     <dl className="divide-y divide-border rounded-lg border border-border text-sm">
                         <Row label="Owner">
                             {piece?.owner && piece.owner !== address ? (
-                                <Link
-                                    href={`/wallet/${piece.owner}`}
-                                    className="hover:underline"
-                                >
-                                    <AccountName address={piece.owner} />
-                                </Link>
+                                <AccountLink address={piece.owner} />
                             ) : (
                                 "You"
                             )}

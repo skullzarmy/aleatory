@@ -4,8 +4,7 @@ import { fetchCollection, fetchCollectionPieces } from "@/lib/collection";
 import { MintView } from "@/components/collection/MintView";
 import { FeedGrid } from "@/components/feed/FeedGrid";
 import { shortAddress } from "@/lib/utils";
-import { tzktLink } from "@/lib/config";
-import { AccountName } from "@/components/AccountName";
+import { AccountLink } from "@/components/account/AccountLink";
 
 export const revalidate = 30;
 
@@ -33,14 +32,7 @@ export default async function CollectionPage({ params }: { params: Params }) {
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                     by{" "}
-                    <a
-                        href={tzktLink(collection.artist)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:underline"
-                    >
-                        <AccountName address={collection.artist} />
-                    </a>
+                    <AccountLink address={collection.artist} withAvatar />
                 </p>
             </header>
 
@@ -52,7 +44,7 @@ export default async function CollectionPage({ params }: { params: Params }) {
                     {collection.royalties.map((r) => (
                         <div key={r.address} className="flex justify-between text-sm">
                             <span className="text-muted-foreground">
-                                <AccountName address={r.address} />
+                                <AccountLink address={r.address} />
                             </span>
                             <span className="font-medium">{(r.bps / 100).toFixed(2)}%</span>
                         </div>
