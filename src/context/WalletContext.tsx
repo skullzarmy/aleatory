@@ -60,6 +60,31 @@ interface WalletState {
     getClient: () => Promise<DAppClient>;
 }
 
+/**
+ * Does this session belong to the network this site is configured for?
+ *
+ * Beacon stores permissions per *origin*, and in development every app on the
+ * machine is `localhost`. So a session granted to a different dApp is found
+ * and reused here, network and all: the site says shadownet, the wallet signs
+ * against mainnet, and the node rejects the operation with
+ * `non_existing_contract` for a contract that exists perfectly well somewhere
+ * else. The wallet even shows the other dApp's name on the confirm screen.
+ *
+ * A session whose network does not match is treated as no session.
+ */
+function matchesNetwork(account: { network?: { type?: string; rpcUrl?: string } } | null): boolean {
+    if (!account?.network) return false;
+    const want = NETWORK === "mainnet" ? "mainnet" : "custom";
+    if ((account.network.type ?? "").toLowerCase() !== want) return false;
+    // A custom network is only as specific as its RPC, so compare that too.
+    if (want === "custom") {
+        const theirs = (account.network.rpcUrl ?? "").replace(/\/+$/, "");
+        const ours = RPC[NETWORK].replace(/\/+$/, "");
+        if (theirs !== ours) return false;
+    }
+    return true;
+}
+
 const WalletContext = createContext<WalletState | null>(null);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -92,6 +117,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             try {
                 const c = await getClient();
                 const account = await c.getActiveAccount();
+                if (account && !matchesNetwork(account)) {
+                    // Someone else's session, or one from before a network
+                    // change. Drop it rather than sign against the wrong chain.
+                    await c.clearActiveAccount().catch(() => {});
+                    if (!cancelled) setAddress(null);
+                    return;
+                }
                 if (!cancelled) setAddress(account?.address ?? null);
             } catch {
                 /* a broken session behaves as no session */
@@ -111,9 +143,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         try {
             const c = await getClient();
             const existing = await c.getActiveAccount();
-            if (existing) {
+            if (existing && matchesNetwork(existing)) {
                 setAddress(existing.address);
                 return;
+            }
+            if (existing) {
+                // Connected, to the wrong chain. Ask again rather than let a
+                // signature go out against a network this site does not use.
+                await c.clearActiveAccount().catch(() => {});
             }
             const sdk = await loadSDK();
             await c.requestPermissions({
