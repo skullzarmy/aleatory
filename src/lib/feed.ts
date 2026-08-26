@@ -38,16 +38,34 @@ async function resolveDocs(
     if (tokenIds.length === 0) return out;
 
     const uris = await fetchTokenUris(collection).catch(() => new Map<string, string>());
-    await Promise.all(
-        tokenIds.map(async (id) => {
+
+    // Bounded, and every fetch has a deadline.
+    //
+    // A gateway takes a few seconds per document and a feed can be dozens of
+    // tokens, so unbounded parallel fetches with no timeout is a page that
+    // hangs rather than a page that loads. A document that does not arrive in
+    // time leaves its piece looking unrendered, which is recoverable on the
+    // next request; a page that never returns is not.
+    const CONCURRENCY = 8;
+    const TIMEOUT_MS = 4000;
+
+    const queue = [...tokenIds];
+    async function worker() {
+        for (;;) {
+            const id = queue.shift();
+            if (id === undefined) return;
             const uri = uris.get(id);
-            if (!uri || !uri.startsWith("ipfs://")) return;
-            const doc = await fetch(convertIpfsToGatewayUrl(uri), { next: { revalidate: 300 } })
+            if (!uri || !uri.startsWith("ipfs://")) continue;
+            const doc = await fetch(convertIpfsToGatewayUrl(uri), {
+                next: { revalidate: 300 },
+                signal: AbortSignal.timeout(TIMEOUT_MS),
+            })
                 .then((r) => (r.ok ? (r.json() as Promise<TokenDoc>) : null))
                 .catch(() => null);
             if (doc) out.set(id, doc);
-        }),
-    );
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
     return out;
 }
 

@@ -149,6 +149,8 @@ export async function fetchCollectionPieces(
                 if (!uri?.startsWith("ipfs://")) return;
                 const doc = await fetch(convertIpfsToGatewayUrl(uri), {
                     next: { revalidate: 300 },
+                    // A gateway that is slow must not hold the page open.
+                    signal: AbortSignal.timeout(4000),
                 })
                     .then((r) => (r.ok ? (r.json() as Promise<TokenMetadata>) : null))
                     .catch(() => null);

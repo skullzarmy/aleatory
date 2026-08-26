@@ -119,7 +119,10 @@ export async function fetchPiece(
         const uri = uris.get(tokenId);
         if (uri?.startsWith("ipfs://")) {
             m =
-                (await fetch(convertIpfsToGatewayUrl(uri), { next: { revalidate: 300 } })
+                (await fetch(convertIpfsToGatewayUrl(uri), {
+                    next: { revalidate: 300 },
+                    signal: AbortSignal.timeout(4000),
+                })
                     .then((r) => (r.ok ? (r.json() as Promise<typeof m>) : null))
                     .catch(() => null)) ?? m;
         }
