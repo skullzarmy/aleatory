@@ -18,15 +18,27 @@ Grouped by who is on the page.
 /market               listings and offers
 /collections          all collections
 /collection/[address] one collection, and mint
+/minted/[c]/[id]      the moment after a mint
 /piece/[c]/[id]       one piece
 /wallet/[address]     what someone holds and made
+/mine                 shortcut to your own wallet page
 ```
 
 `/wallet/[address]` is keyed by an address and needs no account, no connection
 and no permission, so a collector can send someone the link to what they hold
 and an artist has a public page from the moment they deploy. It answers both
 questions about one address because on this chain they are usually the same
-person.
+person. `/mine` redirects to it, so "what you own" is one link from anywhere
+without being a second copy of the same view behind a connection.
+
+`/minted/[c]/[id]` is where a mint lands. It runs the piece live from the
+generator in the collection's storage and the seed the collector's signature
+just fixed, before any image exists, and polls until the provider publishes
+one. The collection page holds the collector while the operation is indexed,
+because the contract decides the token id and it is not knowable until then;
+if the indexer lags past the window, the panel says where the piece is instead
+of spinning. Sharing from here points at `/piece/[c]/[id]`, since a page that
+celebrates a purchase is only interesting to the person who made it.
 
 ### Making
 
@@ -76,12 +88,13 @@ is asking most people not to.
 
 ## Left
 
-- **`/providers/[address]`.** The ranked list exists; one provider's own record
-  does not.
-- **Deploy actually signs.** `/studio/[draft]/publish` collects every field and
-  checks the declaration, and the button still only connects the wallet. Pinning
-  the generator and originating through the factory is the remaining step, and
-  it is the one that makes the artist path end somewhere.
+- **p5 is unpinned.** `P5_DEP.expectedHash` is empty, so `resolveDep` hashes
+  whatever the CDN returns and writes that hash on chain as canonical. It has to
+  carry a verified value before any mainnet publish.
+- **Pieces from a retired factory.** The router keeps old factories so their
+  collections stay visible, and a collection whose provider has stopped serving
+  it says its image is being made forever. Nothing renders them and nothing says
+  so.
 
 ## Finding an artist's collections
 

@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
+import { fetchMintedTokenId } from "@/lib/tzkt";
+import { tzktLink } from "@/lib/config";
 import { formatTez } from "@/lib/utils";
 import type { Collection } from "@/lib/collection";
 import {
@@ -35,6 +39,7 @@ export function MintPanel({
      */
     onPreview?: (values: Record<string, unknown>, previewSeed: string) => void;
 }) {
+    const router = useRouter();
     const { address, connect, getClient } = useWallet();
     const [busy, setBusy] = useState(false);
     const [hash, setHash] = useState<string | null>(null);
@@ -80,6 +85,14 @@ export function MintPanel({
             // Ask the provider to look now. It polls anyway, so a failure
             // here costs nothing but a slower reveal.
             void fetch("/api/render-ping", { method: "POST" }).catch(() => {});
+            // The contract decides the token id, so it is only knowable once
+            // the operation is indexed. Until then the collector waits here
+            // rather than on a page for a token that does not resolve yet.
+            const tokenId = await waitForToken(collection.address, address!, res.hash);
+            if (tokenId !== null) {
+                router.push(`/minted/${collection.address}/${tokenId}`);
+                return;
+            }
         } catch (e) {
             setError(e instanceof Error ? e.message : "That did not go through");
         } finally {
@@ -87,14 +100,32 @@ export function MintPanel({
         }
     }
 
+    // Reached when the operation landed but the indexer has not caught up
+    // within the window. The piece exists and is theirs; this says where it is.
     if (hash) {
         return (
             <div className="space-y-2 rounded-lg border border-border p-4">
-                <p className="text-sm font-medium">Minted</p>
+                <p className="text-sm font-medium">It&apos;s yours</p>
                 <p className="text-xs text-muted-foreground">
-                    This is your piece&apos;s seed.
+                    The indexer is a little behind. Your piece will be on your wallet page
+                    in a moment.
                 </p>
-                <p className="break-all font-mono text-xs">{hash}</p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                    <Link
+                        href={`/wallet/${address}`}
+                        className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+                    >
+                        What you own
+                    </Link>
+                    <a
+                        href={tzktLink(hash)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+                    >
+                        The operation
+                    </a>
+                </div>
             </div>
         );
     }
@@ -172,7 +203,13 @@ export function MintPanel({
                     onClick={() => (address ? void mint() : void connect())}
                     className="w-full rounded-md bg-alea-600 px-3 py-2 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
                 >
-                    {address ? (busy ? "Confirming" : "Mint") : "Connect to mint"}
+                    {address
+                        ? busy
+                            ? hash
+                                ? "Finding your piece"
+                                : "Confirming"
+                            : "Mint"
+                        : "Connect to mint"}
                 </button>
             )}
 
@@ -251,6 +288,28 @@ function ParamControl({
             {spec.hint && <span className="block text-xs text-muted-foreground">{spec.hint}</span>}
         </label>
     );
+}
+
+/**
+ * Wait for the indexer to place the operation, then say which token it made.
+ *
+ * A block is a few seconds and indexing follows it, so this asks for about
+ * half a minute and then gives up rather than holding a spinner over something
+ * that has already succeeded. Giving up is not a failure: the operation landed,
+ * the piece is theirs, and the panel says where to find it.
+ */
+async function waitForToken(
+    collection: string,
+    buyer: string,
+    hash: string,
+): Promise<string | null> {
+    const deadline = Date.now() + 40_000;
+    while (Date.now() < deadline) {
+        const id = await fetchMintedTokenId(collection, buyer, hash).catch(() => null);
+        if (id !== null) return id;
+        await new Promise((r) => setTimeout(r, 2_000));
+    }
+    return null;
 }
 
 /**

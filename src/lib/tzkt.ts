@@ -211,6 +211,51 @@ export async function fetchMintOperation(
 }
 
 /**
+ * Which token an operation minted.
+ *
+ * A collector signs and gets a hash back; the token id is decided by the
+ * contract and only knowable afterwards. This closes that gap so the mint flow
+ * can land them on their piece rather than on a receipt.
+ *
+ * Not `?hash=`: this TzKT instance ignores that filter on transactions and
+ * answers with an unfiltered page of whatever is recent, which reads as
+ * success and hands back somebody else's operation. So the query is by
+ * recipient, and the hash is checked afterwards against the operations the
+ * transfers actually belong to. Anything unmatched means the operation has not
+ * been indexed yet, which is the normal case for the first second or two.
+ */
+export async function fetchMintedTokenId(
+    contract: string,
+    buyer: string,
+    hash: string,
+): Promise<string | null> {
+    if (!isAddress(contract) || !isAddress(buyer)) return null;
+    const rows = await get<{ "token.tokenId": string; transactionId: number }[]>(
+        "/v1/tokens/transfers",
+        {
+            "token.contract": requireAddress(contract),
+            to: requireAddress(buyer),
+            "from.null": "true",
+            "sort.desc": "id",
+            // A few, not one: two mints in the same block by the same buyer
+            // would otherwise resolve to whichever the indexer ordered last.
+            limit: 8,
+            select: "token.tokenId,transactionId",
+        },
+    );
+    if (rows.length === 0) return null;
+
+    const ops = await get<{ id: number; hash: string }[]>("/v1/operations/transactions", {
+        "id.in": rows.map((r) => r.transactionId).join(","),
+        limit: rows.length,
+        select: "id,hash",
+    });
+    const hashById = new Map(ops.map((o) => [o.id, o.hash]));
+    const match = rows.find((r) => hashById.get(r.transactionId) === hash);
+    return match ? match["token.tokenId"] : null;
+}
+
+/**
  * A token's metadata document, read from the chain rather than from an index.
  *
  * TzKT resolves `ipfs://` metadata into its `metadata` field, eventually and

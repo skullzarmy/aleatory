@@ -5,6 +5,7 @@ import { ArtifactFrame } from "@/components/piece/ArtifactFrame";
 import { PieceFacts } from "@/components/piece/PieceFacts";
 import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
+import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
 
 export const revalidate = 30;
@@ -16,13 +17,21 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     const piece = await fetchPiece(contract, tokenId).catch(() => null);
     if (!piece) return { title: "Piece" };
 
+    const title = `${piece.name} · ${piece.collectionName ?? BRAND.name}`;
+    const description = piece.description || BRAND.description;
+    const images = piece.imageUrl ? [{ url: piece.imageUrl }] : undefined;
+
     return {
         title: piece.name,
-        description: piece.description || BRAND.description,
-        openGraph: {
-            title: `${piece.name} · ${piece.collectionName ?? BRAND.name}`,
-            description: piece.description || BRAND.description,
-            images: piece.imageUrl ? [{ url: piece.imageUrl }] : undefined,
+        description,
+        openGraph: { title, description, images },
+        // Without this X falls back to the small card, which crops a square
+        // image to a thumbnail and wastes the only thing worth showing.
+        twitter: {
+            card: piece.imageUrl ? "summary_large_image" : "summary",
+            title,
+            description,
+            images: piece.imageUrl ? [piece.imageUrl] : undefined,
         },
     };
 }
@@ -74,6 +83,13 @@ export default async function PiecePage({ params }: { params: Params }) {
 
                     <div className="mt-4">
                         <PieceFacts piece={piece} />
+                    </div>
+
+                    <div className="mt-4">
+                        <ShareButtons
+                            url={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                            text={`${piece.name}${piece.collectionName ? `, from ${piece.collectionName}` : ""}`}
+                        />
                     </div>
                 </div>
             </div>

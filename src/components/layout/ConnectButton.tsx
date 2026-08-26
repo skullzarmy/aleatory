@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { shortAddress } from "@/lib/utils";
-import { Wallet } from "lucide-react";
+import { LogOut, Wallet } from "lucide-react";
 
 export function ConnectButton() {
     const { address, connecting, restoring, connect, disconnect } = useWallet();
@@ -11,15 +12,27 @@ export function ConnectButton() {
 
     if (address) {
         return (
-            <button
-                type="button"
-                onClick={() => void disconnect()}
-                title="Disconnect"
-                className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-accent"
-            >
-                <span className="h-2 w-2 rounded-full bg-success" />
-                {shortAddress(address)}
-            </button>
+            <div className="inline-flex h-9 items-center rounded-md border border-border">
+                {/* The address is the way to your own pieces, so it goes
+                    somewhere. Disconnect is next to it rather than under it. */}
+                <Link
+                    href={`/wallet/${address}`}
+                    title="What you own"
+                    className="inline-flex h-full items-center gap-2 rounded-l-md px-3 text-sm font-medium transition-colors hover:bg-accent"
+                >
+                    <span className="h-2 w-2 rounded-full bg-success" />
+                    {shortAddress(address)}
+                </Link>
+                <button
+                    type="button"
+                    onClick={() => void disconnect()}
+                    title="Disconnect"
+                    className="inline-flex h-full items-center rounded-r-md border-l border-border px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                    <LogOut className="h-3.5 w-3.5" />
+                    <span className="sr-only">Disconnect</span>
+                </button>
+            </div>
         );
     }
 
