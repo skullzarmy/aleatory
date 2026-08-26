@@ -66,7 +66,9 @@ export async function POST(request: Request) {
                     { status: 413 },
                 );
             }
-            return NextResponse.json({ uri: await pinFile(bytes, body.name) });
+            const uri = await pinFile(bytes, body.name);
+            await warmGateway(uri);
+            return NextResponse.json({ uri });
         }
 
         if (body.kind === "image") {
@@ -84,9 +86,9 @@ export async function POST(request: Request) {
             if (bytes.length > MAX_IMAGE_BYTES) {
                 return NextResponse.json({ error: "Image too large." }, { status: 413 });
             }
-            return NextResponse.json({
-                uri: await pinFile(bytes, body.name, "image/png"),
-            });
+            const uri = await pinFile(bytes, body.name, "image/png");
+            await warmGateway(uri);
+            return NextResponse.json({ uri });
         }
 
         if (body.kind === "document") {
@@ -94,7 +96,9 @@ export async function POST(request: Request) {
             if (new TextEncoder().encode(json).length > MAX_DOCUMENT_BYTES) {
                 return NextResponse.json({ error: "Document too large." }, { status: 413 });
             }
-            return NextResponse.json({ uri: await pinJson(body.content, body.name) });
+            const uri = await pinJson(body.content, body.name);
+            await warmGateway(uri);
+            return NextResponse.json({ uri });
         }
 
         return NextResponse.json({ error: "Unknown kind." }, { status: 400 });
@@ -141,6 +145,23 @@ async function pinJson(doc: unknown, name?: string): Promise<string> {
     });
     if (!res.ok) throw new Error(`pin json ${res.status}`);
     return `ipfs://${((await res.json()) as { IpfsHash: string }).IpfsHash}`;
+}
+
+/**
+ * Ask the public gateway for what was just pinned.
+ *
+ * The site reads through a gateway that is not the pinning service, because it
+ * is far faster. It has to fetch content across the network before it can
+ * serve it though, and until something asks, it never goes looking. One
+ * request is what makes it go look.
+ */
+async function warmGateway(uri: string): Promise<void> {
+    const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
+    if (!cid) return;
+    const base = (
+        process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz"
+    ).replace(/\/+$/, "");
+    await fetch(`${base}/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {});
 }
 
 /** A caller-supplied name reaches a third-party account, so it is reduced. */

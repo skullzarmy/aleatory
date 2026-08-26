@@ -35,21 +35,27 @@ export function timeAgo(iso: string): string {
     const then = new Date(iso).getTime();
     if (Number.isNaN(then)) return "";
     const secs = Math.max(0, (Date.now() - then) / 1000);
-    const steps: [number, string][] = [
-        [60, "second"],
-        [60, "minute"],
-        [24, "hour"],
-        [7, "day"],
-        [4.345, "week"],
-        [12, "month"],
+
+    // Each entry is a unit and how many of it make the next one up. The unit
+    // is the one you land *in*, not the one you divided by: naming it after
+    // the divisor reported twenty-five minutes as "25 seconds ago".
+    const units: [string, number][] = [
+        ["second", 60],
+        ["minute", 60],
+        ["hour", 24],
+        ["day", 7],
+        ["week", 4.345],
+        ["month", 12],
+        ["year", Infinity],
     ];
+
     let value = secs;
-    let unit = "second";
-    for (const [size, name] of steps) {
-        if (value < size) break;
-        value = value / size;
-        unit = name;
+    let i = 0;
+    while (i < units.length - 1 && value >= units[i][1]) {
+        value /= units[i][1];
+        i++;
     }
+    const unit = units[i][0];
     const rounded = Math.floor(value);
     if (unit === "second" && rounded < 10) return "just now";
     return `${rounded} ${unit}${rounded === 1 ? "" : "s"} ago`;

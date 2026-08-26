@@ -362,6 +362,25 @@ async function pin(bytes: Uint8Array, name: string): Promise<string> {
     return `ipfs://${((await res.json()) as { IpfsHash: string }).IpfsHash}`;
 }
 
+/**
+ * Ask the public gateway for something we just pinned.
+ *
+ * A gateway other than the pinning service has to fetch content across the
+ * IPFS network before it can serve it, and until it does it answers with
+ * nothing: a piece that is finished on chain shows as unrendered, and no
+ * amount of reloading fixes it because nothing is asking the gateway to go
+ * look. One request is what makes it go look.
+ *
+ * Failures are ignored. This is a warm-up, and the page it helps is not
+ * waiting on it.
+ */
+async function warmGateway(uri: string): Promise<void> {
+    const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
+    if (!cid) return;
+    const base = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz").replace(/\/+$/, "");
+    await fetch(`${base}/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {});
+}
+
 async function pinJson(doc: unknown, name: string): Promise<string> {
     const res = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
         method: "POST",
@@ -533,7 +552,15 @@ export async function handle(piece: PendingPiece): Promise<string> {
     };
 
     const metadataUri = await pinJson(doc, `${piece.collection}-${piece.tokenId}.json`);
-    return publish(piece, metadataUri);
+
+    // Before the write lands, so the gateway has both by the time anything
+    // reads the token. Not awaited for correctness, only so the two requests
+    // overlap with the operation.
+    const warmed = Promise.all([warmGateway(imageUri), warmGateway(metadataUri)]);
+
+    const hash = await publish(piece, metadataUri);
+    await warmed;
+    return hash;
 }
 
 function safeParse(s: string): Record<string, unknown> {

@@ -7,14 +7,18 @@
 /**
  * Where pinned content is read from.
  *
- * The default is the gateway of the service we pin to. A general-purpose
- * gateway has to pull our content across the IPFS network before it can serve
- * it, which for a freshly pinned image means it often simply does not have it:
- * a 200 with zero bytes, and a piece that renders as an empty frame with no
- * error anywhere. Reading from where we wrote removes the race entirely.
+ * fileship, because it is the fastest of the public gateways: measured at
+ * 0.37s against 3.6 to 5.8s for the pinning service's own. Reading from the
+ * pinning service would tie every page load to the slowest option available.
+ *
+ * A gateway other than the one we pinned to has to pull the content across the
+ * network first, so a freshly pinned file can answer with nothing at all. That
+ * is a propagation problem and it belongs at pin time: whoever pins warms this
+ * gateway immediately afterwards, so by the time a page asks, it is cached.
+ * See `warmGateway` in netlify/functions/provider.mts.
  */
 const GATEWAY =
-    process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs";
+    process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz";
 
 export function isIpfsUri(uri: string): boolean {
     return typeof uri === "string" && uri.startsWith("ipfs://");

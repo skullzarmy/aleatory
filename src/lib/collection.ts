@@ -150,7 +150,7 @@ export async function fetchCollectionPieces(
                 const doc = await fetch(convertIpfsToGatewayUrl(uri), {
                     next: { revalidate: 300 },
                     // A gateway that is slow must not hold the page open.
-                    signal: AbortSignal.timeout(4000),
+                    signal: AbortSignal.timeout(12_000),
                 })
                     .then((r) => (r.ok ? (r.json() as Promise<TokenMetadata>) : null))
                     .catch(() => null);

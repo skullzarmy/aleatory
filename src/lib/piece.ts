@@ -121,7 +121,7 @@ export async function fetchPiece(
             m =
                 (await fetch(convertIpfsToGatewayUrl(uri), {
                     next: { revalidate: 300 },
-                    signal: AbortSignal.timeout(4000),
+                    signal: AbortSignal.timeout(12_000),
                 })
                     .then((r) => (r.ok ? (r.json() as Promise<typeof m>) : null))
                     .catch(() => null)) ?? m;

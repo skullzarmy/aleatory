@@ -46,8 +46,13 @@ async function resolveDocs(
     // hangs rather than a page that loads. A document that does not arrive in
     // time leaves its piece looking unrendered, which is recoverable on the
     // next request; a page that never returns is not.
+    // Measured: this gateway answers in 3.6 to 5.8 seconds. A four second
+    // deadline dropped documents at random, so a finished piece showed as
+    // unrendered on one load and drew fine on the next. The deadline has to
+    // clear the slow end, not the fast one; concurrency keeps the page quick
+    // regardless.
     const CONCURRENCY = 8;
-    const TIMEOUT_MS = 4000;
+    const TIMEOUT_MS = 12_000;
 
     const queue = [...tokenIds];
     async function worker() {

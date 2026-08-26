@@ -32,7 +32,7 @@ const CHAIN_HOSTS = [
  * The rest are fallbacks a piece minted earlier may still point at.
  */
 const IPFS_GATEWAY =
-    process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs";
+    process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz";
 
 const IPFS_HOSTS = [
     ...new Set([
