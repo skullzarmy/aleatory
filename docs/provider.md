@@ -66,12 +66,31 @@ is funded, looks correctly configured, and has never landed an operation.
 ## Running it
 
 ```
+npm run provider:daemon                   # the process. This is how it runs.
 npm run provider:check                    # what is waiting, change nothing
-npm run provider:run                      # render, pin, publish
+npm run provider:run                      # one pass, then exit
 npm run provider:retry -- <KT1…> <token>  # one piece, by name
 ```
 
-In production the same code runs as a Netlify function on a cron.
+`provider:daemon` stays up and polls, so a piece minted now has its image
+seconds later. It is the provider. The single-pass commands are for looking at
+the queue and for reaching a piece by hand.
+
+Polling rather than a subscription, because the queue rule is a comparison
+against chain state and not an event: it finds new mints, pieces missed while
+the process was down, and pieces inherited from a provider an artist switched
+away from, and it keeps no state of its own that could be wrong. A push
+endpoint can sit in front of it so a mint UI says "look now" instead of
+waiting for the next tick, and polling still has to work underneath, or the
+provider is only as reliable as whoever remembers to call it.
+
+One bad piece does not stop the queue. It stays pending, the next pass tries
+again, and `provider:retry` reaches it if it needs a hand. A failure of the
+cycle itself backs off, doubling to five minutes, rather than hammering a
+dependency that is down.
+
+`SIGINT` finishes the piece in flight and then stops, so nothing is left half
+published.
 
 ### What the queue finds
 

@@ -21,7 +21,8 @@
     "provider:run": "npx tsx scripts/provider-run.mts",
     "provider:setup": "npx tsx scripts/provider-setup.mts",
     "provider:check": "PROVIDER_DRY=1 npx tsx scripts/provider-run.mts",
-    "provider:retry": "npx tsx scripts/provider-retry.mts"
+    "provider:retry": "npx tsx scripts/provider-retry.mts",
+    "provider:daemon": "npx tsx scripts/provider-daemon.mts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.6",
