@@ -76,5 +76,5 @@ The last three rows are the ones that matter: once a piece is minted on mainnet 
 ## Community
 
 - **Who else is in this?** One person cannot hold this alone. Finding two or three more people who want to hold keys is not a v1 task, it is the v0 task that everything else depends on.
-- **Where does it talk?** hack.tez already runs chat infrastructure and is exploring federated Matrix ([tezocean-matrix-spec.md](../tezocean-matrix-spec.md)). Reuse or separate, undecided.
+- **Where does it talk?** hack.tez already runs chat infrastructure and is exploring federated Matrix, specified in the hack.tez repository as `docs/tezocean-matrix-spec.md`. Reuse or separate, undecided.
 - **Launch artists.** A handful of people whose work would define what the place is for. Not curation, the first pieces set the tone whether or not anyone plans it.

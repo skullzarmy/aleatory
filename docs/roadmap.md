@@ -57,7 +57,7 @@ Mainnet contracts, own domain, own repo. This is the version that has to be righ
 
 ## 3. v2, Tezos X and the multi-runtime bet
 
-Tezos X puts the EVM and Michelson interfaces on **one chain with native atomic composability**. Previewnet is live and experimental; no mainnet date. hack.tez already has working Tezos X tooling, address-square derivation, resolution semantics, a testnet FA2 deployer, so we are not starting from zero here. See [xray-vision.md](../xray-vision.md) and the `tezos-x` skill.
+Tezos X puts the EVM and Michelson interfaces on **one chain with native atomic composability**. Previewnet is live and experimental; no mainnet date. hack.tez already has working Tezos X tooling, address-square derivation, resolution semantics, a testnet FA2 deployer, so we are not starting from zero here. That work lives in the hack.tez repository, in `docs/xray-vision.md` and the `tezos-x` skill, not here.
 
 Three things this unlocks that are worth positioning for now.
 
