@@ -3,6 +3,7 @@
  */
 import { CONTRACTS, tzktApi } from "./config";
 import { isBlockedCollection } from "./blocklist";
+import { addresses } from "./router";
 
 export interface Listing {
     id: number;
@@ -74,8 +75,9 @@ function toOffer(r: BigMapRow<RawOffer>): Offer {
 }
 
 async function bigmapPath(name: string): Promise<string | null> {
-    if (!CONTRACTS.marketplace) return null;
-    return `/v1/contracts/${CONTRACTS.marketplace}/bigmaps/${name}/keys`;
+    const m = (await addresses()).marketplace;
+    if (!m) return null;
+    return `/v1/contracts/${m}/bigmaps/${name}/keys`;
 }
 
 export async function fetchListings(limit = 48): Promise<Listing[]> {

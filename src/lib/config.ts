@@ -37,13 +37,17 @@ export const RPC: Record<Network, string> = {
 export const rpcUrl = () => RPC[NETWORK];
 
 /**
- * Contract addresses, written by contract/deploy.ts into
- * contract/deployments/<network>.json and copied into the environment.
+ * Contract addresses.
  *
- * Empty until something is deployed. The UI reads empty as "nothing deployed
- * yet" and says so.
+ * `router` is the only one that has to be set. Everything else is read from it
+ * on chain by `lib/router.ts`, so a redeploy does not leave a running site
+ * pointing at a contract that no longer exists.
+ *
+ * The rest are overrides. Set one and it wins, which is what lets a fork point
+ * at its own contracts without deploying a router.
  */
 export const CONTRACTS = {
+    router: process.env.NEXT_PUBLIC_ROUTER_ADDRESS || "",
     factory: process.env.NEXT_PUBLIC_FACTORY_ADDRESS || "",
     marketplace: process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS || "",
     registry: process.env.NEXT_PUBLIC_REGISTRY_ADDRESS || "",

@@ -6,7 +6,8 @@
  * to sign.
  */
 import type { DAppClient, TezosOperationType } from "@tezos-x/octez.connect-sdk";
-import { CONTRACTS, rpcUrl } from "./config";
+import { rpcUrl } from "./config";
+import { addresses, currentFactory } from "./router";
 
 interface OpResult {
     hash: string;
@@ -35,6 +36,13 @@ async function send(
 const str = (v: string) => ({ string: v });
 const int = (v: number | string | bigint) => ({ int: String(v) });
 const bytes = (hex: string) => ({ bytes: hex.replace(/^0x/, "") });
+
+/** Resolved from the router, so a redeploy does not need a rebuild. */
+async function marketplace(): Promise<string> {
+    const a = (await addresses()).marketplace;
+    if (!a) throw new Error("No marketplace is configured for this network.");
+    return a;
+}
 
 export function utf8ToHex(s: string): string {
     return Array.from(new TextEncoder().encode(s))
@@ -81,31 +89,31 @@ export function addOperator(
     ]);
 }
 
-export function listToken(
+export async function listToken(
     client: DAppClient,
     collection: string,
     tokenId: string,
     priceMutez: bigint,
 ): Promise<OpResult> {
-    return send(client, CONTRACTS.marketplace, "list_token", {
+    return send(client, await marketplace(), "list_token", {
         prim: "Pair",
         args: [str(collection), { prim: "Pair", args: [int(tokenId), int(priceMutez)] }],
     });
 }
 
-export function delist(client: DAppClient, listingId: number): Promise<OpResult> {
-    return send(client, CONTRACTS.marketplace, "delist", int(listingId));
+export async function delist(client: DAppClient, listingId: number): Promise<OpResult> {
+    return send(client, await marketplace(), "delist", int(listingId));
 }
 
-export function buyListing(
+export async function buyListing(
     client: DAppClient,
     listingId: number,
     priceMutez: bigint,
 ): Promise<OpResult> {
-    return send(client, CONTRACTS.marketplace, "buy", int(listingId), priceMutez);
+    return send(client, await marketplace(), "buy", int(listingId), priceMutez);
 }
 
-export function makeOffer(
+export async function makeOffer(
     client: DAppClient,
     collection: string,
     tokenId: string,
@@ -113,19 +121,19 @@ export function makeOffer(
 ): Promise<OpResult> {
     return send(
         client,
-        CONTRACTS.marketplace,
+        await marketplace(),
         "make_offer",
         { prim: "Pair", args: [str(collection), int(tokenId)] },
         amountMutez,
     );
 }
 
-export function cancelOffer(client: DAppClient, offerId: number): Promise<OpResult> {
-    return send(client, CONTRACTS.marketplace, "cancel_offer", int(offerId));
+export async function cancelOffer(client: DAppClient, offerId: number): Promise<OpResult> {
+    return send(client, await marketplace(), "cancel_offer", int(offerId));
 }
 
-export function acceptOffer(client: DAppClient, offerId: number): Promise<OpResult> {
-    return send(client, CONTRACTS.marketplace, "accept_offer", int(offerId));
+export async function acceptOffer(client: DAppClient, offerId: number): Promise<OpResult> {
+    return send(client, await marketplace(), "accept_offer", int(offerId));
 }
 
 /** Artist controls on their own collection. */
@@ -235,10 +243,11 @@ export async function deployCollection(
     client: DAppClient,
     params: DeployParams,
 ): Promise<OpResult> {
-    if (!CONTRACTS.factory) throw new Error("No factory is configured for this network.");
+    const factory = await currentFactory();
+    if (!factory) throw new Error("No factory is configured for this network.");
 
     const { TezosToolkit, MichelsonMap } = await import("@taquito/taquito");
-    const factory = await new TezosToolkit(rpcUrl()).contract.at(CONTRACTS.factory);
+    const contract = await new TezosToolkit(rpcUrl()).contract.at(factory);
 
     const royalties = new MichelsonMap<string, number>();
     for (const [address, bps] of Object.entries(params.royalties)) {
@@ -250,7 +259,7 @@ export async function deployCollection(
         metadata.set(key, utf8ToHex(value));
     }
 
-    const transfer = factory.methodsObject
+    const transfer = contract.methodsObject
         .deploy({
             code: params.codeHex.replace(/^0x/, ""),
             code_encoding: params.codeEncoding,
@@ -273,7 +282,7 @@ export async function deployCollection(
 
     return send(
         client,
-        CONTRACTS.factory,
+        factory,
         parameter.entrypoint,
         parameter.value,
         transfer.amount ?? 0,

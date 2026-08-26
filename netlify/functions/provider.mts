@@ -522,6 +522,10 @@ export async function handle(piece: PendingPiece): Promise<string> {
         thumbnailUri: imageUri,
         aleaSeed: piece.seed,
         aleaParams: piece.params,
+        // Who rendered this. The publish event records the agent that signed,
+        // and agents rotate, so the provider contract is the durable answer to
+        // "who made this image" and the one a collector can look up.
+        aleaProvider: PROVIDER_ADDRESS,
         attributes: Object.entries(params).map(([name, value]) => ({
             name,
             value: String(value),

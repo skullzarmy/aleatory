@@ -45,6 +45,17 @@ export function PieceFacts({ piece }: { piece: Piece }) {
                 </Row>
             )}
             {piece.mintedAt && <Row label="Minted">{timeAgo(piece.mintedAt)}</Row>}
+
+            {piece.provider && (
+                <Row label="Rendered by">
+                    <Link
+                        href={`/providers/${piece.provider}`}
+                        className="hover:underline"
+                    >
+                        {shortAddress(piece.provider)}
+                    </Link>
+                </Row>
+            )}
             {piece.seed && (
                 <Row label="Seed">
                     <a

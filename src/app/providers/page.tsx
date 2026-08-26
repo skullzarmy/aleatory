@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { fetchProviders, RANKING_METHOD, RANKING_WINDOW_DAYS } from "@/lib/providers";
-import { CONTRACTS } from "@/lib/config";
+import {
+    fetchProviders,
+    RANKING_METHOD,
+    RANKING_WINDOW_DAYS,
+    type Provider,
+} from "@/lib/providers";
+import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
 import { formatTez, shortAddress } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Render providers" };
@@ -14,7 +19,7 @@ export const revalidate = 300;
  * can recompute this list and order it differently.
  */
 export default async function ProvidersPage() {
-    const providers = CONTRACTS.registry ? await fetchProviders().catch(() => []) : [];
+    const providers = await fetchProviders().catch(() => []);
 
     return (
         <div className="mx-auto max-w-3xl px-4 py-8">
@@ -39,7 +44,8 @@ export default async function ProvidersPage() {
                             href={`/providers/${p.address}`}
                             className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-accent"
                         >
-                            <span className="min-w-0">
+                            <Avatar provider={p} />
+                            <span className="min-w-0 flex-1">
                                 <span className="flex items-center gap-2">
                                     <span className="truncate font-medium">
                                         {p.name || shortAddress(p.address)}
@@ -50,6 +56,11 @@ export default async function ProvidersPage() {
                                         </span>
                                     )}
                                 </span>
+                                {p.description && (
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                        {p.description}
+                                    </span>
+                                )}
                                 <span className="block text-xs text-muted-foreground">
                                     {p.stats.delivered} published in {RANKING_WINDOW_DAYS} days
                                     {p.stats.medianBlocksToPublish !== null &&
@@ -68,5 +79,25 @@ export default async function ProvidersPage() {
 
             <p className="mt-4 text-xs text-muted-foreground">{RANKING_METHOD}</p>
         </div>
+    );
+}
+
+/** A provider's own logo, or its initial. Presentation only. */
+function Avatar({ provider }: { provider: Provider }) {
+    const url = provider.avatarUri ? convertIpfsToGatewayUrl(provider.avatarUri) : "";
+    if (url) {
+        // eslint-disable-next-line @next/next/no-img-element
+        return (
+            <img
+                src={url}
+                alt=""
+                className="h-10 w-10 shrink-0 rounded-md object-cover"
+            />
+        );
+    }
+    return (
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted text-sm font-medium text-muted-foreground">
+            {(provider.name || provider.address.slice(3, 4)).slice(0, 1).toUpperCase()}
+        </span>
     );
 }

@@ -106,18 +106,20 @@ function fallbackLimits(limits: ChainLimits) {
   }
 }
 
-type Name = 'resolver' | 'provider' | 'registry' | 'factory' | 'marketplace'
+type Name = 'resolver' | 'provider' | 'registry' | 'factory' | 'marketplace' | 'router'
 
 const CONTRACT_DIR: Record<Name, string> = {
   resolver: 'AleatoryResolver',
   provider: 'AleatoryProvider',
   registry: 'AleatoryRegistry',
+  router: 'AleatoryRouter',
   factory: 'AleatoryFactory',
   marketplace: 'AleatoryMarketplace',
 }
 
 /** Dependency order. The factory needs the resolver's address. */
-const ORDER: Name[] = ['resolver', 'provider', 'registry', 'marketplace', 'factory']
+// The router last: it names everything else, so everything else has to exist.
+const ORDER: Name[] = ['resolver', 'provider', 'registry', 'marketplace', 'factory', 'router']
 
 function loadCode(name: Name): unknown {
   const p = resolve(BUILD_DIR, CONTRACT_DIR[name], 'step_001_cont_0_contract.json')
@@ -139,14 +141,34 @@ function tzip16(doc: Record<string, unknown>): MichelsonMap<string, string> {
   return m
 }
 
-function meta(name: string, description: string) {
+function meta(name: string, description: string, extra: Record<string, unknown> = {}) {
   return tzip16({
     name,
     description,
     version: '0.1.0',
     homepage: 'https://github.com/skullzarmy/aleatory',
     interfaces: ['TZIP-012', 'TZIP-016'],
+    ...extra,
   })
+}
+
+/**
+ * A provider's own description of itself.
+ *
+ * Read by any UI listing providers, and written by the provider. Presentation
+ * only: none of it decides who may write, what a render costs, or whether a
+ * piece is published. `avatar` is an `ipfs://` URI.
+ */
+function providerMeta() {
+  return meta(
+    process.env.ALEA_PROVIDER_NAME || 'Aleatory',
+    process.env.ALEA_PROVIDER_DESC ||
+      'The render provider this project runs. Anyone can run their own and list it alongside it.',
+    {
+      avatar: process.env.ALEA_PROVIDER_AVATAR || '',
+      endpoint: process.env.ALEA_PROVIDER_URL || '',
+    },
+  )
 }
 
 type Record_ = Record<string, unknown>
@@ -278,7 +300,7 @@ async function main() {
           operator: admin,
           agent,
           render_gas: 0,
-          metadata: meta('Aleatory Render', 'Reference render provider.'),
+          metadata: providerMeta(),
         }
       case 'registry':
         return { providers: new MichelsonMap(), count: 0 }
@@ -297,6 +319,27 @@ async function main() {
           next_offer_id: 0,
           metadata: meta('Aleatory Marketplace', 'Secondary market for Aleatory pieces.'),
         }
+      case 'router': {
+        // A directory. It names the current contracts and every factory
+        // there has ever been, so a front end needs one address in its
+        // environment and reads the rest from the chain.
+        //
+        // An existing router is *added to*, never replaced: a new factory
+        // goes to the head of its list and the retired ones stay, because
+        // collections a retired factory made are still real collections.
+        if (!deployed.factory || !deployed.marketplace || !deployed.registry || !deployed.resolver) {
+          throw new Error('The router names the others. Deploy them first.')
+        }
+        return {
+          administrator: admin,
+          proposed_admin: null,
+          factories: [deployed.factory],
+          marketplace: deployed.marketplace,
+          registry: deployed.registry,
+          resolver: deployed.resolver,
+        }
+      }
+
       case 'factory': {
         const resolverAddress = deployed.resolver
         if (!resolverAddress) {

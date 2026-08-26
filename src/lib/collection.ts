@@ -9,7 +9,9 @@ import {
     type TzktToken,
 } from "./tzkt";
 import { fetchCollections } from "./tzkt";
-import { CONTRACTS, tzktApi } from "./config";
+import { tzktApi } from "./config";
+import { allFactories } from "./router";
+import { isBlockedCollection } from "./blocklist";
 import { bytesToString, convertIpfsToGatewayUrl } from "@/utils/ipfs";
 import type { FeedPiece } from "./feed";
 import type { ParamsSchema } from "./params";
@@ -180,8 +182,16 @@ export interface CollectionSummary {
 }
 
 export async function fetchAllCollections(): Promise<CollectionSummary[]> {
-    if (!CONTRACTS.factory) return [];
-    const rows = await fetchCollections(CONTRACTS.factory);
+    const factories = await allFactories();
+    if (factories.length === 0) return [];
+    const lists = await Promise.all(
+        factories.map((f) => fetchCollections(f).catch(() => [])),
+    );
+    const seen = new Set<string>();
+    const rows = lists
+        .flat()
+        .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
+        .filter((c) => !isBlockedCollection(c.address));
     return rows.map((c) => ({
         address: c.address,
         name: c.alias,

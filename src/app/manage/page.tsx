@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
-import { CONTRACTS } from "@/lib/config";
+import { allFactories } from "@/lib/router";
 import { fetchCollection, type Collection } from "@/lib/collection";
 import { fetchCollectionsDeployedBy } from "@/lib/tzkt";
 import { formatTez, shortAddress } from "@/lib/utils";
@@ -26,10 +26,13 @@ export default function ManagePage() {
         }
         let cancelled = false;
         void (async () => {
-            const addresses = await fetchCollectionsDeployedBy(
-                address,
-                CONTRACTS.factory ?? "",
-            ).catch(() => []);
+            // Every factory, so a collection deployed before a redeploy still
+            // appears under the wallet that made it.
+            const factories = await allFactories().catch(() => []);
+            const lists = await Promise.all(
+                factories.map((f) => fetchCollectionsDeployedBy(address, f).catch(() => [])),
+            );
+            const addresses = [...new Set(lists.flat())];
             const rows = await Promise.all(addresses.map((a) => fetchCollection(a).catch(() => null)));
             if (!cancelled) {
                 setCollections(rows.filter((c): c is Collection => c !== null));

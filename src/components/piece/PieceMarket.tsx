@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWallet } from "@/context/WalletContext";
 import { formatTez, shortAddress, parseTez, CONFIRM_ABOVE_MUTEZ } from "@/lib/utils";
 import { proceeds, type Listing, type Offer } from "@/lib/market";
-import { CONTRACTS } from "@/lib/config";
+import { addresses } from "@/lib/router";
 import * as ops from "@/lib/ops";
 
 /**
@@ -30,6 +30,12 @@ export function PieceMarket({
     royaltyBps: number;
 }) {
     const { address, connect, getClient } = useWallet();
+    // Resolved from the router rather than baked in, so a marketplace redeploy
+    // does not need a rebuild of the site.
+    const [marketplace, setMarketplace] = useState("");
+    useEffect(() => {
+        void addresses().then((a) => setMarketplace(a.marketplace)).catch(() => {});
+    }, []);
     const [busy, setBusy] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [price, setPrice] = useState("");
@@ -43,7 +49,7 @@ export function PieceMarket({
     const isOwner = Boolean(address && owner && address === owner);
     const isSeller = Boolean(address && listing && address === listing.seller);
 
-    if (!CONTRACTS.marketplace) {
+    if (!marketplace) {
         return (
             <p className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
                 The marketplace is waiting to be deployed.
@@ -129,7 +135,7 @@ export function PieceMarket({
                                         client,
                                         contract,
                                         address as string,
-                                        CONTRACTS.marketplace,
+                                        marketplace,
                                         tokenId,
                                     );
                                     await ops.listToken(client, contract, tokenId, mutez);
@@ -217,7 +223,7 @@ export function PieceMarket({
                                                         client,
                                                         contract,
                                                         address as string,
-                                                        CONTRACTS.marketplace,
+                                                        marketplace,
                                                         tokenId,
                                                     );
                                                     await ops.acceptOffer(client, o.id);

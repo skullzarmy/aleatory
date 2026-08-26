@@ -44,6 +44,17 @@ def AleatoryProvider():
 
 
 @sp.add_test()
+def AleatoryRouter():
+    sc = sp.test_scenario("AleatoryRouter", aleatory)
+    sc += aleatory.AleatoryRouter(
+        administrator=sp.address("tz1Ke2h7sDdakHJQh8WX4Z372du1KChsksyU"),
+        factory=sp.address("KT1Tezooo1zzSmartPyzzSTATiCzzzwwBFA1"),
+        marketplace=sp.address("KT1Tezooo1zzSmartPyzzSTATiCzzzwwBFA1"),
+        registry=sp.address("KT1Tezooo1zzSmartPyzzSTATiCzzzwwBFA1"),
+        resolver=sp.address("KT1Tezooo1zzSmartPyzzSTATiCzzzwwBFA1"),
+    )
+
+
 def AleatoryRegistry():
     sc = sp.test_scenario("AleatoryRegistry", aleatory)
     sc += aleatory.AleatoryRegistry()

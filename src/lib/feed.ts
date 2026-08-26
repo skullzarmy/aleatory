@@ -3,7 +3,7 @@
  * first. Assembled from public chain data, so anyone can reproduce it against
  * TzKT.
  */
-import { CONTRACTS } from "./config";
+import { allFactories } from "./router";
 import {
     fetchCollections,
     fetchCollectionsDeployedBy,
@@ -52,6 +52,19 @@ async function resolveDocs(
 }
 
 const key = (t: TzktToken) => `${t.contract.address}:${t.tokenId}`;
+
+/** Every collection from every factory, deduplicated. */
+async function collectionsFrom(factories: string[]) {
+    const lists = await Promise.all(
+        factories.map((f) => fetchCollections(f).catch(() => [])),
+    );
+    const seen = new Set<string>();
+    return lists.flat().filter((c) => {
+        if (seen.has(c.address)) return false;
+        seen.add(c.address);
+        return true;
+    });
+}
 
 /**
  * Documents for whatever TzKT left unresolved, grouped so it is one big_map
@@ -132,10 +145,20 @@ export interface RecentFeed {
 }
 
 export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
-    if (!CONTRACTS.factory) {
+    const factories = await allFactories();
+    if (factories.length === 0) {
         return { pieces: [], collectionCount: 0, unconfigured: true };
     }
-    const collections = await fetchCollections(CONTRACTS.factory);
+    // Every factory, not just the current one. A redeploy retires a factory
+    // and the collections it made stay real, so reading only the newest would
+    // drop them off the site.
+    //
+    // The blocklist applied here too. It was on the wallet page and the market
+    // and not on the front page, which is the one surface where it obviously
+    // has to be.
+    const collections = (await collectionsFrom(factories)).filter(
+        (c) => !isBlockedCollection(c.address),
+    );
     if (collections.length === 0) {
         return { pieces: [], collectionCount: 0, unconfigured: false };
     }
@@ -172,10 +195,11 @@ export interface WalletView {
  * otherwise be two views of one address.
  */
 export async function fetchWallet(account: string, limit = 48): Promise<WalletView> {
-    if (!CONTRACTS.factory) {
+    const factories = await allFactories();
+    if (factories.length === 0) {
         return { held: [], made: [], unconfigured: true };
     }
-    const collections = (await fetchCollections(CONTRACTS.factory)).filter(
+    const collections = (await collectionsFrom(factories)).filter(
         (c) => !isBlockedCollection(c.address),
     );
     const aliasByAddress = new Map(collections.map((c) => [c.address, c.alias] as const));
@@ -183,7 +207,9 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
 
     const [tokens, deployed] = await Promise.all([
         fetchTokensHeldBy(account, addresses, limit).catch(() => []),
-        fetchCollectionsDeployedBy(account, CONTRACTS.factory).catch(() => []),
+        Promise.all(
+            factories.map((f) => fetchCollectionsDeployedBy(account, f).catch(() => [])),
+        ).then((lists) => lists.flat()),
     ]);
 
     const madeSet = new Set(deployed);

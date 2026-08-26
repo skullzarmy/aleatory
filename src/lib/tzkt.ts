@@ -40,6 +40,8 @@ export interface TokenMetadata {
     /** Aleatory's own keys, per docs/params.md §4. */
     aleaParams?: string;
     aleaCodeHash?: string;
+    /** The provider contract whose agent published this piece. */
+    aleaProvider?: string;
 }
 
 /** Tezos address shape. Route params reach path building, so they are checked. */

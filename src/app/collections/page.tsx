@@ -2,14 +2,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchAllCollections } from "@/lib/collection";
 import { EmptyFeed } from "@/components/feed/EmptyFeed";
-import { CONTRACTS } from "@/lib/config";
 import { shortAddress, timeAgo } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Collections" };
 export const revalidate = 60;
 
 export default async function CollectionsPage() {
-    if (!CONTRACTS.factory) {
+    const collections = await fetchAllCollections();
+    if (collections.length === 0) {
         return (
             <div className="mx-auto max-w-7xl px-4 py-8">
                 <EmptyFeed reason="unconfigured" />
@@ -17,7 +17,6 @@ export default async function CollectionsPage() {
         );
     }
 
-    const collections = await fetchAllCollections();
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-8">

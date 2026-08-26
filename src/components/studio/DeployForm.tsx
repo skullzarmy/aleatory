@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useWallet } from "@/context/WalletContext";
-import { CONTRACTS } from "@/lib/config";
+import { addresses } from "@/lib/router";
 import { royaltyPreview, type RoyaltySplit } from "@/lib/metadata";
 import { parseTez, shortAddress } from "@/lib/utils";
 import { tzktLink } from "@/lib/config";
@@ -60,6 +60,11 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     // The cover renders through the same isolate as everything else, so it
     // needs the same libraries the generator does.
     const { deps } = useDeps(draft?.kindId ?? 1);
+    // Where a shared royalty goes. Resolved from the router.
+    const [platformAddress, setPlatformAddress] = useState("");
+    useEffect(() => {
+        void addresses().then((a) => setPlatformAddress(a.marketplace)).catch(() => {});
+    }, []);
 
     const split: RoyaltySplit = useMemo(() => {
         const total = parseFloat(royaltyTotal) || 0;
@@ -68,11 +73,11 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             const platform = platformShare ? parseFloat(platformPercent) || 0 : 0;
             recipients.push({ address, percent: 100 - platform });
             if (platform > 0) {
-                recipients.push({ address: CONTRACTS.marketplace || address, percent: platform });
+                recipients.push({ address: platformAddress || address, percent: platform });
             }
         }
         return { totalPercent: total, recipients };
-    }, [address, royaltyTotal, platformShare, platformPercent]);
+    }, [address, royaltyTotal, platformShare, platformPercent, platformAddress]);
 
     const preview = useMemo(() => royaltyPreview(split), [split]);
 

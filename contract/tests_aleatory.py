@@ -1056,3 +1056,55 @@ def test_the_generator_is_on_chain():
         _deploy_params(provider, code_hash=sp.bytes("0x")),
         _sender=artist, _valid=False,
     )
+
+
+@sp.add_test()
+def test_router_keeps_every_factory():
+    """A redeploy must not orphan the collections the old factory made.
+    They are real collections owned by real artists, and a reader that only
+    knew the newest factory would drop them off the site entirely."""
+    scenario = sp.test_scenario("Router", aleatory)
+    admin = sp.test_account("Admin")
+    stranger = sp.test_account("Stranger")
+    f1 = sp.test_account("Factory1")
+    f2 = sp.test_account("Factory2")
+    market = sp.test_account("Market")
+    registry = sp.test_account("Registry")
+    resolver = sp.test_account("Resolver")
+
+    r = aleatory.AleatoryRouter(
+        administrator=admin.address,
+        factory=f1.address,
+        marketplace=market.address,
+        registry=registry.address,
+        resolver=resolver.address,
+    )
+    scenario += r
+
+    scenario.verify(r.get_factory() == f1.address)
+
+    # A new factory goes to the head, and the old one is still listed.
+    r.add_factory(f2.address, _sender=admin)
+    scenario.verify(r.get_factory() == f2.address)
+    # A list is not comparable in Michelson, so the storage is read directly.
+    scenario.verify(sp.len(r.data.factories) == 2)
+
+    # Nobody else may point readers anywhere.
+    r.add_factory(stranger.address, _sender=stranger, _valid=False)
+    r.set_marketplace(stranger.address, _sender=stranger, _valid=False)
+    r.set_registry(stranger.address, _sender=stranger, _valid=False)
+    r.set_resolver(stranger.address, _sender=stranger, _valid=False)
+
+    # It is a directory, not a treasury.
+    r.add_factory(f1.address, _sender=admin, _amount=sp.mutez(1), _valid=False)
+
+    # One call gets a front end everything.
+    scenario.verify(r.get_addresses().marketplace == market.address)
+    scenario.verify(r.get_addresses().registry == registry.address)
+
+    # Handover is two steps, so a typo cannot strand it.
+    r.propose_admin(stranger.address, _sender=admin)
+    r.accept_admin(_sender=admin, _valid=False)
+    r.accept_admin(_sender=stranger)
+    r.add_factory(f1.address, _sender=admin, _valid=False)
+    r.add_factory(f1.address, _sender=stranger)

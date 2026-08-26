@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { fetchCollection, type Collection } from "@/lib/collection";
 import { fetchProviders, type Provider } from "@/lib/providers";
-import { CONTRACTS, tzktLink } from "@/lib/config";
+import {tzktLink} from "@/lib/config";
 import { formatTez, parseTez, shortAddress } from "@/lib/utils";
 import {
     setEditionSize,
@@ -41,7 +41,7 @@ export default function ManageCollectionPage({
 
     useEffect(() => {
         void reload();
-        if (CONTRACTS.registry) void fetchProviders().then(setProviders).catch(() => setProviders([]));
+        void fetchProviders().then(setProviders).catch(() => setProviders([]));
     }, [reload]);
 
     /** Send one write, then re-read the chain. */

@@ -822,6 +822,128 @@ def aleatory():
     # Registry
     # ---------------------------------------------------------------
 
+
+    class AleatoryRouter(sp.Contract):
+        """Where the current contracts are, and every factory there has ever
+        been.
+
+        Addresses lived in a front end's environment until now, which meant
+        every reader had to be told them out of band and a redeploy silently
+        pointed a running site at a contract that no longer existed. Three
+        times in one day, in this project's case. One place on chain, readable
+        by anyone, and a front end resolves them at load.
+
+        **`factories` is a list, never a replacement.** A new factory is
+        prepended and the old ones stay, because collections deployed by a
+        retired factory are still real collections owned by real artists, and
+        a reader that only knew the newest one would drop them off the site
+        entirely. Retiring a factory stops new deploys, not old work.
+
+        What this is: a directory. Everything it names is independently
+        verifiable, and nothing here can touch a collection, a token, or
+        anyone's balance. Whoever administers it can point a reader at a
+        different marketplace, so a front end trusting it is trusting us to
+        that extent, and one that would rather not can hardcode what it
+        finds here and check it itself.
+        """
+
+        def __init__(self, administrator, factory, marketplace, registry, resolver):
+            self.data.administrator = sp.cast(administrator, sp.address)
+            self.data.proposed_admin = sp.cast(None, sp.option[sp.address])
+            # Newest first. The head is where a deploy goes; the tail is what
+            # a reader still has to look at.
+            self.data.factories = sp.cast([factory], sp.list[sp.address])
+            self.data.marketplace = sp.cast(marketplace, sp.address)
+            self.data.registry = sp.cast(registry, sp.address)
+            self.data.resolver = sp.cast(resolver, sp.address)
+
+        @sp.private(with_storage="read-only")
+        def is_administrator_(self):
+            return sp.sender == self.data.administrator
+
+        @sp.entrypoint
+        def add_factory(self, factory):
+            """(Admin) Put a new factory at the head. The old ones remain."""
+            sp.cast(factory, sp.address)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.is_administrator_(), "NOT_ADMIN"
+            self.data.factories = sp.cons(factory, self.data.factories)
+            sp.emit(sp.record(factory=factory), tag="add_factory")
+
+        @sp.entrypoint
+        def set_marketplace(self, marketplace):
+            """(Admin) Where new listings go. Old listings live in whichever
+            marketplace holds them, and that contract keeps working."""
+            sp.cast(marketplace, sp.address)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.is_administrator_(), "NOT_ADMIN"
+            self.data.marketplace = marketplace
+            sp.emit(sp.record(marketplace=marketplace), tag="set_marketplace")
+
+        @sp.entrypoint
+        def set_registry(self, registry):
+            sp.cast(registry, sp.address)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.is_administrator_(), "NOT_ADMIN"
+            self.data.registry = registry
+            sp.emit(sp.record(registry=registry), tag="set_registry")
+
+        @sp.entrypoint
+        def set_resolver(self, resolver):
+            """(Admin) Only affects collections deployed after this. A
+            collection's resolver is fixed at origination and cannot be
+            repointed at a different authority afterwards."""
+            sp.cast(resolver, sp.address)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.is_administrator_(), "NOT_ADMIN"
+            self.data.resolver = resolver
+            sp.emit(sp.record(resolver=resolver), tag="set_resolver")
+
+        @sp.entrypoint
+        def propose_admin(self, new_admin):
+            sp.cast(new_admin, sp.address)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.is_administrator_(), "NOT_ADMIN"
+            self.data.proposed_admin = sp.Some(new_admin)
+
+        @sp.entrypoint
+        def accept_admin(self):
+            """Two steps, so a typo cannot hand this to an address that
+            nobody holds."""
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.data.proposed_admin == sp.Some(sp.sender), "NOT_PROPOSED"
+            self.data.administrator = sp.sender
+            self.data.proposed_admin = None
+
+        @sp.onchain_view()
+        def get_addresses(self):
+            """Everything a front end needs, in one call."""
+            return sp.record(
+                factories=self.data.factories,
+                marketplace=self.data.marketplace,
+                registry=self.data.registry,
+                resolver=self.data.resolver,
+            )
+
+        @sp.onchain_view()
+        def get_factories(self):
+            """Every factory, newest first. A reader that wants the whole
+            catalogue has to look at all of them."""
+            return self.data.factories
+
+        @sp.onchain_view()
+        def get_factory(self):
+            """The current one, for a deploy. The head of the list, which is
+            the most recently added."""
+            current = sp.cast(sp.sender, sp.address)
+            found = False
+            for f in self.data.factories:
+                if not found:
+                    current = f
+                    found = True
+            assert found, "NO_FACTORY"
+            return current
+
     class AleatoryRegistry(sp.Contract):
         """The list of render providers. Nobody controls it.
 

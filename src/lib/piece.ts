@@ -52,6 +52,8 @@ export interface Piece {
     minted: number;
     /** Rendered image, once a provider has published one. */
     imageUrl?: string;
+    /** The provider that rendered it, when the document says. */
+    provider?: string;
     /** Live render of the generator, always available. */
     renderUrl?: string;
     pending: boolean;
@@ -157,6 +159,7 @@ export async function fetchPiece(
         editionSize: storage ? parseInt(storage.sale.edition_size, 10) : 0,
         minted: storage ? parseInt(storage.next_token_id, 10) : 0,
         imageUrl: display ? convertIpfsToGatewayUrl(display) : undefined,
+        provider: m?.aleaProvider,
         renderUrl: codeUri ? renderUrl(codeUri, mint?.hash, m?.aleaParams) : undefined,
         pending: pendingDoc.length > 0 && !display,
         royalties,

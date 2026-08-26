@@ -8,12 +8,17 @@
  * pieces published, how long each took, how many are still waiting. The
  * inputs are public, so anyone can recompute this and rank us lower.
  */
-import { CONTRACTS, tzktApi } from "./config";
+import { tzktApi } from "./config";
 import { isBlockedProvider } from "./blocklist";
+import { addresses } from "./router";
+import { bytesToString } from "@/utils/ipfs";
 
 export interface Provider {
     address: string;
     name?: string;
+    description?: string;
+    /** `ipfs://` avatar or logo, from the provider's own metadata. */
+    avatarUri?: string;
     endpoint?: string;
     renderGasMutez: number;
     agent: string;
@@ -59,24 +64,30 @@ interface RegistryRow {
  * for every collection that names it.
  */
 export async function fetchProviders(): Promise<Provider[]> {
-    if (!CONTRACTS.registry) return [];
+    const registry = (await addresses()).registry;
+    if (!registry) return [];
 
     const rows = await tzkt<RegistryRow[]>(
-        `/v1/contracts/${CONTRACTS.registry}/bigmaps/providers/keys`,
+        `/v1/contracts/${registry}/bigmaps/providers/keys`,
         { active: "true", limit: 100 },
     ).catch(() => []);
 
     const providers = await Promise.all(
         rows.map(async (r) => {
             const address = r.key;
-            const [storage, stats] = await Promise.all([
+            const [storage, stats, meta] = await Promise.all([
                 tzkt<{ render_gas: string; agent: string; metadata: number }>(
                     `/v1/contracts/${address}/storage`,
                 ).catch(() => null),
                 fetchProviderStats(address),
+                fetchProviderMetadata(address),
             ]);
             return {
                 address,
+                name: meta?.name,
+                description: meta?.description,
+                avatarUri: meta?.avatarUri,
+                endpoint: meta?.endpoint,
                 renderGasMutez: storage ? parseInt(storage.render_gas, 10) : 0,
                 agent: storage?.agent ?? "",
                 registeredAt: r.value,
@@ -87,6 +98,42 @@ export async function fetchProviders(): Promise<Provider[]> {
     );
 
     return providers.filter((p) => !isBlockedProvider(p.address)).sort(compareProviders);
+}
+
+interface ProviderMeta {
+    name?: string;
+    description?: string;
+    avatarUri?: string;
+    endpoint?: string;
+}
+
+/**
+ * A provider's own description of itself, from its TZIP-016 metadata.
+ *
+ * Written by the provider, about the provider, so it is presentation and
+ * nothing more: none of it affects who may write, what a render costs, or
+ * whether a piece is published. A provider that says nothing shows as its
+ * address, which is what every provider did until now.
+ */
+async function fetchProviderMetadata(address: string): Promise<ProviderMeta | null> {
+    const row = await tzkt<{ value?: string }>(
+        `/v1/contracts/${address}/bigmaps/metadata/keys/content`,
+    ).catch(() => null);
+    if (!row?.value) return null;
+    try {
+        const doc = JSON.parse(bytesToString(row.value)) as Record<string, unknown>;
+        const str = (k: string) => (typeof doc[k] === "string" ? (doc[k] as string) : undefined);
+        return {
+            name: str("name"),
+            description: str("description"),
+            // `avatar` is the key we write. `logo` and `imageUri` are read too,
+            // because a provider we did not deploy will have picked its own.
+            avatarUri: str("avatar") ?? str("logo") ?? str("imageUri"),
+            endpoint: str("endpoint"),
+        };
+    } catch {
+        return null;
+    }
 }
 
 /** A publish, with the token it was for. */
