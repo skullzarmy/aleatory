@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { tzktLink } from "@/lib/config";
-import { shortAddress, timeAgo } from "@/lib/utils";
+import { shortAddress } from "@/lib/utils";
+import { TimeAgo } from "@/components/TimeAgo";
 import type { Piece } from "@/lib/piece";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -44,7 +45,7 @@ export function PieceFacts({ piece }: { piece: Piece }) {
                     </a>
                 </Row>
             )}
-            {piece.mintedAt && <Row label="Minted">{timeAgo(piece.mintedAt)}</Row>}
+            {piece.mintedAt && <Row label="Minted"><TimeAgo iso={piece.mintedAt} /></Row>}
 
             {piece.provider && (
                 <Row label="Rendered by">
