@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useWallet } from "@/context/WalletContext";
 import { formatTez, parseTez, CONFIRM_ABOVE_MUTEZ } from "@/lib/utils";
 import { proceeds, type Listing, type Offer } from "@/lib/market";
@@ -38,6 +39,11 @@ export function PieceMarket({
         void addresses().then((a) => setMarketplace(a.marketplace)).catch(() => {});
     }, []);
     const [busy, setBusy] = useState<string | null>(null);
+    // An operation has landed and the indexer has not caught up. The controls
+    // stay disabled through this, because otherwise the page still shows "not
+    // listed" and happily lists the same token again.
+    const [settling, setSettling] = useState(false);
+    const router = useRouter();
     const [error, setError] = useState<string | null>(null);
     const [price, setPrice] = useState("");
     const [offer, setOffer] = useState("");
@@ -58,17 +64,57 @@ export function PieceMarket({
         );
     }
 
+    /**
+     * A market action, and the wait for the chain to agree it happened.
+     *
+     * A signature returns as soon as the operation is injected, which is
+     * several seconds before it is in a block and longer before an indexer has
+     * it. Clearing the form there leaves a page saying "not listed" for a
+     * token that is listed, and a button that will cheerfully list it again.
+     *
+     * So the controls stay disabled and the page is refreshed until the server
+     * comes back with something different. The effect below is what ends it:
+     * new props are the only reliable signal that the write is visible.
+     */
     async function run(label: string, fn: () => Promise<unknown>) {
         setBusy(label);
         setError(null);
         try {
             await fn();
+            setSettling(true);
         } catch (e) {
             setError(e instanceof Error ? e.message : "That did not go through");
         } finally {
             setBusy(null);
         }
     }
+
+    // Refresh until the server's answer changes, then stop. Capped, because a
+    // page that polls forever after a failed indexer is worse than one that
+    // gives up and lets the reader reload.
+    const settled = useRef<string>("");
+    useEffect(() => {
+        const now = `${listing?.id ?? "none"}:${listing?.priceMutez ?? 0}:${offers.length}`;
+        if (!settling) {
+            settled.current = now;
+            return;
+        }
+        if (now !== settled.current) {
+            settled.current = now;
+            setSettling(false);
+            return;
+        }
+        let tries = 0;
+        const id = window.setInterval(() => {
+            if (++tries > 12) {
+                window.clearInterval(id);
+                setSettling(false);
+                return;
+            }
+            router.refresh();
+        }, 4000);
+        return () => window.clearInterval(id);
+    }, [settling, listing, offers.length, router]);
 
     const tez = (mutez: bigint) => `${formatTez(mutez)} ꜩ`;
 
@@ -84,7 +130,7 @@ export function PieceMarket({
                     {isSeller ? (
                         <button
                             type="button"
-                            disabled={busy !== null}
+                            disabled={busy !== null || settling}
                             onClick={() =>
                                 run("delist", async () => ops.delist(await getClient(), listing.id))
                             }
@@ -95,7 +141,7 @@ export function PieceMarket({
                     ) : (
                         <button
                             type="button"
-                            disabled={busy !== null}
+                            disabled={busy !== null || settling}
                             onClick={() =>
                                 address
                                     ? run("buy", async () =>
@@ -125,21 +171,21 @@ export function PieceMarket({
                         />
                         <button
                             type="button"
-                            disabled={busy !== null || priceMutez === null}
+                            disabled={busy !== null || settling || priceMutez === null}
                             onClick={() =>
                                 run("list", async () => {
-                                    const mutez = priceMutez as bigint;
                                     const client = await getClient();
-                                    // The marketplace escrows the token, which
-                                    // it can only do as an operator.
-                                    await ops.addOperator(
+                                    // Grant, list and revoke in one operation.
+                                    // The marketplace can only escrow as an
+                                    // operator, and it needs that for exactly
+                                    // as long as the call it is used by.
+                                    await ops.listToken(
                                         client,
                                         contract,
                                         address as string,
-                                        marketplace,
                                         tokenId,
+                                        priceMutez as bigint,
                                     );
-                                    await ops.listToken(client, contract, tokenId, mutez);
                                 })
                             }
                             className="rounded-md bg-alea-600 px-3 py-2 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
@@ -219,18 +265,17 @@ export function PieceMarket({
                                     {isOwner && (
                                         <button
                                             type="button"
-                                            disabled={busy !== null}
+                                            disabled={busy !== null || settling}
                                             onClick={() =>
                                                 run(`accept-${o.id}`, async () => {
                                                     const client = await getClient();
-                                                    await ops.addOperator(
+                                                    await ops.acceptOfferFor(
                                                         client,
                                                         contract,
                                                         address as string,
-                                                        marketplace,
                                                         tokenId,
+                                                        o.id,
                                                     );
-                                                    await ops.acceptOffer(client, o.id);
                                                 })
                                             }
                                             className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
@@ -241,7 +286,7 @@ export function PieceMarket({
                                     {address === o.buyer && (
                                         <button
                                             type="button"
-                                            disabled={busy !== null}
+                                            disabled={busy !== null || settling}
                                             onClick={() =>
                                                 run(`cancel-${o.id}`, async () =>
                                                     ops.cancelOffer(await getClient(), o.id),
@@ -259,6 +304,11 @@ export function PieceMarket({
                 )}
             </div>
 
+            {settling && (
+                <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+                    Waiting for the chain to confirm…
+                </p>
+            )}
             {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
     );

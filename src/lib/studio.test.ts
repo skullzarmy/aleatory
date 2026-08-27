@@ -448,6 +448,56 @@ console.log("\nOne document builder");
     );
 }
 
+console.log("\nMarket operations");
+{
+    // Two entrypoints move a token the marketplace does not hold yet, so both
+    // need the seller to grant it as an operator first. Derived from the
+    // contract rather than remembered: anything transferring from sp.sender
+    // needs the grant; from sp.self_address does not.
+    const market = readFileSync("contract/marketplace.py", "utf8");
+    const needsGrant = ["list_token", "delist", "buy", "accept_offer"].filter((ep) => {
+        const body = market.slice(market.indexOf(`def ${ep}(self`));
+        const end = body.indexOf("@sp.", 10);
+        return /from_=sp\.sender/.test(end > 0 ? body.slice(0, end) : body);
+    });
+    check(
+        `only list_token and accept_offer need an operator (${needsGrant.join(", ")})`,
+        needsGrant.length === 2 && needsGrant.includes("list_token") && needsGrant.includes("accept_offer"),
+        "if this changes, the batches below need to change with it",
+    );
+
+    const ops = readFileSync("src/lib/ops.ts", "utf8");
+    for (const fn of ["listToken", "acceptOfferFor"]) {
+        const body = ops.slice(ops.indexOf(`export async function ${fn}(`));
+        const end = body.indexOf("\nexport ", 10);
+        const block = end > 0 ? body.slice(0, end) : body;
+        check(
+            `${fn} grants, acts and revokes in one operation`,
+            /add_operator/.test(block) && /remove_operator/.test(block) && /sendBatch/.test(block),
+            "sent separately a wallet asks twice and the second can fail on its own, leaving the grant standing",
+        );
+    }
+    check(
+        "a batch is one request, so it is atomic",
+        /requestOperation\(\{ operationDetails: calls\.map/.test(ops),
+        "Tezos reverts the whole batch, which is what makes granting and using the grant safe together",
+    );
+
+    // The signature returns before the operation is in a block, and long
+    // before an indexer has it. Clearing the form there shows "not listed" for
+    // a token that is listed, and offers to list it again.
+    const panel = readFileSync("src/components/piece/PieceMarket.tsx", "utf8");
+    check(
+        "controls stay disabled until the chain agrees",
+        panel.includes("settling") && /disabled=\{busy !== null \|\| settling/.test(panel),
+        "otherwise the same token gets listed three times",
+    );
+    check(
+        "and the page refreshes until the server answers differently",
+        panel.includes("router.refresh()") && panel.includes("settled.current"),
+    );
+}
+
 console.log("\nOperation encoding");
 {
     // Michelson pairs are positional and SmartPy lays a record out

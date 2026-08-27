@@ -75,6 +75,40 @@ function feeFor(limits: Limits): number {
     return 100 + Math.ceil(limits.gas * 0.1) + (limits.bytes ?? 500);
 }
 
+interface Call {
+    destination: string;
+    entrypoint: string;
+    value: unknown;
+    amountMutez?: number | bigint;
+    limits?: Limits;
+}
+
+const detail = (c: Call) => {
+    const limits = c.limits ?? SMALL;
+    return {
+        kind: "transaction" as TezosOperationType.TRANSACTION,
+        destination: c.destination,
+        amount: String(c.amountMutez ?? 0),
+        parameters: { entrypoint: c.entrypoint, value: c.value as never },
+        fee: String(feeFor(limits)),
+        gas_limit: String(limits.gas),
+        storage_limit: String(limits.storage),
+    } as never;
+};
+
+/**
+ * Several calls, one signature, all or nothing.
+ *
+ * Tezos applies a batch atomically: if the last one fails, the earlier ones are
+ * reverted too. That is what makes granting an operator and using the grant
+ * safe to do together. Sent separately, a wallet asks twice and the second can
+ * fail on its own, which leaves the grant standing with nothing done.
+ */
+async function sendBatch(client: DAppClient, calls: Call[]): Promise<OpResult> {
+    const result = await client.requestOperation({ operationDetails: calls.map(detail) });
+    return { hash: (result as { transactionHash: string }).transactionHash };
+}
+
 async function send(
     client: DAppClient,
     destination: string,
@@ -83,20 +117,7 @@ async function send(
     amountMutez: number | bigint = 0,
     limits: Limits = SMALL,
 ): Promise<OpResult> {
-    const result = await client.requestOperation({
-        operationDetails: [
-            {
-                kind: "transaction" as TezosOperationType.TRANSACTION,
-                destination,
-                amount: String(amountMutez),
-                parameters: { entrypoint, value: value as never },
-                fee: String(feeFor(limits)),
-                gas_limit: String(limits.gas),
-                storage_limit: String(limits.storage),
-            } as never,
-        ],
-    });
-    return { hash: (result as { transactionHash: string }).transactionHash };
+    return sendBatch(client, [{ destination, entrypoint, value, amountMutez, limits }]);
 }
 
 const str = (v: string) => ({ string: v });
@@ -178,19 +199,78 @@ async function encode(
     return parameter;
 }
 
+/**
+ * Grant, list, revoke. One signature, one operation.
+ *
+ * The marketplace escrows the token, which it can only do as an operator, so
+ * three calls are needed and they belong together. Sent separately a wallet
+ * asks twice, the second can fail on its own balance, and the grant is left
+ * standing with nothing listed.
+ *
+ * The revoke is in the batch on purpose. `list_token` transfers the token
+ * inside this same operation, so the grant is needed for the length of one
+ * call and not a moment longer. Left behind, it is a standing permission for
+ * the marketplace to move that token again without asking, on a token it no
+ * longer holds once the listing is filled or cancelled.
+ *
+ * Tezos applies a batch atomically, so a failure anywhere reverts the grant
+ * with it.
+ */
 export async function listToken(
     client: DAppClient,
     collection: string,
+    owner: string,
     tokenId: string,
     priceMutez: bigint,
 ): Promise<OpResult> {
     const market = await marketplace();
-    const p = await encode(market, "list_token", {
-        collection,
-        token_id: tokenId,
-        price: priceMutez.toString(),
-    });
-    return send(client, market, p.entrypoint, p.value, 0, LIST);
+    const [grant, list, revoke] = await Promise.all([
+        encode(collection, "update_operators", [
+            { add_operator: { owner, operator: market, token_id: tokenId } },
+        ]),
+        encode(market, "list_token", {
+            collection,
+            token_id: tokenId,
+            price: priceMutez.toString(),
+        }),
+        encode(collection, "update_operators", [
+            { remove_operator: { owner, operator: market, token_id: tokenId } },
+        ]),
+    ]);
+
+    return sendBatch(client, [
+        { destination: collection, entrypoint: grant.entrypoint, value: grant.value, limits: TRANSFER },
+        { destination: market, entrypoint: list.entrypoint, value: list.value, limits: LIST },
+        { destination: collection, entrypoint: revoke.entrypoint, value: revoke.value, limits: TRANSFER },
+    ]);
+}
+
+/**
+ * Accept an offer, in one operation, for the same reasons as listing.
+ */
+export async function acceptOfferFor(
+    client: DAppClient,
+    collection: string,
+    owner: string,
+    tokenId: string,
+    offerId: number,
+): Promise<OpResult> {
+    const market = await marketplace();
+    const [grant, accept, revoke] = await Promise.all([
+        encode(collection, "update_operators", [
+            { add_operator: { owner, operator: market, token_id: tokenId } },
+        ]),
+        Promise.resolve({ entrypoint: "accept_offer", value: int(offerId) }),
+        encode(collection, "update_operators", [
+            { remove_operator: { owner, operator: market, token_id: tokenId } },
+        ]),
+    ]);
+
+    return sendBatch(client, [
+        { destination: collection, entrypoint: grant.entrypoint, value: grant.value, limits: TRANSFER },
+        { destination: market, entrypoint: accept.entrypoint, value: accept.value, limits: LIST },
+        { destination: collection, entrypoint: revoke.entrypoint, value: revoke.value, limits: TRANSFER },
+    ]);
 }
 
 export async function delist(client: DAppClient, listingId: number): Promise<OpResult> {
