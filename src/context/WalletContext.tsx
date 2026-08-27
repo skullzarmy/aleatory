@@ -41,10 +41,30 @@ function buildNetwork(sdk: SDKModule) {
 }
 
 let client: DAppClient | null = null;
+
+/**
+ * Where an account change is delivered, set by the provider on mount.
+ *
+ * Module level, like the client itself, because the subscription belongs to
+ * the client and has to outlive any one render.
+ */
+let onActiveAccount: ((address: string | null) => void) | null = null;
+
 async function getClient(): Promise<DAppClient> {
     if (client) return client;
     const sdk = await loadSDK();
     client = new sdk.DAppClient({ name: BRAND.name, network: buildNetwork(sdk) });
+
+    // The wallet decides which account is active, and it can change it without
+    // us asking: the holder switches account in the extension and every
+    // address on screen now belongs to somebody else, including the one we
+    // would put in a mint. Nothing here polls for that, so without this the
+    // page keeps showing the old account until it is reloaded.
+    await client.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
+        const next = account && matchesNetwork(account) ? account.address : null;
+        onActiveAccount?.(next);
+    });
+
     return client;
 }
 
@@ -114,6 +134,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [connecting, setConnecting] = useState(false);
     const [restoring, setRestoring] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Receive account changes from whichever client is current. Registered
+    // before the restore below, so the event that restore itself triggers has
+    // somewhere to land.
+    useEffect(() => {
+        onActiveAccount = setAddress;
+        return () => {
+            onActiveAccount = null;
+        };
+    }, []);
 
     // Restore a session only when one exists, so the SDK stays unloaded for
     // visitors who have never connected.

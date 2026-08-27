@@ -88,6 +88,13 @@ function csp(): string {
             "wss://*.octez.io",
             "https://*.walletbeacon.io",
             "wss://*.walletbeacon.io",
+            // The wallet list: which wallets the connect dialog offers, and
+            // the deep links behind them. The SDK ships a bundled copy and
+            // fetches this to pick up wallets added since our pinned release,
+            // falling back to the bundle on any failure. Restricted to that
+            // one repository path rather than the CDN, so this does not also
+            // open jsDelivr's entire npm mirror to the page.
+            "https://cdn.jsdelivr.net/gh/trilitech/octez.connect-wallet-list@latest/dist/",
             // Dev servers move ports and HMR needs a socket back.
             ...(isDev ? ["ws://localhost:*", "http://localhost:*"] : []),
         ].join(" "),
