@@ -1,6 +1,6 @@
 # UI audit: SEO and WCAG 2.2 AA
 
-**Run 2026-08-27**, against `main`. Findings measured, not eyeballed: contrast
+**Run 2026-08-27**, against `main`. **Items 1 to 6 are done**; see the bottom. Findings measured, not eyeballed: contrast
 computed from the tokens in `globals.css`, metadata read out of every
 `page.tsx`. Fix order is severity, then blast radius.
 
@@ -103,3 +103,54 @@ not say which page you are on.
 5. Metadata for the six client routes, `/minted` first.
 6. `ImageResponse` fallbacks and JSON-LD.
 7. Target size and focus-obscured, measured in a browser rather than guessed.
+
+
+---
+
+## What was done, 2026-08-27
+
+Steps 1 to 6 of the order above. Every finding below is asserted in
+`src/lib/studio.test.ts`, so it cannot regress quietly.
+
+**Contrast.** Every token pair now clears its threshold against both the page
+and card backgrounds. `--border` and `--input` went from 1.00:1 to 3.06:1 in
+light and 1.19:1 to 3.54:1 in dark; `--destructive` and `--warning` cleared
+4.5:1 in both. The border change is visible: those borders were invisible
+before, which was the finding.
+
+**Level A.** Skip link, `:focus-visible` outline (keyboard only, so a click
+leaves no ring), `scroll-padding-top` so the sticky header cannot cover a
+focused element, and a `prefers-reduced-motion` block that stops the shimmer.
+`aria-current` on the nav.
+
+**Labels.** `Field` generates an id, points its `<label>` at it and passes the
+hint as `aria-describedby`, so every field it wraps is labelled without each
+call site remembering. The two inputs outside it are named directly. Nothing is
+unlabelled now.
+
+**Crawling.** `sitemap.ts` and `robots.ts`. A non-mainnet deployment disallows
+everything, because it carries the same routes and titles as production and
+would compete with it. The studio, manage and mine are excluded on every
+network: a draft lives in one browser's IndexedDB and renders nothing for
+anyone else.
+
+**Metadata.** Every route has some. Six were client components, which cannot
+export it, so it lives in a `layout.tsx` beside each. Canonicals throughout,
+`/minted` pointing at the permanent `/piece` page rather than at itself.
+
+**Rich previews.** Pieces, collections and wallets use images that already
+exist on IPFS. `opengraph-image.tsx` is the fallback for the pages that are not
+a picture and for a piece still rendering, so a link is never a blank rectangle.
+
+**Structured data.** `VisualArtwork` on a piece, `Collection` on a collection,
+`WebSite` on the home page. Serialised with `<` escaped, since the values come
+from chain state and a collection could be named `</script>`.
+
+### Still open
+
+**2.5.8 Target Size and 2.4.11 in practice.** Both need measuring in a real
+browser at real breakpoints rather than by reading source. The icon buttons in
+the header and the parameter controls are the candidates.
+
+**`/studio/[draft]/publish`** is server-rendered but sits behind a client draft,
+so its metadata is generic.

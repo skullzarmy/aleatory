@@ -17,7 +17,10 @@ export async function generateMetadata({
     params: Promise<{ address: string }>;
 }): Promise<Metadata> {
     const { address } = await params;
-    return { title: `Provider ${shortAddress(address)}` };
+    return {
+        title: `Provider ${shortAddress(address)}`,
+        alternates: { canonical: `/providers/${address}` },
+    };
 }
 
 /**

@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
-import { BRAND } from "@/lib/config";
 
 /**
- * A plain-string title here would clear the root template for everything
- * nested under it, so the publish page below would lose the site name. The
- * template is restated rather than inherited for that reason.
+ * The page is a client component, so its metadata lives here.
+ *
+ * `noindex`, and not for privacy: a draft lives in one browser's IndexedDB, so
+ * this route renders nothing at all for anyone else. There is no page here to
+ * index.
  */
 export const metadata: Metadata = {
-    title: {
-        default: `Draft · ${BRAND.name}`,
-        template: `%s · ${BRAND.name}`,
-    },
-    description: "Preview, seeds, parameters, checks and cost for one generator.",
+    title: "Studio",
+    description: "Your generator, running, with the seed held still while you work.",
+    robots: { index: false, follow: false },
 };
 
-export default function DraftLayout({ children }: { children: React.ReactNode }) {
+export default function Layout({ children }: { children: React.ReactNode }) {
     return children;
 }

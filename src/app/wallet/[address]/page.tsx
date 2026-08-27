@@ -31,6 +31,13 @@ export async function generateMetadata({
     return {
         title,
         description: profile?.bio,
+        alternates: { canonical: `/wallet/${address}` },
+        twitter: {
+            card: image ? "summary_large_image" : "summary",
+            title,
+            description: profile?.bio,
+            images: image ? [image] : undefined,
+        },
         openGraph: {
             title,
             description: profile?.bio,

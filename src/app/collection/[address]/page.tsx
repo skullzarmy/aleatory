@@ -4,8 +4,11 @@ import { fetchCollection, fetchCollectionPieces } from "@/lib/collection";
 import { MintView } from "@/components/collection/MintView";
 import { FeedGrid } from "@/components/feed/FeedGrid";
 import { shortAddress } from "@/lib/utils";
+import { BRAND } from "@/lib/config";
+import { coversFor } from "@/lib/feed";
 import { AccountLink } from "@/components/account/AccountLink";
 import { LiveRefresh } from "@/components/LiveRefresh";
+import { CollectionJsonLd } from "@/components/JsonLd";
 
 export const revalidate = 30;
 
@@ -13,8 +16,31 @@ type Params = Promise<{ address: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
     const { address } = await params;
-    const c = await fetchCollection(address).catch(() => null);
-    return { title: c ? `Collection ${shortAddress(address)}` : "Collection" };
+    const [c, covers] = await Promise.all([
+        fetchCollection(address).catch(() => null),
+        coversFor([address]).catch(() => new Map<string, string>()),
+    ]);
+    const name = c?.name || shortAddress(address);
+    // The collection's newest rendered piece, which is what it looks like.
+    const cover = covers.get(address);
+    return {
+        title: name,
+        description: c?.description,
+        alternates: { canonical: `/collection/${address}` },
+        openGraph: {
+            type: "website",
+            title: name,
+            description: c?.description,
+            url: `${BRAND.url}/collection/${address}`,
+            images: cover ? [{ url: cover }] : undefined,
+        },
+        twitter: {
+            card: cover ? "summary_large_image" : "summary",
+            title: name,
+            description: c?.description,
+            images: cover ? [cover] : undefined,
+        },
+    };
 }
 
 export default async function CollectionPage({ params }: { params: Params }) {
@@ -28,6 +54,13 @@ export default async function CollectionPage({ params }: { params: Params }) {
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
             <LiveRefresh seconds={30} />
+            <CollectionJsonLd
+                name={collection.name || shortAddress(collection.address)}
+                description={collection.description}
+                creator={collection.artist}
+                size={collection.editionSize || undefined}
+                url={`${BRAND.url}/collection/${address}`}
+            />
             <header className="mb-6">
                 <h1 className="text-xl font-semibold tracking-tight">
                     {shortAddress(collection.address)}

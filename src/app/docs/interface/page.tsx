@@ -5,6 +5,8 @@ import { BRAND } from "@/lib/config";
 import { renderMarkdown } from "@/lib/markdown";
 
 export const metadata: Metadata = {
+    alternates: { canonical: "/docs/interface" },
+    openGraph: { type: "website", title: "ALEATORY-001", description: "The interface a collection conforms to so any provider renders it and any front end can list it." },
     title: "ALEATORY-001",
     description:
         "The interface a collection conforms to so any provider renders it and any front end can list it.",

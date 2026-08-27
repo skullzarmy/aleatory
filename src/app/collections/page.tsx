@@ -5,7 +5,11 @@ import { EmptyFeed } from "@/components/feed/EmptyFeed";
 import { shortAddress, timeAgo } from "@/lib/utils";
 import { LiveRefresh } from "@/components/LiveRefresh";
 
-export const metadata: Metadata = { title: "Collections" };
+export const metadata: Metadata = {
+    title: "Collections",
+    alternates: { canonical: "/collections" },
+    openGraph: { type: "website", title: "Collections", description: "Every collection on Aleatory, fully on-chain generative art on Tezos." },
+};
 export const revalidate = 60;
 
 /**

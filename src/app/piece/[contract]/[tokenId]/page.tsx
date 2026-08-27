@@ -8,6 +8,7 @@ import { fetchListingFor, fetchOffersFor } from "@/lib/market";
 import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
 import { LiveRefresh } from "@/components/LiveRefresh";
+import { PieceJsonLd } from "@/components/JsonLd";
 
 export const revalidate = 30;
 
@@ -25,6 +26,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     return {
         title: piece.name,
         description,
+        alternates: { canonical: `/piece/${contract}/${tokenId}` },
         openGraph: { title, description, images },
         // Without this X falls back to the small card, which crops a square
         // image to a thumbnail and wastes the only thing worth showing.
@@ -51,6 +53,15 @@ export default async function PiecePage({ params }: { params: Params }) {
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
             <LiveRefresh seconds={30} />
+            <PieceJsonLd
+                name={piece.name}
+                description={piece.description}
+                imageUrl={piece.imageUrl}
+                creator={piece.artist}
+                mintedAt={piece.mintedAt}
+                collectionName={piece.collectionName}
+                url={`${BRAND.url}/piece/${contract}/${tokenId}`}
+            />
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <ArtifactFrame
                     code={piece.code}

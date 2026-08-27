@@ -11,7 +11,7 @@
  *
  * Run: npx tsx src/lib/studio.test.ts
  */
-import { readFileSync } from "node:fs";
+import { existsSync, globSync, readFileSync } from "node:fs";
 import { getKind, RUNTIME_KINDS } from "./runtimes";
 import { templateFor, templateParamsFor } from "./templates";
 import { resolveParams, validateSchema } from "./params";
@@ -247,6 +247,94 @@ console.log("\nLibraries");
         "an unknown coordinate is reported, not dropped",
         librariesIn(withLibraries(doc, ["nope@9.9.9"])).unknown.length === 1,
         "a silently missing library is a blank frame with no explanation",
+    );
+}
+
+console.log("\nSEO and accessibility");
+{
+    // Contrast, computed from the tokens rather than judged by eye. --border
+    // was 1.00:1 in light mode where 1.4.11 needs 3:1, and it is the only
+    // thing separating a card, a field or a row from the page.
+    const css = readFileSync("src/app/globals.css", "utf8");
+    const tok = (b: string) =>
+        Object.fromEntries(
+            [...b.matchAll(/--([a-z0-9-]+):\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/g)].map((m) => [
+                m[1],
+                [+m[2], +m[3], +m[4]] as [number, number, number],
+            ]),
+        );
+    const rgb = ([h, sa, l]: [number, number, number]) => {
+        sa /= 100; l /= 100;
+        const k = (n: number) => (n + h / 30) % 12;
+        const a = sa * Math.min(l, 1 - l);
+        const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+        return [f(0), f(8), f(4)] as [number, number, number];
+    };
+    const ch = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    const lum = (c: [number, number, number]) => 0.2126 * ch(c[0]) + 0.7152 * ch(c[1]) + 0.0722 * ch(c[2]);
+    const ratio = (a: [number, number, number], b: [number, number, number]) => {
+        const [x, y] = [lum(rgb(a)), lum(rgb(b))].sort((p, q) => q - p);
+        return (x + 0.05) / (y + 0.05);
+    };
+
+    const light = tok(css.slice(css.indexOf(":root"), css.indexOf(".dark")));
+    const dark = tok(css.slice(css.indexOf(".dark")));
+    const pairs: [string, string, number][] = [
+        ["border", "background", 3],
+        ["border", "card-background", 3],
+        ["input", "background", 3],
+        ["destructive", "background", 4.5],
+        ["warning", "background", 4.5],
+        ["foreground", "background", 4.5],
+        ["muted-foreground", "background", 4.5],
+        ["muted-foreground", "muted", 4.5],
+    ];
+    for (const [mode, set] of [["light", light], ["dark", dark]] as const) {
+        for (const [fg, bg, need] of pairs) {
+            const r = ratio(set[fg], set[bg]);
+            check(
+                `${mode}: --${fg} on --${bg} is ${r.toFixed(2)}:1 (needs ${need})`,
+                r >= need,
+                "WCAG 1.4.3 for text, 1.4.11 for anything that delineates a control",
+            );
+        }
+    }
+
+    check("a skip link exists (2.4.1)", readFileSync("src/app/layout.tsx", "utf8").includes('href="#main"'));
+    check("focus is visible (2.4.7)", css.includes(":focus-visible"));
+    check("the sticky header cannot hide focus (2.4.11)", css.includes("scroll-padding-top"));
+    check("motion can be turned off (2.3.3)", css.includes("prefers-reduced-motion"));
+
+    // Every route says what it is. Six of them are client components and
+    // cannot export metadata themselves, so it lives in a layout beside them.
+    for (const f of globSync("src/app/**/page.tsx")) {
+        const layout = f.replace(/page\.tsx$/, "layout.tsx");
+        const both = readFileSync(f, "utf8") + (existsSync(layout) ? readFileSync(layout, "utf8") : "");
+        check(
+            `${f.replace("src/app/", "").replace(/\/?page\.tsx$/, "") || "/"}: has metadata`,
+            /export const metadata|generateMetadata/.test(both),
+            "a page with none is a search result with no title",
+        );
+    }
+
+    check("there is a sitemap", existsSync("src/app/sitemap.ts"));
+    check("there is a robots policy", existsSync("src/app/robots.ts"));
+    check("there is a fallback share card", existsSync("src/app/opengraph-image.tsx"));
+    const robots = readFileSync("src/app/robots.ts", "utf8");
+    check(
+        "a testnet deployment refuses indexing",
+        /NETWORK !== "mainnet"/.test(robots) && /disallow: "\/"/.test(robots),
+        "it carries the same routes and titles as production and would compete with it",
+    );
+    const sitemap = readFileSync("src/app/sitemap.ts", "utf8");
+    // Imported, not merely mentioned: the comment in that file names both of
+    // these to explain why it does not use them.
+    const imports = [...sitemap.matchAll(/import \{([^}]*)\} from/g)]
+        .flatMap((m) => m[1].split(",").map((x) => x.trim()));
+    check(
+        "the sitemap does not walk gateways",
+        !imports.includes("fetchRecentFeed") && !imports.includes("fetchAllCollections"),
+        "both resolve a document and a cover per piece; a sitemap needs a URL and a date",
     );
 }
 

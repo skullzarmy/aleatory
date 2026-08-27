@@ -3,6 +3,8 @@ import Link from "next/link";
 import { BRAND } from "@/lib/config";
 
 export const metadata: Metadata = {
+    alternates: { canonical: "/about" },
+    openGraph: { type: "website", title: "About" },
     title: "About",
     description: BRAND.description,
 };

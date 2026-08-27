@@ -3,6 +3,8 @@ import Link from "next/link";
 import { DraftList } from "@/components/studio/DraftList";
 
 export const metadata: Metadata = {
+    alternates: { canonical: "/studio" },
+    openGraph: { type: "website", title: "Studio", description: "Write a generator, read its space, prove it behaves, publish it." },
     title: "Studio",
     description: "Write a generator, read its space, prove it behaves, publish it.",
 };

@@ -4,9 +4,9 @@ import type { Metadata } from "next";
  * The page is a client component and cannot export metadata, so it lives here.
  */
 export const metadata: Metadata = {
-    title: "New generator",
-    description: "Start from a template, or open a .html or .zip you already have.",
-    alternates: { canonical: "/studio/new" },
+    title: "What you own",
+    description: "A shortcut to your own wallet page: the pieces you hold and the collections you made.",
+    alternates: { canonical: "/mine" },
     robots: { index: false, follow: true },
 };
 

@@ -7,7 +7,11 @@ import { addresses } from "@/lib/router";
 import { formatTez } from "@/lib/utils";
 import { LiveRefresh } from "@/components/LiveRefresh";
 
-export const metadata: Metadata = { title: "Market" };
+export const metadata: Metadata = {
+    title: "Market",
+    alternates: { canonical: "/market" },
+    openGraph: { type: "website", title: "Market", description: "Pieces listed for sale, with royalties paid from the collection." },
+};
 export const revalidate = 15;
 
 /**
