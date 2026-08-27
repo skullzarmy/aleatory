@@ -135,24 +135,47 @@ export function mint(
 }
 
 /** Grant the marketplace the right to move one token, which listing needs. */
-export function addOperator(
+export async function addOperator(
     client: DAppClient,
     collection: string,
     owner: string,
     operator: string,
     tokenId: string,
 ): Promise<OpResult> {
-    return send(client, collection, "update_operators", [
-        {
-            prim: "Left",
-            args: [
-                {
-                    prim: "Pair",
-                    args: [str(owner), { prim: "Pair", args: [str(operator), int(tokenId)] }],
-                },
-            ],
-        },
-    ], 0, TRANSFER);
+    const p = await encode(collection, "update_operators", [
+        { add_operator: { owner, operator, token_id: tokenId } },
+    ]);
+    return send(client, collection, p.entrypoint, p.value, 0, TRANSFER);
+}
+
+/**
+ * Encode an entrypoint against the contract's own type, by field name.
+ *
+ * Hand-built Michelson pairs are positional, and SmartPy lays a record out in
+ * alphabetical order rather than declaration order. `list_token(collection,
+ * token_id, price)` is `(collection, price, token_id)` on chain, so a
+ * positional encoding silently passed the price as the token id: listing at
+ * 1 tez asked to transfer token 1,000,000, and the collection rightly answered
+ * FA2_TOKEN_UNDEFINED.
+ *
+ * Nothing here builds a pair by hand any more. Taquito reads the type off the
+ * chain and matches on names, so a field reordering cannot go unnoticed.
+ */
+async function encode(
+    contractAddress: string,
+    entrypoint: string,
+    /** Named fields, or a list for an entrypoint that takes one. */
+    args: Record<string, unknown> | unknown[],
+): Promise<{ entrypoint: string; value: unknown }> {
+    const { TezosToolkit } = await import("@taquito/taquito");
+    const c = await new TezosToolkit(rpcUrl()).contract.at(contractAddress);
+    const methods = c.methodsObject as unknown as Record<
+        string,
+        (a: unknown) => { toTransferParams: () => { parameter?: { entrypoint: string; value: unknown } } }
+    >;
+    const parameter = methods[entrypoint](args).toTransferParams().parameter;
+    if (!parameter) throw new Error(`${entrypoint} encoded to nothing.`);
+    return parameter;
 }
 
 export async function listToken(
@@ -161,17 +184,13 @@ export async function listToken(
     tokenId: string,
     priceMutez: bigint,
 ): Promise<OpResult> {
-    return send(
-        client,
-        await marketplace(),
-        "list_token",
-        {
-            prim: "Pair",
-            args: [str(collection), { prim: "Pair", args: [int(tokenId), int(priceMutez)] }],
-        },
-        0,
-        LIST,
-    );
+    const market = await marketplace();
+    const p = await encode(market, "list_token", {
+        collection,
+        token_id: tokenId,
+        price: priceMutez.toString(),
+    });
+    return send(client, market, p.entrypoint, p.value, 0, LIST);
 }
 
 export async function delist(client: DAppClient, listingId: number): Promise<OpResult> {
@@ -192,14 +211,9 @@ export async function makeOffer(
     tokenId: string,
     amountMutez: bigint,
 ): Promise<OpResult> {
-    return send(
-        client,
-        await marketplace(),
-        "make_offer",
-        { prim: "Pair", args: [str(collection), int(tokenId)] },
-        amountMutez,
-        TRANSFER,
-    );
+    const market = await marketplace();
+    const p = await encode(market, "make_offer", { collection, token_id: tokenId });
+    return send(client, market, p.entrypoint, p.value, amountMutez, TRANSFER);
 }
 
 export async function cancelOffer(client: DAppClient, offerId: number): Promise<OpResult> {
@@ -243,16 +257,17 @@ export function setEditionSize(
  * price between the quote on screen and the signature cannot silently charge
  * more.
  */
-export function setProvider(
+export async function setProvider(
     client: DAppClient,
     collection: string,
     provider: string,
     maxPriceMutez: bigint,
 ): Promise<OpResult> {
-    return send(client, collection, "set_provider", {
-        prim: "Pair",
-        args: [str(provider), int(maxPriceMutez)],
+    const p = await encode(collection, "set_provider", {
+        provider,
+        max_price: maxPriceMutez.toString(),
     });
+    return send(client, collection, p.entrypoint, p.value);
 }
 
 /** Let Aleatory's keys publish metadata for unrevealed pieces, or stop them. */

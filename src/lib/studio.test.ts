@@ -250,6 +250,30 @@ console.log("\nLibraries");
     );
 }
 
+console.log("\nOperation encoding");
+{
+    // Michelson pairs are positional and SmartPy lays a record out
+    // alphabetically, not in declaration order. `list_token(collection,
+    // token_id, price)` is `(collection, price, token_id)` on chain, so a
+    // hand-built pair passed the price as the token id: listing at 1 tez asked
+    // to move token 1,000,000 and the collection answered FA2_TOKEN_UNDEFINED.
+    // `set_provider` had it too.
+    //
+    // Encoding through Taquito matches on field names against the type read
+    // off the chain, so a reordering cannot go unnoticed. This asserts nobody
+    // hand-builds one again.
+    const ops = readFileSync("src/lib/ops.ts", "utf8");
+    check(
+        "no hand-built Michelson pairs",
+        !/prim:\s*["']Pair["']/.test(ops),
+        "positional encoding is what swapped price and token id",
+    );
+    check(
+        "entrypoints are encoded by field name",
+        /async function encode\(/.test(ops) && ops.includes("methodsObject"),
+    );
+}
+
 console.log("\nThe published surface");
 {
     // ALEATORY-001 §7 is what a third party builds against, so every harness
