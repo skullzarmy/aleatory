@@ -113,10 +113,17 @@ export async function fetchPiece(
     // when it does not. TzKT fetches `ipfs://` metadata on its own schedule
     // and on some networks never, so a piece finished on chain would sit here
     // looking unrendered indefinitely.
+    // The token's own metadata pointer, off chain state. This is what decides
+    // whether a piece has been rendered: the provider's queue rule is exactly
+    // "does token_info[\"\"] still equal the collection's pending document",
+    // and matching it here means the site and the daemon never disagree.
+    const tokenUri = (await fetchTokenUris(contract).catch(() => new Map<string, string>())).get(
+        tokenId,
+    );
+
     let m = token.metadata;
     if (!m?.displayUri && !m?.thumbnailUri) {
-        const uris = await fetchTokenUris(contract).catch(() => new Map<string, string>());
-        const uri = uris.get(tokenId);
+        const uri = tokenUri;
         if (uri?.startsWith("ipfs://")) {
             m =
                 (await fetch(convertIpfsToGatewayUrl(uri), {
@@ -145,12 +152,30 @@ export async function fetchPiece(
           }))
         : [];
 
+    // Not "has no image": the pending document carries the collection's cover
+    // as its displayUri, so every unrendered piece looked rendered, showed the
+    // cover as its own image, and took the collection's name for its own.
+    const pending =
+        pendingDoc.length > 0 && tokenUri ? tokenUri === pendingDoc : !display;
+    const edition = `#${Number(tokenId) + 1}`;
+
+    // While a piece is unrendered it carries the collection's pending
+    // document, which is one CID shared by every unrevealed token and so
+    // cannot name any of them: its `name` is the collection's. Taking it gave
+    // a whole edition one name, as though it were the same work repeated.
+    // Built here in the form the real document uses, so the name does not
+    // change when the render lands.
+    const collectionName = (pending ? m?.name : undefined) ?? token.contract.alias;
+    const name = pending
+        ? `${collectionName ?? "Untitled collection"} ${edition}`
+        : m?.name || edition;
+
     return {
         contract,
         tokenId,
-        name: m?.name || `#${Number(tokenId) + 1}`,
+        name,
         description: m?.description,
-        collectionName: token.contract.alias,
+        collectionName,
         artist: storage?.administrator || token.firstMinter?.address || "",
         owner: owner ?? undefined,
         seed: mint?.hash,
@@ -164,7 +189,7 @@ export async function fetchPiece(
         imageUrl: display ? convertIpfsToGatewayUrl(display) : undefined,
         provider: m?.aleaProvider,
         renderUrl: codeUri ? renderUrl(codeUri, mint?.hash, m?.aleaParams) : undefined,
-        pending: pendingDoc.length > 0 && !display,
+        pending,
         royalties,
         metadata: m,
     };

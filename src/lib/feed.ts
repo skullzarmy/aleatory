@@ -9,12 +9,13 @@ import {
     fetchCollectionsDeployedBy,
     fetchRecentTokens,
     fetchTokensIn,
+    fetchStorage,
     fetchTokensHeldBy,
     fetchTokenUris,
     type TzktToken,
 } from "./tzkt";
 import { isBlockedCollection } from "./blocklist";
-import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
+import { bytesToString, convertIpfsToGatewayUrl } from "@/utils/ipfs";
 
 interface TokenDoc {
     name?: string;
@@ -31,6 +32,40 @@ interface TokenDoc {
  * that will not load leaves the piece looking unrendered, which is exactly
  * what it looks like today, rather than taking the page down with it.
  */
+/**
+ * For each token, its own metadata pointer and its collection's pending one.
+ *
+ * Two reads per collection, not per token, and only for the collections
+ * actually on screen.
+ */
+async function pendingState(
+    tokens: TzktToken[],
+): Promise<Map<string, { pendingUri: string; tokenUri?: string }>> {
+    const collections = [...new Set(tokens.map((t) => t.contract.address))];
+    const entries = await Promise.all(
+        collections.map(
+            async (c) =>
+                [c, { pending: await pendingUriOf(c), uris: await fetchTokenUris(c).catch(() => new Map<string, string>()) }] as const,
+        ),
+    );
+    const byCollection = new Map(entries);
+    const out = new Map<string, { pendingUri: string; tokenUri?: string }>();
+    for (const t of tokens) {
+        const c = byCollection.get(t.contract.address);
+        if (c) out.set(key(t), { pendingUri: c.pending, tokenUri: c.uris.get(t.tokenId) });
+    }
+    return out;
+}
+
+/** A collection's pending pointer. */
+async function pendingUriOf(collection: string): Promise<string> {
+    const s = await fetchStorage<{ art?: { pending_metadata?: string } }>(collection).catch(
+        () => null,
+    );
+    const raw = s?.art?.pending_metadata;
+    return raw ? bytesToString(raw) : "";
+}
+
 async function resolveDocs(
     collection: string,
     tokenIds: string[],
@@ -134,7 +169,7 @@ export async function coversFor(collections: string[]): Promise<Map<string, stri
     // off the end before every collection has been seen once.
     const tokens = await fetchRecentTokens(collections, Math.min(collections.length * 8, 400))
         .catch(() => []);
-    const docs = await docsFor(tokens);
+    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
 
     const out = new Map<string, string>();
     for (const t of tokens) {
@@ -171,6 +206,8 @@ function toPiece(
     t: TzktToken,
     collectionAlias?: string,
     resolved?: TokenDoc,
+    /** The collection's pending pointer, and this token's, when known. */
+    pendingState?: { pendingUri: string; tokenUri?: string },
 ): FeedPiece {
     // TzKT's own `metadata` when it has it, and the document we fetched
     // ourselves when it does not. TzKT resolves `ipfs://` metadata on its own
@@ -178,13 +215,32 @@ function toPiece(
     // otherwise sit here looking unrendered indefinitely.
     const m = t.metadata ?? resolved;
     const display = m?.displayUri || m?.thumbnailUri;
-    const pending = !display;
+    // Not "has no image". A collection's pending document carries the
+    // collection cover as its displayUri, so every unrendered piece looked
+    // rendered, wore the cover as its own image, and took the collection's
+    // name for its own. The provider's queue rule is the pointer comparison,
+    // and matching it here means the site and the daemon never disagree.
+    const pending =
+        pendingState?.pendingUri && pendingState.tokenUri
+            ? pendingState.tokenUri === pendingState.pendingUri
+            : !display;
+    const collectionName = collectionAlias || t.contract.alias || "Untitled collection";
+    const edition = `#${Number(t.tokenId) + 1}`;
+
+    // A piece that has not been rendered carries its collection's *pending*
+    // document, which is one CID shared by every unrevealed token in the
+    // collection and therefore cannot name any of them. Taking its `name` gave
+    // every piece the collection's name, so a whole edition read as one work
+    // repeated. Derived here instead, in the form the real document uses, so
+    // the name does not change when the render lands.
+    const name = pending ? `${collectionName} ${edition}` : m?.name || edition;
+
     return {
         key: `${t.contract.address}:${t.tokenId}`,
         contract: t.contract.address,
         tokenId: t.tokenId,
-        name: m?.name || `#${Number(t.tokenId) + 1}`,
-        collectionName: collectionAlias || t.contract.alias || "Untitled collection",
+        name,
+        collectionName,
         artist: t.firstMinter?.address,
         mintedAt: t.firstTime,
         imageUrl: display ? convertIpfsToGatewayUrl(display) : undefined,
@@ -221,12 +277,12 @@ export async function piecesFor(
         await fetchTokensIn(collections, tokenIds).catch(() => [])
     ).filter((t) => wanted.has(key(t)));
 
-    const docs = await docsFor(tokens);
+    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
 
     return new Map(
         tokens.map((t) => [
             key(t),
-            toPiece(t, names?.get(t.contract.address), docs.get(key(t))),
+            toPiece(t, names?.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
         ]),
     );
 }
@@ -263,10 +319,10 @@ export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
         collections.map((c) => c.address),
         limit,
     );
-    const docs = await docsFor(tokens);
+    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
     return {
         pieces: tokens.map((t) =>
-            toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t))),
+            toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
         ),
         collectionCount: collections.length,
         unconfigured: false,
@@ -307,10 +363,10 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
     ]);
 
     const madeSet = new Set(deployed);
-    const docs = await docsFor(tokens);
+    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
     return {
         held: tokens.map((t) =>
-            toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t))),
+            toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
         ),
         made: collections
             .filter((c) => madeSet.has(c.address))

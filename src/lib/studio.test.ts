@@ -250,6 +250,30 @@ console.log("\nLibraries");
     );
 }
 
+console.log("\nOne document builder");
+{
+    // The provider assembled its own document inline, and it drifted from the
+    // tested one: a bare "#4" for a name, no description, no code hash, and no
+    // royalties, so nothing was paid on any secondary sale. buildPieceDocument
+    // was golden-tested the whole time and had no production caller at all.
+    const provider = readFileSync("netlify/functions/provider.mts", "utf8");
+    check(
+        "the provider publishes through the shared builder",
+        provider.includes("buildPieceDocument"),
+        "a second builder is a second thing to drift",
+    );
+    check(
+        "and does not assemble a document itself",
+        !/name:\s*`#\$\{/.test(provider),
+        "that is the exact line that published a bare edition number",
+    );
+    check(
+        "royalties reach the document",
+        provider.includes("shares: piece.royalties"),
+        "objkt and Teia read royalties from here, not from the contract",
+    );
+}
+
 console.log("\nOperation encoding");
 {
     // Michelson pairs are positional and SmartPy lays a record out

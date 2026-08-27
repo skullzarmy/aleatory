@@ -27,6 +27,7 @@ const RPC = process.env.TEZOS_RPC || "https://rpc.tzkt.io/shadownet";
 const PROVIDER_ADDRESS = process.env.ALEA_PROVIDER_ADDRESS || "";
 const AGENT_SK = process.env.ALEA_AGENT_SK || "";
 import { render as renderPiece, renderConfigFromEnv } from "./lib/render.mts";
+import { buildPieceDocument } from "../../src/lib/metadata";
 import {
     parseLibraries,
     resolveLibraries,
@@ -132,6 +133,12 @@ interface PendingPiece {
     /** Libraries the collection says its generator expects to be loaded. */
     libraries: DeclaredLibrary[];
     artist: string;
+    /** For the document. A piece is "<collection> #<n>", never a bare number. */
+    collectionName: string;
+    description: string;
+    /** Address to basis points, straight from the collection's storage. */
+    royalties: Record<string, number>;
+    codeHash: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -166,7 +173,10 @@ interface CollectionStorage {
         code: string;
         code_encoding: string;
         code_uri: string;
+        code_hash: string;
         pending_metadata: string;
+        /** Address to basis points. Published in the document, per TZIP-21. */
+        royalties: Record<string, string | number>;
     };
     render: { provider: string };
 }
@@ -236,6 +246,26 @@ export async function collectionsServed(): Promise<string[]> {
  * this was down, and pieces inherited from a provider an artist switched away
  * from.
  */
+/** Name and description from the collection's own TZIP-16 document. */
+async function collectionFacts(
+    collection: string,
+): Promise<{ name: string; description: string }> {
+    const raw = await metadataKey(collection, "content").catch(() => undefined);
+    if (!raw) return { name: "", description: "" };
+    try {
+        const doc = JSON.parse(raw) as { name?: string; description?: string };
+        return { name: doc.name ?? "", description: doc.description ?? "" };
+    } catch {
+        return { name: "", description: "" };
+    }
+}
+
+function royaltiesOf(storage: CollectionStorage): Record<string, number> {
+    return Object.fromEntries(
+        Object.entries(storage.art.royalties ?? {}).map(([a, bps]) => [a, Number(bps)]),
+    );
+}
+
 /** One key out of a collection's metadata big_map, decoded. */
 async function metadataKey(collection: string, key: string): Promise<string | undefined> {
     const row = await tzkt<{ value?: string } | null>(
@@ -275,6 +305,8 @@ export async function pendingIn(collection: string): Promise<PendingPiece[]> {
     const libraries = parseLibraries(
         await metadataKey(collection, "aleatory:libraries").catch(() => undefined),
     );
+    const facts = await collectionFacts(collection);
+    const royalties = royaltiesOf(storage);
 
     const waiting: PendingPiece[] = [];
     let offset = 0;
@@ -307,6 +339,10 @@ export async function pendingIn(collection: string): Promise<PendingPiece[]> {
                 codeUri,
                 libraries,
                 artist: storage.administrator,
+                collectionName: facts.name,
+                description: facts.description,
+                royalties,
+                codeHash: storage.art.code_hash ?? "",
             });
             if (waiting.length >= BATCH) return waiting;
         }
@@ -597,6 +633,8 @@ export async function pieceAt(collection: string, tokenId: string): Promise<Pend
     const mint = await buyEvent(collection, tokenId);
     if (!mint) throw new Error(`${collection} #${tokenId} has no mint event`);
 
+    const facts = await collectionFacts(collection);
+
     return {
         collection,
         tokenId,
@@ -604,7 +642,14 @@ export async function pieceAt(collection: string, tokenId: string): Promise<Pend
         params: mint.params,
         code,
         codeUri: storage.art.code_uri ?? "",
+        libraries: parseLibraries(
+            await metadataKey(collection, "aleatory:libraries").catch(() => undefined),
+        ),
         artist: storage.administrator,
+        collectionName: facts.name,
+        description: facts.description,
+        royalties: royaltiesOf(storage),
+        codeHash: storage.art.code_hash ?? "",
     };
 }
 
@@ -613,28 +658,30 @@ export async function handle(piece: PendingPiece): Promise<string> {
     const imageUri = await pin(image, `${piece.collection}-${piece.tokenId}.png`);
 
     const params = safeParse(piece.params);
-    const doc = {
-        name: `#${Number(piece.tokenId) + 1}`,
-        decimals: 0,
-        isBooleanAmount: false,
-        shouldPreferSymbol: false,
-        creators: [piece.artist],
+    // The one builder, shared with the studio and covered by the golden tests.
+    // This used to be assembled inline here and had drifted: a bare "#4" for a
+    // name, no description, no code hash, and no royalties at all, which meant
+    // no royalty was paid on any secondary sale of any piece.
+    const doc = buildPieceDocument({
+        collectionName: piece.collectionName,
+        description: piece.description,
+        artist: piece.artist,
+        tokenId: Number(piece.tokenId),
         artifactUri: piece.codeUri,
-        displayUri: imageUri,
-        thumbnailUri: imageUri,
-        aleaSeed: piece.seed,
-        aleaParams: piece.params,
-        // Who rendered this. The publish event records the agent that signed,
-        // and agents rotate, so the provider contract is the durable answer to
-        // "who made this image" and the one a collector can look up.
-        aleaProvider: PROVIDER_ADDRESS,
-        attributes: Object.entries(params).map(([name, value]) => ({
-            name,
-            value: String(value),
-        })),
-    };
+        imageUri: imageUri,
+        seed: piece.seed,
+        codeHash: piece.codeHash,
+        params,
+        // Basis points from the collection's own storage. TZIP-21 with
+        // `decimals: 4` is the same unit, so these travel unchanged.
+        royalties: { decimals: 4, shares: piece.royalties },
+    });
 
-    const metadataUri = await pinJson(doc, `${piece.collection}-${piece.tokenId}.json`);
+    // Who rendered it. The publish event records the agent that signed and
+    // agents rotate, so the provider contract is the durable answer.
+    const withProvider = { ...doc, aleaProvider: PROVIDER_ADDRESS };
+
+    const metadataUri = await pinJson(withProvider, `${piece.collection}-${piece.tokenId}.json`);
 
     // Before the write lands, so the gateway has both by the time anything
     // reads the token. Not awaited for correctness, only so the two requests

@@ -111,8 +111,10 @@ check("edition numbers display 1-based over 0-based token ids", () => {
     const doc = buildPieceDocument({
         collectionName: "Drift",
         artist: A,
-        placeholderImageUri: "ipfs://pending",
-        split: { totalPercent: 10, recipients: [{ address: A, percent: 100 }] },
+        royalties: encodeRoyalties({
+            totalPercent: 10,
+            recipients: [{ address: A, percent: 100 }],
+        }),
         tokenId: 0,
         artifactUri: "ipfs://code",
         imageUri: "ipfs://image",
@@ -126,8 +128,7 @@ check("parameters land in aleaParams and in attributes", () => {
     const doc = buildPieceDocument({
         collectionName: "Drift",
         artist: A,
-        placeholderImageUri: "ipfs://pending",
-        split: { totalPercent: 0, recipients: [] },
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 41,
         artifactUri: "ipfs://code",
         imageUri: "ipfs://image",

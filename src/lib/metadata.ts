@@ -98,8 +98,17 @@ export function buildPendingDocument(input: PendingDocInput) {
     };
 }
 
-export interface PieceDocInput extends PendingDocInput {
+export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placeholderImageUri"> {
     tokenId: number;
+    /**
+     * Already encoded, `{ decimals, shares }`.
+     *
+     * The chain is the authority: a collection stores its royalties as basis
+     * points, and TZIP-21 with `decimals: 4` is the same unit, so a provider
+     * publishes what the contract holds rather than reconstructing a split it
+     * would have to guess at.
+     */
+    royalties: { decimals: number; shares: Record<string, number> };
     /** The generator, with the seed and parameters applied. */
     artifactUri: string;
     imageUri: string;
@@ -108,6 +117,13 @@ export interface PieceDocInput extends PendingDocInput {
     codeHash: string;
 }
 
+/**
+ * The document a provider publishes for one piece.
+ *
+ * The only builder. A provider used to assemble its own inline, which drifted:
+ * it published a bare "#4" for a name, and no royalties at all, so nothing was
+ * paid on any secondary sale. There is one of these now and it is tested.
+ */
 export function buildPieceDocument(input: PieceDocInput) {
     return {
         // Token ids are 0-based and displayed edition numbers are 1-based.
@@ -120,7 +136,7 @@ export function buildPieceDocument(input: PieceDocInput) {
         artifactUri: input.artifactUri,
         displayUri: input.imageUri,
         thumbnailUri: input.imageUri,
-        royalties: encodeRoyalties(input.split),
+        royalties: input.royalties,
         aleaSeed: input.seed,
         aleaCodeHash: input.codeHash,
         aleaParams: input.params ? JSON.stringify(input.params) : "",
