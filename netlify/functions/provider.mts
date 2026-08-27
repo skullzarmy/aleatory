@@ -275,6 +275,32 @@ async function metadataKey(collection: string, key: string): Promise<string | un
     return value ? hexToUtf8(value) : undefined;
 }
 
+/**
+ * Every token id in a collection, oldest first.
+ *
+ * For a retry that covers a whole collection rather than one piece. The queue
+ * cannot find these: a piece that already got a write is one it considers
+ * finished, which is exactly when a rebuild is needed.
+ */
+export async function tokenIdsIn(collection: string): Promise<string[]> {
+    const out: string[] = [];
+    let offset = 0;
+    for (;;) {
+        const rows = await tzkt<{ tokenId: string }[]>("/v1/tokens", {
+            contract: collection,
+            "sort.asc": "tokenId",
+            limit: 200,
+            offset,
+            select: "tokenId",
+        }).catch(() => []);
+        if (rows.length === 0) break;
+        for (const r of rows) out.push(typeof r === "string" ? r : r.tokenId);
+        offset += rows.length;
+        if (rows.length < 200) break;
+    }
+    return out;
+}
+
 export async function pendingIn(collection: string): Promise<PendingPiece[]> {
     const storage = await tzkt<CollectionStorage>(`/v1/contracts/${collection}/storage`);
     const pendingUri = hexToUtf8(storage.art.pending_metadata);

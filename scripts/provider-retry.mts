@@ -15,38 +15,64 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const { pieceAt, handle } = await import("../netlify/functions/provider.mts");
+const { pieceAt, handle, collectionsServed, tokenIdsIn } = await import(
+    "../netlify/functions/provider.mts"
+);
 
-const [collection, tokenId] = process.argv.slice(2);
+const [target, tokenId] = process.argv.slice(2);
 
-if (!collection || !tokenId) {
-    console.log("\n  npm run provider:retry -- <collection> <tokenId>\n");
+if (!target) {
+    console.log(`
+  npm run provider:retry -- <collection> <tokenId>   one piece
+  npm run provider:retry -- <collection>             a whole collection
+  npm run provider:retry -- --all                    everything served
+`);
     process.exit(1);
 }
-if (!/^KT1[1-9A-HJ-NP-Za-km-z]{33}$/.test(collection)) {
-    console.log(`\n  ${collection} is not a contract address.\n`);
+if (target !== "--all" && !/^KT1[1-9A-HJ-NP-Za-km-z]{33}$/.test(target)) {
+    console.log(`\n  ${target} is not a contract address.\n`);
     process.exit(1);
 }
-if (!/^\d+$/.test(tokenId)) {
+if (tokenId !== undefined && !/^\d+$/.test(tokenId)) {
     console.log(`\n  ${tokenId} is not a token id.\n`);
     process.exit(1);
 }
 
-console.log(`\nRebuilding ${collection} #${tokenId}`);
-
-const piece = await pieceAt(collection, tokenId).catch((e: unknown) => {
-    console.log(`  ${e instanceof Error ? e.message : e}\n`);
-    process.exit(1);
-});
-
-console.log(`  seed    ${piece.seed}`);
-console.log(`  params  ${piece.params || "(none)"}`);
-console.log("  rendering…");
-
-try {
-    const hash = await handle(piece);
-    console.log(`\n  published, op ${hash}\n`);
-} catch (e) {
-    console.log(`\n  FAILED: ${e instanceof Error ? e.message : e}\n`);
-    process.exit(1);
+/** Every piece the run will touch, in order. */
+async function targets(): Promise<{ collection: string; tokenId: string }[]> {
+    if (target !== "--all" && tokenId !== undefined) {
+        return [{ collection: target, tokenId }];
+    }
+    const collections = target === "--all" ? await collectionsServed() : [target];
+    const out: { collection: string; tokenId: string }[] = [];
+    for (const c of collections) {
+        for (const t of await tokenIdsIn(c)) out.push({ collection: c, tokenId: t });
+    }
+    return out;
 }
+
+const work = await targets();
+if (work.length === 0) {
+    console.log("\n  Nothing to rebuild.\n");
+    process.exit(0);
+}
+
+console.log(`\nRebuilding ${work.length} piece${work.length === 1 ? "" : "s"}`);
+
+let done = 0;
+let failed = 0;
+for (const { collection, tokenId } of work) {
+    process.stdout.write(`  ${collection} #${tokenId}  `);
+    try {
+        const piece = await pieceAt(collection, tokenId);
+        const hash = await handle(piece);
+        done++;
+        console.log(`published ${hash}`);
+    } catch (e) {
+        failed++;
+        console.log(`FAILED: ${e instanceof Error ? e.message : e}`);
+    }
+}
+
+console.log(`\n  ${done} published, ${failed} failed\n`);
+process.exit(failed > 0 ? 1 : 0);

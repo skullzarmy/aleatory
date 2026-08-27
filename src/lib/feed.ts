@@ -10,6 +10,8 @@ import {
     fetchRecentTokens,
     fetchTokensIn,
     fetchStorage,
+    fetchCollectionMeta,
+    type CollectionMeta,
     fetchTokensHeldBy,
     fetchTokenUris,
     type TzktToken,
@@ -32,6 +34,22 @@ interface TokenDoc {
  * that will not load leaves the piece looking unrendered, which is exactly
  * what it looks like today, rather than taking the page down with it.
  */
+/**
+ * Collection names, from each collection's own metadata document.
+ *
+ * Not TzKT's `alias`, which it sets for contracts it happens to know and never
+ * for one of ours, so every card read "Untitled collection".
+ */
+async function namesFor(addresses: string[]): Promise<Map<string, string>> {
+    const entries = await Promise.all(
+        addresses.map(async (a) => {
+            const meta = await fetchCollectionMeta(a).catch((): CollectionMeta => ({}));
+            return [a, meta.name ?? ""] as const;
+        }),
+    );
+    return new Map(entries.filter(([, name]) => name));
+}
+
 /**
  * For each token, its own metadata pointer and its collection's pending one.
  *
@@ -312,9 +330,7 @@ export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
     if (collections.length === 0) {
         return { pieces: [], collectionCount: 0, unconfigured: false };
     }
-    const aliasByAddress = new Map(
-        collections.map((c) => [c.address, c.alias] as const),
-    );
+    const aliasByAddress = await namesFor(collections.map((c) => c.address));
     const tokens = await fetchRecentTokens(
         collections.map((c) => c.address),
         limit,
@@ -352,7 +368,7 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
     const collections = (await collectionsFrom(factories)).filter(
         (c) => !isBlockedCollection(c.address),
     );
-    const aliasByAddress = new Map(collections.map((c) => [c.address, c.alias] as const));
+    const aliasByAddress = await namesFor(collections.map((c) => c.address));
     const addresses = collections.map((c) => c.address);
 
     const [tokens, deployed] = await Promise.all([
@@ -370,7 +386,11 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
         ),
         made: collections
             .filter((c) => madeSet.has(c.address))
-            .map((c) => ({ address: c.address, name: c.alias, minted: c.tokensCount ?? 0 })),
+            .map((c) => ({
+                address: c.address,
+                name: aliasByAddress.get(c.address) ?? c.alias,
+                minted: c.tokensCount ?? 0,
+            })),
         unconfigured: false,
     };
 }

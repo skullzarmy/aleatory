@@ -8,7 +8,9 @@ import {
     type TokenMetadata,
     type TzktToken,
 } from "./tzkt";
-import { fetchCollections } from "./tzkt";
+import { fetchCollections, fetchCollectionMeta, type CollectionMeta } from "./tzkt";
+
+export { fetchCollectionMeta, type CollectionMeta };
 import { tzktApi } from "./config";
 import { allFactories } from "./router";
 import { isBlockedCollection } from "./blocklist";
@@ -191,40 +193,6 @@ export interface CollectionSummary {
     firstActivity?: string;
 }
 
-/**
- * A collection's own name and description.
- *
- * From the `content` key of its metadata big_map, decoded here. TzKT does
- * resolve TZIP-16 documents into a `metadata` field, but on its own schedule,
- * it is null on this network today, and it cannot be asked for in a `select`,
- * so waiting for it means every collection is a KT1 address until it catches
- * up. Reading the big_map is the same request count and never lags.
- */
-export interface CollectionMeta {
-    name?: string;
-    description?: string;
-}
-
-export async function fetchCollectionMeta(address: string): Promise<CollectionMeta> {
-    const row = await fetch(
-        `${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/content`,
-        { next: { revalidate: 300 } },
-    )
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null);
-
-    const raw = (row as { value?: string } | null)?.value;
-    if (!raw) return {};
-    try {
-        const doc = JSON.parse(bytesToString(raw)) as {
-            name?: string;
-            description?: string;
-        };
-        return { name: doc.name, description: doc.description };
-    } catch {
-        return {};
-    }
-}
 
 export async function fetchAllCollections(): Promise<CollectionSummary[]> {
     const factories = await allFactories();
