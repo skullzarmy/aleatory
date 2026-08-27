@@ -35,6 +35,15 @@ interface OpResult {
 interface Limits {
     gas: number;
     storage: number;
+    /**
+     * Payload size, for the fee floor's per-byte term.
+     *
+     * Defaulted, because almost every operation here carries a few hundred
+     * bytes of parameters. A deploy carrying a generator does not, and
+     * assuming it did left the fee thousands of mutez short: the operation
+     * injected, returned a hash, and sat in the mempool until it expired.
+     */
+    bytes?: number;
 }
 
 /** Creating a token: ledger, token_metadata, and two payouts. */
@@ -43,10 +52,27 @@ const MINT: Limits = { gas: 90_000, storage: 700 };
 const SMALL: Limits = { gas: 30_000, storage: 400 };
 /** Moving a token, which touches the ledger and an operator set. */
 const TRANSFER: Limits = { gas: 60_000, storage: 500 };
+/**
+ * Escrowing a token into the marketplace: a listing row here, and an
+ * inter-contract transfer that writes the collection's ledger and clears an
+ * operator.
+ */
+const LIST: Limits = { gas: 120_000, storage: 1_000 };
+
+/**
+ * Storage a collection origination needs, beyond the generator itself.
+ *
+ * Measured, not guessed: a deploy carrying a 12,378-byte generator consumed
+ * 27,297 bytes, so the contract's own code, its metadata and its initial
+ * storage account for roughly 15,000. The default of 400 was not close, and
+ * the failure is a wallet error rather than anything this app can catch.
+ */
+const ORIGINATION_OVERHEAD_BYTES = 20_000;
 
 function feeFor(limits: Limits): number {
-    // Bytes are approximate and generous; the floor scales with gas anyway.
-    return 100 + Math.ceil(limits.gas * 0.1) + 500;
+    // A baker's floor is about 100 + 0.1 per gas unit + 1 per byte, in mutez,
+    // charged against what is *declared*. Underpaying does not fail loudly.
+    return 100 + Math.ceil(limits.gas * 0.1) + (limits.bytes ?? 500);
 }
 
 async function send(
@@ -135,10 +161,17 @@ export async function listToken(
     tokenId: string,
     priceMutez: bigint,
 ): Promise<OpResult> {
-    return send(client, await marketplace(), "list_token", {
-        prim: "Pair",
-        args: [str(collection), { prim: "Pair", args: [int(tokenId), int(priceMutez)] }],
-    });
+    return send(
+        client,
+        await marketplace(),
+        "list_token",
+        {
+            prim: "Pair",
+            args: [str(collection), { prim: "Pair", args: [int(tokenId), int(priceMutez)] }],
+        },
+        0,
+        LIST,
+    );
 }
 
 export async function delist(client: DAppClient, listingId: number): Promise<OpResult> {
@@ -321,11 +354,23 @@ export async function deployCollection(
     const parameter = transfer.parameter;
     if (!parameter) throw new Error("The factory's deploy entrypoint encoded to nothing.");
 
+    // The generator travels inside this operation and lands in the originated
+    // contract's storage, so both the storage limit and the fee have to scale
+    // with it. Neither is knowable by simulation on a chain whose per-operation
+    // gas cap equals the per-block one.
+    const codeBytes = Math.ceil(params.codeHex.replace(/^0x/, "").length / 2);
+    const limits: Limits = {
+        gas: 60_000,
+        storage: codeBytes + ORIGINATION_OVERHEAD_BYTES,
+        bytes: codeBytes + 2_000,
+    };
+
     return send(
         client,
         factory,
         parameter.entrypoint,
         parameter.value,
         transfer.amount ?? 0,
+        limits,
     );
 }

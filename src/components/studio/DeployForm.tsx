@@ -105,6 +105,15 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         if (!Number.isFinite(royalty) || royalty < 0 || royalty > 25) {
             return "Royalty must be between 0 and 25 percent, which is what marketplaces honour.";
         }
+        if (platformShare) {
+            const share = parseFloat(platformPercent);
+            if (!Number.isFinite(share) || share < 0 || share > 100) {
+                return "The platform's share is a percentage of your royalty, so it cannot be more than 100.";
+            }
+            if (share > 0 && royalty === 0) {
+                return "There is no royalty to share. Set a royalty, or remove the platform's share.";
+            }
+        }
         return null;
     }
 
@@ -163,7 +172,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                         : "It is open for minting."}
                 </p>
                 <dl className="space-y-1 text-xs">
-                    <Fact label="Operation" value={done.hash} />
+                    <Fact label="Operation" value={done.hash} href={tzktLink(done.hash)} />
                     <Fact
                         label="Generator"
                         value={
@@ -354,7 +363,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     <div>
                         <p className="text-sm font-medium">Support the platform</p>
                         <p className="text-xs text-muted-foreground">
-                            Share part of your royalty with Aleatory.
+                            Give Aleatory a cut of your royalty on resales. Your mint
+                            price is yours in full: the contract takes nothing from it.
                         </p>
                     </div>
                     <button
@@ -369,25 +379,52 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 {platformShare && (
                     <div className="flex items-center gap-2">
                         <input
+                            type="number"
                             inputMode="decimal"
+                            min={0}
+                            max={100}
+                            step={1}
                             value={platformPercent}
                             onChange={(e) => setPlatformPercent(e.target.value)}
-                            className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                            aria-label="Platform share, percent of your royalty"
+                            className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums"
                         />
                         <span className="text-xs text-muted-foreground">
-                            percent of your royalty
+                            percent of your royalty, not of the mint price
                         </span>
                     </div>
                 )}
             </div>
 
-            <Field label="Royalty on each sale" permanent hint="0, or between 10 and 25 percent.">
-                <input
-                    inputMode="decimal"
-                    value={royaltyTotal}
-                    onChange={(e) => setRoyaltyTotal(e.target.value)}
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                />
+            <Field
+                label="Royalty on each sale"
+                permanent
+                hint="0, or between 10 and 25 percent. The contract refuses more than 25."
+            >
+                <div className="flex items-center gap-3">
+                    <input
+                        type="range"
+                        min={0}
+                        max={25}
+                        step={0.5}
+                        value={Math.min(25, Math.max(0, parseFloat(royaltyTotal) || 0))}
+                        onChange={(e) => setRoyaltyTotal(e.target.value)}
+                        aria-label="Royalty percent"
+                        className="min-w-0 flex-1"
+                    />
+                    <input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        max={25}
+                        step={0.5}
+                        value={royaltyTotal}
+                        onChange={(e) => setRoyaltyTotal(e.target.value)}
+                        aria-label="Royalty percent"
+                        className="w-20 rounded-md border border-border bg-background px-2 py-2 text-sm tabular-nums"
+                    />
+                    <span className="shrink-0 text-sm text-muted-foreground">%</span>
+                </div>
             </Field>
 
             {preview.length > 0 && (
@@ -462,11 +499,33 @@ const STAGE_LABEL: Record<PublishStage, string> = {
     signing: "Waiting for your signature…",
 };
 
-function Fact({ label, value }: { label: string; value: string }) {
+function Fact({
+    label,
+    value,
+    href,
+}: {
+    label: string;
+    value: string;
+    href?: string;
+}) {
     return (
         <div className="flex gap-2">
             <dt className="shrink-0 text-muted-foreground">{label}</dt>
-            <dd className="min-w-0 truncate font-mono">{value}</dd>
+            <dd className="min-w-0 truncate font-mono">
+                {href ? (
+                    <a
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:underline"
+                        title={value}
+                    >
+                        {value}
+                    </a>
+                ) : (
+                    value
+                )}
+            </dd>
         </div>
     );
 }
