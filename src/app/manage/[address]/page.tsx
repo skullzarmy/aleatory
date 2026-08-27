@@ -315,6 +315,7 @@ function ValueControl({
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
                     inputMode="decimal"
+                    aria-label={title}
                     className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm"
                 />
                 {suffix && <span className="text-xs text-muted-foreground">{suffix}</span>}

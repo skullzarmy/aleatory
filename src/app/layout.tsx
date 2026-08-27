@@ -42,7 +42,19 @@ export default function RootLayout({
                     <WalletProvider>
                         <div className="flex min-h-screen flex-col bg-background">
                             <Header />
-                            <main className="flex-grow">{children}</main>
+                            {/* 2.4.1 Bypass Blocks. Every page opens with the
+                                same header and nav; without this a keyboard or
+                                screen reader user walks all of it on every
+                                navigation. Visible only when focused. */}
+                            <a
+                                href="#main"
+                                className="sr-only rounded-md bg-background px-4 py-2 text-sm font-medium underline focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
+                            >
+                                Skip to content
+                            </a>
+                            <main id="main" tabIndex={-1} className="flex-grow">
+                                {children}
+                            </main>
                             <Footer />
                         </div>
                     </WalletProvider>

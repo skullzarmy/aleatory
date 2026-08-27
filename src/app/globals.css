@@ -26,15 +26,18 @@ body {
         --muted-foreground: 230 3.8% 36%;
         --accent: 240 4.8% 95.9%;
         --accent-foreground: 240 5.9% 10%;
-        --destructive: 0 84.2% 60.2%;
+        --destructive: 0 84.2% 43%;
         --destructive-foreground: 0 0% 98%;
-        --border: 240 5.9% 90%;
-        --input: 240 5.9% 90%;
+        /* 3:1 against both --background and --card-background, per 1.4.11.
+           These were 90%, which is 1.00:1: invisible, and they are the only
+           thing that separates a card, a field or a row from the page. */
+        --border: 240 5.9% 53%;
+        --input: 240 5.9% 53%;
         --ring: 230 10% 10%;
         --radius: 0.5rem;
         --success: 120 70% 30%;
         --success-foreground: 0 0% 98%;
-        --warning: 40 100% 35%;
+        --warning: 40 100% 27%;
         --warning-foreground: 0 0% 98%;
     }
 
@@ -54,10 +57,12 @@ body {
         --muted-foreground: 240 5% 60%;
         --accent: 240 3.7% 15.9%;
         --accent-foreground: 0 0% 98%;
-        --destructive: 0 75% 45%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 240 3.7% 15.9%;
-        --input: 240 3.7% 15.9%;
+        --destructive: 0 75% 59%;
+        --destructive-foreground: 240 5.9% 10%;
+        /* 3:1 against both --background and --card-background. Were 15.9%,
+           which is 1.19:1. */
+        --border: 240 3.7% 45%;
+        --input: 240 3.7% 45%;
         --ring: 240 4.9% 83.9%;
         --success: 120 50% 40%;
         --success-foreground: 0 0% 98%;
@@ -72,6 +77,37 @@ body {
     }
     body {
         @apply bg-background text-foreground;
+    }
+
+    /* 2.4.7 Focus Visible, and 1.4.11 for the indicator itself.
+       Keyboard only, so a mouse click does not leave a ring behind. Three
+       components set `outline-none` and put nothing back; this is what they
+       fall through to. */
+    :focus-visible {
+        outline: 2px solid hsl(var(--ring));
+        outline-offset: 2px;
+        border-radius: 2px;
+    }
+
+    /* 2.4.11 Focus Not Obscured. The header is sticky, so an element focused
+       by keyboard would otherwise scroll to the top edge and land underneath
+       it. */
+    :root {
+        scroll-padding-top: 6rem;
+    }
+}
+
+/* 2.3.3 Animation from Interactions, and 2.2.2 Pause, Stop, Hide.
+   The shimmer runs forever, which is precisely what this is for. Everything
+   still changes state, it just stops moving. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }
 

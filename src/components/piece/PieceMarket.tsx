@@ -167,6 +167,7 @@ export function PieceMarket({
                 <div className="flex gap-2">
                     <input
                         inputMode="decimal"
+                        aria-label="Offer amount, in tez"
                         placeholder="Offer in ꜩ"
                         value={offer}
                         onChange={(e) => setOffer(e.target.value)}

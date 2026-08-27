@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { cloneElement, isValidElement, useEffect, useId, useMemo, useState, type ReactElement } from "react";
 import { useWallet } from "@/context/WalletContext";
 import { addresses } from "@/lib/router";
 import { royaltyPreview, type RoyaltySplit } from "@/lib/metadata";
@@ -530,6 +530,14 @@ function Fact({
     );
 }
 
+/**
+ * A labelled field.
+ *
+ * The label used to sit beside the input with no `htmlFor`, which looks like a
+ * label and is not one: nothing announces it, and clicking it does not focus
+ * the field. The id is generated here and handed to the child, so every input
+ * this wraps is labelled without each call site remembering to.
+ */
 function Field({
     label,
     hint,
@@ -541,18 +549,38 @@ function Field({
     permanent?: boolean;
     children: React.ReactNode;
 }) {
+    const id = useId();
+    const hintId = hint ? `${id}-hint` : undefined;
+
+    // The child is the control. Give it the id the label points at, and the
+    // hint as its description, unless the call site set them itself.
+    const control = isValidElement(children)
+        ? cloneElement(children as ReactElement<Record<string, unknown>>, {
+              id: (children.props as { id?: string }).id ?? id,
+              "aria-describedby":
+                  (children.props as { "aria-describedby"?: string })["aria-describedby"] ??
+                  hintId,
+          })
+        : children;
+
     return (
         <div className="space-y-1.5">
             <div className="flex items-baseline gap-2">
-                <label className="text-sm font-medium">{label}</label>
+                <label htmlFor={id} className="text-sm font-medium">
+                    {label}
+                </label>
                 {permanent && (
                     <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                         permanent
                     </span>
                 )}
             </div>
-            {children}
-            {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+            {control}
+            {hint && (
+                <p id={hintId} className="text-xs text-muted-foreground">
+                    {hint}
+                </p>
+            )}
         </div>
     );
 }
