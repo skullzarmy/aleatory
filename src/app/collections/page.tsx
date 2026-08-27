@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { fetchAllCollections } from "@/lib/collection";
 import { EmptyFeed } from "@/components/feed/EmptyFeed";
 import { shortAddress, timeAgo } from "@/lib/utils";
+import { LiveRefresh } from "@/components/LiveRefresh";
 
 export const metadata: Metadata = { title: "Collections" };
 export const revalidate = 60;
@@ -22,6 +23,7 @@ export default async function CollectionsPage() {
     if (collections.length === 0) {
         return (
             <div className="mx-auto max-w-7xl px-4 py-8">
+                <LiveRefresh seconds={60} />
                 <EmptyFeed reason="unconfigured" />
             </div>
         );
@@ -29,6 +31,7 @@ export default async function CollectionsPage() {
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-8">
+            <LiveRefresh seconds={60} />
             <h1 className="mb-6 text-xl font-semibold tracking-tight">Collections</h1>
 
             <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

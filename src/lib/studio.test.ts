@@ -250,6 +250,48 @@ console.log("\nLibraries");
     );
 }
 
+console.log("\nPages keep themselves current");
+{
+    // Every page here is server rendered on a revalidate timer, which makes
+    // the server correct and leaves the screen stale until someone reloads.
+    // Chain state moves on its own: a piece renders, an edition sells out, a
+    // listing appears.
+    const pages: [string, number][] = [
+        ["src/app/page.tsx", 30],
+        ["src/app/market/page.tsx", 15],
+        ["src/app/collections/page.tsx", 60],
+        ["src/app/collection/[address]/page.tsx", 30],
+        ["src/app/piece/[contract]/[tokenId]/page.tsx", 30],
+        ["src/app/wallet/[address]/page.tsx", 60],
+    ];
+    for (const [path, seconds] of pages) {
+        const src = readFileSync(path, "utf8");
+        const declared = src.match(/export const revalidate = (\d+)/)?.[1];
+        check(
+            `${path.replace("src/app/", "")}: refreshes itself`,
+            src.includes("<LiveRefresh"),
+            "otherwise it is only ever correct on the server",
+        );
+        check(
+            `${path.replace("src/app/", "")}: at its own revalidate window (${seconds}s)`,
+            src.includes(`<LiveRefresh seconds={${seconds}}`) && declared === String(seconds),
+            "polling faster than the server will answer differently is just traffic",
+        );
+    }
+
+    const live = readFileSync("src/components/LiveRefresh.tsx", "utf8");
+    check(
+        "a hidden tab stops polling",
+        live.includes("visibilitychange") && live.includes("document.hidden"),
+        "a background tab polling is battery and rate limit spent on nobody",
+    );
+    check(
+        "it refreshes rather than reloads",
+        live.includes("router.refresh()") && !live.includes("location.reload"),
+        "a reload throws away scroll, focus and any open menu",
+    );
+}
+
 console.log("\nOne document builder");
 {
     // The provider assembled its own document inline, and it drifted from the

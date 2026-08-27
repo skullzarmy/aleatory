@@ -5,6 +5,7 @@ import { piecesFor } from "@/lib/feed";
 import { ListingCard } from "@/components/feed/ListingCard";
 import { addresses } from "@/lib/router";
 import { formatTez } from "@/lib/utils";
+import { LiveRefresh } from "@/components/LiveRefresh";
 
 export const metadata: Metadata = { title: "Market" };
 export const revalidate = 15;
@@ -40,6 +41,7 @@ export default async function MarketPage() {
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-8">
+            <LiveRefresh seconds={15} />
             <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
                 <h1 className="text-xl font-semibold tracking-tight">Market</h1>
                 <p className="text-sm text-muted-foreground">

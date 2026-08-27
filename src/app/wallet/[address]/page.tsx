@@ -8,6 +8,7 @@ import { isAddress } from "@/lib/tzkt";
 import { shortAddress } from "@/lib/utils";
 import { resolveName, fetchProfile, avatarUrl, sourceFor } from "@/lib/identity";
 import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
+import { LiveRefresh } from "@/components/LiveRefresh";
 
 export const revalidate = 60;
 
@@ -69,6 +70,7 @@ export default async function WalletPage({
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-8">
+            <LiveRefresh seconds={60} />
             <ProfileCard address={address} name={name} profile={profile} source={source} />
             <ProfileNudge address={address} profile={profile} />
 

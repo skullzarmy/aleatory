@@ -5,6 +5,7 @@ import { MintView } from "@/components/collection/MintView";
 import { FeedGrid } from "@/components/feed/FeedGrid";
 import { shortAddress } from "@/lib/utils";
 import { AccountLink } from "@/components/account/AccountLink";
+import { LiveRefresh } from "@/components/LiveRefresh";
 
 export const revalidate = 30;
 
@@ -26,6 +27,7 @@ export default async function CollectionPage({ params }: { params: Params }) {
 
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
+            <LiveRefresh seconds={30} />
             <header className="mb-6">
                 <h1 className="text-xl font-semibold tracking-tight">
                     {shortAddress(collection.address)}

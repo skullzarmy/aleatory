@@ -7,6 +7,7 @@ import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
 import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
+import { LiveRefresh } from "@/components/LiveRefresh";
 
 export const revalidate = 30;
 
@@ -49,6 +50,7 @@ export default async function PiecePage({ params }: { params: Params }) {
 
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
+            <LiveRefresh seconds={30} />
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <ArtifactFrame
                     code={piece.code}
