@@ -211,6 +211,33 @@ export async function fetchRouter(): Promise<RouterState | null> {
     };
 }
 
+// --- resolver -------------------------------------------------------------
+
+interface ResolverStorage {
+    administrator: string;
+    proposed_admin: string | null;
+    writers: string[];
+}
+
+export interface ResolverState {
+    address: string;
+    administrator: string;
+    proposedAdmin: string | null;
+    /** Keys allowed to write resolution entries. The daemon is normally one. */
+    writers: string[];
+}
+
+export async function fetchResolver(address: string): Promise<ResolverState | null> {
+    if (!address) return null;
+    const s = await tzkt<ResolverStorage>(`/v1/contracts/${address}/storage`);
+    return {
+        address,
+        administrator: s.administrator,
+        proposedAdmin: s.proposed_admin,
+        writers: s.writers,
+    };
+}
+
 // --- registry -------------------------------------------------------------
 
 interface RegistryStorage {

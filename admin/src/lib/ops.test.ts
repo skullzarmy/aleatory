@@ -25,12 +25,22 @@ import { fetchProviderAddresses, fetchRouter } from "./chain";
 import { ADDRESSES, NETWORK } from "./config";
 import {
     acceptAdmin,
+    addFactory,
+    addWriter,
     claimRoyalties,
     encode,
     proposeAdmin,
+    removeWriter,
+    setAgent,
+    setFactoryTreasury,
     setFee,
     setMarketplacePaused,
+    setMarketplaceTreasury,
     setRenderGas,
+    setRouterMarketplace,
+    setRouterRegistry,
+    setRouterResolver,
+    withdrawFactoryFees,
     withdrawMarketplaceFees,
     withdrawRenderGas,
 } from "./ops";
@@ -71,11 +81,17 @@ async function resolveTargets() {
         );
     }
 
-    return { router, marketplace: router.marketplace, provider };
+    return {
+        router,
+        marketplace: router.marketplace,
+        factory: router.currentFactory,
+        resolver: router.resolver,
+        provider,
+    };
 }
 
 async function run() {
-    const { router, marketplace, provider } = await resolveTargets();
+    const { router, marketplace, factory, resolver, provider } = await resolveTargets();
 
     console.log(`\nOperation encoding (${NETWORK})`);
     console.log(`  marketplace ${marketplace}`);
@@ -149,6 +165,27 @@ async function run() {
         const { entrypoint, value } = await encode(proposeAdmin(marketplace, who));
         check("propose_admin targets the right entrypoint", entrypoint === "propose_admin");
         check("propose_admin carries the address", JSON.stringify(value).includes(who), value);
+    }
+
+    // The remaining entrypoints the console can send. Every one of them is a
+    // button somewhere, so every one is encoded here.
+    {
+        const who = router.administrator;
+        for (const [name, op] of [
+            ["set_treasury (marketplace)", setMarketplaceTreasury(marketplace, who)],
+            ["set_treasury (factory)", setFactoryTreasury(factory, who)],
+            ["withdraw_fees (factory)", withdrawFactoryFees(factory)],
+            ["add_factory", addFactory(router.address, factory)],
+            ["set_marketplace", setRouterMarketplace(router.address, marketplace)],
+            ["set_registry", setRouterRegistry(router.address, router.registry)],
+            ["set_resolver", setRouterResolver(router.address, resolver)],
+            ["add_writer", addWriter(resolver, who)],
+            ["remove_writer", removeWriter(resolver, who)],
+            ["set_agent", setAgent(provider, who)],
+        ] as const) {
+            const { entrypoint } = await encode(op);
+            check(`${name} encodes`, entrypoint === op.entrypoint, entrypoint);
+        }
     }
 
     // An entrypoint that does not exist should be refused here rather than by

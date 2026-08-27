@@ -6,6 +6,12 @@ import { signNow, toProposal, type AdminOp } from "@/lib/ops";
 import { tzktLink } from "@/lib/config";
 import { shortAddress } from "@/lib/format";
 
+const KEY: Record<string, string> = {
+    admin: "admin key",
+    operator: "operator key",
+    proposed: "the proposed admin",
+};
+
 /**
  * Both sinks from `ops.ts` behind one control: it signs when you hold the key
  * the chain will accept, and exports a proposal when you do not, which is the
@@ -147,9 +153,7 @@ export function Action({
                     {op.label}
                 </button>
                 {!permissionless && (
-                    <span className="text-xs text-dim">
-                        {op.authority === "admin" ? "admin" : "operator"} key
-                    </span>
+                    <span className="text-xs text-dim">{KEY[op.authority]}</span>
                 )}
             </div>
 

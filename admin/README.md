@@ -44,6 +44,14 @@ reports it decomposed and shows what is left over. That figure should be zero.
 Anything else means either tez arrived that nothing accounts for, or the
 contract has promised more than it holds and a claim is going to fail.
 
+## If the daemon key leaks
+
+Two calls, and neither waits on an artist. `set_agent` on the provider stops
+it writing token media, and every collection follows immediately because they
+ask the provider for the live agent rather than trusting what they snapshotted.
+`remove_writer` on the resolver stops it writing resolution entries. Both are
+on the console, and the resolver card marks which writer is the current agent.
+
 ## Handing over to a multisig
 
 Actions never send. Each one builds an `AdminOp` in `src/lib/ops.ts`, and a

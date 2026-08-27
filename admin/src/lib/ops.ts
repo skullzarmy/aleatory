@@ -28,7 +28,9 @@ export type Authority =
     /** The contract's `administrator`. */
     | "admin"
     /** The provider's `operator`. */
-    | "operator";
+    | "operator"
+    /** The address a pending `propose_admin` named, and only that address. */
+    | "proposed";
 
 export interface AdminOp {
     /** What this does, as a sentence, for the confirm step and the audit log. */
@@ -272,6 +274,25 @@ export const setRouterResolver = (router: string, resolver: string): AdminOp => 
     authority: "admin",
 });
 
+// Resolver. `writers` is the second half of revoking a leaked daemon key:
+// `set_agent` stops it writing token media, this stops it writing resolution.
+
+export const addWriter = (resolver: string, writer: string): AdminOp => ({
+    label: `Allow ${writer} to write resolver entries`,
+    to: resolver,
+    entrypoint: "add_writer",
+    args: writer,
+    authority: "admin",
+});
+
+export const removeWriter = (resolver: string, writer: string): AdminOp => ({
+    label: `Revoke ${writer} from writing resolver entries`,
+    to: resolver,
+    entrypoint: "remove_writer",
+    args: writer,
+    authority: "admin",
+});
+
 // Handing over control. Two steps on every contract that has an administrator,
 // so a typo cannot strand it: the new administrator has to appear and accept.
 // This is the path the multisig eventually walks.
@@ -289,7 +310,5 @@ export const acceptAdmin = (contract: string): AdminOp => ({
     to: contract,
     entrypoint: "accept_admin",
     args: null,
-    // Callable only by the address that was proposed, which is the point of
-    // the two-step. Whoever that is has not been the administrator yet.
-    authority: "anyone",
+    authority: "proposed",
 });

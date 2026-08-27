@@ -3,6 +3,7 @@ import {
     fetchFactory,
     fetchMarketplace,
     fetchProvider,
+    fetchResolver,
     fetchRouter,
 } from "@/lib/chain";
 import { ADDRESSES } from "@/lib/config";
@@ -12,11 +13,28 @@ import { Action } from "@/components/Action";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { Amount } from "@/components/Amount";
 import {
+    addFactory,
+    addWriter,
     claimRoyalties,
+    removeWriter,
+    setFactoryTreasury,
+    setFee,
     setMarketplacePaused,
+    setMarketplaceTreasury,
+    setRouterMarketplace,
+    setRouterRegistry,
+    setRouterResolver,
     withdrawFactoryFees,
     withdrawMarketplaceFees,
 } from "@/lib/ops";
+import { AddToList, Setting } from "@/components/Setting";
+import { Handover, type Administered } from "@/components/Handover";
+
+const pick = (c: { address: string; administrator: string; proposedAdmin: string | null }) => ({
+    address: c.address,
+    administrator: c.administrator,
+    proposedAdmin: c.proposedAdmin,
+});
 
 // Balances are the entire point. Nothing here is cached.
 export const dynamic = "force-dynamic";
@@ -27,12 +45,22 @@ export default async function Dashboard() {
     // Addresses come from the router wherever it has them. An env var records
     // what was true when it was set; the router records what the contracts
     // resolve to now.
-    const [marketplace, factory, provider, agent] = await Promise.all([
+    const [marketplace, factory, provider, agent, resolver] = await Promise.all([
         fetchMarketplace(router?.marketplace || ADDRESSES.marketplace).catch(() => null),
         fetchFactory(router?.currentFactory || ADDRESSES.factory).catch(() => null),
         fetchProvider(ADDRESSES.provider).catch(() => null),
         fetchAgent(ADDRESSES.agent).catch(() => null),
+        fetchResolver(router?.resolver || ADDRESSES.resolver).catch(() => null),
     ]);
+
+    // Only the contracts that actually answered. A handover control for
+    // something that could not be read is a control that cannot be trusted.
+    const administered: Administered[] = [
+        marketplace && { name: "Marketplace", ...pick(marketplace) },
+        factory && { name: "Factory", ...pick(factory) },
+        router && { name: "Router", ...pick(router) },
+        resolver && { name: "Resolver", ...pick(resolver) },
+    ].filter(Boolean) as Administered[];
 
     const claimable =
         (marketplace?.feesAccrued ?? 0) + (factory?.feesAccrued ?? 0);
@@ -145,6 +173,25 @@ export default async function Dashboard() {
                         />
                     </div>
 
+                    <div className="space-y-4 border-t border-line pt-4">
+                        <Setting
+                            label="Fee"
+                            help="Charged on each sale. Never retroactive: live listings and offers settle on the fee they were created with."
+                            kind="bps"
+                            current={marketplace.feeBps}
+                            holder={marketplace.administrator}
+                            build={(v) => setFee(marketplace.address, Number(v))}
+                        />
+                        <Setting
+                            label="Treasury"
+                            help="Where a sweep sends fees. Fees accrue rather than forward during a sale, so an address that rejects transfers cannot break trading."
+                            kind="address"
+                            current={marketplace.treasury}
+                            holder={marketplace.administrator}
+                            build={(v) => setMarketplaceTreasury(marketplace.address, String(v))}
+                        />
+                    </div>
+
                     {marketplace.royaltyRows.length > 0 && (
                         <div className="border-t border-line pt-4">
                             <p className="label mb-2">Unclaimed royalties</p>
@@ -197,7 +244,7 @@ export default async function Dashboard() {
                             </Row>
                         </div>
                     </div>
-                    <div className="border-t border-line pt-4">
+                    <div className="space-y-4 border-t border-line pt-4">
                         <Action
                             op={withdrawFactoryFees(factory.address)}
                             unavailable={
@@ -205,6 +252,13 @@ export default async function Dashboard() {
                                     ? "No deploy fees accrued to sweep."
                                     : undefined
                             }
+                        />
+                        <Setting
+                            label="Treasury"
+                            kind="address"
+                            current={factory.treasury}
+                            holder={factory.administrator}
+                            build={(v) => setFactoryTreasury(factory.address, String(v))}
                         />
                     </div>
                 </Card>
@@ -244,6 +298,88 @@ export default async function Dashboard() {
                         {router.factories.length} factories registered. Only the last is live;
                         the rest stay so collections they deployed remain resolvable.
                     </p>
+
+                    <div className="space-y-4 border-t border-line pt-4">
+                        <AddToList
+                            label="Add a factory"
+                            help="Appends, and the newest becomes the one new deploys use. Nothing is removed, so collections keep resolving through the factory that made them."
+                            holder={router.administrator}
+                            build={(a) => addFactory(router.address, a)}
+                        />
+                        <Setting
+                            label="Marketplace"
+                            kind="address"
+                            current={router.marketplace}
+                            holder={router.administrator}
+                            build={(v) => setRouterMarketplace(router.address, String(v))}
+                        />
+                        <Setting
+                            label="Registry"
+                            kind="address"
+                            current={router.registry}
+                            holder={router.administrator}
+                            build={(v) => setRouterRegistry(router.address, String(v))}
+                        />
+                        <Setting
+                            label="Resolver"
+                            kind="address"
+                            current={router.resolver}
+                            holder={router.administrator}
+                            build={(v) => setRouterResolver(router.address, String(v))}
+                        />
+                    </div>
+                </Card>
+            )}
+
+            {resolver && (
+                <Card
+                    title="Resolver"
+                    subtitle="Who may write resolution entries. The other half of revoking a leaked daemon key."
+                >
+                    <Row label="Address">
+                        <Addr address={resolver.address} />
+                    </Row>
+                    <Row label="Administrator">
+                        <Addr address={resolver.administrator} />
+                    </Row>
+
+                    <div className="space-y-3 border-t border-line pt-4">
+                        <p className="label">Writers</p>
+                        {resolver.writers.length === 0 ? (
+                            <p className="text-sm text-dim">None. Nothing can write entries.</p>
+                        ) : (
+                            <ul className="space-y-3">
+                                {resolver.writers.map((w) => (
+                                    <li key={w} className="flex flex-wrap items-center gap-3">
+                                        <Addr address={w} />
+                                        {w === provider?.agent && (
+                                            <span className="text-xs text-dim">
+                                                the current render agent
+                                            </span>
+                                        )}
+                                        <Action
+                                            op={removeWriter(resolver.address, w)}
+                                            holder={resolver.administrator}
+                                        />
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        <AddToList
+                            label="Add a writer"
+                            holder={resolver.administrator}
+                            build={(a) => addWriter(resolver.address, a)}
+                        />
+                    </div>
+                </Card>
+            )}
+
+            {administered.length > 0 && (
+                <Card
+                    title="Administration"
+                    subtitle="Two steps everywhere, and each contract moves on its own."
+                >
+                    <Handover contracts={administered} />
                 </Card>
             )}
         </div>
