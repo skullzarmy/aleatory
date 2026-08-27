@@ -5,6 +5,8 @@
   "description": "Fully on-chain generative art on Tezos",
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:isolate": "node scripts/dev-isolate.mjs",
+    "dev:all": "node scripts/dev-all.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -15,7 +17,6 @@
     "test:metadata": "npx tsx src/lib/metadata.test.ts",
     "build:icons": "npx tsx scripts/build-icons.mts",
     "logo": "npx tsx scripts/logo-preview.mts",
-    "dev:isolate": "node scripts/dev-isolate.mjs",
     "test:studio": "npx tsx src/lib/studio.test.ts",
     "test": "npm run test:metadata && npm run test:studio",
     "provider:run": "npx tsx scripts/provider-run.mts",

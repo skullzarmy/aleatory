@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { getDraft, type Draft } from "@/lib/draft";
 import { Workspace } from "@/components/studio/Workspace";
@@ -13,14 +14,34 @@ import { Workspace } from "@/components/studio/Workspace";
  * browser is genuinely gone rather than merely unauthorized, and the page says
  * that instead of showing a spinner forever.
  */
-export default function DraftPage({ params }: { params: Promise<{ draft: string }> }) {
-    const { draft: id } = use(params);
+export default function DraftPage() {
+    const params = useParams<{ draft: string }>();
+    const id = params?.draft;
     const [draft, setDraft] = useState<Draft | null | undefined>(undefined);
 
     useEffect(() => {
-        void getDraft(id)
-            .then((d) => setDraft(d))
-            .catch(() => setDraft(null));
+        if (!id) return;
+        let active = true;
+
+        async function load() {
+            try {
+                let d = await getDraft(id);
+                if (!d) {
+                    // Small delay to allow any pending transaction commit
+                    await new Promise((r) => setTimeout(r, 100));
+                    if (!active) return;
+                    d = await getDraft(id);
+                }
+                if (active) setDraft(d);
+            } catch {
+                if (active) setDraft(null);
+            }
+        }
+
+        void load();
+        return () => {
+            active = false;
+        };
     }, [id]);
 
     if (draft === undefined) {

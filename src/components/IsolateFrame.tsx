@@ -126,7 +126,10 @@ export function IsolateFrame({
                 handlers.current.onViolation?.(d.kind ?? "unknown", d.detail ?? "");
             }
             if (d?.type === "alea:error") {
-                handlers.current.onError?.(d.message ?? "Script error");
+                const msg = d.message ?? "Script error";
+                if (!/localStorage|postMessage|MetaMask|chrome-extension|setup-wallet-sdk/i.test(msg)) {
+                    handlers.current.onError?.(msg);
+                }
             }
         }
 

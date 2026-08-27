@@ -42,6 +42,32 @@
  * them, not an argument for merging them.
  */
 (function () {
+  // Guard against injected wallet extension crashes in sandboxed iframe
+  try {
+    var _ls = window.localStorage;
+  } catch (_) {
+    var _mem = {};
+    var _storage = {
+      getItem: function (k) { return _mem[k] || null; },
+      setItem: function (k, v) { _mem[k] = String(v); },
+      removeItem: function (k) { delete _mem[k]; },
+      clear: function () { _mem = {}; },
+      key: function (i) { return Object.keys(_mem)[i] || null; },
+      get length() { return Object.keys(_mem).length; }
+    };
+    try { Object.defineProperty(window, "localStorage", { value: _storage, configurable: true }); } catch (_e) {}
+    try { Object.defineProperty(window, "sessionStorage", { value: _storage, configurable: true }); } catch (_e) {}
+  }
+  try {
+    var _origPostMessage = window.postMessage;
+    window.postMessage = function (msg, targetOrigin, transfer) {
+      if (targetOrigin === "null" || targetOrigin === null || targetOrigin === undefined) {
+        targetOrigin = "*";
+      }
+      return _origPostMessage.call(this, msg, targetOrigin, transfer);
+    };
+  } catch (_) {}
+
   function fail(msg) {
     var el = document.getElementById("err");
     el.hidden = false;
@@ -174,6 +200,32 @@
   var HARNESS = String.raw`
 (function () {
   "use strict";
+  // Guard against wallet extensions injected into sandbox iframe
+  try {
+    var _ls = window.localStorage;
+  } catch (_) {
+    var _mem = {};
+    var _storage = {
+      getItem: function (k) { return _mem[k] || null; },
+      setItem: function (k, v) { _mem[k] = String(v); },
+      removeItem: function (k) { delete _mem[k]; },
+      clear: function () { _mem = {}; },
+      key: function (i) { return Object.keys(_mem)[i] || null; },
+      get length() { return Object.keys(_mem).length; }
+    };
+    try { Object.defineProperty(window, "localStorage", { value: _storage, configurable: true }); } catch (_e) {}
+    try { Object.defineProperty(window, "sessionStorage", { value: _storage, configurable: true }); } catch (_e) {}
+  }
+  try {
+    var _origPostMessage = window.postMessage;
+    window.postMessage = function (msg, targetOrigin, transfer) {
+      if (targetOrigin === "null" || targetOrigin === null || targetOrigin === undefined) {
+        targetOrigin = "*";
+      }
+      return _origPostMessage.call(this, msg, targetOrigin, transfer);
+    };
+  } catch (_) {}
+
   var CFG = __ALEA_CONFIG__;
   var t0 = Date.now();
   var violations = [];
@@ -249,18 +301,27 @@
   // black paint. So an error is reported rather than swallowed, and the frame
   // it happened in says so.
   window.addEventListener("error", function (e) {
+    var msg = e.message || "Script error";
+    var src = e.filename || "";
+    if (/localStorage|postMessage|MetaMask|chrome-extension|moz-extension|setup-wallet-sdk|inpage/i.test(msg) || /chrome-extension|moz-extension|setup-wallet-sdk|inpage/i.test(src)) {
+      return;
+    }
     var where = e.lineno ? " (line " + e.lineno + ")" : "";
     post({
       type: "alea:error",
-      message: (e.message || "Script error") + where,
+      message: msg + where,
       line: e.lineno || null
     });
   });
   window.addEventListener("unhandledrejection", function (e) {
     var r = e.reason;
+    var msg = (r && r.message) || String(r);
+    if (/localStorage|postMessage|MetaMask/i.test(msg)) {
+      return;
+    }
     post({
       type: "alea:error",
-      message: "Unhandled rejection: " + ((r && r.message) || String(r)),
+      message: "Unhandled rejection: " + msg,
       line: null
     });
   });

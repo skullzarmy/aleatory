@@ -31,8 +31,34 @@ export interface Draft {
     updatedAt: number;
 }
 
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function getFallbackStore(): Record<string, Draft> {
+    if (typeof window === "undefined" || typeof localStorage === "undefined") return {};
+    try {
+        const raw = localStorage.getItem("aleatory:drafts");
+        return raw ? (JSON.parse(raw) as Record<string, Draft>) : {};
+    } catch {
+        return {};
+    }
+}
+
+function setFallbackStore(store: Record<string, Draft>): void {
+    if (typeof window === "undefined" || typeof localStorage === "undefined") return;
+    try {
+        localStorage.setItem("aleatory:drafts", JSON.stringify(store));
+    } catch {
+        // ignore quota errors
+    }
+}
+
 function open(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || typeof indexedDB === "undefined") {
+        return Promise.reject(new Error("IndexedDB is not available"));
+    }
+    if (dbPromise) return dbPromise;
+
+    dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
         const req = indexedDB.open(DB, VERSION);
         req.onupgradeneeded = () => {
             const db = req.result;
@@ -40,36 +66,119 @@ function open(): Promise<IDBDatabase> {
                 db.createObjectStore(STORE, { keyPath: "id" });
             }
         };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            const db = req.result;
+            db.onversionchange = () => {
+                db.close();
+                dbPromise = null;
+            };
+            resolve(db);
+        };
+        req.onerror = () => {
+            dbPromise = null;
+            reject(req.error ?? new Error("Failed to open IndexedDB"));
+        };
+        req.onblocked = () => {
+            dbPromise = null;
+            reject(new Error("IndexedDB open blocked"));
+        };
     });
+
+    return dbPromise;
 }
 
 async function tx<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
     const db = await open();
     return new Promise<T>((resolve, reject) => {
-        const request = fn(db.transaction(STORE, mode).objectStore(STORE));
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+        try {
+            const transaction = db.transaction(STORE, mode);
+            const store = transaction.objectStore(STORE);
+            const request = fn(store);
+
+            let result: T;
+            request.onsuccess = () => {
+                result = request.result;
+                if (mode === "readonly") {
+                    resolve(result);
+                }
+            };
+            request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
+            transaction.oncomplete = () => {
+                if (mode === "readwrite") {
+                    resolve(result);
+                }
+            };
+            transaction.onerror = () => {
+                dbPromise = null;
+                reject(transaction.error ?? new Error("IndexedDB transaction failed"));
+            };
+            transaction.onabort = () => {
+                dbPromise = null;
+                reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
+            };
+        } catch (err) {
+            dbPromise = null;
+            reject(err);
+        }
     });
 }
 
 export async function listDrafts(): Promise<Draft[]> {
-    const all = await tx<Draft[]>("readonly", (s) => s.getAll() as IDBRequest<Draft[]>);
-    return all.sort((a, b) => b.updatedAt - a.updatedAt);
+    const fallback = Object.values(getFallbackStore());
+    try {
+        const idbList = tx<Draft[]>("readonly", (s) => s.getAll() as IDBRequest<Draft[]>);
+        const timeout = new Promise<Draft[]>((resolve) => setTimeout(() => resolve([]), 300));
+        const all = await Promise.race([idbList, timeout]);
+        const ids = new Set(all.map((d) => d.id));
+        for (const f of fallback) {
+            if (!ids.has(f.id)) all.push(f);
+        }
+        return all.sort((a, b) => b.updatedAt - a.updatedAt);
+    } catch {
+        return fallback.sort((a, b) => b.updatedAt - a.updatedAt);
+    }
 }
 
 export async function getDraft(id: string): Promise<Draft | null> {
-    const found = await tx<Draft | undefined>("readonly", (s) => s.get(id) as IDBRequest<Draft | undefined>);
-    return found ?? null;
+    const fromFallback = getFallbackStore()[id];
+    try {
+        const idbGet = tx<Draft | undefined>("readonly", (s) => s.get(id) as IDBRequest<Draft | undefined>);
+        const timeout = new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 300));
+        const fromIdb = await Promise.race([idbGet, timeout]);
+        if (fromIdb) return fromIdb;
+    } catch {
+        // Fall back
+    }
+    return fromFallback ?? null;
 }
 
 export async function saveDraft(draft: Draft): Promise<void> {
-    await tx("readwrite", (s) => s.put({ ...draft, updatedAt: Date.now() }));
+    const item = { ...draft, updatedAt: Date.now() };
+    const fb = getFallbackStore();
+    fb[draft.id] = item;
+    setFallbackStore(fb);
+
+    try {
+        const idbSave = tx("readwrite", (s) => s.put(item));
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("IDB timeout")), 300));
+        await Promise.race([idbSave, timeout]);
+    } catch {
+        // Fallback store was already written synchronously
+    }
 }
 
 export async function deleteDraft(id: string): Promise<void> {
-    await tx("readwrite", (s) => s.delete(id));
+    const fb = getFallbackStore();
+    delete fb[id];
+    setFallbackStore(fb);
+
+    try {
+        const idbDelete = tx("readwrite", (s) => s.delete(id));
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("IDB timeout")), 300));
+        await Promise.race([idbDelete, timeout]);
+    } catch {
+        // Fallback store was already updated
+    }
 }
 
 export function newDraft(

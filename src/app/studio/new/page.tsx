@@ -30,10 +30,16 @@ export default function NewGeneratorPage() {
         try {
             const draft = newDraft(name, kindId, packageFromHtml(html), params);
             await saveDraft(draft);
-            router.push(`/studio/${draft.id}`);
+            const target = `/studio/${draft.id}`;
+            router.push(target);
+            setTimeout(() => {
+                if (typeof window !== "undefined" && window.location.pathname !== target) {
+                    window.location.assign(target);
+                }
+            }, 600);
         } catch (e) {
-            setBusy(false);
             setError(e instanceof Error ? e.message : "Could not open that.");
+            setBusy(false);
         }
     }
 
@@ -49,10 +55,16 @@ export default function NewGeneratorPage() {
                 templateParamsFor(kindId),
             );
             await saveDraft(draft);
-            router.push(`/studio/${draft.id}`);
+            const target = `/studio/${draft.id}`;
+            router.push(target);
+            setTimeout(() => {
+                if (typeof window !== "undefined" && window.location.pathname !== target) {
+                    window.location.assign(target);
+                }
+            }, 600);
         } catch (e) {
-            setBusy(false);
             setError(e instanceof Error ? e.message : "Could not read that file.");
+            setBusy(false);
         }
     }
 
