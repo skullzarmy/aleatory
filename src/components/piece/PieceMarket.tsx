@@ -48,6 +48,37 @@ export function PieceMarket({
     const [price, setPrice] = useState("");
     const [offer, setOffer] = useState("");
 
+    // Above the early return below, because hooks have to run in the same
+    // order every render and a component that returns before one has changed
+    // its shape. React catches this; it caught this.
+    //
+    // Refresh until the server's answer changes, then stop. Capped, because a
+    // page that polls forever after a stalled indexer is worse than one that
+    // gives up and lets the reader reload.
+    const settled = useRef<string>("");
+    useEffect(() => {
+        const now = `${listing?.id ?? "none"}:${listing?.priceMutez ?? 0}:${offers.length}`;
+        if (!settling) {
+            settled.current = now;
+            return;
+        }
+        if (now !== settled.current) {
+            settled.current = now;
+            setSettling(false);
+            return;
+        }
+        let tries = 0;
+        const id = window.setInterval(() => {
+            if (++tries > 12) {
+                window.clearInterval(id);
+                setSettling(false);
+                return;
+            }
+            router.refresh();
+        }, 4000);
+        return () => window.clearInterval(id);
+    }, [settling, listing, offers.length, router]);
+
     // Parsed once. The preview and the operation read the same number, so
     // what a person is shown is what they sign for.
     const priceMutez = parseTez(price);
@@ -89,32 +120,6 @@ export function PieceMarket({
         }
     }
 
-    // Refresh until the server's answer changes, then stop. Capped, because a
-    // page that polls forever after a failed indexer is worse than one that
-    // gives up and lets the reader reload.
-    const settled = useRef<string>("");
-    useEffect(() => {
-        const now = `${listing?.id ?? "none"}:${listing?.priceMutez ?? 0}:${offers.length}`;
-        if (!settling) {
-            settled.current = now;
-            return;
-        }
-        if (now !== settled.current) {
-            settled.current = now;
-            setSettling(false);
-            return;
-        }
-        let tries = 0;
-        const id = window.setInterval(() => {
-            if (++tries > 12) {
-                window.clearInterval(id);
-                setSettling(false);
-                return;
-            }
-            router.refresh();
-        }, 4000);
-        return () => window.clearInterval(id);
-    }, [settling, listing, offers.length, router]);
 
     const tez = (mutez: bigint) => `${formatTez(mutez)} ꜩ`;
 
