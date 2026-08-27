@@ -7,6 +7,8 @@ import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
 import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
+import { resolveName } from "@/lib/identity";
+import { shortAddress } from "@/lib/utils";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { PieceJsonLd } from "@/components/JsonLd";
 
@@ -19,15 +21,24 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     const piece = await fetchPiece(contract, tokenId).catch(() => null);
     if (!piece) return { title: "Piece" };
 
-    const title = `${piece.name} · ${piece.collectionName ?? BRAND.name}`;
+    // The artist by name where they have one. A title is read by a person, and
+    // a tz1 tells them nothing about who made this.
+    const artist = piece.artist
+        ? ((await resolveName(piece.artist).catch(() => null)) ?? shortAddress(piece.artist))
+        : null;
+
+    // The root template appends " · Aleatory", so this is the whole title:
+    //   Drift #4 by skllzrmy.tez · Aleatory
+    const byline = artist ? `${piece.name} by ${artist}` : piece.name;
+    const title = `${byline} · ${BRAND.name}`;
     const description = piece.description || BRAND.description;
     const images = piece.imageUrl ? [{ url: piece.imageUrl }] : undefined;
 
     return {
-        title: piece.name,
+        title: byline,
         description,
         alternates: { canonical: `/piece/${contract}/${tokenId}` },
-        openGraph: { title, description, images },
+        openGraph: { type: "article", siteName: BRAND.name, title, description, images },
         // Without this X falls back to the small card, which crops a square
         // image to a thumbnail and wastes the only thing worth showing.
         twitter: {

@@ -317,6 +317,20 @@ console.log("\nSEO and accessibility");
         );
     }
 
+    // A title is read by a person. "Drift #4 · Aleatory" does not say who made
+    // it, and a tz1 would not either.
+    const piecePage = readFileSync("src/app/piece/[contract]/[tokenId]/page.tsx", "utf8");
+    check(
+        "a piece is titled by its artist",
+        /\$\{piece\.name\} by \$\{artist\}/.test(piecePage),
+        "the root template appends the site name, so this is name by artist",
+    );
+    check(
+        "the artist is resolved to a name",
+        piecePage.includes("resolveName(piece.artist)"),
+        "an address in a title tells a reader nothing",
+    );
+
     check("there is a sitemap", existsSync("src/app/sitemap.ts"));
     check("there is a robots policy", existsSync("src/app/robots.ts"));
     check("there is a fallback share card", existsSync("src/app/opengraph-image.tsx"));
