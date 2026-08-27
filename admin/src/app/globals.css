@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Dark only: a colour meaning "something is wrong" should look the same every
+ * time. Bare RGB channels so Tailwind can reach inside for `bg-warn/10`.
+ *
+ * Every pair clears WCAG 2.2 AA on the surface it sits on, 4.5:1 for text and
+ * 3:1 for borders. Ratios noted are measured.
+ */
+:root {
+    --base: 13 15 18; /* #0d0f12 */
+    --sunk: 22 25 30; /* #16191e */
+    /* 3.49:1 on --base and 3.21:1 on --sunk. Both ends of that range have to
+       clear 3:1 because cards sit on a blend of the two. */
+    --line: 96 106 118; /* #606a76 */
+    --fg: 233 236 240; /* #e9ecf0, 16.20:1 */
+    --dim: 163 173 184; /* #a3adb8, 8.43:1 */
+    --ok: 74 222 128; /* #4ade80, 11.01:1 */
+    --warn: 251 191 36; /* #fbbf24, 11.50:1 */
+    --bad: 252 165 165; /* #fca5a5, 10.11:1 */
+}
+
+html {
+    color-scheme: dark;
+}
+
+body {
+    background: rgb(var(--base));
+    color: rgb(var(--fg));
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@layer components {
+    .btn {
+        @apply rounded border border-line px-3 py-1.5 text-sm text-fg transition-colors;
+        @apply hover:bg-sunk disabled:cursor-not-allowed disabled:opacity-50;
+    }
+
+    /* The one that does the thing, as opposed to the one that cancels it. */
+    .btn-go {
+        @apply border-warn/60 bg-warn/10;
+    }
+
+    .card {
+        @apply rounded-lg border border-line bg-sunk/40 p-4;
+    }
+
+    .label {
+        @apply text-xs uppercase tracking-wide text-dim;
+    }
+
+    .num {
+        @apply font-mono text-lg tabular-nums;
+    }
+}
+
+/* 2.4.7 Focus Visible. Never removed, never relying on colour alone. */
+:focus-visible {
+    outline: 2px solid rgb(var(--warn));
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

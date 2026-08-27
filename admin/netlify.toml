@@ -1,0 +1,13 @@
+# The third site in this repo, after the public app at the root and the
+# isolate. Create it on Netlify pointed at this repository with the base
+# directory set to `admin`, which builds from here and ignores the root config.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Headers live in next.config.ts. A browser enforces the intersection of two
+# CSPs, so a second source here wins silently wherever it is stricter.

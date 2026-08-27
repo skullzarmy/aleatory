@@ -17,6 +17,7 @@ contract/__pycache__/
 # appeared on its own is litter and stays invisible.
 contract/output/
 /*/
+!/admin/
 !/contract/
 !/docs/
 !/isolate/
@@ -34,6 +35,7 @@ contract/build/
 .next/
 next-env.d.ts
 out/
+tsconfig.tsbuildinfo
 
 # Local Netlify folder
 .netlify

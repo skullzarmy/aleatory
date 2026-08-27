@@ -1,0 +1,30 @@
+{
+    "name": "aleatory-admin",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Operator console for Aleatory. Deployed separately from the public site.",
+    "scripts": {
+        "dev": "next dev --port 3100",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint",
+        "test": "npx tsx --env-file-if-exists=.env src/lib/ops.test.ts"
+    },
+    "dependencies": {
+        "@taquito/taquito": "^25.0.0",
+        "@tezos-x/octez.connect-sdk": "^5.0.3",
+        "next": "^15.5.24",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^22.10.5",
+        "@types/react": "^19.0.7",
+        "@types/react-dom": "^19.0.3",
+        "autoprefixer": "^10.4.20",
+        "postcss": "^8.5.1",
+        "tailwindcss": "^3.4.1",
+        "tsx": "^4.19.2",
+        "typescript": "^5.6.3"
+    }
+}
