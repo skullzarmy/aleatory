@@ -250,6 +250,36 @@ console.log("\nLibraries");
     );
 }
 
+console.log("\nDrafts survive being saved");
+{
+    // A write used to resolve on request.onsuccess, which fires when the
+    // request succeeded and not when the transaction committed. A save could
+    // resolve, the transaction could abort a moment later, and the draft was
+    // gone while the studio said "Saved in this browser". Found by @webid
+    // in PR #1.
+    const draft = readFileSync("src/lib/draft.ts", "utf8");
+    check(
+        "a write resolves on the transaction, not the request",
+        /transaction\.oncomplete/.test(draft) && /mode !== "readonly"/.test(draft),
+        "onsuccess fires before the commit, so it can report a save that never landed",
+    );
+    check(
+        "an aborted transaction rejects",
+        draft.includes("transaction.onabort"),
+        "otherwise a quota failure looks like success",
+    );
+    check(
+        "the connection is dropped when a transaction fails",
+        /connection = null/.test(draft),
+        "a failed transaction can leave the connection unusable",
+    );
+    check(
+        "one connection, reused",
+        draft.includes("if (connection) return connection"),
+        "opening per call is a handshake per keystroke once autosave runs",
+    );
+}
+
 console.log("\nPages keep themselves current");
 {
     // Every page here is server rendered on a revalidate timer, which makes

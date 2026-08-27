@@ -31,8 +31,19 @@ export interface Draft {
     updatedAt: number;
 }
 
+/**
+ * One connection, reused.
+ *
+ * Opening per call is a handshake per keystroke once autosave is running, and
+ * a connection left open across a version change blocks the upgrade for every
+ * other tab. Dropped on `versionchange` so the next call opens cleanly.
+ */
+let connection: Promise<IDBDatabase> | null = null;
+
 function open(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
+    if (connection) return connection;
+
+    connection = new Promise<IDBDatabase>((resolve, reject) => {
         const req = indexedDB.open(DB, VERSION);
         req.onupgradeneeded = () => {
             const db = req.result;
@@ -40,17 +51,70 @@ function open(): Promise<IDBDatabase> {
                 db.createObjectStore(STORE, { keyPath: "id" });
             }
         };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            const db = req.result;
+            db.onversionchange = () => {
+                db.close();
+                connection = null;
+            };
+            resolve(db);
+        };
+        req.onerror = () => {
+            connection = null;
+            reject(req.error ?? new Error("This browser refused to open its draft store."));
+        };
+        req.onblocked = () => {
+            connection = null;
+            reject(new Error("Another tab is holding the draft store open."));
+        };
     });
+
+    return connection;
 }
 
+/**
+ * One transaction, resolved when it has actually happened.
+ *
+ * A write used to resolve on `request.onsuccess`, which fires when the request
+ * succeeded and *not* when the transaction committed. A save could resolve,
+ * the transaction could abort a moment later, and the draft was gone while the
+ * studio said "Saved in this browser". A write resolves on `oncomplete` now,
+ * which is the only event that means it is on disk.
+ *
+ * Reads still resolve on the request, because there is nothing to commit and
+ * waiting for the transaction would only add a tick.
+ *
+ * Found by @webid in #1.
+ */
 async function tx<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
     const db = await open();
     return new Promise<T>((resolve, reject) => {
-        const request = fn(db.transaction(STORE, mode).objectStore(STORE));
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+        try {
+            const transaction = db.transaction(STORE, mode);
+            const request = fn(transaction.objectStore(STORE));
+
+            let result: T;
+            request.onsuccess = () => {
+                result = request.result;
+                if (mode === "readonly") resolve(result);
+            };
+            request.onerror = () =>
+                reject(request.error ?? new Error("That draft could not be read or written."));
+
+            transaction.oncomplete = () => {
+                if (mode !== "readonly") resolve(result);
+            };
+            const fail = (why: string) => () => {
+                // A failed transaction can leave the connection unusable.
+                connection = null;
+                reject(transaction.error ?? new Error(why));
+            };
+            transaction.onerror = fail("That draft could not be saved.");
+            transaction.onabort = fail("Saving that draft was interrupted.");
+        } catch (err) {
+            connection = null;
+            reject(err);
+        }
     });
 }
 
