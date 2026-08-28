@@ -103,6 +103,16 @@ export default function NewGeneratorPage() {
                 >
                     Start from a template
                 </button>
+                {/* The same file the button above starts from, for anyone who
+                    would rather work in their own editor. It carries the dev
+                    harness inline, so opening it from disk draws it. */}
+                <a
+                    href={`/templates/${RUNTIME_KINDS.find((k) => k.kindId === kindId)?.name ?? "vanilla"}/index.html`}
+                    download
+                    className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
+                >
+                    Download it instead
+                </a>
                 <button
                     type="button"
                     disabled={busy}

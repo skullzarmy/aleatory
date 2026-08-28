@@ -2,7 +2,7 @@
     "name": "aleatory",
     "version": "0.1.0",
     "private": true,
-  "license": "Unlicense",
+    "license": "Unlicense",
     "description": "Fully on-chain generative art on Tezos",
     "scripts": {
         "dev": "next dev --turbopack",
@@ -25,7 +25,9 @@
         "provider:setup": "npx tsx scripts/provider-setup.mts",
         "provider:check": "PROVIDER_DRY=1 npx tsx scripts/provider-run.mts",
         "provider:retry": "npx tsx scripts/provider-retry.mts",
-        "provider:daemon": "npx tsx scripts/provider-daemon.mts"
+        "provider:daemon": "npx tsx scripts/provider-daemon.mts",
+        "templates:build": "node scripts/build-templates.mjs",
+        "prebuild": "node scripts/build-templates.mjs"
     },
     "dependencies": {
         "@codemirror/lang-html": "^6.4.12",
