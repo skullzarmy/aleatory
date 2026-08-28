@@ -55,6 +55,9 @@ was done.
 
 Anything a template declares in `<meta name="alea:library">` is fetched and
 hash-verified before it runs. Declared libraries are not bundled into your
-file, which is what keeps a p5 piece small enough to fit on chain.
+file, which is what keeps a p5 piece small enough to fit on chain. You can
+declare `p5@1.5.0` and `three@0.160.1`; anything else has to be bundled, and
+[libraries.md](../../docs/libraries.md) says why and how.
 
-The full contract is [ALEATORY-001](../../src/app/docs/interface).
+Declaring a library is explained in full in [libraries.md](../../docs/libraries.md).
+The whole contract is [ALEATORY-001](../../docs/interface.md).

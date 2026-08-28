@@ -159,6 +159,46 @@ function auditLibraries() {
     );
 }
 
+/**
+ * The documentation, against what is actually declarable.
+ *
+ * A list of libraries in prose goes stale the moment one is added, and an
+ * artist reading it declares something that cannot load. The doc has to name
+ * exactly the catalogue.
+ */
+function auditDocs() {
+    console.log("\nDocumentation (§1)\n");
+
+    const doc = read("docs/libraries.md");
+    for (const dep of CATALOGUE) {
+        const coordinate = `${dep.id}@${dep.version}`;
+        check(
+            `libraries.md lists ${coordinate}`,
+            doc.includes(coordinate),
+            "declarable but undocumented, so nobody knows they can use it",
+        );
+    }
+
+    // The reverse: nothing promised that cannot be delivered.
+    const promised = [...doc.matchAll(/`([a-z0-9@._/-]+@[0-9][0-9a-z.-]*)`/gi)].map(
+        (m) => m[1],
+    );
+    const real = new Set(CATALOGUE.map((d) => `${d.id}@${d.version}`));
+    for (const coordinate of new Set(promised)) {
+        check(
+            `libraries.md does not promise ${coordinate} falsely`,
+            real.has(coordinate),
+            "documented but not in the catalogue, so declaring it fails",
+        );
+    }
+
+    check(
+        "the kit server refuses what the catalogue does not have",
+        /cannot be declared/.test(read("scripts/kit/serve.mjs")),
+        "a local preview that loads what the platform cannot is a trap",
+    );
+}
+
 /** §7 conformance, and §5: a piece must not reach the network while rendering. */
 function auditIsolation() {
     console.log("\nIsolation (§5, §7)\n");
@@ -183,6 +223,7 @@ function auditIsolation() {
 console.log("ALEATORY-001 conformance");
 auditHarnesses();
 auditLibraries();
+auditDocs();
 auditIsolation();
 
 console.log(

@@ -109,6 +109,11 @@ able to harm only itself.
 A library that is not on a public registry has no independent authority behind
 it, so it belongs inside the document.
 
+This section specifies the mechanism. [libraries.md](libraries.md) is the same
+thing for the person writing a generator: which libraries can be declared
+today, what happens at each stage, and what to do when the one you want is not
+among them.
+
 ---
 
 ## 2. Token metadata

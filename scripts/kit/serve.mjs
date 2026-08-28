@@ -36,16 +36,22 @@ const PORT = Number(portArg !== -1 ? args[portArg + 1] : process.env.PORT || 432
  * Where a declared library is fetched from for local work.
  *
  * Generated from the same catalogue the platform uses, so the version you
- * develop against is the version that renders. A library not listed here falls
- * back to jsDelivr's own guess at the package's browser build, which usually
- * works and is not guaranteed to.
+ * develop against is the version that renders, and a library the platform
+ * cannot load does not load here either.
  */
 const LIBRARIES = __LIBRARIES__;
 
+/**
+ * Only what the platform can also load.
+ *
+ * Guessing at a package's browser build would make an undeclarable library
+ * work here and fail everywhere else, and the artist would find that out in
+ * the studio after building on it. Failing the same way in both places is
+ * worth more than a preview that flatters.
+ */
 function sourceFor(coordinate) {
     const known = LIBRARIES[coordinate];
-    if (known) return `https://cdn.jsdelivr.net/npm/${coordinate}/${known}`;
-    return `https://cdn.jsdelivr.net/npm/${coordinate}`;
+    return known ? `https://cdn.jsdelivr.net/npm/${coordinate}/${known}` : null;
 }
 
 const TAG = /<meta\s+[^>]*name\s*=\s*["']alea:library["'][^>]*>/gi;
@@ -70,7 +76,18 @@ function withLibraries(html) {
     const declared = declaredIn(html);
     if (declared.length === 0) return { html, declared };
 
+    const missing = declared.filter((c) => !sourceFor(c));
+    if (missing.length > 0) {
+        console.log(
+            `\n  ! ${missing.join(", ")} cannot be declared: not in the catalogue.\n` +
+                `    Nothing will load it here or on the platform. Bundle it into\n` +
+                `    index.html instead, or drop the tag.\n` +
+                `    Declarable today: ${Object.keys(LIBRARIES).join(", ")}\n`,
+        );
+    }
+
     const tags = declared
+        .filter((c) => sourceFor(c))
         .map((c) => `  <script src="${sourceFor(c)}"></script>`)
         .join("\n");
 

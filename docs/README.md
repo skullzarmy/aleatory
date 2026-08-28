@@ -25,6 +25,7 @@ Read in this order.
 | **[architecture.md](architecture.md)** | The protocol. Contracts, the versioned + typed generator record, seed policies, storage classes, the renderer standard, rescue, indexing. |
 | **[pipeline.md](pipeline.md)** | The artist's path: template → sandbox → mint pipeline → market. What an artist actually touches. |
 | **[interface.md](interface.md)** | ALEATORY-001, the interface a conforming collection implements. |
+| **[libraries.md](libraries.md)** | How a generator declares p5 or three.js instead of carrying a copy: the tag, what is declarable, what happens at each stage, and why the record is a hash rather than a URL. |
 | **[params.md](params.md)** | Declared mint-time parameters, as a spec: the declaration format, the exact resolution rule, where it all sits on chain, and how another platform builds a mint UI for our generators without our source. |
 | **[roadmap.md](roadmap.md)** | v0 lab (no infra, ships now), v1 protocol (leaves home), v2 Tezos X and the multi-runtime bet. |
 | **[identity.md](identity.md)** | How an address becomes a name, a face and a profile, and why we are never the authority behind any of it. |

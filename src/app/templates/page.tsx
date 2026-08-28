@@ -119,6 +119,15 @@ node serve.mjs        # then open http://localhost:4321`}</Code>
                 fetches is captured as a blank frame, and you find out after minting, when
                 the piece can no longer be changed.
             </P>
+            <P>
+                You can declare p5 and three.js today, and anything else has to be bundled
+                into your file.{" "}
+                <Link href="/docs/libraries" className="underline hover:text-foreground">
+                    Libraries
+                </Link>{" "}
+                covers what is available, what happens at each stage, and how a library
+                gets added.
+            </P>
 
             <H>The kits</H>
             <div className="mt-4 space-y-4">

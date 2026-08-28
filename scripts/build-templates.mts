@@ -149,7 +149,9 @@ while rendering is refused the network, and the capture is of a blank frame.
 Drag \`index.html\` into the studio at https://aleatory.art/studio, or paste
 it in. Nothing about it needs changing first.
 
-The full interface is at https://aleatory.art/docs/interface.
+Declaring a library is explained in full at
+https://aleatory.art/docs/libraries, and the whole interface at
+https://aleatory.art/docs/interface.
 `;
 }
 

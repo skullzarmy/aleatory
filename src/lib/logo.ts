@@ -441,6 +441,18 @@ export function renderLogo(options: LogoOptions = {}): string {
     } = options;
 
     const rand = makeRandom(seed);
+
+    // Element ids are document-wide, and a page may hold more than one mark.
+    // Two logos both defining `s0` means the second one's `<use href="#s0">`
+    // resolves to the first one's path, because getElementById returns the
+    // first match in document order. The second mark then draws the first
+    // mark's geometry where the ids happen to line up, and nothing at all
+    // where they do not, which reads as a logo that has lost most of itself.
+    //
+    // Derived from the seed rather than a counter, so the server and the
+    // browser produce the same markup. Two marks sharing a seed still collide,
+    // and are identical, so the collision is invisible.
+    const uid = xmur3(seed)().toString(36);
     const R = 100;
     const strokes = buildStrokes(rand, fold, R, detail);
     const step = TAU / fold;
@@ -449,7 +461,7 @@ export function renderLogo(options: LogoOptions = {}): string {
     const uses: string[] = [];
 
     strokes.forEach((s0, i) => {
-        const id = `s${i}`;
+        const id = `${uid}s${i}`;
         defs.push(
             `<path id="${id}" d="${s0.d}" stroke-width="${s0.width}" opacity="${s0.opacity}"/>`,
         );
