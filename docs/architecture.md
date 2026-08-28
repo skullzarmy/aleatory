@@ -1,13 +1,19 @@
 # Architecture
 
-How Aleatory fits together, and why each part is shaped the way it is.
+A piece is code plus a seed. The code is a generator stored in contract
+storage, immutable from the moment it is published. The seed is the hash of the
+operation that minted the piece, so it is fixed at purchase and chosen by
+nobody. Everything below follows from wanting those two facts to hold without
+anyone's cooperation, including ours.
 
-The front end is disposable and the protocol is the platform. This document is
-what that means in contracts. [ALEATORY-001](interface.md) is the normative
-version for anyone building against it without this source; this one explains
-the reasoning behind it.
+Six contracts hold the state, a render provider turns a piece into an image,
+and a website reads all of it. Only the first of those three is load-bearing:
+the provider is a role anyone can fill, and the website is one client among
+however many exist.
 
-Running on shadownet. Not on mainnet.
+[ALEATORY-001](interface.md) specifies the interface normatively, for building
+against without this source. This document is the reasoning behind it: what
+each part owns, what it cannot do, and why the boundaries are where they are.
 
 ---
 
@@ -259,7 +265,7 @@ An optional platform share is a recipient row that starts absent, an explicit, u
 
 ### Implementation status
 
-`contract/aleatory.py` implements the factory, collection, resolver, router, registry and provider contracts, with tests. Deployed on shadownet; not on mainnet.
+`contract/aleatory.py` implements the factory, collection, resolver, router, registry and provider contracts, with tests.
 
 ---
 
@@ -392,7 +398,9 @@ Brand strings live in one module, so a fork is a one-file change.
 
 **One hard constraint: generator code never renders on the app's own origin.** Artist JavaScript is untrusted, it runs in every visitor's browser, and same-origin would give it reach into wallet state and session storage. Artifacts are served from a separate host in a sandboxed frame, the arrangement fxhash uses, and a DNS decision far cheaper to make before the first piece renders than after.
 
-That host is `provider.aleatory.art`, and it belongs to the provider stack: it is the same harness `netlify/functions/lib/render.mts` uses to capture the image that goes on chain, serving live to a browser instead of headless. It renders a piece that is already minted, addressed by CID. It is not a sandbox, and calling it one obscured for a while that there was no sandbox: a sandbox is where an artist builds and iterates before minting.
+That host belongs to the provider stack: it is the same harness `netlify/functions/lib/render.mts` uses to capture the image that goes on chain, serving live to a browser instead of headless. It renders a piece that is already minted, addressed by CID. Which host it is, is deployment; that it is a different origin from the app, is architecture.
+
+It is not a sandbox, and calling it one obscured for a while that there was no sandbox: a sandbox is where an artist builds and iterates before minting.
 
 Wallet connection is octez.connect, the Beacon successor.
 

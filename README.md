@@ -71,7 +71,7 @@ Each directory has its own README explaining what it holds and why.
 
 | You are | Start at |
 |---|---|
-| Making a generator | [Starter kits](https://shadownet.aleatory.art/templates), then [libraries.md](docs/libraries.md) |
+| Making a generator | [Starter kits](public/templates/), then [libraries.md](docs/libraries.md) |
 | Building a front end for these tokens | [ALEATORY-001](docs/interface.md) |
 | Running a render provider | [provider.md](docs/provider.md) |
 | Understanding how it fits together | [architecture.md](docs/architecture.md) |
