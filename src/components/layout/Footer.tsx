@@ -20,6 +20,12 @@ export function Footer() {
                     <Link href="/docs/interface" className="hover:text-foreground">
                         ALEATORY-001
                     </Link>
+                    <Link href="/tezos" className="hover:text-foreground">
+                        New to Tezos
+                    </Link>
+                    <Link href="/terms" className="hover:text-foreground">
+                        Terms
+                    </Link>
                     <Link href="/terms/privacy" className="hover:text-foreground">
                         Privacy
                     </Link>

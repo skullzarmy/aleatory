@@ -2,6 +2,7 @@
     "name": "aleatory",
     "version": "0.1.0",
     "private": true,
+  "license": "Unlicense",
     "description": "Fully on-chain generative art on Tezos",
     "scripts": {
         "dev": "next dev --turbopack",
