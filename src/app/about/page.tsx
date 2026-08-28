@@ -17,8 +17,13 @@ export const metadata: Metadata = {
  * the front of it, and saying so places the work in a lineage rather than
  * treating randomness as a novelty the chain invented.
  *
- * Then answered in the order people actually ask: what happens when you buy,
+ * Then answered in the order people actually ask: what happens when you mint,
  * what it costs, who decides, and what survives us.
+ *
+ * Reaches for print vocabulary where there is a choice. "Mint" stays, because
+ * Art Blocks and fxhash have already taught it to everyone who makes this kind
+ * of work. What goes is the wallet vocabulary underneath it: a signature is an
+ * approval, a storage fee is a fee.
  */
 export default function AboutPage() {
     return (
@@ -27,22 +32,29 @@ export default function AboutPage() {
 
             <p className="mt-8 text-base leading-relaxed text-muted-foreground">
                 A generator is code, published once and never changed. A piece is that code
-                plus a seed, and the seed comes from the moment somebody chose to buy it.
+                plus a seed, and the seed comes from the moment somebody chose to mint it.
                 Nobody picks it: not the artist, not us.
             </p>
 
-            <Section title="Buying">
+            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                One generator yields an edition the way one plate yields prints. The
+                difference is that no two impressions are alike, and the artist cannot know
+                what any of them look like before they exist.
+            </p>
+
+            <Section title="Minting">
                 <p>
-                    One signature and the piece is yours, before the image exists. A render
-                    provider draws it afterwards. Until that lands your piece runs live in
-                    your browser, which is the artwork itself and not a placeholder for it.
+                    Minting is one approval, and the piece is yours before its image exists.
+                    A render provider draws it afterwards. Until that arrives your piece runs
+                    live in your browser, which is the artwork itself and not a placeholder
+                    for it.
                 </p>
             </Section>
 
             <Section title="Costs">
                 <p>
-                    Publishing costs a one-off storage fee, usually well under a dollar, and
-                    the studio prices your actual file before you commit to anything.
+                    Publishing a generator costs a one-off fee, usually well under a dollar,
+                    and the studio prices your actual file before you commit to anything.
                 </p>
                 <p>
                     Minting costs the artist&rsquo;s price plus a small fee to whoever renders

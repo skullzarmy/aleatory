@@ -8,7 +8,7 @@ export const BRAND = {
     name: "Aleatory",
     tagline: "Fully on-chain generative art on Tezos",
     description:
-        "A generator is code, published once and immutable. A piece is that code plus a seed bound to the operation that bought it.",
+        "A generator is code, published once and never changed. A piece is that code plus a seed, fixed at the moment it was minted.",
     url: process.env.NEXT_PUBLIC_SITE_URL || "https://aleatory.art",
     repo: "https://github.com/skullzarmy/aleatory",
 } as const;
