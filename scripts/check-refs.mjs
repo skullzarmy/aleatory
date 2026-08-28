@@ -1,0 +1,62 @@
+/**
+ * Every file path and npm script named in the docs, checked against the repo.
+ *
+ * Docs rot silently. A renamed script or a moved module leaves prose that
+ * still reads fine and sends somebody to a command that does not exist, which
+ * is worse than saying nothing, because they assume the fault is theirs.
+ *
+ * Shorthand is allowed. Docs write `studio/Workspace.tsx` for a file whose
+ * full path is `src/components/studio/Workspace.tsx`, and that is clearer in a
+ * sentence, so a path counts as real when it is the tail of a tracked file.
+ */
+
+import { readFileSync, existsSync } from "node:fs";
+import { execSync } from "node:child_process";
+
+const tracked = execSync("git ls-files", { encoding: "utf8" }).trim().split("\n");
+const scripts = new Set(Object.keys(JSON.parse(readFileSync("package.json", "utf8")).scripts));
+
+// Point-in-time records. An audit describes the tree as it was, and correcting
+// its paths later would make it describe a tree nobody audited.
+const HISTORICAL = new Set(["third-party-audit.md", "docs/audit-response.md", "docs/audit-ui.md"]);
+
+const docs = execSync("git ls-files '*.md'", { encoding: "utf8" })
+    .trim()
+    .split("\n")
+    .filter((f) => !HISTORICAL.has(f));
+
+const isReal = (p) =>
+    existsSync(p) || tracked.some((t) => t === p || t.endsWith(`/${p}`));
+
+let bad = 0;
+
+for (const doc of docs) {
+    const src = readFileSync(doc, "utf8");
+
+    for (const m of src.matchAll(
+        /`([a-zA-Z0-9_./[\]-]+\.(?:ts|tsx|mts|mjs|js|py|json|html|yml))`/g,
+    )) {
+        const path = m[1];
+        // A path inside a published npm package is not a path in this repo.
+        if (!path.includes("/") || path.startsWith(".")) continue;
+        if (/^(lib|dist|build|package)\//.test(path)) continue;
+        if (!isReal(path)) {
+            bad++;
+            console.log(`MISSING FILE    ${doc}: ${path}`);
+        }
+    }
+
+    for (const m of src.matchAll(/npm run ([a-z0-9:_-]+)/g)) {
+        if (!scripts.has(m[1])) {
+            bad++;
+            console.log(`MISSING SCRIPT  ${doc}: npm run ${m[1]}`);
+        }
+    }
+}
+
+console.log(
+    bad === 0
+        ? "every file and script the docs name exists"
+        : `\n${bad} dead reference(s)`,
+);
+process.exit(bad === 0 ? 0 : 1);

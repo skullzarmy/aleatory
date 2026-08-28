@@ -2,7 +2,7 @@
 
 A starting point for each runtime kind Aleatory supports. These are the files
 the studio starts you from, and they are the source: the studio imports what
-`scripts/build-templates.mjs` generates from this directory, so editing one
+`scripts/build-templates.mts` generates from this directory, so editing one
 here changes what everybody gets.
 
 | Kind | Needs | Start here if |

@@ -193,15 +193,21 @@ Rules a conforming collection enforces:
 
 ## 5. Being a provider
 
-A provider is any contract exposing two views:
+A provider is any contract exposing three views:
 
 ```
 get_render_gas() -> mutez     price per piece
 get_agent()      -> address   the key that calls set_token_metadata
+get_operator()   -> address   who may deregister it
 ```
 
 That is the entire membership test. Deploy one, list it in the registry for
 free, and set your own price.
+
+The third is asked at registration, not only at deregistration, so that an
+entry nobody could ever remove cannot be created. A contract answering the
+first two would otherwise list itself and stay listed for good, because
+deregistering has nothing to ask about who is allowed to do it.
 
 The contract has to be able to receive tez, since a collection pays it on
 every mint.

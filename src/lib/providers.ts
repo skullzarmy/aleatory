@@ -1,8 +1,8 @@
 /**
  * Render providers, and how they are ranked.
  *
- * A provider is any contract exposing `get_render_gas` and `get_agent`.
- * Anyone can deploy one and list it in the registry, for free.
+ * A provider is any contract exposing `get_render_gas`, `get_agent` and
+ * `get_operator`. Anyone can deploy one and list it in the registry, for free.
  *
  * The ranking is computed from events every provider produces by working:
  * pieces published, how long each took, how many are still waiting. The

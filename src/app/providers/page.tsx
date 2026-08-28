@@ -13,7 +13,7 @@ import { Avatar } from "@/components/account/Avatar";
 export const metadata: Metadata = {
     title: "Render providers",
     alternates: { canonical: "/providers" },
-    openGraph: { type: "website", title: "Render providers", description: "Anyone can run one. The membership test is two views on a contract." },
+    openGraph: { type: "website", title: "Render providers", description: "Anyone can run one. The membership test is three views on a contract." },
 };
 export const revalidate = 300;
 

@@ -83,7 +83,7 @@ clamp to [min,max]; snap to the step grid from min; unknown keys dropped;
 missing or unresolvable values fall back to default
 ```
 
-Reference implementation: `src/lib/aleatory/params.ts`, `resolveParams`.
+Reference implementation: `src/lib/params.ts`, `resolveParams`.
 
 ### Canonical encoding
 

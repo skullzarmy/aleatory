@@ -209,6 +209,36 @@ function auditDocs() {
         );
     }
 
+    // The membership test, from the contract that enforces it.
+    //
+    // The spec said two views for as long as the registry asked for three, so
+    // anyone implementing section 5 literally built a contract that register
+    // rejects with NOT_A_PROVIDER. The spec is the document strangers build
+    // against, which makes it the worst place for this to be wrong.
+    {
+        const contract = read("contract/aleatory.py");
+        const register = contract.slice(
+            contract.indexOf("def register(self, provider)"),
+            contract.indexOf("def deregister(self, provider)"),
+        );
+        const required = [...register.matchAll(/sp\.view\(\s*\n?\s*"([a-z_]+)"/g)].map(
+            (m) => m[1],
+        );
+
+        check("register asks for views at all", required.length > 0, "parser found none");
+
+        for (const doc of ["docs/interface.md", "docs/provider.md"]) {
+            const text = read(doc);
+            for (const view of required) {
+                check(
+                    `${doc} names ${view}, which register requires`,
+                    text.includes(view),
+                    "a provider built from this document would fail to register",
+                );
+            }
+        }
+    }
+
     check(
         "the kit server refuses what the catalogue does not have",
         /cannot be declared/.test(read("scripts/kit/serve.mjs")),
