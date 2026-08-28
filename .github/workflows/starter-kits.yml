@@ -1,0 +1,72 @@
+name: Starter kits
+
+# The kits artists download, built from the templates in this repository and
+# published as release assets so every kind has a permanent link:
+#
+#   https://github.com/skullzarmy/aleatory/releases/latest/download/p5.zip
+#
+# A rolling release rather than one per tag. The kit is not versioned software,
+# it is the current starting point, and a link that has to be updated when it
+# moves is a link that goes stale in somebody's tutorial.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "public/templates/**"
+      - "scripts/kit/**"
+      - "scripts/lib/zip.mjs"
+      - "scripts/build-templates.mts"
+      - ".github/workflows/starter-kits.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: starter-kits
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the kits
+        run: npx tsx scripts/build-templates.mts
+
+      - name: Check the templates still conform
+        # A kit that does not meet our own standard is worse than no kit, and
+        # this is the last point before it is downloadable.
+        run: npx tsx src/lib/conformance.test.ts
+
+      - name: Show what is being published
+        run: |
+          for f in public/templates/*.zip; do
+            echo "== $f"
+            unzip -l "$f" | tail -n +4 | head -n -2
+          done
+
+      - name: Publish to the rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Recreating the release each time would break the permanent links
+          # for as long as it takes to upload. Edit it in place instead, and
+          # let --clobber replace the assets.
+          if ! gh release view latest >/dev/null 2>&1; then
+            gh release create latest \
+              --title "Starter kits" \
+              --notes "Downloadable starting points for each runtime kind. Built from public/templates on every change to them. See https://aleatory.art/templates." \
+              --latest
+          fi
+          gh release upload latest public/templates/*.zip --clobber

@@ -2,9 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RUNTIME_KINDS } from "@/lib/runtimes";
+import Link from "next/link";
+import { getKind, RUNTIME_KINDS } from "@/lib/runtimes";
 import { templateFor, templateParamsFor } from "@/lib/templates";
 import { packageFromFile, packageFromHtml } from "@/lib/project";
+import { detectKind } from "@/lib/detect";
 import { newDraft, saveDraft } from "@/lib/draft";
 
 /**
@@ -23,6 +25,10 @@ export default function NewGeneratorPage() {
     const [kindId, setKindId] = useState(RUNTIME_KINDS[0].kindId);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // What an uploaded file said about itself, shown rather than applied
+    // quietly. A detected kind that is wrong should be visible and editable,
+    // not discovered later by an artist wondering why the panel looks odd.
+    const [detected, setDetected] = useState<string | null>(null);
 
     async function start(name: string, html: string, params = templateParamsFor(kindId)) {
         setBusy(true);
@@ -42,11 +48,19 @@ export default function NewGeneratorPage() {
         setError(null);
         try {
             const project = await packageFromFile(file);
+
+            // The file already knows what it is. Asking the artist to pick the
+            // kind again on the way back in is asking them to remember a
+            // choice from the way out, and to be punished for misremembering.
+            const guess = detectKind(project.html);
+            setKindId(guess.kindId);
+            setDetected(guess.because);
+
             const draft = newDraft(
                 file.name.replace(/\.(html?|zip)$/i, ""),
-                kindId,
+                guess.kindId,
                 project,
-                templateParamsFor(kindId),
+                templateParamsFor(guess.kindId),
             );
             await saveDraft(draft);
             router.push(`/studio/${draft.id}`);
@@ -63,6 +77,13 @@ export default function NewGeneratorPage() {
                 Pick what your piece is built with. This can&apos;t be changed after you
                 publish.
             </p>
+
+            {detected && (
+                <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                    Read from your file: <strong>{getKind(kindId).label}</strong>, because{" "}
+                    {detected}. Change it below if that is wrong.
+                </p>
+            )}
 
             <fieldset className="mt-6" disabled={busy}>
                 <legend className="sr-only">Runtime kind</legend>
@@ -103,17 +124,16 @@ export default function NewGeneratorPage() {
                 >
                     Start from a template
                 </button>
-                {/* The same generator, as a kit: the file, a readme, and a
-                    local server that loads the declared libraries so nobody
-                    has to write a CDN script tag into a piece that must not
-                    fetch anything when it renders. */}
-                <a
-                    href={`/templates/${RUNTIME_KINDS.find((k) => k.kindId === kindId)?.name ?? "vanilla"}.zip`}
-                    download
+                {/* A link, not a download. The button here used to hand over
+                    whichever file the radio above happened to be on, so one
+                    control produced four different things and named none of
+                    them. */}
+                <Link
+                    href="/templates"
                     className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
                 >
-                    Download the starter kit
-                </a>
+                    Work locally instead
+                </Link>
                 <button
                     type="button"
                     disabled={busy}

@@ -4,6 +4,7 @@ import { BRAND } from "@/lib/config";
 const LINKS = [
     { href: "/about", label: "About" },
     { href: "/tezos", label: "New to Tezos" },
+    { href: "/templates", label: "Starter kits" },
     { href: "/docs/interface", label: "ALEATORY-001" },
     { href: "/terms", label: "Terms" },
     { href: "/terms/privacy", label: "Privacy" },
