@@ -61,6 +61,36 @@ function matchesNetwork(
     return true;
 }
 
+/**
+ * Wait for the SDK's own IndexedDB to finish opening.
+ *
+ * `IndexedDBStorage` starts `initDB()` in its constructor and assigns the
+ * handle in a `.then`, so for the first moments `this.db` is undefined. Its
+ * `transaction()` reads `this.db?.objectStoreNames.contains(name)`, which on
+ * undefined rejects with "<name> not found" and blames a missing object store
+ * for a database that has not opened yet.
+ *
+ * The client sends metrics on `requestPermissions`, and writes to that store
+ * before the check for whether metrics are even enabled, so connecting fast
+ * enough after load rejects a connection over a statistic nobody asked for.
+ *
+ * Retried rather than slept on: it usually passes on the first attempt, and
+ * the bound means a genuinely broken IndexedDB costs a second, not a hang.
+ */
+async function warmStorage(c: DAppClient): Promise<void> {
+    const store = (c as unknown as { beaconIDB?: { getAllKeys?: (s: string) => Promise<unknown> } })
+        .beaconIDB;
+    if (!store?.getAllKeys) return;
+    for (let i = 0; i < 20; i++) {
+        try {
+            await store.getAllKeys("metrics");
+            return;
+        } catch {
+            await new Promise((r) => setTimeout(r, 50));
+        }
+    }
+}
+
 async function getClient(): Promise<DAppClient> {
     if (client) return client;
     const sdk = await loadSDK();
@@ -68,6 +98,7 @@ async function getClient(): Promise<DAppClient> {
     await client.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
         onActiveAccount?.(account && matchesNetwork(account) ? account.address : null);
     });
+    await warmStorage(client);
     return client;
 }
 
@@ -136,9 +167,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 return;
             }
             const sdk = await loadSDK();
-            await c.requestPermissions({
-                scopes: [sdk.PermissionScope.OPERATION_REQUEST],
-            });
+            try {
+                await c.requestPermissions({
+                    scopes: [sdk.PermissionScope.OPERATION_REQUEST],
+                });
+            } catch (e) {
+                // The connection is what matters, so ask the client whether it
+                // has an account before reporting a failure. Some of what this
+                // can reject with is bookkeeping the SDK does alongside the
+                // permission request rather than the request itself.
+                const account = await c.getActiveAccount().catch(() => null);
+                if (!account) throw e;
+            }
             const account = await c.getActiveAccount();
             setAddress(account?.address ?? null);
         } catch (e) {
