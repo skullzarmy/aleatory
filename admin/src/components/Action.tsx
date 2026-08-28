@@ -24,12 +24,10 @@ export function Action({
     holder,
     /** Why this cannot be done right now, if it cannot. */
     unavailable,
-    onDone,
 }: {
     op: AdminOp;
     holder?: string;
     unavailable?: string;
-    onDone?: () => void;
 }) {
     const { address, connect, getClient } = useWallet();
     const [confirming, setConfirming] = useState(false);
@@ -49,7 +47,6 @@ export function Action({
             const { hash } = await signNow(client, op);
             setHash(hash);
             setConfirming(false);
-            onDone?.();
         } catch (e) {
             setError(e instanceof Error ? e.message : "The operation failed");
         } finally {

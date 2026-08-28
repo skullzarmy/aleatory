@@ -9,5 +9,14 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Both ports are moved off the defaults so this can run beside the public site
+# rather than instead of it. Netlify assumes Next is on 3000 and serves its own
+# proxy on 8888, which are the numbers the root site already uses, and without
+# these it waits on port 3000 for a server that is listening on 3100.
+[dev]
+  command = "npm run dev"
+  targetPort = 3100
+  port = 8890
+
 # Headers live in next.config.ts. A browser enforces the intersection of two
 # CSPs, so a second source here wins silently wherever it is stricter.

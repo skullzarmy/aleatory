@@ -208,6 +208,54 @@ export const setFactoryTreasury = (factory: string, treasury: string): AdminOp =
     authority: "admin",
 });
 
+export const setFactoryPaused = (factory: string, paused: boolean): AdminOp => ({
+    label: paused
+        ? "Pause the factory: no new collections can be deployed"
+        : "Resume the factory",
+    to: factory,
+    entrypoint: "set_paused",
+    args: paused,
+    authority: "admin",
+});
+
+export const setDeployPrice = (factory: string, mutez: number): AdminOp => ({
+    label: `Charge ${mutez} mutez to deploy a collection`,
+    to: factory,
+    entrypoint: "set_deploy_price",
+    args: mutez,
+    authority: "admin",
+});
+
+export const setFactoryResolver = (factory: string, resolver: string): AdminOp => ({
+    label: `Point the factory at resolver ${resolver}`,
+    to: factory,
+    entrypoint: "set_resolver",
+    args: resolver,
+    authority: "admin",
+});
+
+// Registry
+
+export const registerProvider = (registry: string, provider: string): AdminOp => ({
+    label: `List ${provider} in the provider registry`,
+    to: registry,
+    entrypoint: "register",
+    args: provider,
+    // The registry asks the provider contract for the views that define one,
+    // so a bad entry cannot land. That is a type check, not an endorsement,
+    // and it needs nobody's permission.
+    authority: "anyone",
+});
+
+export const deregisterProvider = (registry: string, provider: string): AdminOp => ({
+    label: `Remove ${provider} from the provider registry`,
+    to: registry,
+    entrypoint: "deregister",
+    args: provider,
+    // Checked by asking the provider contract itself who its operator is.
+    authority: "operator",
+});
+
 // Provider. The only money here that a signature can misdirect.
 
 export const setRenderGas = (provider: string, mutez: number): AdminOp => ({
@@ -239,6 +287,27 @@ export const setAgent = (provider: string, agent: string): AdminOp => ({
     args: agent,
     authority: "operator",
 });
+
+export const setProviderMetadata = (
+    provider: string,
+    key: string,
+    value: string,
+): AdminOp => ({
+    label: `Set provider metadata ${key || "(empty key)"}`,
+    to: provider,
+    entrypoint: "set_metadata",
+    // The contract stores bytes. TZIP-16 keeps a URI here, so the console
+    // takes text and encodes it rather than asking anyone to type hex.
+    args: { key, value: toHex(value) },
+    authority: "operator",
+});
+
+/** UTF-8 to the hex string Taquito expects for a `bytes` field. */
+export function toHex(text: string): string {
+    return Array.from(new TextEncoder().encode(text))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+}
 
 // Router
 
@@ -312,3 +381,26 @@ export const acceptAdmin = (contract: string): AdminOp => ({
     args: null,
     authority: "proposed",
 });
+
+/**
+ * Setters by name, for the controls that take typed input.
+ *
+ * A server component cannot hand a client component a function, so the page
+ * names the setter and the control looks it up. The alternative is making the
+ * whole dashboard a client component to keep a closure alive, which would pull
+ * every chain read into the browser to avoid passing a string.
+ */
+export const SETTERS = {
+    fee: (to, v) => setFee(to, Number(v)),
+    marketplaceTreasury: (to, v) => setMarketplaceTreasury(to, String(v)),
+    factoryTreasury: (to, v) => setFactoryTreasury(to, String(v)),
+    deployPrice: (to, v) => setDeployPrice(to, Number(v)),
+    factoryResolver: (to, v) => setFactoryResolver(to, String(v)),
+    routerMarketplace: (to, v) => setRouterMarketplace(to, String(v)),
+    routerRegistry: (to, v) => setRouterRegistry(to, String(v)),
+    routerResolver: (to, v) => setRouterResolver(to, String(v)),
+    addFactory: (to, v) => addFactory(to, String(v)),
+    addWriter: (to, v) => addWriter(to, String(v)),
+} satisfies Record<string, (to: string, value: string | number) => AdminOp>;
+
+export type SetterKey = keyof typeof SETTERS;

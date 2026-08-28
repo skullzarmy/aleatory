@@ -125,6 +125,7 @@ interface FactoryStorage {
     administrator: string;
     proposed_admin: string | null;
     treasury: string;
+    resolver: string;
     paused: boolean;
     deploy_price: string;
     fees_accrued: string;
@@ -136,6 +137,8 @@ export interface FactoryState {
     administrator: string;
     proposedAdmin: string | null;
     treasury: string;
+    /** Handed to each new collection. Existing ones keep what they were given. */
+    resolver: string;
     paused: boolean;
     deployPrice: number;
     feesAccrued: number;
@@ -156,6 +159,7 @@ export async function fetchFactory(address: string): Promise<FactoryState | null
         administrator: storage.administrator,
         proposedAdmin: storage.proposed_admin,
         treasury: storage.treasury,
+        resolver: storage.resolver,
         paused: storage.paused,
         deployPrice: Number(storage.deploy_price),
         feesAccrued,

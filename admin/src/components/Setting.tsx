@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Action } from "./Action";
-import type { AdminOp } from "@/lib/ops";
+import { SETTERS, type SetterKey } from "@/lib/ops";
 import { bps as fmtBps, tez } from "@/lib/format";
 
 const ADDRESS = /^(tz1|tz2|tz3|KT1)[1-9A-HJ-NP-Za-km-z]{33}$/;
@@ -41,7 +41,8 @@ export function Setting({
     kind,
     current,
     holder,
-    build,
+    setter,
+    contract,
     placeholder,
 }: {
     label: string;
@@ -51,7 +52,9 @@ export function Setting({
     current: string | number;
     /** The address the chain requires for the change. */
     holder: string;
-    build: (value: string | number) => AdminOp;
+    setter: SetterKey;
+    /** The contract to act on. */
+    contract: string;
     placeholder?: string;
 }) {
     const [raw, setRaw] = useState("");
@@ -94,7 +97,7 @@ export function Setting({
                 </p>
             )}
 
-            {changed && <Action op={build(value)} holder={holder} />}
+            {changed && <Action op={SETTERS[setter](contract, value)} holder={holder} />}
         </div>
     );
 }
@@ -109,12 +112,14 @@ export function AddToList({
     label,
     help,
     holder,
-    build,
+    setter,
+    contract,
 }: {
     label: string;
     help?: string;
     holder: string;
-    build: (address: string) => AdminOp;
+    setter: SetterKey;
+    contract: string;
 }) {
     const [raw, setRaw] = useState("");
     const address = raw.trim();
@@ -135,7 +140,7 @@ export function AddToList({
                     onChange={(e) => setRaw(e.target.value)}
                 />
             </label>
-            {valid && <Action op={build(address)} holder={holder} />}
+            {valid && <Action op={SETTERS[setter](contract, address)} holder={holder} />}
         </div>
     );
 }

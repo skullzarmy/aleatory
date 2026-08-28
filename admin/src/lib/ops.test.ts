@@ -37,9 +37,15 @@ import {
     setMarketplacePaused,
     setMarketplaceTreasury,
     setRenderGas,
+    setDeployPrice,
+    setFactoryPaused,
+    setFactoryResolver,
+    setProviderMetadata,
     setRouterMarketplace,
     setRouterRegistry,
     setRouterResolver,
+    registerProvider,
+    deregisterProvider,
     withdrawFactoryFees,
     withdrawMarketplaceFees,
     withdrawRenderGas,
@@ -182,6 +188,12 @@ async function run() {
             ["add_writer", addWriter(resolver, who)],
             ["remove_writer", removeWriter(resolver, who)],
             ["set_agent", setAgent(provider, who)],
+            ["set_paused (factory)", setFactoryPaused(factory, true)],
+            ["set_deploy_price", setDeployPrice(factory, 1_000_000)],
+            ["set_resolver (factory)", setFactoryResolver(factory, resolver)],
+            ["set_metadata", setProviderMetadata(provider, "", "ipfs://x")],
+            ["register", registerProvider(router.registry, provider)],
+            ["deregister", deregisterProvider(router.registry, provider)],
         ] as const) {
             const { entrypoint } = await encode(op);
             check(`${name} encodes`, entrypoint === op.entrypoint, entrypoint);

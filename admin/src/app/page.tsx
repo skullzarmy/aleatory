@@ -3,6 +3,7 @@ import {
     fetchFactory,
     fetchMarketplace,
     fetchProvider,
+    fetchProviderAddresses,
     fetchResolver,
     fetchRouter,
 } from "@/lib/chain";
@@ -13,17 +14,12 @@ import { Action } from "@/components/Action";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { Amount } from "@/components/Amount";
 import {
-    addFactory,
-    addWriter,
     claimRoyalties,
+    deregisterProvider,
+    registerProvider,
     removeWriter,
-    setFactoryTreasury,
-    setFee,
+    setFactoryPaused,
     setMarketplacePaused,
-    setMarketplaceTreasury,
-    setRouterMarketplace,
-    setRouterRegistry,
-    setRouterResolver,
     withdrawFactoryFees,
     withdrawMarketplaceFees,
 } from "@/lib/ops";
@@ -52,6 +48,11 @@ export default async function Dashboard() {
         fetchAgent(ADDRESSES.agent).catch(() => null),
         fetchResolver(router?.resolver || ADDRESSES.resolver).catch(() => null),
     ]);
+
+    const registry = router?.registry || ADDRESSES.registry;
+    const registered = await fetchProviderAddresses(registry)
+        .then((all) => all.includes(ADDRESSES.provider))
+        .catch(() => null);
 
     // Only the contracts that actually answered. A handover control for
     // something that could not be read is a control that cannot be trusted.
@@ -180,7 +181,8 @@ export default async function Dashboard() {
                             kind="bps"
                             current={marketplace.feeBps}
                             holder={marketplace.administrator}
-                            build={(v) => setFee(marketplace.address, Number(v))}
+                            setter="fee"
+                            contract={marketplace.address}
                         />
                         <Setting
                             label="Treasury"
@@ -188,7 +190,8 @@ export default async function Dashboard() {
                             kind="address"
                             current={marketplace.treasury}
                             holder={marketplace.administrator}
-                            build={(v) => setMarketplaceTreasury(marketplace.address, String(v))}
+                            setter="marketplaceTreasury"
+                            contract={marketplace.address}
                         />
                     </div>
 
@@ -253,18 +256,41 @@ export default async function Dashboard() {
                                     : undefined
                             }
                         />
+                        <Action
+                            op={setFactoryPaused(factory.address, !factory.paused)}
+                            holder={factory.administrator}
+                        />
                         <Setting
                             label="Treasury"
                             kind="address"
                             current={factory.treasury}
                             holder={factory.administrator}
-                            build={(v) => setFactoryTreasury(factory.address, String(v))}
+                            setter="factoryTreasury"
+                            contract={factory.address}
+                        />
+                        <Setting
+                            label="Deploy price"
+                            help="What an artist pays to deploy a collection, on top of the storage the chain charges them."
+                            kind="mutez"
+                            current={factory.deployPrice}
+                            holder={factory.administrator}
+                            setter="deployPrice"
+                            contract={factory.address}
+                        />
+                        <Setting
+                            label="Resolver"
+                            help="The resolver new collections are given. Existing ones keep the one they were deployed with."
+                            kind="address"
+                            current={factory.resolver}
+                            holder={factory.administrator}
+                            setter="factoryResolver"
+                            contract={factory.address}
                         />
                     </div>
                 </Card>
             )}
 
-            <ProviderCard provider={provider} />
+            <ProviderCard provider={provider} registry={registry} registered={registered} />
 
             {router && (
                 <Card
@@ -304,28 +330,32 @@ export default async function Dashboard() {
                             label="Add a factory"
                             help="Appends, and the newest becomes the one new deploys use. Nothing is removed, so collections keep resolving through the factory that made them."
                             holder={router.administrator}
-                            build={(a) => addFactory(router.address, a)}
+                            setter="addFactory"
+                            contract={router.address}
                         />
                         <Setting
                             label="Marketplace"
                             kind="address"
                             current={router.marketplace}
                             holder={router.administrator}
-                            build={(v) => setRouterMarketplace(router.address, String(v))}
+                            setter="routerMarketplace"
+                            contract={router.address}
                         />
                         <Setting
                             label="Registry"
                             kind="address"
                             current={router.registry}
                             holder={router.administrator}
-                            build={(v) => setRouterRegistry(router.address, String(v))}
+                            setter="routerRegistry"
+                            contract={router.address}
                         />
                         <Setting
                             label="Resolver"
                             kind="address"
                             current={router.resolver}
                             holder={router.administrator}
-                            build={(v) => setRouterResolver(router.address, String(v))}
+                            setter="routerResolver"
+                            contract={router.address}
                         />
                     </div>
                 </Card>
@@ -368,7 +398,8 @@ export default async function Dashboard() {
                         <AddToList
                             label="Add a writer"
                             holder={resolver.administrator}
-                            build={(a) => addWriter(resolver.address, a)}
+                            setter="addWriter"
+                            contract={resolver.address}
                         />
                     </div>
                 </Card>
@@ -388,8 +419,13 @@ export default async function Dashboard() {
 
 function ProviderCard({
     provider,
+    registry,
+    registered,
 }: {
     provider: Awaited<ReturnType<typeof fetchProvider>>;
+    registry: string;
+    /** null when the registry could not be read, which is not the same as false. */
+    registered: boolean | null;
 }) {
     if (!provider) {
         return (
@@ -445,6 +481,25 @@ function ProviderCard({
                     current={provider.agent}
                     operator={provider.operator}
                 />
+
+                {registry && registered !== null && (
+                    <div className="space-y-2 border-t border-line pt-4">
+                        <p className="label">Registry listing</p>
+                        <p className="text-xs text-dim">
+                            {registered
+                                ? "Listed, so artists can pick this provider."
+                                : "Not listed. Artists cannot pick this provider."}
+                        </p>
+                        <Action
+                            op={
+                                registered
+                                    ? deregisterProvider(registry, provider.address)
+                                    : registerProvider(registry, provider.address)
+                            }
+                            holder={provider.operator}
+                        />
+                    </div>
+                )}
             </div>
         </Card>
     );
