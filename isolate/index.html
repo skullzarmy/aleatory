@@ -36,7 +36,7 @@
  *   render worker   headless, no frame, does its own reads
  *   a third party   implements ALEATORY-001 however they like
  *
- * One executor, so there is one harness on this side. `worker/render.ts` has
+ * One executor, so there is one harness on this side. `netlify/functions/lib/render.mts` has
  * the other, and the two agree by conforming to the spec rather than by
  * sharing a file. When they disagreed on seeding, that was a bug in one of
  * them, not an argument for merging them.
@@ -192,7 +192,7 @@
 
   // xmur3 then sfc32. The seed is a string and is never hex: it derives from a
   // Tezos operation hash, which is base58. Parsing it as hex yields zero for
-  // every word and every piece draws the same picture. worker/render.ts does
+  // every word and every piece draws the same picture. netlify/functions/lib/render.mts does
   // exactly this, and the two have to agree or a piece looks one way here and
   // another in the image that goes on chain.
   function xmur3(str) {
@@ -231,7 +231,7 @@
   Math.random = function () { mathRandomCalls++; return rand(); };
 
   // Frozen clock, so a piece that branches on the date draws the same way in
-  // any year. Matches worker/render.ts.
+  // any year. Matches netlify/functions/lib/render.mts.
   var FIXED = 0;
   var RealDate = Date;
   Date = class extends RealDate {

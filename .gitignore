@@ -44,3 +44,10 @@ public/templates/*.zip
 
 # Local Netlify folder
 .netlify
+
+# Security review, and the response to it. Kept locally, never published: it
+# is a map of what was weak and when, and a public one is a public map.
+/third-party-audit.md
+/docs/audit-response.md
+/docs/audit-ui.md
+/docs/open-questions.md

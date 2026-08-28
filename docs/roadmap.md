@@ -51,7 +51,7 @@ Mainnet contracts, own domain, own repo. This is the version that has to be righ
 
 **The transition out of hack.tez** is a planned exit, not a fork: the labs entry becomes a pointer to the new home, the shared wallet/lib code gets vendored into the new repo, and hack.tez names keep working as artist identity. See §4 below.
 
-**Open at v1:** fee rate, governance structure, and the name. Tracked in [open-questions.md](open-questions.md).
+**Open at v1:** fee rate and governance structure.
 
 ---
 

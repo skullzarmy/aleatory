@@ -34,8 +34,6 @@ Read in this order.
 | **[provider.md](provider.md)** | Running a render provider: the two keys, the queue, retries, determinism. |
 | **[deploying.md](deploying.md)** | Putting it up: the isolate, the site, and keeping the daemon running on Linux, macOS, Windows and Docker. |
 | **[decisions.md](decisions.md)** | The record of what was chosen and what was rejected. |
-| **[audit-response.md](audit-response.md)** | What was fixed, what was not, and why. |
-| **[open-questions.md](open-questions.md)** | What's undecided, what needs fact-checking before publication, and the naming criteria. Read this before quoting anything publicly. |
 
 ---
 
@@ -59,6 +57,5 @@ collection goes up through the factory, a mint fixes the seed, the provider
 daemon draws the piece and writes its metadata, and the gallery rebuilds
 everything from chain state. Mainnet is not deployed. See
 [roadmap.md](roadmap.md) for what is and is not done, and
-[audit-response.md](audit-response.md) for what has to happen first.
 
 The docs came first on purpose: they are what makes this buildable by someone other than the person who wrote it, which is the whole point of the project.

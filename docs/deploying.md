@@ -378,9 +378,9 @@ Every value that differs is an environment variable, with one exception: the
 contracts have to exist.
 
 1. `npx tsx contract/deploy.ts` with four distinct addresses. The script
-   refuses if any two match or if any is the deployer. See
-   [audit-response.md](audit-response.md) for what the admin key holds before
-   deciding where to keep it.
+   refuses if any two match or if any is the deployer. The admin key can pause
+   trading, change the fee and hand administration on, so decide where it
+   lives before running this rather than after.
 2. `NEXT_PUBLIC_TEZOS_NETWORK=mainnet` and the new
    `NEXT_PUBLIC_ROUTER_ADDRESS` on the site.
 3. A provider contract and an agent for mainnet, then the daemon's

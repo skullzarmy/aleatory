@@ -16,14 +16,11 @@ import { execSync } from "node:child_process";
 const tracked = execSync("git ls-files", { encoding: "utf8" }).trim().split("\n");
 const scripts = new Map(Object.entries(JSON.parse(readFileSync("package.json", "utf8")).scripts));
 
-// Point-in-time records. An audit describes the tree as it was, and correcting
-// its paths later would make it describe a tree nobody audited.
-const HISTORICAL = new Set(["third-party-audit.md", "docs/audit-response.md", "docs/audit-ui.md"]);
 
 const docs = execSync("git ls-files '*.md'", { encoding: "utf8" })
     .trim()
     .split("\n")
-    .filter((f) => !HISTORICAL.has(f));
+    ;
 
 const isReal = (p) =>
     existsSync(p) || tracked.some((t) => t === p || t.endsWith(`/${p}`));
