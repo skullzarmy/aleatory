@@ -20,6 +20,9 @@ export function Footer() {
                     <Link href="/docs/interface" className="hover:text-foreground">
                         ALEATORY-001
                     </Link>
+                    <Link href="/terms/privacy" className="hover:text-foreground">
+                        Privacy
+                    </Link>
                     <a href={BRAND.repo} className="hover:text-foreground" rel="noreferrer" target="_blank">
                         Source
                     </a>
