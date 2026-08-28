@@ -53,8 +53,12 @@ export interface DepSpec {
         /** Path inside the published package. */
         path: string;
     };
-    /** Where we serve our verified copy from. Same-origin, so no CDN is trusted. */
-    url: string;
+    /**
+     * A same-origin copy we serve ourselves, tried first because it is one
+     * hop. Optional: without it the library resolves through /api/dep, which
+     * fetches from npm's mirrors and verifies before answering.
+     */
+    url?: string;
     /** Approximate size, for the cost estimate before anything is fetched. */
     approxBytes: number;
     /**
@@ -110,6 +114,45 @@ export const P5_DEP: DepSpec = {
     approxBytes: 898_364,
     hash: "16f48a5a83acb2a5c6d2597097de5c22e9230d4593ea08074372283817154d47",
 };
+
+/**
+ * three.js 0.160.1.
+ *
+ * Derived the same way as p5 and checkable the same way:
+ *
+ *   npm view three@0.160.1 dist.integrity
+ *   npm pack three@0.160.1 && tar xzOf three-0.160.1.tgz package/build/three.min.js | sha256sum
+ *
+ * Pinned at 0.160.1 because it is the last release shipping `three.min.js`,
+ * the classic build that defines a global. Later versions ship ES modules
+ * only, which a generator cannot use from a plain script tag, so moving this
+ * version forward is a change to how a piece loads rather than a bump.
+ *
+ * No copy in public/vendor. It resolves through /api/dep, which is the path
+ * every library that is not p5 will take.
+ */
+export const THREE_DEP: DepSpec = {
+    id: "three",
+    label: "three.js",
+    version: "0.160.1",
+    registry: {
+        integrity:
+            "sha512-Bgl2wPJypDOZ1stAxwfWAcJ0WQf7QzlptsxkjYiURPz+n5k4RBDLsq+6f9Y75TYxn6aHLcWz+JNmwTOXWrQTBQ==",
+        path: "build/three.min.js",
+    },
+    approxBytes: 669_884,
+    hash: "e354362d4ff40c102e735a89d84485cee221e4a381bc67132239fa1f369cb3e5",
+};
+
+/**
+ * Every library a generator may declare.
+ *
+ * Separate from the runtime kinds. A kind says which harness a piece boots
+ * under; a library is something any kind can ask for, and tying the two
+ * together meant the catalogue held exactly what the p5 kind depended on and
+ * a custom piece asking for three.js was told its library was unknown.
+ */
+export const LIBRARIES: DepSpec[] = [P5_DEP, THREE_DEP];
 
 export const RUNTIME_KINDS: RuntimeKind[] = [
     {
@@ -217,24 +260,47 @@ export async function resolveDep(spec: DepSpec): Promise<ResolvedDep> {
     const cached = cache.get(spec.hash);
     if (cached) return cached;
 
-    const res = await fetch(spec.url);
-    if (!res.ok) {
-        throw new Error(`${spec.label} ${spec.version} could not be loaded (${res.status}).`);
-    }
-    const source = await res.text();
-    const bytes = new TextEncoder().encode(source);
-    const hash = await blake2b(bytes);
+    // Our own copy first because it is one hop, then the proxy, which goes to
+    // npm's mirrors server-side. Same order the renderer uses, and for the
+    // same reason it is safe: whichever answers, the bytes are checked.
+    const sources = [
+        ...(spec.url ? [spec.url] : []),
+        `/api/dep?id=${encodeURIComponent(spec.id)}` +
+            `&version=${encodeURIComponent(spec.version)}` +
+            `&path=${encodeURIComponent(spec.registry.path)}` +
+            `&hash=${spec.hash}`,
+    ];
 
-    if (hash !== spec.hash) {
-        throw new Error(
-            `${spec.label} ${spec.version} is not what it claims to be. ` +
-                `Expected ${spec.hash}, got ${hash}.`,
-        );
+    const failures: string[] = [];
+    for (const url of sources) {
+        let source: string;
+        try {
+            const res = await fetch(url);
+            if (!res.ok) {
+                failures.push(`${url} (${res.status})`);
+                continue;
+            }
+            source = await res.text();
+        } catch {
+            failures.push(`${url} (unreachable)`);
+            continue;
+        }
+
+        const bytes = new TextEncoder().encode(source);
+        const hash = await blake2b(bytes);
+        if (hash !== spec.hash) {
+            failures.push(`${url} (hash ${hash})`);
+            continue;
+        }
+
+        const resolved: ResolvedDep = { spec, source, bytes: bytes.length, hash };
+        cache.set(spec.hash, resolved);
+        return resolved;
     }
 
-    const resolved: ResolvedDep = { spec, source, bytes: bytes.length, hash };
-    cache.set(spec.hash, resolved);
-    return resolved;
+    throw new Error(
+        `${spec.label} ${spec.version} could not be loaded. Tried: ${failures.join(", ")}`,
+    );
 }
 
 export async function resolveDeps(specs: DepSpec[]): Promise<ResolvedDep[]> {

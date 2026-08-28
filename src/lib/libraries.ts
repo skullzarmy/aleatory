@@ -11,7 +11,7 @@
  * One tag per library, so a piece wanting two says so twice, and the order they
  * appear in is the order they load in.
  */
-import { RUNTIME_KINDS, type DepSpec } from "./runtimes";
+import { LIBRARIES, RUNTIME_KINDS, type DepSpec } from "./runtimes";
 
 const TAG = /<meta\s+[^>]*name\s*=\s*["']alea:library["'][^>]*>/gi;
 const CONTENT = /content\s*=\s*["']([^"']+)["']/i;
@@ -19,7 +19,10 @@ const CONTENT = /content\s*=\s*["']([^"']+)["']/i;
 /** Every library the catalogue knows, by `id@version`. */
 export const CATALOGUE: DepSpec[] = [
     ...new Map(
-        RUNTIME_KINDS.flatMap((k) => k.deps).map((d) => [`${d.id}@${d.version}`, d]),
+        [...LIBRARIES, ...RUNTIME_KINDS.flatMap((k) => k.deps)].map((d) => [
+            `${d.id}@${d.version}`,
+            d,
+        ]),
     ).values(),
 ];
 

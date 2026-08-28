@@ -12,7 +12,7 @@
  * Run: npx tsx src/lib/studio.test.ts
  */
 import { existsSync, globSync, readFileSync } from "node:fs";
-import { getKind, RUNTIME_KINDS } from "./runtimes";
+import { LIBRARIES, getKind, RUNTIME_KINDS } from "./runtimes";
 import { templateFor, templateParamsFor } from "./templates";
 import { resolveParams, validateSchema } from "./params";
 import { newDraft, seedAt } from "./draft";
@@ -124,8 +124,15 @@ console.log("\nLibraries");
     // optional once and empty in practice, which meant whatever a CDN returned
     // got written into an artist's immutable record with the chain vouching
     // for it.
-    for (const kind of RUNTIME_KINDS) {
-        for (const dep of kind.deps) {
+    // Every library, not only the ones a runtime kind depends on. The
+    // catalogue used to be a projection of kind.deps, so a library any kind
+    // could declare went unchecked here simply by not being p5.
+    {
+        const seen = new Map<string, (typeof LIBRARIES)[number]>();
+        for (const dep of [...LIBRARIES, ...RUNTIME_KINDS.flatMap((k) => k.deps)]) {
+            seen.set(`${dep.id}@${dep.version}`, dep);
+        }
+        for (const dep of seen.values()) {
             check(
                 `${dep.label} ${dep.version}: has a hash`,
                 /^[0-9a-f]{64}$/.test(dep.hash),
@@ -137,9 +144,9 @@ console.log("\nLibraries");
                 "we must not be the authority for what a library is",
             );
             check(
-                `${dep.label} ${dep.version}: served same-origin`,
-                dep.url.startsWith("/"),
-                "a CDN in the path is a third party deciding what runs",
+                `${dep.label} ${dep.version}: nothing cross-origin in the browser's path`,
+                dep.url === undefined || dep.url.startsWith("/"),
+                "a CDN reached from the page is a third party deciding what runs",
             );
         }
     }
