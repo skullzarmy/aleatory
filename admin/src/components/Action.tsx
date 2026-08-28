@@ -38,6 +38,10 @@ export function Action({
 
     const permissionless = op.authority === "anyone";
     const maySign = permissionless || (!!address && !!holder && address === holder);
+    // A KT1 cannot hold a wallet session, so when the required signer is a
+    // contract there is no account anyone could switch to. That is the only
+    // case where exporting the call is the answer rather than a curiosity.
+    const holderIsContract = !!holder && holder.startsWith("KT1");
 
     async function send() {
         setBusy(true);
@@ -87,7 +91,7 @@ export function Action({
         return (
             <div className="space-y-2">
                 <p className="text-xs text-dim">
-                    Hand this to the multisig. It is the call, not a signature.
+                    The call itself, not a signature. Give this to whatever holds the key.
                 </p>
                 <pre className="max-h-64 overflow-auto rounded border border-line bg-sunk p-3 text-xs">
                     {proposal}
@@ -123,11 +127,7 @@ export function Action({
                         disabled={busy}
                         onClick={() => void (maySign ? send() : exportProposal())}
                     >
-                        {busy
-                            ? "Working…"
-                            : maySign
-                              ? "Sign and send"
-                              : "Export the proposal"}
+                        {busy ? "Working…" : maySign ? "Sign and send" : "Export the call"}
                     </button>
                     <button
                         type="button"
@@ -156,29 +156,40 @@ export function Action({
 
             {/* Say up front which key the chain will accept, rather than
                 letting a signature go out and come back rejected. */}
-            {!maySign && !address && (
+            {!maySign && holderIsContract && (
+                <p className="text-xs text-dim">
+                    <Who holder={holder!} /> is a contract and cannot sign in a browser.
+                    Export the call for it to run.
+                </p>
+            )}
+            {!maySign && !holderIsContract && !address && (
                 <p className="text-xs text-dim">
                     <button type="button" className="underline" onClick={() => void connect()}>
                         Connect
                     </button>{" "}
-                    to sign, or continue to export it as a proposal.
+                    to sign.
                 </p>
             )}
-            {!maySign && address && holder && (
+            {!maySign && !holderIsContract && address && holder && (
                 <p className="text-xs text-warn">
-                    Signed by{" "}
-                    <a
-                        href={tzktLink(holder)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono underline"
-                    >
-                        {shortAddress(holder)}
-                    </a>
-                    , which is not the account you are holding. Export it instead.
+                    Only <Who holder={holder} /> can send this. Switch to that account in
+                    your wallet.
                 </p>
             )}
             {error && <p className="text-sm text-bad">{error}</p>}
         </div>
+    );
+}
+
+function Who({ holder }: { holder: string }) {
+    return (
+        <a
+            href={tzktLink(holder)}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono underline"
+        >
+            {shortAddress(holder)}
+        </a>
     );
 }
