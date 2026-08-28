@@ -67,7 +67,10 @@ function csp(): string {
     return [
         "default-src 'self'",
         // Next injects inline bootstrap script; dev additionally evaluates.
-        `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+        // Cloudflare injects its analytics beacon at the edge, so the script it
+        // inserts has to be allowed here or it is blocked in the browser and
+        // collects nothing, with no error anywhere either of us would look.
+        `script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com${isDev ? " 'unsafe-eval'" : ""}`,
         "style-src 'self' 'unsafe-inline'",
         `img-src 'self' data: blob: ${[...IPFS_HOSTS, ...AVATAR_HOSTS].join(" ")}`,
         "font-src 'self' data: https://fonts.gstatic.com",
@@ -95,6 +98,9 @@ function csp(): string {
             // one repository path rather than the CDN, so this does not also
             // open jsDelivr's entire npm mirror to the page.
             "https://cdn.jsdelivr.net/gh/trilitech/octez.connect-wallet-list@latest/dist/",
+            // Where the beacon reports to, which is a different host from the
+            // one it loads from.
+            "https://cloudflareinsights.com",
             // Dev servers move ports and HMR needs a socket back.
             ...(isDev ? ["ws://localhost:*", "http://localhost:*"] : []),
         ].join(" "),

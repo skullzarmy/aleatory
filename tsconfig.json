@@ -39,6 +39,7 @@
         "contract",
         "worker",
         "sandbox",
-        "netlify"
+        "netlify",
+        "admin"
     ]
 }
