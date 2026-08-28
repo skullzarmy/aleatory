@@ -12,56 +12,54 @@ export const metadata: Metadata = {
 /**
  * The first question a visitor has.
  *
- * Answered in the order people actually ask it: what a piece is, what happens
- * when you buy one, what it costs, and what happens to all of it if this site
- * goes away.
+ * Opens on the word itself. The specialized sense is not a joke at the
+ * reader's expense: chance-as-method is a century-old practice with Cage at
+ * the front of it, and saying so places the work in a lineage rather than
+ * treating randomness as a novelty the chain invented.
+ *
+ * Then answered in the order people actually ask: what happens when you buy,
+ * what it costs, who decides, and what survives us.
  */
 export default function AboutPage() {
     return (
         <div className="mx-auto max-w-2xl px-4 py-12">
-            <h1 className="text-2xl font-semibold tracking-tight">
-                Generative art that lives on the chain
-            </h1>
-            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+            <Entry />
+
+            <p className="mt-8 text-base leading-relaxed text-muted-foreground">
                 A generator is code, published once and never changed. A piece is that code
                 plus a seed, and the seed comes from the moment somebody chose to buy it.
                 Nobody picks it: not the artist, not us.
             </p>
 
-            <Section title="What you get when you buy">
+            <Section title="Buying">
                 <p>
-                    One signature, and the piece is yours straight away. You own it before
-                    the image exists.
-                </p>
-                <p>
-                    A render provider then draws it and publishes the image. Until that
-                    lands, your piece runs live in your browser. That is the artwork, not a
-                    stand-in for it.
+                    One signature and the piece is yours, before the image exists. A render
+                    provider draws it afterwards. Until that lands your piece runs live in
+                    your browser, which is the artwork itself and not a placeholder for it.
                 </p>
             </Section>
 
-            <Section title="What it costs">
+            <Section title="Costs">
                 <p>
-                    Publishing costs a one-off storage fee, usually well under a dollar. The
-                    studio prices your actual file before you commit to anything.
+                    Publishing costs a one-off storage fee, usually well under a dollar, and
+                    the studio prices your actual file before you commit to anything.
                 </p>
                 <p>
-                    Minting costs the artist&rsquo;s price, plus a small fee to whoever
-                    renders the image. Resales here take 2.5%, and artist royalties are paid
-                    from the collection itself, so a seller cannot cut you out.
+                    Minting costs the artist&rsquo;s price plus a small fee to whoever renders
+                    the image. Resales here take 2.5%. Royalties are paid by the collection
+                    itself, so a seller cannot cut the artist out.
                 </p>
             </Section>
 
-            <Section title="What we control">
+            <Section title="Permission">
                 <p>
-                    Nothing here needs our permission. Anyone can publish a collection, run
-                    a render provider, trade on the marketplace, or run this whole system
-                    themselves. A collection you publish belongs to you, and we cannot
-                    touch it.
+                    None of it needs ours. Anyone can publish a collection, run a render
+                    provider, trade, or run this whole system themselves. What you publish is
+                    yours and we cannot touch it.
                 </p>
                 <p>
-                    What we control is this website. We show everything by default, and the
-                    short list of what we hide is public, in{" "}
+                    We control this website. Everything shows by default, and the short list
+                    of what we hide is public, in{" "}
                     <a
                         href={`${BRAND.repo}/blob/main/src/lib/blocklist.ts`}
                         target="_blank"
@@ -82,7 +80,7 @@ export default function AboutPage() {
                     <Link href="/docs/interface" className="underline hover:text-foreground">
                         ALEATORY-001
                     </Link>{" "}
-                    and shows what you made here. We wrote that spec so they can.
+                    and show what you made. We wrote that spec so they can.
                 </p>
             </Section>
 
@@ -109,6 +107,52 @@ export default function AboutPage() {
                 </a>
             </div>
         </div>
+    );
+}
+
+/** The name, defined. Marked up as a definition because that is what it is. */
+function Entry() {
+    return (
+        <dl className="border-l-2 border-alea-600 pl-5">
+            <dt>
+                <h1 className="text-2xl font-semibold tracking-tight">aleatory</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                    <span className="italic">adjective</span>
+                    <span className="mx-2 opacity-40">·</span>
+                    <span className="font-mono text-xs">
+                        us /ˈeɪ.li.ə.tɔːr.i/ uk /ˈeɪ.li.ə.tər.i/
+                    </span>
+                </p>
+            </dt>
+
+            <dd className="mt-5 space-y-4 text-sm leading-relaxed">
+                <div>
+                    <p>
+                        <span className="mr-2 text-muted-foreground">1.</span>
+                        <span className="italic text-muted-foreground">formal </span>
+                        happening, done, or chosen by chance, rather than according to any
+                        plan.
+                    </p>
+                    <p className="mt-1 pl-6 text-xs text-muted-foreground">
+                        Synonym: random
+                    </p>
+                </div>
+
+                <div>
+                    <p>
+                        <span className="mr-2 text-muted-foreground">2.</span>
+                        <span className="italic text-muted-foreground">
+                            music, art, literature{" "}
+                        </span>
+                        involving some parts that are chosen by chance, for example by a
+                        computer or by a performer.
+                    </p>
+                    <p className="mt-1 pl-6 text-xs italic text-muted-foreground">
+                        &ldquo;John Cage has been a key proponent of aleatory music.&rdquo;
+                    </p>
+                </div>
+            </dd>
+        </dl>
     );
 }
 
