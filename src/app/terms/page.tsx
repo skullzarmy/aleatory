@@ -150,11 +150,24 @@ export default function TermsPage() {
 
             <H>6. Fees</H>
             <P>
-                Sales through our marketplace pay a 2.5% fee. Minting pays the artist&rsquo;s
-                price and a rendering fee set by the render provider. Chain fees go to the
-                network, not to us. Every one of these is shown before you approve anything,
-                and we may change them going forward, never retroactively for anything already
-                listed or offered.
+                We currently charge nothing to publish a collection and nothing to mint. When
+                a piece is minted, the artist&rsquo;s price goes to the artist and the
+                rendering fee goes to the render provider the artist chose. Both are paid in
+                the same transaction and neither passes through us.
+            </P>
+            <P>
+                We take 2.5% of sales made through our marketplace. That is a fee on resales,
+                not on mints, and it is the only revenue we take from the platform.
+            </P>
+            <P>
+                Separately, Tezos charges its own fees for storage and execution. Those go to
+                the network and we never see them. Publishing a generator is the one that
+                costs anything noticeable, and it is a one-off, usually well under a dollar.
+            </P>
+            <P>
+                Every amount is shown before you approve anything. We may change our fee going
+                forward, never retroactively: a listing or an offer settles at the fee it was
+                created with, which is enforced by the contract rather than by our promise.
             </P>
 
             <H>7. What we can and cannot moderate</H>

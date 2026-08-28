@@ -51,15 +51,42 @@ export default function AboutPage() {
                 </p>
             </Section>
 
+            <Section title="Who draws your images">
+                <p>
+                    A feed, a marketplace and a search result all need a still image, so
+                    somebody has to run the code once and publish the picture it made. That job
+                    is a role, called a render provider, and it is deliberately not ours alone.
+                </p>
+                <p>
+                    Anyone can run one. Listing it asks us for nothing: the registry checks
+                    that the contract answers the questions a provider has to answer, and that
+                    is the whole test. It is a type check, not an endorsement, and we cannot
+                    refuse anyone.
+                </p>
+                <p>
+                    You choose yours when you publish, and your collection records it. We run
+                    one and it is not privileged. If ours went away, or we decided we disliked
+                    your work, another provider renders your collection and the pieces already
+                    minted are untouched either way.
+                </p>
+                <p>
+                    That is the point of keeping it open. If rendering were ours alone we would
+                    quietly decide whose art gets finished, which is a walled garden with extra
+                    steps. Making it a role anyone can fill means depending on us stays a
+                    choice you can revoke.
+                </p>
+            </Section>
+
             <Section title="Costs">
                 <p>
                     Publishing a generator costs a one-off fee, usually well under a dollar,
                     and the studio prices your actual file before you commit to anything.
                 </p>
                 <p>
-                    Minting costs the artist&rsquo;s price plus a small fee to whoever renders
-                    the image. Resales here take 2.5%. Royalties are paid by the collection
-                    itself, so a seller cannot cut the artist out.
+                    Minting costs the artist&rsquo;s price, which goes to the artist, plus a
+                    small fee to whoever renders the image. We take none of it. We earn 2.5%
+                    when a piece resells here and nothing before that. Royalties are paid by
+                    the collection itself, so a seller cannot cut the artist out.
                 </p>
             </Section>
 
