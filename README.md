@@ -4,7 +4,17 @@ Fully on-chain generative art on Tezos.
 
 A generator is code, published once and immutable. A piece is that code plus a seed bound to the operation that bought it. The token points into a possibility space, and the possibility space is on chain.
 
-**Status: pre-alpha.** Nothing is deployed. The contracts compile and pass 40 test scenarios; the front end is being built.
+**Status: running on shadownet**, at [shadownet.aleatory.art](https://shadownet.aleatory.art).
+The contracts are deployed, collections have been made, pieces have been minted
+and rendered, and the marketplace takes listings and offers. Not on mainnet
+yet: [task 34](docs/roadmap.md) is the four role addresses that has to happen
+first.
+
+| | Where |
+|---|---|
+| The site | [shadownet.aleatory.art](https://shadownet.aleatory.art) |
+| Start a piece | [aleatory.art/templates](https://shadownet.aleatory.art/templates) |
+| Run a provider | [docs/provider.md](docs/provider.md) |
 
 ## Start here
 

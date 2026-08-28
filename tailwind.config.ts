@@ -12,17 +12,23 @@ export default {
             colors: {
                 // Aleatory's own accent. Everything else is the shared token
                 // system lifted from rejkt, so the two sites read as siblings.
+                //
+                // Royal blue, and darker at 600 than the colour it is named
+                // after: #4169e1 carries white text at 4.85:1, which clears AA
+                // and leaves nothing spare on the one control that appears on
+                // every page. This sits at 6.64:1. The ratios that matter are
+                // asserted in brand.test.ts.
                 alea: {
-                    "50": "#f4f3ff",
-                    "100": "#ebe9fe",
-                    "200": "#d9d6fe",
-                    "300": "#bdb4fe",
-                    "400": "#9b8afb",
-                    "500": "#7c5cf6",
-                    "600": "#6c3aed",
-                    "700": "#5b28d9",
-                    "800": "#4c21b6",
-                    "900": "#401d95",
+                    "50": "#f0f4ff",
+                    "100": "#dae4fd",
+                    "200": "#b9cbfb",
+                    "300": "#8da9f4",
+                    "400": "#6084e9",
+                    "500": "#4770e1",
+                    "600": "#3c67dd",
+                    "700": "#2750c1",
+                    "800": "#244399",
+                    "900": "#203777",
                 },
                 background: "hsl(var(--background))",
                 foreground: "hsl(var(--foreground))",

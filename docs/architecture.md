@@ -256,7 +256,7 @@ An optional platform share is a recipient row that starts absent, an explicit, u
 
 ### Implementation status
 
-`contract/aleatory.py` implements the factory, collection, resolver and provider contracts with tests. Not yet deployed. The full settled model is in [decisions.md](decisions.md), which wins wherever this document has not caught up.
+`contract/aleatory.py` implements the factory, collection, resolver and provider contracts with tests. Deployed on shadownet and running; not on mainnet. The full settled model is in [decisions.md](decisions.md), which wins wherever this document has not caught up.
 
 ---
 

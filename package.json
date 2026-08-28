@@ -20,7 +20,7 @@
         "dev:isolate": "node scripts/dev-isolate.mjs",
         "test:studio": "npx tsx src/lib/studio.test.ts",
         "test:hooks": "npx tsx src/lib/hooks.test.ts",
-        "test": "npm run test:metadata && npm run test:studio && npm run test:hooks && npm run test:dep && npm run test:conformance && npm run test:links && npm run test:logo && npm run test:refs",
+        "test": "npm run test:metadata && npm run test:studio && npm run test:hooks && npm run test:dep && npm run test:conformance && npm run test:links && npm run test:logo && npm run test:refs && npm run test:brand",
         "provider:run": "npx tsx scripts/provider-run.mts",
         "provider:setup": "npx tsx scripts/provider-setup.mts",
         "provider:check": "npx tsx scripts/provider-run.mts --dry-run",
@@ -33,7 +33,8 @@
         "predev": "npx tsx scripts/build-templates.mts",
         "test:links": "node scripts/check-links.mjs",
         "test:logo": "npx tsx src/lib/logo.test.ts",
-        "test:refs": "node scripts/check-refs.mjs"
+        "test:refs": "node scripts/check-refs.mjs",
+        "test:brand": "npx tsx src/lib/brand.test.ts"
     },
     "dependencies": {
         "@codemirror/lang-html": "^6.4.12",
