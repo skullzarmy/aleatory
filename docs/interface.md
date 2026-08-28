@@ -260,6 +260,24 @@ advances it. `random` and `rand` are the same function under two names.
 nothing else: aliases for other platforms are not part of this interface, and a
 generator written for one is not an Aleatory piece.
 
+`$alea` is the global. Code that uses it usually binds it first, which is why
+the templates read `alea.ready()` rather than `$alea.ready()`:
+
+```js
+var alea = window.$alea;      // vanilla, svg and p5 templates do this
+```
+
+A custom-runtime piece receives it as an argument instead, since the harness
+calls its lifecycle:
+
+```js
+window.ALEA_MAIN = { render: function (alea) { /* ... */ alea.ready(); } };
+```
+
+Same object either way. The name with the dollar is the one that exists
+without you making it.
+
+
 Two substitutions make a render reproducible, and any conforming renderer
 installs both. Artist code runs afterwards and can undo them, so a generator
 that varies will vary: a provider renders once, and that render is the piece.

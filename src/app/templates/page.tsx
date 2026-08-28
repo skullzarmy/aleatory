@@ -193,7 +193,9 @@ node serve.mjs        # then open http://localhost:4321`}</Code>
                         3. Say when you are finished
                     </strong>{" "}
                     by calling <code className="font-mono">$alea.ready()</code>. Forgetting
-                    this is the one mistake that yields a blank piece.
+                    this is the one mistake that yields a blank piece. The templates bind
+                    the global to a shorter name on their first line, which is why their
+                    code reads <code className="font-mono">alea.ready()</code>.
                 </li>
             </ol>
 

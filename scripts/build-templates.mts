@@ -144,6 +144,9 @@ while rendering is refused the network, and the capture is of a blank frame.
    is the one mistake that yields a blank piece: the renderer captures a frame
    because nothing told it the drawing was done.
 
+\`$alea\` is the global. This file binds it to \`alea\` first, which is why the
+code reads \`alea.ready()\`. Same object, shorter name.
+
 ## Publishing
 
 Drag \`index.html\` into the studio at https://aleatory.art/studio, or paste

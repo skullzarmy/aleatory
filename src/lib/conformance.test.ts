@@ -99,6 +99,23 @@ function auditHarnesses() {
             !/parseInt\s*\(\s*(seed|hash)/.test(src),
         );
 
+        // A template that writes `alea.` must have bound it, by assignment
+        // or as a lifecycle argument. An unbound one is a ReferenceError at
+        // the moment the piece would have signalled it was finished, so the
+        // capture is of a blank frame and nothing says why.
+        if (!h.renderer) {
+            const usesShort = /(?<![$\w.])alea\s*\./.test(src);
+            const binds =
+                /\b(?:var|let|const)\s+alea\s*=/.test(src) ||
+                /function\s*\(\s*alea\s*\)/.test(src) ||
+                /\(\s*alea\s*\)\s*(?:=>|\{)/.test(src);
+            check(
+                `${h.name}: binds alea before using it`,
+                !usesShort || binds,
+                "alea. is written but never assigned or received",
+            );
+        }
+
         // One PRNG across all of them, or a seed pinned locally draws
         // something else on chain.
         check(
