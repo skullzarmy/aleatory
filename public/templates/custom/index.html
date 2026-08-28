@@ -37,6 +37,21 @@
         return (t >>> 0) / 4294967296;
       };
       for (var i = 0; i < 16; i++) rand();
+
+      // The same substitutions a conforming renderer makes, so what you draw
+      // here is what a collector gets. Without them a piece calling
+      // Math.random looks random locally and renders deterministically, and
+      // one reading the clock draws differently on a different day. Both would
+      // be found after publishing, which is the wrong time. Matches
+      // isolate/index.html.
+      Math.random = rand;
+      var FIXED = 0;
+      var RealDate = Date;
+      Date = class extends RealDate {
+        constructor() { if (arguments.length === 0) super(FIXED); else super(...arguments); }
+        static now() { return FIXED; }
+      };
+      performance.now = function () { return 0; };
       window.$alea = {
         seed: seed, hash: seed, params: {}, rand: rand, random: rand,
         randInt: function (lo, hi) { return Math.floor(rand() * (hi - lo + 1)) + lo; },

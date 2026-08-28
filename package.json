@@ -20,7 +20,7 @@
         "dev:isolate": "node scripts/dev-isolate.mjs",
         "test:studio": "npx tsx src/lib/studio.test.ts",
         "test:hooks": "npx tsx src/lib/hooks.test.ts",
-        "test": "npm run test:metadata && npm run test:studio && npm run test:hooks && npm run test:dep",
+        "test": "npm run test:metadata && npm run test:studio && npm run test:hooks && npm run test:dep && npm run test:conformance",
         "provider:run": "npx tsx scripts/provider-run.mts",
         "provider:setup": "npx tsx scripts/provider-setup.mts",
         "provider:check": "PROVIDER_DRY=1 npx tsx scripts/provider-run.mts",
@@ -28,7 +28,8 @@
         "provider:daemon": "npx tsx scripts/provider-daemon.mts",
         "templates:build": "node scripts/build-templates.mjs",
         "prebuild": "node scripts/build-templates.mjs",
-        "test:dep": "npx tsx src/lib/dep.test.ts"
+        "test:dep": "npx tsx src/lib/dep.test.ts",
+        "test:conformance": "npx tsx src/lib/conformance.test.ts"
     },
     "dependencies": {
         "@codemirror/lang-html": "^6.4.12",
