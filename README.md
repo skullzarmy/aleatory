@@ -7,8 +7,7 @@ A generator is code, published once and immutable. A piece is that code plus a s
 **Status: running on shadownet**, at [shadownet.aleatory.art](https://shadownet.aleatory.art).
 The contracts are deployed, collections have been made, pieces have been minted
 and rendered, and the marketplace takes listings and offers. Not on mainnet
-yet: [task 34](docs/roadmap.md) is the four role addresses that has to happen
-first.
+yet.
 
 | | Where |
 |---|---|
