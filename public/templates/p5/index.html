@@ -14,11 +14,11 @@
     That tag travels with the file. Download this, work on it anywhere, upload
     it again, and it still says what it needs.
 
-    Working offline? Uncomment the next line. Leave it commented for publishing:
-    a piece must not reach the network at render time, and the sandbox reports
-    it if it tries.
+    Working locally? Run `node serve.mjs` from the starter kit. It reads the
+    tag above and loads p5 for you, so this file never needs a script tag
+    pointing at a CDN. Do not add one: a piece must not reach the network while
+    rendering, and one that tries is captured as a blank frame.
   -->
-  <!-- <script src="https://cdn.jsdelivr.net/npm/p5@1.5.0/lib/p5.min.js"></script> -->
 </head>
 <body>
 <script>

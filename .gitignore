@@ -37,5 +37,9 @@ next-env.d.ts
 out/
 tsconfig.tsbuildinfo
 
+# Starter kits, assembled by scripts/build-templates.mts on prebuild.
+# The templates they contain are the source and are tracked.
+public/templates/*.zip
+
 # Local Netlify folder
 .netlify

@@ -14,8 +14,22 @@ here changes what everybody gets.
 
 ## Working locally
 
-Download one, open it in a browser. That is the whole setup. There is no build
-step, no install, and no server.
+Take the starter kit for the kind you want, from the studio or from
+`/templates/<kind>.zip`. It holds the generator, a readme, and a small local
+server.
+
+```
+node serve.mjs
+```
+
+Then open http://localhost:4321. No install and no build step; Node 18 or
+newer is the only requirement.
+
+The server reads the `<meta name="alea:library">` tags in your file and loads
+those libraries from a CDN, the way a renderer will load them from the record
+on chain. So your generator never contains a script tag pointing at a CDN and
+cannot be published with one by accident, which matters: a piece that fetches
+anything while rendering is refused the network and captured blank.
 
 Each file carries a small dev harness that only runs when the page is opened
 outside our sandbox. It gives you the same `$alea` your piece will get on the

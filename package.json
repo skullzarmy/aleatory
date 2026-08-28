@@ -26,10 +26,11 @@
         "provider:check": "PROVIDER_DRY=1 npx tsx scripts/provider-run.mts",
         "provider:retry": "npx tsx scripts/provider-retry.mts",
         "provider:daemon": "npx tsx scripts/provider-daemon.mts",
-        "templates:build": "node scripts/build-templates.mjs",
-        "prebuild": "node scripts/build-templates.mjs",
+        "templates:build": "npx tsx scripts/build-templates.mts",
+        "prebuild": "npx tsx scripts/build-templates.mts",
         "test:dep": "npx tsx src/lib/dep.test.ts",
-        "test:conformance": "npx tsx src/lib/conformance.test.ts"
+        "test:conformance": "npx tsx src/lib/conformance.test.ts",
+        "predev": "npx tsx scripts/build-templates.mts"
     },
     "dependencies": {
         "@codemirror/lang-html": "^6.4.12",

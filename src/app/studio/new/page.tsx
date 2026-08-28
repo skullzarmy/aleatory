@@ -103,15 +103,16 @@ export default function NewGeneratorPage() {
                 >
                     Start from a template
                 </button>
-                {/* The same file the button above starts from, for anyone who
-                    would rather work in their own editor. It carries the dev
-                    harness inline, so opening it from disk draws it. */}
+                {/* The same generator, as a kit: the file, a readme, and a
+                    local server that loads the declared libraries so nobody
+                    has to write a CDN script tag into a piece that must not
+                    fetch anything when it renders. */}
                 <a
-                    href={`/templates/${RUNTIME_KINDS.find((k) => k.kindId === kindId)?.name ?? "vanilla"}/index.html`}
+                    href={`/templates/${RUNTIME_KINDS.find((k) => k.kindId === kindId)?.name ?? "vanilla"}.zip`}
                     download
                     className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
                 >
-                    Download it instead
+                    Download the starter kit
                 </a>
                 <button
                     type="button"
