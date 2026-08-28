@@ -1,10 +1,13 @@
-# Architecture, Aleatory
+# Architecture
 
-**Status:** draft, 2026-08-01. Shape, not spec.
+How Aleatory fits together, and why each part is shaped the way it is.
 
-The front end is disposable and the protocol is the platform. This document is what that means in contracts.
+The front end is disposable and the protocol is the platform. This document is
+what that means in contracts. [ALEATORY-001](interface.md) is the normative
+version for anyone building against it without this source; this one explains
+the reasoning behind it.
 
-**What v0 actually implements** (the lab at `/labs/aleatory`, see [roadmap.md](roadmap.md) §1): the record in §3, the seed derivation in §5, the class labelling in §6, the renderer standard in §7 including declared mint-time parameters ([params.md](params.md)), and the chain-only rebuild in §9 are all real and running on testnets. Two things are still stand-ins, and each is called out where it appears: the runtime kinds catalogue lives in code and picks a template rather than being recorded on chain, and a project is a stock FA2 whose contract metadata carries both the record and the code, rather than the four separate contracts below. The record shape does not change when those move on chain, that is the point of designing it first.
+Running on shadownet. Not on mainnet.
 
 ---
 
@@ -129,11 +132,11 @@ RuntimeKind {
 
 **Kinds live in an append-only contract, not in an enum in the Registry.** An enum means adding a runtime in 2029 requires a new Registry contract and a migration of everything published before it. A catalogue means it requires one append operation, and every record ever written keeps parsing.
 
-A kind is never edited. A better p5 harness is a *new kind_id*, and old projects keep pointing at the old one. Deprecation marks a kind as discouraged for new publishes and changes nothing about existing work, pieces minted against a deprecated kind render identically forever, which is the promise in [pipeline.md](pipeline.md) §5.
+A kind is never edited. A better p5 harness is a *new kind_id*, and old projects keep pointing at the old one. Deprecation marks a kind as discouraged for new publishes and changes nothing about existing work, pieces minted against a deprecated kind render identically forever.
 
 ### Standard entry points
 
-Every kind implements the same lifecycle, whatever the underlying library, exported as a single object (`window.ALEA_MAIN` in the v0 harness) rather than as loose globals. The kind decides how the lifecycle is *bound*; the lifecycle itself never varies:
+Every kind implements the same lifecycle, whatever the underlying library, exported as a single object (`window.ALEA_MAIN`) rather than as loose globals. The kind decides how the lifecycle is *bound*; the lifecycle itself never varies:
 
 | Entry point | Required | Contract |
 |---|---|---|
@@ -256,7 +259,7 @@ An optional platform share is a recipient row that starts absent, an explicit, u
 
 ### Implementation status
 
-`contract/aleatory.py` implements the factory, collection, resolver and provider contracts with tests. Deployed on shadownet and running; not on mainnet. The full settled model is in [decisions.md](decisions.md), which wins wherever this document has not caught up.
+`contract/aleatory.py` implements the factory, collection, resolver, router, registry and provider contracts, with tests. Deployed on shadownet; not on mainnet.
 
 ---
 
@@ -288,7 +291,7 @@ Honest limitation: the op hash is computable before submission, so a determined 
 
 Fully on-chain is the goal and is genuinely affordable on Tezos for code-sized payloads. It is not affordable for everything, and pretending otherwise pushes artists into lying about their dependencies.
 
-Storage burn is 0.00025 ꜩ/byte (250 mutez), and a single operation is capped at 32,768 bytes, so large uploads chunk across multiple operations. Both were read live from Shadownet on 2026-08-01 and match the figures below, and the v0 estimator reads them from the chain at runtime rather than trusting this paragraph.
+Storage burn is 0.00025 ꜩ/byte (250 mutez), and a single operation is capped at 32,768 bytes, so large uploads chunk across multiple operations. The studio reads both from the chain at runtime rather than trusting this paragraph.
 
 | Payload | Bytes | Rough burn |
 |---|---|---|
@@ -343,7 +346,7 @@ A generator is HTML/JS (or SVG, or WASM) that receives a seed and renders. That'
 
 - **Seed delivery** by URL parameter and a global, matching the convention artists' existing code is already written against. Code that ran on other Tezos snippet platforms should run here with near-zero edits. Compatibility is deliberate: we are not asking anyone to rewrite a body of work to prove loyalty.
 - **Lifecycle** as defined in §3, one contract across every runtime kind.
-- **Parameterized mints**, a project may declare **up to five** named, typed parameters via `params_schema`, which the minter sets before signing and which are stored on chain with the token alongside the seed. Determinism holds: (code, seed, params) is still a pure function, which is why the resolution rule is specified rather than left to each implementation. Always optional; most generators declare none. The artist names each one and sets its range, unnamed fixed-arity sliders are the mistake this is deliberately not repeating. Specified in full, as an integration guide for other platforms, in **[params.md](params.md)**. Implemented in v0.
+- **Parameterized mints**, a project may declare **up to five** named, typed parameters via `params_schema`, which the minter sets before signing and which are stored on chain with the token alongside the seed. Determinism holds: (code, seed, params) is still a pure function, which is why the resolution rule is specified rather than left to each implementation. Always optional; most generators declare none. The artist names each one and sets its range, unnamed fixed-arity sliders are the mistake this is deliberately not repeating. Specified in full, as an integration guide for other platforms, in **[params.md](params.md)**.
 - **Capture**, the declared capture point in `CaptureSpec`, fired by `ready()`, so preview images are reproducible rather than whenever-the-screenshotter-felt-like-it.
 - **Sandbox**, rendered in a sandboxed frame with no network. Not a policy, an enforcement: the determinism rule is checked mechanically at publish time, and a generator that tries to fetch gets flagged before it ever mints.
 - **SVG-on-chain path**, for pieces that emit pure SVG, the whole thing can live in contract storage with no runtime at all. Neighboring work (Bootloader) shows this is a rich vein; there is no reason for the standard to exclude it.
@@ -360,7 +363,7 @@ Given a generator's code and its seed convention, re-homing it here is mostly me
 
 Shape of it:
 
-1. **Mirror** (read-only, no chain writes), archive at-risk generator code and metadata from existing platforms into content-addressed storage, publicly. This is worth doing *whether or not* anyone re-mints, and it is worth starting before v1. Archives are cheap; regret is not.
+1. **Mirror** (read-only, no chain writes), archive at-risk generator code and metadata from existing platforms into content-addressed storage, publicly. This is worth doing whether or not anyone re-mints. Archives are cheap; regret is not.
 2. **Claim**, the original artist, proving control of the original address, republishes their generator here as a FOC/shared entry.
 3. **Continue**, new editions of an old system, or a fresh system in the same lineage, at the artist's discretion.
 
@@ -385,13 +388,13 @@ Next on Netlify, React, Tailwind and Radix, the same stack as [rejkt.xyz](https:
 
 **Open in the sense that matters: someone else can pick it up.** No build secrets, forkable, and documented well enough, `AGENTS.md`, skills files, these docs, that a newcomer or their agent gets oriented without asking us. That is a documentation problem, not an argument for a smaller stack.
 
-Brand strings live in one module so that forks and the eventual rename are a one-file change (see [roadmap.md](roadmap.md) §4).
+Brand strings live in one module, so a fork is a one-file change.
 
 **One hard constraint: generator code never renders on the app's own origin.** Artist JavaScript is untrusted, it runs in every visitor's browser, and same-origin would give it reach into wallet state and session storage. Artifacts are served from a separate host in a sandboxed frame, the arrangement fxhash uses, and a DNS decision far cheaper to make before the first piece renders than after.
 
 That host is `provider.aleatory.art`, and it belongs to the provider stack: it is the same harness `netlify/functions/lib/render.mts` uses to capture the image that goes on chain, serving live to a browser instead of headless. It renders a piece that is already minted, addressed by CID. It is not a sandbox, and calling it one obscured for a while that there was no sandbox: a sandbox is where an artist builds and iterates before minting.
 
-Wallet stack reuses what hack.tez already runs (octez.connect / Beacon), which is also what makes v0 in the labs nearly free.
+Wallet connection is octez.connect, the Beacon successor.
 
 ---
 
@@ -408,3 +411,48 @@ Wallet stack reuses what hack.tez already runs (octez.connect / Beacon), which i
 | Marketplace fee war | We run one, at 2.5%, and pieces trade freely elsewhere regardless, standard FA2 means no venue can be locked out, including ours. |
 | The steward disappears | Admin is transferable in two steps; minting keys are cyclable; the renderer is open source and replaceable. |
 | Protocol constants change (storage cost, op size) | Constants read at runtime where possible; ⚠-marked in docs; estimator is chain-derived, never hardcoded |
+
+---
+
+## 12. What this deliberately does not do
+
+Every one of these is a decision rather than a gap.
+
+- **No fee on minting.** The price goes to the artist and the render gas to the
+  provider, in the mint operation. Secondary trades on our own marketplace take
+  2.5%, the way objkt does.
+- **No fee to deploy.** The artist's own storage burn is already a real floor
+  against spam.
+- **No escrow.** A collection holds no funds between operations, so there is
+  nothing in it to drain.
+- **No collector self-reveal, and no commit-reveal seed.** The seed is the mint
+  operation's hash: nobody picks it and nobody can predict it.
+- **No moderation on chain.** A blocklist is this front end declining to
+  display something. It is never chain state, and it binds nobody else.
+- **No claim of neutrality.** We are the spec author, the reference
+  implementation, the first provider and the default front end. Saying so
+  plainly is worth more than pretending otherwise.
+
+---
+
+## 13. What it costs, measured
+
+Originated on shadownet, 2026-08-25. Protocol constants read live: 250 mutez
+per byte, 32,768 bytes per operation.
+
+| | cost | bytes |
+|---|---|---|
+| Factory origination, once, ours | 4.22 ꜩ | 16,792 |
+| Collection deploy, per artist | 3.56 ꜩ | 14,237 |
+| Mint, per collector | 0.052 ꜩ | 208 |
+
+The factory carries a copy of the collection template, and that whole
+operation is 16,792 bytes against the 32,768 cap.
+
+**The collection deploy is the number to watch.** It is real money charged to
+the people this is built for, and it comes almost entirely from the template's
+size, which is why the template stays small on purpose.
+
+A mint costs a collector about five hundredths of a tez in burn on top of the
+price and the render gas, and it stays flat as an edition grows.
+

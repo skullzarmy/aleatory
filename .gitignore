@@ -51,3 +51,8 @@ public/templates/*.zip
 /docs/audit-response.md
 /docs/audit-ui.md
 /docs/open-questions.md
+/docs/decisions.md
+/docs/roadmap.md
+/docs/sitemap.md
+/docs/lab-entry.md
+/docs/pipeline.md
