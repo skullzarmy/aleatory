@@ -6,7 +6,7 @@ operation that minted the piece, so it is fixed at purchase and chosen by
 nobody. Everything below follows from wanting those two facts to hold without
 anyone's cooperation, including ours.
 
-Six contracts hold the state, a render provider turns a piece into an image,
+Seven contracts hold the state, a render provider turns a piece into an image,
 and a website reads all of it. Only the first of those three is load-bearing:
 the provider is a role anyone can fill, and the website is one client among
 however many exist.
@@ -35,14 +35,17 @@ The token is not a picture. The token is a pointer into a possibility space, and
 
 ## 2. Contracts
 
-Five contracts, and the split between them is the design.
+Seven contracts. Four we administer, one nobody can, one belongs to whoever
+runs it, and one to the artist who deployed it.
 
 | Contract | Owns | Who controls it |
 |---|---|---|
-| **Factory** | The collection template and a registry of what it deployed | Us. Two-step transferable admin, plus `admin_lambda`. |
+| **Router** | Which factory, marketplace, registry and resolver are current | Us. Two-step transferable admin. |
+| **Factory** | The collection template and a record of what it deployed | Us. Two-step transferable admin, plus `admin_lambda`. |
+| **Marketplace** | Listings, offers, fees, royalties owed | Us. Two-step transferable admin. |
+| **Resolver** | Which keys may write resolution entries | Us. One flip rotates a leaked key across every collection. |
 | **Collection** (FA2) | One project: one generator, one edition, its tokens | The artist, from the moment it exists. |
-| **Resolver** | The set of backend minting keys | Us. One flip rotates a leaked key across every collection. |
-| **Provider** | One render provider's price and push endpoint | Whoever runs it. Any contract exposing `get_render_gas` is a provider. |
+| **Provider** | One render provider's price and working key | Whoever runs it. |
 | **Registry** | The list of providers | Nobody. Permissionless, no fee. |
 
 **The factory holds no tokens.** That is what makes its escape hatch safe: `admin_lambda` transforms factory storage, and there is nothing of anyone else's in factory storage to reach. The contract that needs to be upgradable holds nothing; the contract that holds everything cannot be touched.

@@ -1,16 +1,17 @@
 # Contracts
 
-Six contracts in SmartPy. What each one owns, and who can change it, is the
-whole security model.
+Seven contracts in SmartPy. Four we administer, one nobody can, one belongs to
+whoever runs it, and one to the artist who deployed it.
 
 | Contract | Owns | Controlled by |
 |---|---|---|
+| **Router** | Which factory, marketplace, registry and resolver are current | Us. Two-step admin. |
 | **Factory** | The collection template, and a record of what it deployed | Us. Two-step admin. |
-| **Collection** | One generator, one edition, its tokens | The artist, from origination |
 | **Marketplace** | Listings, offers, fees, royalties owed | Us. Two-step admin. |
+| **Resolver** | Which keys may write resolution entries | Us. Two-step admin. |
+| **Collection** | One generator, one edition, its tokens | The artist, from origination |
 | **Provider** | One renderer's price and working key | Whoever runs it |
 | **Registry** | The list of providers | Nobody. Permissionless, free. |
-| **Resolver** | Which keys may write resolution entries | Us. Two-step admin. |
 
 ## Two rules that shape everything else
 
@@ -63,7 +64,7 @@ npm run test:contracts      the SmartPy scenarios
 npm run deploy              originate, --dry-run to preview
 ```
 
-`aleatory.py` holds the resolver, provider, router, registry, factory and the
+`aleatory.py` holds the router, factory, resolver, provider, registry and the
 collection template. `marketplace.py` is separate because it is separately
 deployable and separately replaceable.
 
