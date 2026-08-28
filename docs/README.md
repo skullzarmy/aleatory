@@ -27,6 +27,7 @@ Read in this order.
 | **[interface.md](interface.md)** | ALEATORY-001, the interface a conforming collection implements. |
 | **[libraries.md](libraries.md)** | How a generator declares p5 or three.js instead of carrying a copy: the tag, what is declarable, what happens at each stage, and why the record is a hash rather than a URL. |
 | **[params.md](params.md)** | Declared mint-time parameters, as a spec: the declaration format, the exact resolution rule, where it all sits on chain, and how another platform builds a mint UI for our generators without our source. |
+| **[provider.md](provider.md)** | Running a render provider: what you earn, how artists find you, how to get listed, and the four ways it stops working quietly. |
 | **[roadmap.md](roadmap.md)** | v0 lab (no infra, ships now), v1 protocol (leaves home), v2 Tezos X and the multi-runtime bet. |
 | **[identity.md](identity.md)** | How an address becomes a name, a face and a profile, and why we are never the authority behind any of it. |
 | **[sitemap.md](sitemap.md)** | Every page, what it is for, and what is left. |

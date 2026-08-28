@@ -7,6 +7,7 @@ import {
     type Provider,
 } from "@/lib/providers";
 import { formatTez, shortAddress } from "@/lib/utils";
+import { BRAND } from "@/lib/config";
 import { Avatar } from "@/components/account/Avatar";
 
 export const metadata: Metadata = {
@@ -82,7 +83,83 @@ export default async function ProvidersPage() {
             )}
 
             <p className="mt-4 text-xs text-muted-foreground">{RANKING_METHOD}</p>
+
+            <RunOne />
         </div>
+    );
+}
+
+/**
+ * The pitch, for anyone who could run one.
+ *
+ * The page listed providers and ranked them and never said how to become one,
+ * which for a role the whole design depends on being contestable is the wrong
+ * thing to leave out. If nobody else can plausibly run one, the openness is
+ * decorative.
+ */
+function RunOne() {
+    return (
+        <section className="mt-12 rounded-lg border border-border p-6">
+            <h2 className="text-base font-medium">Run one</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+                Deploy a contract, call <code className="font-mono text-xs">register</code>{" "}
+                on the registry, and you are listed. It is permissionless and free: the
+                registry checks your contract answers three views and lists it if it does.
+                Nobody reviews you, nobody approves you, and nobody can refuse you or
+                remove you.
+            </p>
+
+            <dl className="mt-5 space-y-3 text-sm">
+                <div>
+                    <dt className="font-medium">What you earn</dt>
+                    <dd className="mt-1 text-muted-foreground">
+                        You set your own render gas, paid to your contract by every mint of
+                        every collection that picked you, in the same operation that pays
+                        the artist. A publish costs about 0.0015 ꜩ in chain fees against
+                        it.
+                    </dd>
+                </div>
+                <div>
+                    <dt className="font-medium">What you are judged on</dt>
+                    <dd className="mt-1 text-muted-foreground">
+                        Pieces published and pieces left waiting. Price is not part of the
+                        ranking, so undercutting moves you nowhere; delivering does. Every
+                        figure above is computed from public chain events, so you can check
+                        ours and rank us below you.
+                    </dd>
+                </div>
+                <div>
+                    <dt className="font-medium">What it takes to run</dt>
+                    <dd className="mt-1 text-muted-foreground">
+                        A headless browser, somewhere to pin what it draws, and a key with
+                        a few tez in it that signs nothing but metadata. The daemon in our
+                        repository is one implementation and you are not obliged to use it.
+                    </dd>
+                </div>
+            </dl>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+                <a
+                    href={`${BRAND.repo}/blob/main/docs/provider.md`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700"
+                >
+                    Running a render provider
+                </a>
+                <Link
+                    href="/docs/interface"
+                    className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
+                >
+                    ALEATORY-001 §5
+                </Link>
+            </div>
+
+            <p className="mt-4 text-xs text-muted-foreground">
+                Nothing in our implementation is required. Conform to the interface and the
+                rest is yours.
+            </p>
+        </section>
     );
 }
 

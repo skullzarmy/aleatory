@@ -9,6 +9,81 @@ required: conform to [ALEATORY-001](interface.md) §5 and the rest is yours.
 
 ---
 
+## Why anyone would
+
+You charge render gas, once, per mint. The artist sets nothing: your contract
+holds the price, the collection reads it when the artist picks you, and every
+mint pays it to your contract in the same operation that pays the artist.
+
+Against that, a publish costs roughly 0.0015 ꜩ in chain fees, plus whatever
+your rendering and pinning cost you off chain. The provider this site runs
+charges 0.05 ꜩ, so the chain-fee margin is about thirty to one. That is not
+the whole picture, because a headless browser and a pinning service are not
+free, and it is the number to start from.
+
+Nothing about this is exclusive. Any number of providers can serve any number
+of collections, an artist picks one per collection at deploy, and can switch
+later. You are competing on delivery, not on access.
+
+---
+
+## Getting listed
+
+Deploy a provider contract, then call `register` on the registry with its
+address. That is the whole process. It is permissionless, free, and asks us
+for nothing.
+
+The registry checks that your contract answers `get_render_gas`, `get_agent`
+and `get_operator`, and lists it if it does. That is a type check, not an
+endorsement: nobody reviews you, nobody approves you, and nobody can refuse
+you. The third view is asked at registration so that an entry nobody could
+ever remove cannot be created, since deregistering asks the contract who its
+operator is.
+
+Leaving is `deregister`, callable only by your own operator. Collections
+already pointing at you keep working; the registry is a directory, not a
+dependency.
+
+---
+
+## How artists find you
+
+The list on /providers is sorted by what you have delivered, in this order:
+
+1. **Pieces published** in the last 30 days.
+2. **Backlog share**, outstanding over outstanding plus delivered. Lower wins.
+3. **Median blocks from mint to publish.** Faster wins.
+4. **Time in service**, as the tiebreak.
+
+Every figure comes from public chain events, so anyone can recompute the list
+and order it differently, including ranking us below you. The queries are in
+`src/lib/providers.ts`.
+
+**Your price is not in the ranking.** Undercutting moves you nowhere. What
+moves you is publishing pieces and not leaving any waiting, which is the same
+thing artists actually care about: a piece that never renders is a piece whose
+image never exists.
+
+The corollary matters more than the ranking. An artist who picks you and finds
+their collection half-rendered will switch, and switching is one call on their
+own contract. Nothing binds them to you for a second mint.
+
+---
+
+## Getting paid
+
+Render gas accumulates in your provider contract. `withdraw(amount, to_)`
+moves it, and only your operator key can call it, to any destination you name.
+This is the one call in the system that a signature can misdirect, so it is
+worth being deliberate about where it goes.
+
+`set_render_gas` changes your price for collections that snapshot it
+afterwards. Collections already deployed keep the price they recorded, so a
+change is never retroactive and never surprises an artist who already chose
+you.
+
+---
+
 ## Two keys, and why
 
 ```
@@ -150,6 +225,34 @@ draws headless, and `isolate/index.html`, which draws for a viewer. They agree
 by conforming to [ALEATORY-001](interface.md) §7 rather than by sharing a file.
 When they once disagreed on how to seed, every piece rendered from one
 identical stream. If you change one, change the other.
+
+---
+
+## Staying good at it
+
+Four things go wrong, and three of them are silent.
+
+**The agent runs dry.** It pays its own gas, and empty it does not error
+anywhere you would see: publishing simply stops and pieces sit pending, which
+looks exactly like a rendering fault. Watch its balance and set a floor. This
+is the single most common way a provider quietly stops being one.
+
+**A publish half-lands.** A confirmation you never saw still took the piece out
+of the queue, because any write at all does. `provider:retry` exists for that
+and is worth running on a schedule rather than after somebody complains.
+
+**A library stops resolving.** The piece stays pending rather than rendering
+blank, which is correct and also invisible. A backlog that will not clear is
+usually this.
+
+**The agent leaks.** Rotate with one `set_agent` on your own contract. Every
+collection using you follows immediately, because they ask `get_agent()` live
+rather than trusting what they snapshotted. If you also write resolver
+entries, remove the old key there too: two calls, no artist involved.
+
+None of these announce themselves, so the only real answer is to watch the
+backlog. Outstanding work is public, it is what the ranking counts, and an
+artist can see it before they choose you.
 
 ---
 
