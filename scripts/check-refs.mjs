@@ -14,7 +14,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 const tracked = execSync("git ls-files", { encoding: "utf8" }).trim().split("\n");
-const scripts = new Set(Object.keys(JSON.parse(readFileSync("package.json", "utf8")).scripts));
+const scripts = new Map(Object.entries(JSON.parse(readFileSync("package.json", "utf8")).scripts));
 
 // Point-in-time records. An audit describes the tree as it was, and correcting
 // its paths later would make it describe a tree nobody audited.
@@ -50,6 +50,26 @@ for (const doc of docs) {
         if (!scripts.has(m[1])) {
             bad++;
             console.log(`MISSING SCRIPT  ${doc}: npm run ${m[1]}`);
+        }
+    }
+
+    // Flags, against the script that would receive them.
+    //
+    // This is the one that matters. A doc showing `-- --go` for a script that
+    // stopped taking --go reads perfectly and sends somebody to a command
+    // that quietly does nothing, or worse, does the opposite of what they
+    // read. Checking the name existed was never enough.
+    for (const m of src.matchAll(/npm run ([a-z0-9:_-]+) -- (--[a-z-]+)/g)) {
+        const [, name, flag] = m;
+        const command = scripts.get(name);
+        if (!command) continue;
+
+        const file = command.match(/([a-zA-Z0-9_./-]+\.(?:mts|ts|mjs|js))/)?.[1];
+        if (!file || !existsSync(file)) continue;
+
+        if (!readFileSync(file, "utf8").includes(flag)) {
+            bad++;
+            console.log(`UNKNOWN FLAG    ${doc}: npm run ${name} -- ${flag}  (${file} never reads it)`);
         }
     }
 }

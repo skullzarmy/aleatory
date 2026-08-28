@@ -149,8 +149,8 @@ Optional, and worth setting once you are listed:
 ## Standing one up
 
 ```
-npm run provider:setup          # what it would do
-npm run provider:setup -- --go  # generate the agent, fund it, reveal it
+npm run provider:setup                # generate the agent, fund it, reveal it
+npm run provider:setup -- --dry-run   # show what that would do, change nothing
 ```
 
 It prints `ALEA_AGENT_ADDRESS` and `ALEA_AGENT_SK` for `.env`. The secret key
@@ -175,10 +175,14 @@ is funded, looks correctly configured, and has never landed an operation.
 
 ```
 npm run provider:daemon                   # the process. This is how it runs.
-npm run provider:check                    # what is waiting, change nothing
 npm run provider:run                      # one pass, then exit
+npm run provider:check                    # a pass that changes nothing
 npm run provider:retry -- <KT1…> <token>  # one piece, by name
 ```
+
+Every command here does its work when you run it. `--dry-run` is how you ask
+any of them to show you instead, and `provider:check` is the name for
+`provider:run -- --dry-run`, which is the one worth having a name.
 
 `provider:daemon` stays up and polls, so a piece minted now has its image
 seconds later. It is the provider. The single-pass commands are for looking at

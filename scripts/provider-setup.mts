@@ -1,8 +1,8 @@
 /**
  * Stand up a render provider.
  *
- *   npm run provider:setup            show what would happen, change nothing
- *   npm run provider:setup -- --go    do it
+ *   npm run provider:setup                  do it
+ *   npm run provider:setup -- --dry-run     show what would happen
  *
  * Four steps, in this order, because each needs the one before it:
  *
@@ -24,7 +24,7 @@ const { InMemorySigner } = await import("@taquito/signer");
 const { b58cencode, prefix } = await import("@taquito/utils");
 const crypto = await import("node:crypto");
 
-const GO = process.argv.includes("--go");
+const DRY_RUN = process.argv.includes("--dry-run");
 const RPC = process.env.TEZOS_RPC || "https://rpc.tzkt.io/shadownet";
 
 /**
@@ -88,8 +88,8 @@ console.log("\nTo do");
 console.log(`  ${needsFunding ? "send" : "skip"}    fund the agent with ${FUND_TEZ} tez`);
 console.log(`  ${needsReveal ? "send" : "skip"}    reveal the agent's key`);
 
-if (!GO) {
-    console.log("\nNothing sent. Re-run with --go.\n");
+if (DRY_RUN) {
+    console.log("\nDry run. Nothing sent.\n");
     if (!existing) {
         console.log("The generated key is not saved anywhere. A real run prints it.\n");
     }

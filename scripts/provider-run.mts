@@ -29,8 +29,12 @@ const { collectionsServed, collectionsFactories, pendingIn, handle } = await imp
 );
 const { renderConfigFromEnv } = await import("../netlify/functions/lib/render.mts");
 
-/** `provider:check` sets this. Anything else does the work. */
-const DRY = process.env.PROVIDER_DRY === "1";
+/**
+ * Same flag as every other script here, and as `contract/deploy.ts`. It used
+ * to be an environment variable, which meant the way to preview this was
+ * different from the way to preview everything else.
+ */
+const DRY = process.argv.includes("--dry-run");
 
 function check(name: string, ok: boolean, detail = ""): boolean {
     console.log(`  ${ok ? "ok  " : "MISS"} ${name}${detail ? `  ${detail}` : ""}`);

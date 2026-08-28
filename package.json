@@ -23,7 +23,7 @@
         "test": "npm run test:metadata && npm run test:studio && npm run test:hooks && npm run test:dep && npm run test:conformance && npm run test:links && npm run test:logo && npm run test:refs",
         "provider:run": "npx tsx scripts/provider-run.mts",
         "provider:setup": "npx tsx scripts/provider-setup.mts",
-        "provider:check": "PROVIDER_DRY=1 npx tsx scripts/provider-run.mts",
+        "provider:check": "npx tsx scripts/provider-run.mts --dry-run",
         "provider:retry": "npx tsx scripts/provider-retry.mts",
         "provider:daemon": "npx tsx scripts/provider-daemon.mts",
         "templates:build": "npx tsx scripts/build-templates.mts",
