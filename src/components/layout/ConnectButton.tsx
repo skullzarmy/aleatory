@@ -1,17 +1,54 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { AccountName } from "@/components/account/AccountName";
-import { ChevronDown, Images, LogOut, Wallet } from "lucide-react";
+import { shortAddress } from "@/lib/utils";
+import { Check, ChevronDown, Copy, LogOut, Settings2, User, Wallet } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+/**
+ * The address, short, with the only reason anyone wanted it in full.
+ *
+ * It used to print all thirty six characters and wrap onto two lines. Nobody
+ * reads an address; they compare the ends of it or they copy it, and both work
+ * better truncated with a button beside it.
+ */
+function AddressLine({ address }: { address: string }) {
+    const [copied, setCopied] = useState(false);
+
+    return (
+        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+            <span className="font-mono text-xs text-muted-foreground">
+                {shortAddress(address)}
+            </span>
+            <button
+                type="button"
+                onClick={() => {
+                    void navigator.clipboard.writeText(address).then(() => {
+                        setCopied(true);
+                        window.setTimeout(() => setCopied(false), 1200);
+                    });
+                }}
+                aria-label={copied ? "Address copied" : "Copy address"}
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+                {copied ? (
+                    <Check className="h-3.5 w-3.5 text-success" />
+                ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                )}
+            </button>
+        </div>
+    );
+}
 
 export function ConnectButton() {
     const { address, connecting, restoring, connect, disconnect } = useWallet();
@@ -27,18 +64,29 @@ export function ConnectButton() {
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-64">
-                    {/* The address itself, because the trigger shows a name
-                        and a name is a claim the address is what settles. */}
-                    <DropdownMenuLabel className="break-all font-mono text-xs font-normal text-muted-foreground">
-                        {address}
-                    </DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="w-60">
+                    {/* The trigger shows a name, and a name is a claim. This is
+                        the thing that actually settles. */}
+                    <AddressLine address={address} />
                     <DropdownMenuSeparator />
 
+                    {/* Straight to the page rather than through /mine, which
+                        only exists to work out this address and redirect here.
+                        This menu already knows it. */}
                     <DropdownMenuItem asChild>
-                        <Link href="/mine">
-                            <Images />
-                            What you own
+                        <Link href={`/wallet/${address}`}>
+                            <User />
+                            Your page
+                        </Link>
+                    </DropdownMenuItem>
+
+                    {/* Not another view of the same public data: the levers
+                        only this wallet can pull, because the contract names
+                        it administrator. */}
+                    <DropdownMenuItem asChild>
+                        <Link href="/manage">
+                            <Settings2 />
+                            Manage collections
                         </Link>
                     </DropdownMenuItem>
 

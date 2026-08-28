@@ -9,12 +9,17 @@ import { ThemeToggle } from "@/components/themeToggle";
 import { ConnectButton } from "./ConnectButton";
 import { BRAND, NETWORK } from "@/lib/config";
 
+/**
+ * Manage is not here. It lists the collections this wallet administers, which
+ * is an account concern, and in the main navigation it showed an empty page to
+ * everyone who is not an artist with something deployed. It is in the account
+ * menu instead.
+ */
 const NAV = [
     { href: "/", label: "Recent" },
     { href: "/collections", label: "Collections" },
     { href: "/market", label: "Market" },
     { href: "/studio", label: "Studio" },
-    { href: "/manage", label: "Manage" },
     { href: "/providers", label: "Providers" },
 ];
 
