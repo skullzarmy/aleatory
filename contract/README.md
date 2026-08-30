@@ -7,7 +7,7 @@ whoever runs it, and one to the artist who deployed it.
 |---|---|---|
 | **Router** | Which factory, marketplace, registry and resolver are current | Us. Two-step admin. |
 | **Factory** | The collection template, and a record of what it deployed | Us. Two-step admin. |
-| **Marketplace** | Listings, offers, fees, royalties owed | Us. Two-step admin. |
+| **Marketplace** | Listings, offers, fees | Us. Two-step admin. |
 | **Resolver** | Which keys may write resolution entries | Us. Two-step admin. |
 | **Collection** | One generator, one edition, its tokens | The artist, from origination |
 | **Provider** | One renderer's price and working key | Whoever runs it |

@@ -218,8 +218,8 @@ def marketplace():
             # seller. Royalties never come from the listing, so a seller
             # cannot zero out the artist's share.
             #
-            # Paid rather than held. Holding them meant an artist had money
-            # in a contract they had to know to claim.
+            # Paid in the sale. Holding them meant an artist had money in a
+            # contract they had to know to claim.
             fee = sp.split_tokens(sp.amount, listing.fee_bps, 10000)
             self.data.fees_accrued += fee
             remaining = sp.amount - fee
@@ -244,8 +244,15 @@ def marketplace():
                     budget = sp.as_nat(budget - share)
                     cut = sp.split_tokens(sp.amount, share, 10000)
                     if cut > sp.mutez(0):
-                        # If the recipients share cannot be delivered, it stays in `remaining` and goes to the
-                        # seller.
+                        # Asked before it is paid. sp.contract is Some for
+                        # every implicit account and for a contract with a
+                        # unit default entrypoint, which keeps collab split
+                        # contracts working. A share that cannot be delivered
+                        # stays in `remaining` and goes to the seller: the
+                        # royalty map is immutable and the marketplace lists
+                        # any collection, so one address written badly at
+                        # origination must not make every sale of that
+                        # collection revert forever.
                         dest = sp.contract(sp.unit, recipient.key)
                         if dest.is_some():
                             remaining -= cut

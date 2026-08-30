@@ -121,20 +121,25 @@ it, so it belongs inside the document.
 **A front end that originates a collection must check that every royalty
 recipient can receive tez, before the collection exists.**
 
-A sale pays each share in the same operation. A recipient that rejects a
-transfer reverts the sale, and `royalties` has no setter, so every token in
-that collection would be unsellable on that marketplace permanently, with the
-artist unable to fix it.
+A sale pays each share in the same operation. The marketplace only sends to
+an address that can take a plain transfer: an implicit account always can,
+and a contract only through a `default` entrypoint of type unit. A share it
+cannot deliver is skipped and goes to the seller, so one bad address never
+makes a collection unsellable. `royalties` has no setter, so a skipped
+recipient forfeits that share on every sale, forever. A contract that
+accepts the transfer and then fails while handling it still reverts the
+sale.
 
-An implicit account, `tz1`, `tz2` or `tz3`, cannot refuse and needs no check. An
-originated account, `KT1`, can, so ask it: a contract with no `default`
-entrypoint accepting tez is not a payable recipient. Split contracts used for
-collaborations normally are.
+An implicit account, `tz1`, `tz2`, `tz3` or `tz4`, cannot refuse and needs no
+check. An originated account, `KT1`, can, so ask it by simulating a transfer
+(`run_operation` against a node): listing its entrypoints would miss a
+`default` of the wrong type, and one that fails when it runs. Split contracts
+used for collaborations normally pass.
 
-There is nowhere else this can be enforced. The collection cannot check it at
-origination without paying to call every recipient, and the marketplace cannot
-fix it afterwards, so the obligation sits with whoever writes the address
-down.
+The marketplace enforces the part it can, which is not reverting. What it
+cannot do is pay an address that will not take the money, or change the map
+afterwards, so the obligation to catch a bad address while it is still
+correctable sits with whoever writes it down.
 
 This section specifies the mechanism. [libraries.md](libraries.md) is the same
 thing for the person writing a generator.
