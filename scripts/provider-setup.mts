@@ -21,7 +21,7 @@ dotenv.config();
 
 const { TezosToolkit } = await import("@taquito/taquito");
 const { InMemorySigner } = await import("@taquito/signer");
-const { b58cencode, prefix } = await import("@taquito/utils");
+const { b58Encode, PrefixV2 } = await import("@taquito/utils");
 const crypto = await import("node:crypto");
 
 const DRY_RUN = process.argv.includes("--dry-run");
@@ -63,7 +63,7 @@ if (existing) {
     agentSk = existing;
     console.log("Agent     reusing ALEA_AGENT_SK from the environment");
 } else {
-    agentSk = b58cencode(crypto.randomBytes(32), prefix.edsk2);
+    agentSk = b58Encode(crypto.randomBytes(32), PrefixV2.Ed25519Seed);
     console.log("Agent     generated a new key");
 }
 
