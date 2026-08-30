@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getKind, RUNTIME_KINDS } from "@/lib/runtimes";
 import { templateFor, templateParamsFor } from "@/lib/templates";
-import { packageFromFile, packageFromHtml } from "@/lib/project";
+import { packageFromFile, packageFromHtml, type PackagedProject } from "@/lib/project";
 import { detectKind, detectParams } from "@/lib/detect";
 import { newDraft, saveDraft } from "@/lib/draft";
+import type { ParamSpec } from "@/lib/params";
 
 /**
  * Loading a generator.
@@ -18,7 +19,23 @@ import { newDraft, saveDraft } from "@/lib/draft";
  * A `.zip` is inlined into a single document here rather than at publish, so
  * what runs in the studio is byte for byte what goes on chain. A preview built
  * from loose files and a publish built from a bundle are two different pieces.
+ *
+ * An uploaded file stops here rather than going straight through. What was read
+ * out of it is a guess: the kind is inferred, the parameters are inferred, and a
+ * zip may have left a file behind. This page already said "change it below if
+ * that is wrong" over an editable list of kinds, and then navigated away before
+ * anyone could read it, so the correction it offered could not be made and the
+ * wrong guess was discovered later, in a studio panel that looked odd. Reading
+ * the file and opening it are two steps now, and the second one is the artist's.
  */
+/** A file that has been read, waiting on the artist to confirm what it says. */
+interface Held {
+    name: string;
+    project: PackagedProject;
+    /** What the file declared, or null if it declared nothing. */
+    params: ParamSpec[] | null;
+}
+
 export default function NewGeneratorPage() {
     const router = useRouter();
     const fileRef = useRef<HTMLInputElement>(null);
@@ -28,7 +45,23 @@ export default function NewGeneratorPage() {
     // What an uploaded file said about itself, shown rather than applied
     // quietly. A detected kind that is wrong should be visible and editable,
     // not discovered later by an artist wondering why the panel looks odd.
-    const [detected, setDetected] = useState<string | null>(null);
+    //
+    // The kind is held here alongside the reason rather than read back off the
+    // selection, because the selection is the artist's answer and this is the
+    // file's. Once the two can differ, rendering the selection here would put
+    // their correction next to our evidence for something else: "read from your
+    // file: p5.js, because it draws to a canvas".
+    const [detected, setDetected] = useState<{
+        kindId: number;
+        /** False when nothing in the file matched and the fallback was used. */
+        certain: boolean;
+        kindBecause: string;
+        paramsBecause: string | null;
+        notes: string[];
+    } | null>(null);
+    // A file that has been read but not yet opened. Held rather than acted on,
+    // because everything shown about it is still up for correction.
+    const [opened, setOpened] = useState<Held | null>(null);
 
     async function start(name: string, html: string, params = templateParamsFor(kindId)) {
         setBusy(true);
@@ -46,6 +79,8 @@ export default function NewGeneratorPage() {
     async function fromFile(file: File) {
         setBusy(true);
         setError(null);
+        setDetected(null);
+        setOpened(null);
         try {
             const project = await packageFromFile(file);
 
@@ -55,32 +90,49 @@ export default function NewGeneratorPage() {
             const guess = detectKind(project.html);
             setKindId(guess.kindId);
 
-            const detectedParams = detectParams(project.html);
-            const params = detectedParams?.params ?? templateParamsFor(guess.kindId);
-
-            setDetected(
-                detectedParams
-                    ? [
-                          `${guess.because}, and ${detectedParams.because} (${detectedParams.params.length} parameter${detectedParams.params.length === 1 ? "" : "s"})`,
-                          // What reading the declaration cost. An artist who
-                          // declared seven and is given five cannot see the
-                          // two that went missing unless we say so.
-                          ...detectedParams.notes,
-                      ].join(". ")
-                    : guess.because,
-            );
-
-            const draft = newDraft(
-                file.name.replace(/\.(html?|zip)$/i, ""),
-                guess.kindId,
+            const found = detectParams(project.html);
+            setDetected({
+                kindId: guess.kindId,
+                certain: guess.certain,
+                kindBecause: guess.because,
+                paramsBecause: found
+                    ? `${found.because} (${found.params.length} parameter${found.params.length === 1 ? "" : "s"})`
+                    : null,
+                // What reading the declaration cost. An artist who declared
+                // seven and is given five cannot see the two that went missing
+                // unless we say so.
+                notes: found?.notes ?? [],
+            });
+            setOpened({
+                name: file.name.replace(/\.(html?|zip)$/i, ""),
                 project,
-                params,
+                // Null rather than the kind's defaults: which defaults are right
+                // depends on the kind, and the kind is still being corrected.
+                params: found?.params ?? null,
+            });
+            setBusy(false);
+        } catch (e) {
+            setBusy(false);
+            setError(e instanceof Error ? e.message : "Could not read that file.");
+        }
+    }
+
+    /** Open the held file, on whatever the artist has since corrected it to. */
+    async function openHeld(held: Held) {
+        setBusy(true);
+        setError(null);
+        try {
+            const draft = newDraft(
+                held.name,
+                kindId,
+                held.project,
+                held.params ?? templateParamsFor(kindId),
             );
             await saveDraft(draft);
             router.push(`/studio/${draft.id}`);
         } catch (e) {
             setBusy(false);
-            setError(e instanceof Error ? e.message : "Could not read that file.");
+            setError(e instanceof Error ? e.message : "Could not open that.");
         }
     }
 
@@ -92,12 +144,66 @@ export default function NewGeneratorPage() {
                 publish.
             </p>
 
+            {/* `certain` is false when nothing in the file matched and the
+                fallback was used. Saying "read from your file: Canvas 2D,
+                because nothing in the file identified it" claims to have read
+                something and admits there was nothing to read, in one sentence.
+                A guess is worth showing; it is not worth dressing up as a
+                finding, because the artist is the one who has to correct it. */}
             {detected && (
                 <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-                    Read from your file: <strong>{getKind(kindId).label}</strong>, because{" "}
-                    {detected}. Change it below if that is wrong.
+                    {detected.certain ? (
+                        <>
+                            Read from your file:{" "}
+                            <strong>{getKind(detected.kindId).label}</strong>, because{" "}
+                            {detected.kindBecause}.
+                        </>
+                    ) : (
+                        <>
+                            Nothing in your file said which kind it is, so{" "}
+                            <strong>{getKind(detected.kindId).label}</strong> is a guess.
+                        </>
+                    )}
+                    {detected.paramsBecause && <> Also, {detected.paramsBecause}.</>} Change it
+                    below if that is wrong.
                 </p>
             )}
+
+            {/* What reading the declaration cost, each loss on its own line. */}
+            {detected?.notes.map((note) => (
+                <p
+                    key={note}
+                    className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+                >
+                    {note}
+                </p>
+            ))}
+
+            {/* What flattening the package cost, said before it is opened
+                rather than never. A zip that referred to a file it did not
+                contain used to arrive as a piece with a missing image and
+                nothing anywhere explaining the hole. */}
+            {opened && opened.project.unresolved.length > 0 && (
+                <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
+                    {opened.project.unresolved.length === 1
+                        ? "One file it refers to is not in the package: "
+                        : `${opened.project.unresolved.length} files it refers to are not in the package: `}
+                    <code className="font-mono text-xs">
+                        {opened.project.unresolved.join(", ")}
+                    </code>
+                    . It will run without{" "}
+                    {opened.project.unresolved.length === 1 ? "it" : "them"}.
+                </p>
+            )}
+
+            {opened?.project.notes.map((note) => (
+                <p
+                    key={note}
+                    className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+                >
+                    {note}
+                </p>
+            ))}
 
             <fieldset className="mt-6" disabled={busy}>
                 <legend className="sr-only">Runtime kind</legend>
@@ -129,41 +235,67 @@ export default function NewGeneratorPage() {
                 </div>
             </fieldset>
 
+            {/* While a file is held, the only things on offer are opening it
+                and replacing it. Leaving "Start from a template" here would be
+                a button that silently throws away the file just uploaded. */}
             <div className="mt-8 flex flex-wrap gap-3">
-                <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void start("Untitled", templateFor(kindId))}
-                    className="rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
-                >
-                    Start from a template
-                </button>
-                {/* A link, not a download. The button here used to hand over
-                    whichever file the radio above happened to be on, so one
-                    control produced four different things and named none of
-                    them. */}
-                <Link
-                    href="/templates"
-                    className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
-                >
-                    Work locally instead
-                </Link>
-                <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => fileRef.current?.click()}
-                    className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent disabled:opacity-60"
-                >
-                    Open a .html or .zip
-                </button>
-                <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void start("Untitled", BLANK, [])}
-                    className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent disabled:opacity-60"
-                >
-                    Empty file
-                </button>
+                {opened ? (
+                    <>
+                        <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void openHeld(opened)}
+                            className="rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
+                        >
+                            Open in the studio
+                        </button>
+                        <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => fileRef.current?.click()}
+                            className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent disabled:opacity-60"
+                        >
+                            Choose a different file
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void start("Untitled", templateFor(kindId))}
+                            className="rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
+                        >
+                            Start from a template
+                        </button>
+                        {/* A link, not a download. The button here used to hand
+                            over whichever file the radio above happened to be
+                            on, so one control produced four different things
+                            and named none of them. */}
+                        <Link
+                            href="/templates"
+                            className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
+                        >
+                            Work locally instead
+                        </Link>
+                        <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => fileRef.current?.click()}
+                            className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent disabled:opacity-60"
+                        >
+                            Open a .html or .zip
+                        </button>
+                        <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void start("Untitled", BLANK, [])}
+                            className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent disabled:opacity-60"
+                        >
+                            Empty file
+                        </button>
+                    </>
+                )}
             </div>
 
             <input
@@ -173,6 +305,10 @@ export default function NewGeneratorPage() {
                 className="hidden"
                 onChange={(e) => {
                     const file = e.target.files?.[0];
+                    // Cleared so that picking the same file again is still a
+                    // change, which is what "Choose a different file" needs
+                    // when the artist changes their mind and comes back.
+                    e.target.value = "";
                     if (file) void fromFile(file);
                 }}
             />
