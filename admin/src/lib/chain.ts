@@ -185,6 +185,15 @@ export interface RouterState {
     administrator: string;
     proposedAdmin: string | null;
     /**
+     * Every marketplace the router has pointed at, newest first.
+     *
+     * Storage holds one. The rest come from `set_marketplace` events, because
+     * a retired marketplace keeps its listings and the tez escrowed against
+     * its open offers. Reconciling only the current one reports that money as
+     * missing, which is the opposite of what this console is for.
+     */
+    marketplaces: string[];
+    /**
      * The factory a deploy goes to now, which is the head of the list.
      *
      * `add_factory` conses onto the front, so `factories` runs newest first.
@@ -209,6 +218,9 @@ export async function fetchRouter(): Promise<RouterState | null> {
         currentFactory: s.factories[0] ?? "",
         factories: s.factories,
         marketplace: s.marketplace,
+        marketplaces: [s.marketplace, ...(await previousMarketplaces(address))].filter(
+            (m, i, all) => m && all.indexOf(m) === i,
+        ),
         registry: s.registry,
         resolver: s.resolver,
     };
@@ -239,6 +251,29 @@ export async function fetchResolver(address: string): Promise<ResolverState | nu
         proposedAdmin: s.proposed_admin,
         writers: s.writers,
     };
+}
+
+/**
+ * Every marketplace the router has held, newest first.
+ *
+ * Storage history, not `set_marketplace` events: the first marketplace is
+ * written at origination and emits nothing, so an event scan loses it and
+ * reports the tez escrowed there as missing.
+ */
+async function previousMarketplaces(router: string): Promise<string[]> {
+    try {
+        const rows = await tzkt<{ value?: { marketplace?: string } }[]>(
+            `/v1/contracts/${router}/storage/history?limit=200`,
+        );
+        const seen: string[] = [];
+        for (const row of rows) {
+            const address = row?.value?.marketplace;
+            if (address && !seen.includes(address)) seen.push(address);
+        }
+        return seen;
+    } catch {
+        return [];
+    }
 }
 
 // --- registry -------------------------------------------------------------

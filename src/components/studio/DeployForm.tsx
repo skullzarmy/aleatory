@@ -62,7 +62,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     // Where a shared royalty goes. Resolved from the router.
     const [platformAddress, setPlatformAddress] = useState("");
     useEffect(() => {
-        void addresses().then((a) => setPlatformAddress(a.marketplace)).catch(() => {});
+        void addresses()
+            .then((a) => setPlatformAddress(a.marketplaces[0] ?? ""))
+            .catch(() => {});
     }, []);
 
     const split: RoyaltySplit = useMemo(() => {

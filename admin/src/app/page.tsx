@@ -42,7 +42,9 @@ export default async function Dashboard() {
     // what was true when it was set; the router records what the contracts
     // resolve to now.
     const [marketplace, factory, provider, agent, resolver] = await Promise.all([
-        fetchMarketplace(router?.marketplace || ADDRESSES.marketplace).catch(() => null),
+        fetchMarketplace(
+            router?.marketplaces[0] || router?.marketplace || ADDRESSES.marketplace,
+        ).catch(() => null),
         fetchFactory(router?.currentFactory || ADDRESSES.factory).catch(() => null),
         fetchProvider(ADDRESSES.provider).catch(() => null),
         fetchAgent(ADDRESSES.agent).catch(() => null),
@@ -63,8 +65,22 @@ export default async function Dashboard() {
         resolver && { name: "Resolver", ...pick(resolver) },
     ].filter(Boolean) as Administered[];
 
+    // Every marketplace, not only the current one: a retired contract can still
+    // hold fees from sales made on it, and they sweep the same way.
+    const retired = router
+        ? (
+              await Promise.all(
+                  router.marketplaces
+                      .slice(1)
+                      .map((a) => fetchMarketplace(a).catch(() => null)),
+              )
+          ).filter((m): m is NonNullable<typeof m> => m !== null)
+        : [];
+
     const claimable =
-        (marketplace?.feesAccrued ?? 0) + (factory?.feesAccrued ?? 0);
+        (marketplace?.feesAccrued ?? 0) +
+        (factory?.feesAccrued ?? 0) +
+        retired.reduce((n, m) => n + m.feesAccrued, 0);
 
     return (
         <div className="space-y-8">
@@ -77,7 +93,7 @@ export default async function Dashboard() {
                         label="Sweepable now"
                         value={tez(claimable)}
                         tone={claimable > 0 ? "ok" : "plain"}
-                        note="Fees on the marketplace and factory"
+                        note="Fees across every marketplace, and the factory"
                     />
                     <Stat
                         label="Render gas held"
@@ -214,6 +230,10 @@ export default async function Dashboard() {
                         </div>
                     )}
                 </Card>
+            )}
+
+            {router && router.marketplaces.length > 1 && (
+                <RetiredMarketplaces addresses={router.marketplaces.slice(1)} />
             )}
 
             {factory && (
@@ -502,6 +522,59 @@ function ProviderCard({
                     </div>
                 )}
             </div>
+        </Card>
+    );
+}
+
+/**
+ * Marketplaces the router no longer points at.
+ *
+ * They keep their listings and the tez escrowed against their open offers, and
+ * a seller or a bidder can still act on them, so the money is real and has to
+ * be counted. Sweeping fees out of one is permissionless, exactly as it is for
+ * the current one.
+ */
+async function RetiredMarketplaces({ addresses }: { addresses: string[] }) {
+    const states = (
+        await Promise.all(addresses.map((a) => fetchMarketplace(a).catch(() => null)))
+    ).filter((m): m is NonNullable<typeof m> => m !== null);
+
+    if (states.length === 0) return null;
+
+    return (
+        <Card
+            title="Retired marketplaces"
+            subtitle="No longer taking new listings. Still holding what was made on them."
+        >
+            {states.map((m) => (
+                <div key={m.address} className="border-b border-line/40 pb-4 last:border-0">
+                    <Row label="Address">
+                        <Addr address={m.address} />
+                    </Row>
+                    <Row label="Balance">{tez(m.balance)}</Row>
+                    <Row label="Fees accrued">{tez(m.feesAccrued)}</Row>
+                    <Row label="Royalties owed out">{tez(m.royaltiesOwed)}</Row>
+                    <Row label={`Escrowed in ${m.activeOffers} offer(s)`}>
+                        {tez(m.escrowed)}
+                    </Row>
+                    <Row label="Active listings">{m.activeListings}</Row>
+                    <Row label="Unaccounted for">
+                        <span className={m.unaccounted === 0 ? "text-ok" : "text-bad"}>
+                            {tez(m.unaccounted)}
+                            {m.unaccounted === 0 && " \u2713"}
+                        </span>
+                    </Row>
+
+                    <div className="mt-3">
+                        <Action
+                            op={withdrawMarketplaceFees(m.address)}
+                            unavailable={
+                                m.feesAccrued === 0 ? "No fees left here." : undefined
+                            }
+                        />
+                    </div>
+                </div>
+            ))}
         </Card>
     );
 }

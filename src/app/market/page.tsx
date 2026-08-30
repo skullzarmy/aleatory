@@ -25,7 +25,7 @@ export const revalidate = 15;
  */
 export default async function MarketPage() {
     const [marketplace, listings] = await Promise.all([
-        addresses().then((a) => a.marketplace),
+        addresses().then((a) => a.marketplaces[0] ?? ""),
         fetchListings().catch(() => []),
     ]);
 

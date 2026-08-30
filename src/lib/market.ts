@@ -7,6 +7,15 @@ import { addresses } from "./router";
 
 export interface Listing {
     id: number;
+    /**
+     * The marketplace holding it.
+     *
+     * Carried on the row because buying, delisting and cancelling have to go
+     * to the contract that holds the listing, which is not always the current
+     * one. Sending a delist to the wrong marketplace fails, and sending a buy
+     * to the wrong one fails after the wallet has already asked.
+     */
+    marketplace: string;
     seller: string;
     collection: string;
     tokenId: string;
@@ -17,6 +26,8 @@ export interface Listing {
 
 export interface Offer {
     id: number;
+    /** The marketplace holding the escrowed tez. See Listing. */
+    marketplace: string;
     buyer: string;
     collection: string;
     tokenId: string;
@@ -53,9 +64,10 @@ type RawOffer = {
     fee_bps: string;
 };
 
-function toListing(r: BigMapRow<RawListing>): Listing {
+function toListing(r: BigMapRow<RawListing>, marketplace: string): Listing {
     return {
         id: parseInt(r.key, 10),
+        marketplace,
         seller: r.value.seller,
         collection: r.value.collection,
         tokenId: r.value.token_id,
@@ -64,8 +76,9 @@ function toListing(r: BigMapRow<RawListing>): Listing {
     };
 }
 
-function toOffer(r: BigMapRow<RawOffer>): Offer {
+function toOffer(r: BigMapRow<RawOffer>, marketplace: string): Offer {
     return {
+        marketplace,
         id: parseInt(r.key, 10),
         buyer: r.value.buyer,
         collection: r.value.collection,
@@ -74,54 +87,80 @@ function toOffer(r: BigMapRow<RawOffer>): Offer {
     };
 }
 
-async function bigmapPath(name: string): Promise<string | null> {
-    const m = (await addresses()).marketplace;
-    if (!m) return null;
-    return `/v1/contracts/${m}/bigmaps/${name}/keys`;
+const bigmapPath = (marketplace: string, name: string) =>
+    `/v1/contracts/${marketplace}/bigmaps/${name}/keys`;
+
+/**
+ * Ask every marketplace, in parallel.
+ *
+ * A listing lives in whichever contract it was made on, and that contract
+ * keeps working after a newer one ships. Reading only the current address
+ * would hide live listings and escrowed offers from the people who own them.
+ * One slow or missing marketplace returns nothing and the rest still answer.
+ */
+async function acrossMarketplaces<T>(
+    read: (marketplace: string) => Promise<T[]>,
+): Promise<T[]> {
+    const { marketplaces } = await addresses();
+    if (marketplaces.length === 0) return [];
+    const results = await Promise.all(
+        marketplaces.map((m) => read(m).catch(() => [] as T[])),
+    );
+    return results.flat();
 }
 
 export async function fetchListings(limit = 48): Promise<Listing[]> {
-    const path = await bigmapPath("listings");
-    if (!path) return [];
-    const rows = await bigmap<RawListing>(path, {
-        active: "true",
-        "sort.desc": "id",
-        limit,
+    const all = await acrossMarketplaces(async (m) => {
+        const rows = await bigmap<RawListing>(bigmapPath(m, "listings"), {
+            active: "true",
+            "sort.desc": "id",
+            limit,
+        });
+        return rows.map((r) => toListing(r, m));
     });
-    return rows.map(toListing).filter((l) => !isBlockedCollection(l.collection));
+    // Newest first across all of them, then trimmed, so a retired marketplace
+    // with old ids cannot crowd out the current one.
+    return all
+        .filter((l) => !isBlockedCollection(l.collection))
+        .sort((a, b) => b.id - a.id)
+        .slice(0, limit);
 }
 
-/** The live listing for one token, when there is one. */
+/** The live listing for one token, wherever it lives. */
 export async function fetchListingFor(
     collection: string,
     tokenId: string,
 ): Promise<Listing | null> {
-    const path = await bigmapPath("listings");
-    if (!path) return null;
     if (isBlockedCollection(collection)) return null;
-    const rows = await bigmap<RawListing>(path, {
-        active: "true",
-        "value.collection": collection,
-        "value.token_id": tokenId,
-        limit: 1,
+    const found = await acrossMarketplaces(async (m) => {
+        const rows = await bigmap<RawListing>(bigmapPath(m, "listings"), {
+            active: "true",
+            "value.collection": collection,
+            "value.token_id": tokenId,
+            limit: 1,
+        });
+        return rows.map((r) => toListing(r, m));
     });
-    return rows[0] ? toListing(rows[0]) : null;
+    // A token can only be escrowed by one marketplace at a time, since listing
+    // transfers it. More than one means something is wrong; take the newest.
+    return found.sort((a, b) => b.id - a.id)[0] ?? null;
 }
 
 export async function fetchOffersFor(
     collection: string,
     tokenId: string,
 ): Promise<Offer[]> {
-    const path = await bigmapPath("offers");
-    if (!path) return [];
-    const rows = await bigmap<RawOffer>(path, {
-        active: "true",
-        "value.collection": collection,
-        "value.token_id": tokenId,
-        "sort.desc": "id",
-        limit: 20,
+    const all = await acrossMarketplaces(async (m) => {
+        const rows = await bigmap<RawOffer>(bigmapPath(m, "offers"), {
+            active: "true",
+            "value.collection": collection,
+            "value.token_id": tokenId,
+            "sort.desc": "id",
+            limit: 20,
+        });
+        return rows.map((r) => toOffer(r, m));
     });
-    return rows.map(toOffer);
+    return all.sort((a, b) => Number(b.amountMutez - a.amountMutez));
 }
 
 /**

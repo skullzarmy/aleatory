@@ -21,12 +21,26 @@ import { CONTRACTS, tzktApi } from "./config";
 export interface Addresses {
     /** Newest first. The head is where a deploy goes. */
     factories: string[];
-    marketplace: string;
+    /**
+     * Every marketplace there has ever been, newest first.
+     *
+     * The router stores one, the current one, and emits `set_marketplace`
+     * whenever it changes, so the rest are recovered from those events. A
+     * reader that only looked at the current address would drop every live
+     * listing and every escrowed offer the moment a new marketplace shipped,
+     * and the tez behind an offer would look lost to whoever placed it.
+     */
+    marketplaces: string[];
     registry: string;
     resolver: string;
 }
 
-const EMPTY: Addresses = { factories: [], marketplace: "", registry: "", resolver: "" };
+const EMPTY: Addresses = {
+    factories: [],
+    marketplaces: [],
+    registry: "",
+    resolver: "",
+};
 
 let cached: { at: number; value: Addresses } | null = null;
 const TTL_MS = 60_000;
@@ -51,14 +65,50 @@ async function fromChain(): Promise<Addresses> {
             registry?: string;
             resolver?: string;
         };
+        const current = s.marketplace ?? "";
+        const previous = await marketplaceHistory();
+
         return {
             factories: Array.isArray(s.factories) ? s.factories : [],
-            marketplace: s.marketplace ?? "",
+            marketplaces: [current, ...previous.filter((m) => m !== current)].filter(
+                Boolean,
+            ),
             registry: s.registry ?? "",
             resolver: s.resolver ?? "",
         };
     } catch {
         return EMPTY;
+    }
+}
+
+/**
+ * Every marketplace the router has ever held, newest first.
+ *
+ * From the storage history rather than from `set_marketplace` events. The
+ * first marketplace is written at origination and emits nothing, so an event
+ * scan silently loses it, along with every listing and escrowed offer on it.
+ * Storage history has each value the field has held, however it got there.
+ *
+ * A failure here costs the history and not the present: the current address
+ * still comes from storage, so the site works and only old listings go
+ * missing.
+ */
+async function marketplaceHistory(): Promise<string[]> {
+    try {
+        const res = await fetch(
+            `${tzktApi()}/v1/contracts/${CONTRACTS.router}/storage/history?limit=200`,
+            { next: { revalidate: 300 } },
+        );
+        if (!res.ok) return [];
+        const rows = (await res.json()) as { value?: { marketplace?: string } }[];
+        const seen: string[] = [];
+        for (const row of rows) {
+            const address = row?.value?.marketplace;
+            if (address && !seen.includes(address)) seen.push(address);
+        }
+        return seen;
+    } catch {
+        return [];
     }
 }
 
@@ -76,7 +126,12 @@ export async function addresses(): Promise<Addresses> {
         factories: envFactory
             ? [envFactory, ...chain.factories.filter((f) => f !== envFactory)]
             : chain.factories,
-        marketplace: CONTRACTS.marketplace || chain.marketplace,
+        marketplaces: CONTRACTS.marketplace
+            ? [
+                  CONTRACTS.marketplace,
+                  ...chain.marketplaces.filter((m) => m !== CONTRACTS.marketplace),
+              ]
+            : chain.marketplaces,
         registry: CONTRACTS.registry || chain.registry,
         resolver: CONTRACTS.resolver || chain.resolver,
     };
@@ -93,4 +148,9 @@ export async function currentFactory(): Promise<string> {
 /** Every factory, so a reader sees the whole catalogue and not just the newest. */
 export async function allFactories(): Promise<string[]> {
     return (await addresses()).factories;
+}
+
+/** Where a new listing or offer goes. */
+export async function currentMarketplace(): Promise<string> {
+    return (await addresses()).marketplaces[0] ?? "";
 }

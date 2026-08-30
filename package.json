@@ -20,7 +20,7 @@
         "dev:isolate": "node scripts/dev-isolate.mjs",
         "test:studio": "npx tsx src/lib/studio.test.ts",
         "test:hooks": "npx tsx src/lib/hooks.test.ts",
-        "test": "npm run test:metadata && npm run test:studio && npm run test:hooks && npm run test:dep && npm run test:conformance && npm run test:links && npm run test:logo && npm run test:refs && npm run test:brand && npm run test:contracts:docs && npm run test:identifiers",
+        "test": "npm run test:metadata && npm run test:studio && npm run test:hooks && npm run test:dep && npm run test:conformance && npm run test:links && npm run test:logo && npm run test:refs && npm run test:brand && npm run test:contracts:docs && npm run test:identifiers && npm run test:market",
         "provider:run": "npx tsx scripts/provider-run.mts",
         "provider:setup": "npx tsx scripts/provider-setup.mts",
         "provider:check": "npx tsx scripts/provider-run.mts --dry-run",
@@ -36,7 +36,8 @@
         "test:refs": "node scripts/check-refs.mjs",
         "test:brand": "npx tsx src/lib/brand.test.ts",
         "test:contracts:docs": "node scripts/check-contracts.mjs",
-        "test:identifiers": "node scripts/check-identifiers.mjs"
+        "test:identifiers": "node scripts/check-identifiers.mjs",
+        "test:market": "npx tsx src/lib/market.test.ts"
     },
     "dependencies": {
         "@codemirror/lang-html": "^6.4.12",

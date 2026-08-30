@@ -32,11 +32,14 @@ export function PieceMarket({
     royaltyBps: number;
 }) {
     const { address, connect, getClient } = useWallet();
-    // Resolved from the router rather than baked in, so a marketplace redeploy
-    // does not need a rebuild of the site.
+    // The current marketplace, where a new listing or offer goes. Acting on
+    // one that already exists uses the address on it instead, since a listing
+    // lives in whichever contract it was made on.
     const [marketplace, setMarketplace] = useState("");
     useEffect(() => {
-        void addresses().then((a) => setMarketplace(a.marketplace)).catch(() => {});
+        void addresses()
+            .then((a) => setMarketplace(a.marketplaces[0] ?? ""))
+            .catch(() => {});
     }, []);
     const [busy, setBusy] = useState<string | null>(null);
     // An operation has landed and the indexer has not caught up. The controls
@@ -137,7 +140,7 @@ export function PieceMarket({
                             type="button"
                             disabled={busy !== null || settling}
                             onClick={() =>
-                                run("delist", async () => ops.delist(await getClient(), listing.id))
+                                run("delist", async () => ops.delist(await getClient(), listing.id, listing.marketplace))
                             }
                             className="w-full rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-60"
                         >
@@ -150,7 +153,12 @@ export function PieceMarket({
                             onClick={() =>
                                 address
                                     ? run("buy", async () =>
-                                          ops.buyListing(await getClient(), listing.id, listing.priceMutez),
+                                          ops.buyListing(
+                                              await getClient(),
+                                              listing.id,
+                                              listing.priceMutez,
+                                              listing.marketplace,
+                                          ),
                                       )
                                     : void connect()
                             }
@@ -280,6 +288,7 @@ export function PieceMarket({
                                                         address as string,
                                                         tokenId,
                                                         o.id,
+                                                        o.marketplace,
                                                     );
                                                 })
                                             }
@@ -294,7 +303,7 @@ export function PieceMarket({
                                             disabled={busy !== null || settling}
                                             onClick={() =>
                                                 run(`cancel-${o.id}`, async () =>
-                                                    ops.cancelOffer(await getClient(), o.id),
+                                                    ops.cancelOffer(await getClient(), o.id, o.marketplace),
                                                 )
                                             }
                                             className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"

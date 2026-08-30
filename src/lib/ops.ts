@@ -124,9 +124,16 @@ const str = (v: string) => ({ string: v });
 const int = (v: number | string | bigint) => ({ int: String(v) });
 const bytes = (hex: string) => ({ bytes: hex.replace(/^0x/, "") });
 
-/** Resolved from the router, so a redeploy does not need a rebuild. */
+/**
+ * Where a *new* listing or offer goes: the current marketplace.
+ *
+ * Acting on something that already exists takes the address off the listing
+ * or the offer instead, because it lives in whichever contract it was made
+ * on. Delisting against the wrong marketplace fails, and buying against the
+ * wrong one fails after the wallet has already asked for a signature.
+ */
 async function marketplace(): Promise<string> {
-    const a = (await addresses()).marketplace;
+    const a = (await addresses()).marketplaces[0];
     if (!a) throw new Error("No marketplace is configured for this network.");
     return a;
 }
@@ -254,8 +261,15 @@ export async function acceptOfferFor(
     owner: string,
     tokenId: string,
     offerId: number,
+    /**
+     * The marketplace holding the offer, from the offer.
+     *
+     * The operator grant and the accept both have to name it. Granting the
+     * current marketplace and accepting there would fail on a contract that
+     * never held the offer, after the wallet had already asked.
+     */
+    market: string,
 ): Promise<OpResult> {
-    const market = await marketplace();
     const [grant, accept, revoke] = await Promise.all([
         encode(collection, "update_operators", [
             { add_operator: { owner, operator: market, token_id: tokenId } },
@@ -273,16 +287,23 @@ export async function acceptOfferFor(
     ]);
 }
 
-export async function delist(client: DAppClient, listingId: number): Promise<OpResult> {
-    return send(client, await marketplace(), "delist", int(listingId));
+export async function delist(
+    client: DAppClient,
+    listingId: number,
+    /** The marketplace holding it, from the listing. */
+    marketplaceAddress: string,
+): Promise<OpResult> {
+    return send(client, marketplaceAddress, "delist", int(listingId));
 }
 
 export async function buyListing(
     client: DAppClient,
     listingId: number,
     priceMutez: bigint,
+    /** The marketplace holding it, from the listing. */
+    marketplaceAddress: string,
 ): Promise<OpResult> {
-    return send(client, await marketplace(), "buy", int(listingId), priceMutez, TRANSFER);
+    return send(client, marketplaceAddress, "buy", int(listingId), priceMutez, TRANSFER);
 }
 
 export async function makeOffer(
@@ -296,12 +317,22 @@ export async function makeOffer(
     return send(client, market, p.entrypoint, p.value, amountMutez, TRANSFER);
 }
 
-export async function cancelOffer(client: DAppClient, offerId: number): Promise<OpResult> {
-    return send(client, await marketplace(), "cancel_offer", int(offerId));
+export async function cancelOffer(
+    client: DAppClient,
+    offerId: number,
+    /** The marketplace holding the escrowed tez, from the offer. */
+    marketplaceAddress: string,
+): Promise<OpResult> {
+    return send(client, marketplaceAddress, "cancel_offer", int(offerId));
 }
 
-export async function acceptOffer(client: DAppClient, offerId: number): Promise<OpResult> {
-    return send(client, await marketplace(), "accept_offer", int(offerId), 0, TRANSFER);
+export async function acceptOffer(
+    client: DAppClient,
+    offerId: number,
+    /** The marketplace holding the offer, from the offer. */
+    marketplaceAddress: string,
+): Promise<OpResult> {
+    return send(client, marketplaceAddress, "accept_offer", int(offerId), 0, TRANSFER);
 }
 
 /** Artist controls on their own collection. */

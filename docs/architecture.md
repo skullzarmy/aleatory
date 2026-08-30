@@ -50,6 +50,18 @@ runs it, and one to the artist who deployed it.
 
 **The factory holds no tokens.** That is what makes its escape hatch safe: `admin_lambda` transforms factory storage, and there is nothing of anyone else's in factory storage to reach. The contract that needs to be upgradable holds nothing; the contract that holds everything cannot be touched.
 
+**A replaced marketplace keeps working.** `set_marketplace` points new listings
+at a new contract and does nothing to the old one, which still holds its
+listings and the tez escrowed against its open offers. A seller can still
+delist there and a bidder can still cancel, so a reader that only looks at the
+current address hides money from the people who own it.
+
+The full sequence is in the router's storage history rather than in an event:
+the first marketplace is written at origination and emits nothing, so an event
+scan silently loses it. Acting on a listing or an offer means calling the
+contract that holds it, which is why a listing carries its own marketplace
+address rather than being assumed to live at the current one.
+
 **A collection has no escape hatch at all.** No `admin_lambda`, no upgrade path, no platform fee, and no authority retained by us. `code`, `code_uri`, `code_hash` and `royalties` have no setter anywhere in it. The artist administers only what established Tezos NFT contracts let an artist administer: pause the sale, reprice the unsold remainder, reduce or close the edition, switch render provider, and hand the contract to another address in two steps (§4).
 
 The price of that guarantee is real: a bug in the template is frozen into every collection already deployed, with no remedy. Which is why the collection stays boring, and why it needs to be audited before the first one ships.

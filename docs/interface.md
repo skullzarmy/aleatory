@@ -325,5 +325,6 @@ Everything a front end needs, from public chain data:
 | A piece's seed | the hash of the `mint` operation that created it |
 | A piece's parameters | the `params` field of that same event |
 | Who to pay on a sale | `get_royalties()` on the collection |
+| Every marketplace there has been | the router's storage history, `marketplace` at each state |
 
 No index held by anyone is required for any of it.
