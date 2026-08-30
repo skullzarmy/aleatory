@@ -22,7 +22,7 @@ The five-parameter ceiling is kept. Not for storage reasons; because a collector
 
 ## 2. The declaration
 
-JSON. Lives in the immutable generator record as `params_schema`, and, when non-empty, is duplicated under its own contract metadata key for exactly the use case in §5.
+JSON, written under the collection's `aleatory:params` metadata key when a generator declares anything. One key, one place to read it, which is what §5 is for.
 
 ```json
 {
@@ -76,7 +76,7 @@ The rule, in order, per declared parameter:
 
 An out-of-range value is corrected, never rejected. Refusing would produce tokens that some viewers can render and others cannot, which is the one outcome worth designing out.
 
-The rule is also stated in the record itself, as `params_resolution`, so a reader is never inferring it:
+The rule, in full, so a reader is never inferring it:
 
 ```
 clamp to [min,max]; snap to the step grid from min; unknown keys dropped;
@@ -99,18 +99,17 @@ Declaration order because it is the only ordering a third party can reconstruct 
 
 ## 4. Where it all lives on chain
 
-One contract per generator, deployed by the factory. Its metadata big_map carries the record and the code; `params_schema` is also an immutable storage field, set at deploy and never changed.
+One contract per generator, deployed by the factory. Its metadata big_map
+carries the declaration; its storage carries the code.
 
 | What | Where |
 |---|---|
-| The declaration | `params_schema` inside `aleatory:record`, **and** verbatim under the metadata key `aleatory:params` |
-| The resolution rule | `params_resolution` inside `aleatory:record` |
+| The declaration | the collection's `aleatory:params` metadata key |
+| The resolution rule | this document, §3. It is the same for every generator. |
 | One piece's values | the `mint` operation that created it, and `aleaParams` in that token's metadata JSON |
-| Where to find the declaration, from a token | its collection's `aleatory:params` metadata key |
 
-The duplication of the declaration is a few hundred bytes and it is worth them: a platform building a mint UI needs one value, and making it fetch and parse a whole generator record to find one field is how an integration gets skipped.
-
-Absent key and empty declaration are never both used to mean the same thing: if a generator declares nothing, `params_schema` is `null` and `aleatory:params` does not exist.
+A generator that declares nothing has no `aleatory:params` key at all, so an
+absent key and an empty declaration never both have to mean the same thing.
 
 ---
 
@@ -118,7 +117,7 @@ Absent key and empty declaration are never both used to mean the same thing: if 
 
 The whole point. Given a generator contract address:
 
-1. Read the metadata big_map. Take `aleatory:params` if present; otherwise read `aleatory:record` and take `params_schema`. Absent or `null` → the generator has no parameters, mint as normal.
+1. Read the collection's metadata big_map and take `aleatory:params`. Absent means the generator has no parameters: mint as normal.
 2. Render one control per entry, per the table in §2. Use `label` above it and `hint` below it. Start at `default`.
 3. Resolve what the user set, per §3.
 4. Preview by rendering the generator's code with the resolved values, see §6.

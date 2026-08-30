@@ -49,6 +49,31 @@ for (const doc of docs) {
     }
 }
 
+// Runtime kinds, from the catalogue that defines them.
+{
+    const runtimes = readFileSync("src/lib/runtimes.ts", "utf8");
+    const kinds = [...runtimes.matchAll(/kindId:\s*(\d+),\s*\n\s*name:\s*"([a-z]+)"/g)].map(
+        (m) => ({ id: m[1], name: m[2] }),
+    );
+
+    const arch = readFileSync("docs/architecture.md", "utf8");
+    for (const k of kinds) {
+        if (!new RegExp(`\\|\\s*${k.id}\\s*\\|\\s*\`${k.name}\``).test(arch)) {
+            bad++;
+            console.log(`KIND    docs/architecture.md: no row for kind ${k.id} \`${k.name}\``);
+        }
+    }
+
+    // And nothing invented. Kind names appear in that table and nowhere else
+    // as a claim about what exists.
+    for (const m of arch.matchAll(/\|\s*\d+\s*\|\s*`([a-z]+)`/g)) {
+        if (!kinds.some((k) => k.name === m[1])) {
+            bad++;
+            console.log(`KIND    docs/architecture.md: \`${m[1]}\` is not a runtime kind`);
+        }
+    }
+}
+
 console.log(
     bad === 0
         ? `the docs agree with the contracts (${classes.length}: ${classes.join(", ")})`

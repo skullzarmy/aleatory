@@ -50,7 +50,7 @@ runs it, and one to the artist who deployed it.
 
 **The factory holds no tokens.** That is what makes its escape hatch safe: `admin_lambda` transforms factory storage, and there is nothing of anyone else's in factory storage to reach. The contract that needs to be upgradable holds nothing; the contract that holds everything cannot be touched.
 
-**A collection has no escape hatch at all.** No `admin_lambda`, no upgrade path, no platform fee, and no authority retained by us. `code_uri`, `code_hash`, `params_schema` and `royalties` have no setter anywhere in it. The artist administers only what established Tezos NFT contracts let an artist administer: pause the sale, reprice the unsold remainder, reduce or close the edition, switch render provider, and hand the contract to another address in two steps (§4).
+**A collection has no escape hatch at all.** No `admin_lambda`, no upgrade path, no platform fee, and no authority retained by us. `code`, `code_uri`, `code_hash` and `royalties` have no setter anywhere in it. The artist administers only what established Tezos NFT contracts let an artist administer: pause the sale, reprice the unsold remainder, reduce or close the edition, switch render provider, and hand the contract to another address in two steps (§4).
 
 The price of that guarantee is real: a bug in the template is frozen into every collection already deployed, with no remedy. Which is why the collection stays boring, and why it needs to be audited before the first one ships.
 
@@ -82,87 +82,90 @@ Two things bound that. A collection's resolver is fixed at origination, so we ca
 
 ---
 
-## 3. The generator record, versioned and typed
+## 3. What a collection stores
 
-The single most consequential design decision, because Registry entries are immutable and the contract is meant to never be replaced. Anything not extensible here becomes a migration later.
-
-### Three independent version axes
-
-Conflating these is the usual mistake. They change at different rates for different reasons and each needs its own field.
-
-| Axis | Field | Answers | Changes when |
-|---|---|---|---|
-| **Record layout** | `schema_version` | How do I parse this record? | We add fields to the registry |
-| **Runtime kind** | `runtime.kind_id` + `kind_version` | What kind of code is this, and against which library version? | An artist picks p5 vs SVG vs three vs custom |
-| **Entry-point standard** | `standard_version` | Which lifecycle contract does the code implement? | We revise the renderer standard |
-
-A p5 project pinned to p5 1.5.0 on standard v1 stays exactly that forever, even after the registry is on `schema_version` 4 and the standard is on v3. That is the whole point.
-
-### The record
+A collection is one generator, one edition, and its tokens. Everything a
+renderer or a marketplace needs is in its storage or its metadata big_map, and
+nothing needs an index of ours.
 
 ```
-GeneratorRecord {
-  schema_version    : nat              # layout of this record
-  generator_id      : nat
-  artist            : address
-  published_at      : timestamp
+art    : code            the generator itself, bytes
+         code_encoding   identity, or gzip when it needed compressing
+         code_hash       SHA-256 of the decoded source
+         code_uri        set only when the generator is past the operation cap
+         royalties       address to basis points, capped at 2500
+         pending_metadata  the document a token carries until it is rendered
 
-  runtime : {                          # the type struct
-    kind_id         : nat              # -> Runtimes contract
-    kind_version    : string           # e.g. "1.5.0", the library/dialect version
-  }
-  standard_version  : nat              # entry-point lifecycle the code conforms to
+sale   : price, edition_size (0 is open), paused
 
-  code              : CodeRef          # OnChain(chunk_ids) | DepRef(hash) | Pinned(multihash)
-  deps              : list CodeRef
-  storage_class     : A | B | C        # derived at publish, stored for display honesty
+render : provider        the provider contract the artist chose
+         provider_agent  the agent snapshotted at deploy
+         resolver, trust_resolver, local_writers
+                         who else may write this collection's token metadata
 
-  seed_policy       : OpHash | CommitReveal(min_age)
-  params_schema     : option bytes     # up to 5 declared mint-time inputs; absent = none ([params.md](params.md))
-  capture           : CaptureSpec      # mode, viewport, pixel_ratio, timeout, signal
-  edition           : nat              # 0 = open edition
-  royalties         : TZIP-21 shares
-  metadata          : TZIP-16 pointer
-}
+ledger, operators, token_metadata, administrator, proposed_admin, next_token_id
 ```
 
-### The Runtimes catalogue
+Set at deploy and immutable after it: `code`, `code_encoding`, `code_hash`,
+`code_uri` and `royalties`. There is no setter for any of them anywhere in the
+contract.
 
-```
-RuntimeKind {
-  kind_id        : nat
-  name           : string        # "p5", "svg", "three", "vanilla", "wasm", "custom"
-  entry_spec     : bytes         # the lifecycle contract this kind must implement
-  renderer_ref   : CodeRef       # the harness that boots this kind, itself content-addressed
-  added_at       : timestamp
-  status         : active | deprecated     # deprecation is advisory; nothing stops rendering
-}
-```
+### The metadata big_map
 
-**Kinds live in an append-only contract, not in an enum in the Registry.** An enum means adding a runtime in 2029 requires a new Registry contract and a migration of everything published before it. A catalogue means it requires one append operation, and every record ever written keeps parsing.
+| Key | Holds |
+|---|---|
+| `content` | TZIP-16: name, description, interfaces, authors, `displayUri`, `thumbnailUri`, `aleaCoverSeed` |
+| `aleatory:params` | The mint-time parameter declaration, when the generator has one ([params.md](params.md)) |
+| `aleatory:libraries` | The libraries the generator declared, with npm coordinates and hashes ([libraries.md](libraries.md)) |
 
-A kind is never edited. A better p5 harness is a *new kind_id*, and old projects keep pointing at the old one. Deprecation marks a kind as discouraged for new publishes and changes nothing about existing work, pieces minted against a deprecated kind render identically forever.
+Both `aleatory:` keys are absent when the generator declares nothing, so an
+absent key and an empty one never have to mean different things.
 
-### Standard entry points
+### Runtime kinds is not a stored field
 
-Every kind implements the same lifecycle, whatever the underlying library, exported as a single object (`window.ALEA_MAIN`) rather than as loose globals. The kind decides how the lifecycle is *bound*; the lifecycle itself never varies:
+A generator records no kind on chain. Libraries come from the generator's own
+declarations and one harness runs everything, so nothing at render time
+branches on which kind a piece was written against. The kinds below describe
+the shapes a generator can take and are a label in the studio.
 
-| Entry point | Required | Contract |
+### Runtime kinds
+
+A kind says which harness a generator was written against. Four exist:
+
+| kind_id | name | Entry |
 |---|---|---|
-| **boot(ctx)** | yes | Receives `{ seed, prng, params, paramsSchema, features, ready }`. Called once, before any drawing. Params arrive already resolved against the declaration ([params.md](params.md) §3). |
-| **render** | yes | Produces output. For p5 this is `setup`/`draw`; for SVG a returned document; for custom code, an exported function. |
-| **ready()** | yes | Fired exactly once, when the piece is at its capture point. Deterministic. |
-| **features()** | optional | Returns the trait map derived from the seed. |
-| **resize(w, h)** | optional | Absent means the harness re-boots at the new size. |
+| 1 | `vanilla` | Script runs on load, draws to a `<canvas>`, calls `$alea.ready()`. |
+| 2 | `svg` | Script builds an `<svg>` in the document, calls `$alea.ready()`. |
+| 3 | `p5` | A p5 sketch, `setup` and `draw`. Calls `$alea.ready()`. |
+| 4 | `custom` | Exports `window.ALEA_MAIN = { boot, render, features?, resize? }` and calls `ctx.ready()`. |
 
-This is what makes "custom code" a first-class kind rather than an escape hatch. An artist bringing an engine nobody here has heard of implements five functions and declares `kind: custom` with their harness bundled or referenced. They get every guarantee, determinism check, capture, indexing, market, without asking anyone to add support for their toolchain.
+The first three run as ordinary scripts. Only `custom` exports a lifecycle
+object, because a piece driven by an engine of its own needs the harness to
+call it rather than the other way round.
+
+**Kind ids are append-only.** A kind is never edited and an id is never reused.
+A better p5 harness is a new kind_id, and pieces already minted keep pointing
+at the old one and render as they always did.
+
+**A kind does not decide what loads.** Libraries come from the generator's own
+`alea:library` declarations, so a piece asking for p5 gets p5 whichever kind it
+records. One harness runs all four, and the kind is a label on the work rather
+than a switch in the renderer. That is why a mislabelled piece still renders
+correctly, and why the studio can read the kind back out of an uploaded file.
+
+The catalogue lives in `src/lib/runtimes.ts`. Moving it on chain would let a
+kind be added without a front-end release; nothing in the record shape changes
+if that happens, which is why kind_id is a number rather than a string.
 
 ### Forward-compatibility rules
 
-1. **Additive only.** New optional fields bump `schema_version`; existing fields never change meaning. A reader that knows version *n* reads every record ≤ *n* and ignores unknown trailing optional fields.
-2. **Unknown kind_id → refuse, don't guess.** A renderer that doesn't recognize a kind displays "unsupported runtime" and a pointer to the catalogue entry. It never renders a best-effort approximation. Wrong output is worse than no output in a medium where the output *is* the artwork.
-3. **Every (kind, standard_version) harness is archived forever** and content-addressed. Serving old harnesses is a permanent obligation, not a maintenance burden to be optimized away.
-4. **Version fields are ids, not strings**, where the value comes from a catalogue. Bytes on chain are money (§5).
+1. **Additive only.** New metadata keys are added; existing keys never change
+   meaning. A reader that does not recognise a key ignores it, and a reader
+   that expects one absent from an older collection treats it as undeclared.
+2. **Every harness is archived and content-addressed.** Serving an old harness
+   is a permanent obligation.
+3. **Version fields are ids where the value comes from a catalogue.** Bytes on
+   chain are money (§5).
 
 ---
 
@@ -280,17 +283,30 @@ The hard part, and the part every platform gets asked about.
 
 Tezos gives us no block hash in Michelson and no VRF. What a contract can see, `level`, `now`, `sender`, storage counters, is all predictable, so a naive on-chain seed is snipeable: run the generator locally against the seed you know you'll get, mint only when you like the result.
 
-Two supported policies, chosen per project at publish time and recorded immutably in the record:
+**The seed is the mint operation's hash.** Not derived from it, not hashed
+with anything else: the base58 hash string itself is what a renderer receives
+as `$alea.seed`.
 
-**Policy A, operation-hash seed (default).**
 ```
-seed = blake2b(mint_op_hash ‖ token_id ‖ generator_id)
+seed = the hash of the operation that minted the piece
 ```
-`mint_op_hash` is the hash of the collector's `mint` operation (§4a), fixed by the buyer's own signature, before the backend renders anything. The operation hash is chain state, an indexer reads it, anyone can recompute it, no trust involved, it just isn't readable *inside* Michelson, so the binding happens at the metadata/render layer rather than in contract storage. Simple, cheap, and the convention artists coming from other platforms already understand.
 
-Honest limitation: the op hash is computable before submission, so a determined minter can grind counters and fees offline to fish for a seed. This is a known, real, and historically tolerated weakness, it costs effort and gets much worse for the sniper as demand rises. Document it, don't hide it.
+It is fixed by the buyer's own signature, before anything renders. It is chain
+state, so an indexer reads it and anyone can recompute a piece from it with no
+trust involved. It is not readable inside Michelson, which is why the binding
+happens at the render layer rather than in contract storage.
 
-~~**Policy B, commit-reveal seed.**~~ Dropped 2026-08-23: the operation hash is always the seed, so `seed_policy` is a constant in the spec rather than a field in the record. Commit-reveal would have meant two collector signatures and a contract that mints separately from the one that pays, both of which the settled model removes. The grinding weakness above is accepted and documented instead.
+One seed policy, and no field selecting it. A record with a choice of policies
+would let a collection be published under one nobody else implements.
+
+**Never parse it as a number.** A base58 hash read as base 16 is `NaN`, and
+`NaN` coerced by an unsigned shift is 0, so every piece in the collection draws
+from one identical stream. This has happened here. Seed the PRNG from the
+string, as every harness in this repository does.
+
+Honest limitation: the op hash is computable before submission, so a determined
+minter can grind counters and fees offline to fish for a seed. It costs effort
+and gets worse for the sniper as demand rises. Documented rather than hidden.
 
 **Not doing:** artist-chosen seeds, curated seed lists, or any mechanism where the platform can influence which seed a collector receives. If we can pick, we can be corrupted, and eventually someone will ask.
 
@@ -355,8 +371,8 @@ A generator is HTML/JS (or SVG, or WASM) that receives a seed and renders. That'
 
 - **Seed delivery** by URL parameter and a global, matching the convention artists' existing code is already written against. Code that ran on other Tezos snippet platforms should run here with near-zero edits. Compatibility is deliberate: we are not asking anyone to rewrite a body of work to prove loyalty.
 - **Lifecycle** as defined in §3, one contract across every runtime kind.
-- **Parameterized mints**, a project may declare **up to five** named, typed parameters via `params_schema`, which the minter sets before signing and which are stored on chain with the token alongside the seed. Determinism holds: (code, seed, params) is still a pure function, which is why the resolution rule is specified rather than left to each implementation. Always optional; most generators declare none. The artist names each one and sets its range, unnamed fixed-arity sliders are the mistake this is deliberately not repeating. Specified in full, as an integration guide for other platforms, in **[params.md](params.md)**.
-- **Capture**, the declared capture point in `CaptureSpec`, fired by `ready()`, so preview images are reproducible rather than whenever-the-screenshotter-felt-like-it.
+- **Parameterized mints**, a project may declare **up to five** named, typed parameters under `aleatory:params`, which the minter sets before signing and which are stored on chain with the token alongside the seed. Determinism holds: (code, seed, params) is still a pure function, which is why the resolution rule is specified rather than left to each implementation. Always optional; most generators declare none. The artist names each one and sets its range, unnamed fixed-arity sliders are the mistake this is deliberately not repeating. Specified in full, as an integration guide for other platforms, in **[params.md](params.md)**.
+- **Capture**, the point the piece declares by calling `$alea.ready()`, so an image is taken when the artwork says it is finished.
 - **Sandbox**, rendered in a sandboxed frame with no network. Not a policy, an enforcement: the determinism rule is checked mechanically at publish time, and a generator that tries to fetch gets flagged before it ever mints.
 - **SVG-on-chain path**, for pieces that emit pure SVG, the whole thing can live in contract storage with no runtime at all. Neighboring work (Bootloader) shows this is a rich vein; there is no reason for the standard to exclude it.
 
@@ -416,8 +432,8 @@ Wallet connection is octez.connect, the Beacon successor.
 | Seed grinding on the op-hash seed | Documented plainly and accepted; the cost of one signature and no separate mint step |
 | On-chain storage costs deter artists | Libraries are declared and verified rather than stored, so a generator stays small enough to go on chain; publish a cost estimator before anyone signs |
 | IPFS rot | Public pin set, multiple pinners, class shown on every piece |
-| A runtime we didn't anticipate | Append-only Runtimes catalogue + `custom` kind; no contract replacement needed (§3) |
-| Registry needs a field we didn't foresee | `schema_version`, additive-only evolution, readers ignore unknown optional fields |
+| A runtime we didn't anticipate | The `custom` kind takes any engine, and kind ids are append-only, so nothing needs replacing (§3) |
+| A field we didn't foresee | Metadata keys are additive; a reader ignores what it does not recognise |
 | Nobody uses it | Interop first, pieces trade on objkt/Teia from day one, so an artist risks nothing by trying it |
 | Marketplace fee war | We run one, at 2.5%, and pieces trade freely elsewhere regardless, standard FA2 means no venue can be locked out, including ours. |
 | The steward disappears | Admin is transferable in two steps; minting keys are cyclable; the renderer is open source and replaceable. |
