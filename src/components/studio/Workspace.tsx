@@ -199,7 +199,10 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                         <div className="pt-4">
                             {tool === null && (
                                 <p className="text-xs text-muted-foreground">
-                                    Edit on the left and this redraws. The seed stays put until
+                                    {/* Not "on the left": the workspace is a column
+                                        until lg, where the code sits above this
+                                        rather than beside it. */}
+                                    Edit the code and this redraws. The seed stays put until
                                     you change it.
                                 </p>
                             )}

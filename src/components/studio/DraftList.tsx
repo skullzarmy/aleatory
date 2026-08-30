@@ -17,14 +17,31 @@ import { getKind } from "@/lib/runtimes";
  */
 export function DraftList() {
     const [drafts, setDrafts] = useState<Draft[] | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         void listDrafts().then(setDrafts).catch(() => setDrafts([]));
     }, []);
 
-    async function remove(id: string) {
-        await deleteDraft(id);
-        setDrafts((d) => (d ?? []).filter((x) => x.id !== id));
+    async function remove(draft: Draft) {
+        // Asked, because this is the only copy there is. A draft lives in this
+        // browser and nowhere else: no server, no trash, no undo, and the
+        // button that does it sits an inch from the link that opens the piece.
+        // Everything else on this page warns that unpublished work is fragile,
+        // and then handed one stray click the power to prove it.
+        const name = draft.name || "Untitled";
+        if (!window.confirm(`Delete "${name}"? It is only in this browser, so this cannot be undone.`)) {
+            return;
+        }
+        setError(null);
+        try {
+            await deleteDraft(draft.id);
+            setDrafts((d) => (d ?? []).filter((x) => x.id !== draft.id));
+        } catch {
+            // A delete that fails leaves the row sitting there, which reads as
+            // nothing having happened rather than as a failure.
+            setError(`"${name}" could not be deleted. Another tab may be holding the draft store open.`);
+        }
     }
 
     if (drafts === null) {
@@ -48,35 +65,42 @@ export function DraftList() {
     }
 
     return (
-        <ul className="divide-y divide-border rounded-lg border border-border">
-            {drafts.map((d) => (
-                <li key={d.id} className="flex items-center gap-4 px-4 py-3">
-                    <Link href={`/studio/${d.id}`} className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                            {d.name || "Untitled"}
-                        </span>
-                        <span className="block text-xs text-muted-foreground">
-                            {getKind(d.kindId).label}
-                            {" · "}
-                            {new Intl.NumberFormat().format(
-                                new TextEncoder().encode(d.html).length,
-                            )}{" "}
-                            bytes
-                            {" · "}
-                            edited {relative(d.updatedAt)}
-                        </span>
-                    </Link>
-                    <button
-                        type="button"
-                        onClick={() => void remove(d.id)}
-                        aria-label={`Delete ${d.name || "Untitled"}`}
-                        className="rounded p-2 text-muted-foreground hover:bg-accent hover:text-destructive"
-                    >
-                        <Trash2 size={15} aria-hidden />
-                    </button>
-                </li>
-            ))}
-        </ul>
+        <>
+            {error && (
+                <p className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
+                    {error}
+                </p>
+            )}
+            <ul className="divide-y divide-border rounded-lg border border-border">
+                {drafts.map((d) => (
+                    <li key={d.id} className="flex items-center gap-4 px-4 py-3">
+                        <Link href={`/studio/${d.id}`} className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">
+                                {d.name || "Untitled"}
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                                {getKind(d.kindId).label}
+                                {" · "}
+                                {new Intl.NumberFormat().format(
+                                    new TextEncoder().encode(d.html).length,
+                                )}{" "}
+                                bytes
+                                {" · "}
+                                edited {relative(d.updatedAt)}
+                            </span>
+                        </Link>
+                        <button
+                            type="button"
+                            onClick={() => void remove(d)}
+                            aria-label={`Delete ${d.name || "Untitled"}`}
+                            className="rounded p-2 text-muted-foreground hover:bg-accent hover:text-destructive"
+                        >
+                            <Trash2 size={15} aria-hidden />
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </>
     );
 }
 
