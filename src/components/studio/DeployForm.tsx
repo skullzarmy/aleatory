@@ -87,8 +87,12 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         if (address) {
             const platform = platformShare ? parseFloat(platformPercent) || 0 : 0;
             recipients.push({ address, percent: 100 - platform });
-            if (platform > 0) {
-                recipients.push({ address: platformAddress || address, percent: platform });
+            // Only when it is actually known. Falling back to the artist's
+            // own address made a share they meant to give us go to
+            // themselves, written into a map with no setter, with every
+            // number on screen still looking right.
+            if (platform > 0 && platformAddress) {
+                recipients.push({ address: platformAddress, percent: platform });
             }
         }
         return { totalPercent: total, recipients };
@@ -128,6 +132,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             }
             if (share > 0 && royalty === 0) {
                 return "There is no royalty to share. Set a royalty, or remove the platform's share.";
+            }
+            if (share > 0 && !platformAddress) {
+                return "The platform's payout address has not loaded, so a share cannot be written to it. Try again, or publish without one.";
             }
         }
         return null;
