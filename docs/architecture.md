@@ -42,7 +42,7 @@ runs it, and one to the artist who deployed it.
 |---|---|---|
 | **Router** | Which factory, marketplace, registry and resolver are current | Us. Two-step transferable admin. |
 | **Factory** | The collection template and a record of what it deployed | Us. Two-step transferable admin, plus `admin_lambda`. |
-| **Marketplace** | Listings, offers, fees, royalties owed | Us. Two-step transferable admin. |
+| **Marketplace** | Listings, offers, fees | Us. Two-step transferable admin. |
 | **Resolver** | Which keys may write resolution entries | Us. One flip rotates a leaked key across every collection. |
 | **Collection** (FA2) | One project: one generator, one edition, its tokens | The artist, from the moment it exists. |
 | **Provider** | One render provider's price and working key | Whoever runs it. |
@@ -463,8 +463,7 @@ Every one of these is a decision rather than a gap.
 - **No fee to deploy.** The artist's own storage burn is already a real floor
   against spam.
 - **No escrow.** A collection holds no funds between operations, so there is
-  nothing in it to drain. A marketplace holds its own fee and live offers and
-  nothing else: a sale pays every royalty recipient in the same operation. A marketplace holds its own fee and live offers, and
+  nothing in it to drain. A marketplace holds its own fee and live offers, and
   nobody else's royalties: a sale pays every recipient in the same operation.
 - **No collector self-reveal, and no commit-reveal seed.** The seed is the mint
   operation's hash: nobody picks it and nobody can predict it.
