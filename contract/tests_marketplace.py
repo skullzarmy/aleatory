@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import smartpy as sp
 from marketplace import marketplace
+from fa2_testing import fa2_testing, fa2
 
 
 # === Tests ===
@@ -66,6 +67,13 @@ def stub():
         @sp.onchain_view()
         def get_royalties(self):
             return self.data.royalties
+
+    class Sink(sp.Contract):
+        """A contract that accepts a plain transfer, like a split contract."""
+
+        @sp.entrypoint
+        def default(self):
+            pass
 
     class PlainFa2(sp.Contract):
         """The same, with no royalties view at all."""
@@ -441,10 +449,10 @@ def test_royalties_are_paid_in_the_sale():
 
     Royalties used to accrue here and be claimed later, which meant an artist
     had money sitting in a contract they had to know about. They are pushed
-    now, and the price of that is stated in ALEATORY-001 section 1: a front
-    end originating a collection has to check its royalty addresses, because a
-    recipient that rejects tez reverts the sale and the royalty map has no
-    setter."""
+    now. A recipient that cannot take a plain transfer is skipped rather than
+    allowed to revert the sale, and ALEATORY-001 section 1 still asks a front
+    end to check royalty addresses before they become immutable, so a skipped
+    share is a misconfiguration caught early and not a surprise later."""
     scenario = sp.test_scenario("Royalties are paid", [stub, marketplace])
     admin = sp.test_account("Admin")
     treasury = sp.test_account("Treasury")
@@ -472,3 +480,161 @@ def test_royalties_are_paid_in_the_sale():
     # is its own fee and live offer escrow, never somebody else's royalties.
     m.withdraw_fees(_sender=bob)
     scenario.verify(m.balance == sp.mutez(0))
+
+
+@sp.add_test()
+def test_contract_recipient_with_default_entrypoint_is_paid():
+    """A KT1 royalty recipient that accepts a plain transfer, a split
+    contract for a collaboration, is paid inside the sale like anyone
+    else, on both settlement paths."""
+    scenario = sp.test_scenario("Payable contract recipient", [stub, marketplace])
+    admin = sp.test_account("Admin")
+    treasury = sp.test_account("Treasury")
+    alice = sp.test_account("Alice")
+    bob = sp.test_account("Bob")
+
+    sink = stub.Sink()
+    scenario += sink
+    fa2 = stub.StubFa2({sink.address: 1000})
+    scenario += fa2
+    fa2.mint(sp.record(to_=alice.address, token_id=0))
+    m = _market(scenario, admin, treasury)
+
+    m.list_token(
+        sp.record(
+            collection=fa2.address, token_id=0, price=sp.mutez(10_000_000)
+        ),
+        _sender=alice,
+    )
+    m.buy(0, _sender=bob, _amount=sp.mutez(10_000_000))
+    # 10% of the sale went to the contract, and only the fee stayed here.
+    scenario.verify(sink.balance == sp.mutez(1_000_000))
+    scenario.verify(m.balance == sp.mutez(250_000))
+
+    # The same through an offer.
+    m.make_offer(
+        sp.record(collection=fa2.address, token_id=0),
+        _sender=alice,
+        _amount=sp.mutez(2_000_000),
+    )
+    m.accept_offer(0, _sender=bob)
+    scenario.verify(sink.balance == sp.mutez(1_200_000))
+
+
+@sp.add_test()
+def test_unpayable_recipient_never_blocks_a_sale():
+    """A royalty address that cannot take a plain transfer is skipped, and
+    its share stays with the seller.
+
+    The royalty map has no setter, so an address written by accident is
+    written forever. Reverting on it would make every token in the
+    collection unsellable here permanently. Skipping costs that recipient
+    an unenforceable royalty, which is the failure ALEATORY-001 section 1
+    asks a front end to catch before publishing."""
+    scenario = sp.test_scenario("Unpayable recipient", [stub, marketplace])
+    admin = sp.test_account("Admin")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    bob = sp.test_account("Bob")
+
+    # A contract with no default entrypoint: it cannot receive tez.
+    unpayable = stub.PlainFa2()
+    scenario += unpayable
+    fa2 = stub.StubFa2({unpayable.address: 1000, artist.address: 500})
+    scenario += fa2
+    fa2.mint(sp.record(to_=alice.address, token_id=0))
+    m = _market(scenario, admin, treasury)
+
+    m.list_token(
+        sp.record(
+            collection=fa2.address, token_id=0, price=sp.mutez(10_000_000)
+        ),
+        _sender=alice,
+    )
+    # The sale completes. The artist's 5% is paid, the unpayable 10% goes
+    # to the seller with the rest, and the fee is all that stays behind.
+    m.buy(0, _sender=bob, _amount=sp.mutez(10_000_000))
+    scenario.verify(fa2.data.ledger[0] == bob.address)
+    scenario.verify(unpayable.balance == sp.mutez(0))
+    scenario.verify(m.balance == sp.mutez(250_000))
+
+    # The same through an offer.
+    m.make_offer(
+        sp.record(collection=fa2.address, token_id=0),
+        _sender=alice,
+        _amount=sp.mutez(2_000_000),
+    )
+    m.accept_offer(0, _sender=bob)
+    scenario.verify(fa2.data.ledger[0] == alice.address)
+    scenario.verify(unpayable.balance == sp.mutez(0))
+    scenario.verify(m.balance == sp.mutez(300_000))
+
+
+@sp.add_test()
+def test_full_fa2_operator_dance():
+    """The marketplace's escrow works against a standards-compliant FA2.
+
+    The stubs skip the operator layer, so they cannot answer this: a real
+    TZIP-12 token refuses a transfer from anyone who is neither owner nor
+    operator. Listing must therefore fail without a grant, succeed with one,
+    and settle a sale exactly as it does for the stubs, royalties included."""
+    scenario = sp.test_scenario(
+        "Full FA2", [fa2.t, fa2.main, fa2_testing, marketplace]
+    )
+    admin = sp.test_account("Admin")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    bob = sp.test_account("Bob")
+
+    token = fa2_testing.FullFa2(
+        artist.address,
+        sp.big_map(),
+        {0: alice.address},
+        [fa2.make_metadata(name="Piece", decimals=0, symbol="TP0")],
+        {artist.address: 1000},
+    )
+    scenario += token
+    m = _market(scenario, admin, treasury)
+
+    # A compliant token refuses the escrow without an operator grant.
+    m.list_token(
+        sp.record(
+            collection=token.address, token_id=0, price=sp.mutez(4_000_000)
+        ),
+        _sender=alice,
+        _valid=False,
+        _exception="FA2_NOT_OPERATOR",
+    )
+
+    # Grant, list, revoke: the dance the front end batches.
+    token.update_operators(
+        [
+            sp.variant.add_operator(
+                sp.record(owner=alice.address, operator=m.address, token_id=0)
+            )
+        ],
+        _sender=alice,
+    )
+    m.list_token(
+        sp.record(
+            collection=token.address, token_id=0, price=sp.mutez(4_000_000)
+        ),
+        _sender=alice,
+    )
+    scenario.verify(token.data.ledger[0] == m.address)
+    token.update_operators(
+        [
+            sp.variant.remove_operator(
+                sp.record(owner=alice.address, operator=m.address, token_id=0)
+            )
+        ],
+        _sender=alice,
+    )
+
+    # Settlement is identical to the stubs: fee held, artist paid inline.
+    m.buy(0, _sender=bob, _amount=sp.mutez(4_000_000))
+    scenario.verify(token.data.ledger[0] == bob.address)
+    scenario.verify(m.data.fees_accrued == sp.mutez(100_000))
+    scenario.verify(m.balance == sp.mutez(100_000))

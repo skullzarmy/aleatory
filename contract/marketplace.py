@@ -218,11 +218,8 @@ def marketplace():
             # seller. Royalties never come from the listing, so a seller
             # cannot zero out the artist's share.
             #
-            # Paid rather than held. A recipient that rejects tez reverts the
-            # sale, which is why a front end originating a collection has to
-            # check its royalty addresses before they become immutable
-            # (ALEATORY-001 section 1). Holding them instead meant an artist
-            # had money in a contract they had to know to claim.
+            # Paid rather than held. Holding them meant an artist had money
+            # in a contract they had to know to claim.
             fee = sp.split_tokens(sp.amount, listing.fee_bps, 10000)
             self.data.fees_accrued += fee
             remaining = sp.amount - fee
@@ -247,8 +244,12 @@ def marketplace():
                     budget = sp.as_nat(budget - share)
                     cut = sp.split_tokens(sp.amount, share, 10000)
                     if cut > sp.mutez(0):
-                        remaining -= cut
-                        sp.send(recipient.key, cut)
+                        # If the recipients share cannot be delivered, it stays in `remaining` and goes to the
+                        # seller.
+                        dest = sp.contract(sp.unit, recipient.key)
+                        if dest.is_some():
+                            remaining -= cut
+                            sp.transfer((), cut, dest.unwrap_some())
 
             if remaining > sp.mutez(0):
                 sp.send(listing.seller, remaining)
@@ -381,8 +382,14 @@ def marketplace():
                     budget = sp.as_nat(budget - share)
                     cut = sp.split_tokens(offer.amount, share, 10000)
                     if cut > sp.mutez(0):
-                        remaining -= cut
-                        sp.send(recipient.key, cut)
+                        # Same rule as `buy`: a recipient that cannot take a
+                        # plain transfer is skipped and its share goes to the
+                        # seller, because the royalty map is immutable and one
+                        # bad address must not kill the market for the token.
+                        dest = sp.contract(sp.unit, recipient.key)
+                        if dest.is_some():
+                            remaining -= cut
+                            sp.transfer((), cut, dest.unwrap_some())
 
             if remaining > sp.mutez(0):
                 sp.send(sp.sender, remaining)
@@ -445,9 +452,9 @@ def marketplace():
             Permissionless because the destination is fixed in storage.
             """
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
-            # Never more than the contract holds. Royalties owed and offers in
-            # escrow are also in this balance, so the accrued figure is what
-            # is claimable and the balance is the hard ceiling.
+            # Never more than the contract holds. Offer escrow is also in
+            # this balance, so the accrued figure is what is claimable and
+            # the balance is the hard ceiling.
             amount = self.data.fees_accrued
             if amount > sp.balance:
                 amount = sp.balance
