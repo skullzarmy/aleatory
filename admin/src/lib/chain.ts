@@ -185,12 +185,11 @@ export interface RouterState {
     administrator: string;
     proposedAdmin: string | null;
     /**
-     * The factory a deploy goes to now: the most recent entry.
+     * The factory a deploy goes to now, which is the head of the list.
      *
-     * `add_factory` appends and never removes, because collections already
-     * deployed keep pointing at the factory that made them and that history
-     * has to stay resolvable. The list is therefore an append-only log, and
-     * only its last entry is live.
+     * `add_factory` conses onto the front, so `factories` runs newest first.
+     * Nothing is ever removed: a collection keeps pointing at the factory that
+     * made it, and that has to stay resolvable forever.
      */
     currentFactory: string;
     factories: string[];
@@ -207,7 +206,7 @@ export async function fetchRouter(): Promise<RouterState | null> {
         address,
         administrator: s.administrator,
         proposedAdmin: s.proposed_admin,
-        currentFactory: s.factories[s.factories.length - 1] ?? "",
+        currentFactory: s.factories[0] ?? "",
         factories: s.factories,
         marketplace: s.marketplace,
         registry: s.registry,

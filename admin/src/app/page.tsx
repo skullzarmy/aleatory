@@ -321,8 +321,9 @@ export default async function Dashboard() {
                         </Row>
                     )}
                     <p className="text-xs text-dim">
-                        {router.factories.length} factories registered. Only the last is live;
-                        the rest stay so collections they deployed remain resolvable.
+                        {router.factories.length} factories registered, newest first. Only
+                        the first is live; the rest stay so collections they deployed
+                        remain resolvable.
                     </p>
 
                     <div className="space-y-4 border-t border-line pt-4">
