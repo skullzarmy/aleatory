@@ -19,7 +19,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import { CATALOGUE } from "./libraries";
+import { SUGGESTED, specFor } from "./libraries";
 
 let failures = 0;
 
@@ -133,13 +133,12 @@ function auditHarnesses() {
 function auditLibraries() {
     console.log("\nDeclared libraries (§1)\n");
 
-    for (const dep of CATALOGUE) {
-        check(
-            `${dep.label} ${dep.version}: recorded with everything a stranger needs`,
-            Boolean(dep.id && dep.version && dep.registry.path && dep.hash),
-            "id, version, path and hash are what make a mirror replaceable",
-        );
+    for (const coordinate of SUGGESTED) {
+        check(`${coordinate} parses as a coordinate`, specFor(coordinate) !== null);
     }
+    check("a version is required", specFor("p5") === null);
+    check("a scoped package parses", specFor("@scope/pkg@1.0.0") !== null);
+    check("a file may be named", specFor("d3@7.9.0/dist/d3.min.js") !== null);
 
     const studio = read("src/lib/runtimes.ts");
     const renderer = read("netlify/functions/lib/libraries.mts");
@@ -181,33 +180,21 @@ function auditLibraries() {
  *
  * A list of libraries in prose goes stale the moment one is added, and an
  * artist reading it declares something that cannot load. The doc has to name
- * exactly the catalogue.
+ * exactly the catalog.
  */
 function auditDocs() {
     console.log("\nDocumentation (§1)\n");
 
     const doc = read("docs/libraries.md");
-    for (const dep of CATALOGUE) {
-        const coordinate = `${dep.id}@${dep.version}`;
-        check(
-            `libraries.md lists ${coordinate}`,
-            doc.includes(coordinate),
-            "declarable but undocumented, so nobody knows they can use it",
-        );
-    }
-
-    // The reverse: nothing promised that cannot be delivered.
-    const promised = [...doc.matchAll(/`([a-z0-9@._/-]+@[0-9][0-9a-z.-]*)`/gi)].map(
-        (m) => m[1],
+    check(
+        "libraries.md says any npm package can be declared",
+        /any package on npm|any npm package/i.test(doc),
+        "the limit was ours and it is gone; the doc must not reinstate it",
     );
-    const real = new Set(CATALOGUE.map((d) => `${d.id}@${d.version}`));
-    for (const coordinate of new Set(promised)) {
-        check(
-            `libraries.md does not promise ${coordinate} falsely`,
-            real.has(coordinate),
-            "documented but not in the catalogue, so declaring it fails",
-        );
-    }
+    check(
+        "libraries.md does not describe a list of allowed libraries",
+        !/not in the catalog/i.test(doc),
+    );
 
     // The membership test, from the contract that enforces it.
     //
@@ -240,9 +227,8 @@ function auditDocs() {
     }
 
     check(
-        "the kit server refuses what the catalogue does not have",
-        /cannot be declared/.test(read("scripts/kit/serve.mjs")),
-        "a local preview that loads what the platform cannot is a trap",
+        "the kit server resolves whatever is declared",
+        /cdn\.jsdelivr\.net/.test(read("scripts/kit/serve.mjs")),
     );
 }
 

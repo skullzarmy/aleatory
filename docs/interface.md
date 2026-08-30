@@ -74,8 +74,15 @@ libraries it declares. A generator declares one with a meta tag:
 <meta name="alea:library" content="p5@1.5.0">
 ```
 
-One tag per library, and they load in the order they appear. A renderer inlines
-them ahead of the artist's code.
+`content` is `package@version`, optionally followed by `/path/to/file.js`.
+Without a path, the package's own default browser build is meant. One tag per
+library, and they load in the order they appear. A renderer inlines them ahead
+of the artist's code.
+
+**Any package on a public registry may be declared.** There is no approved
+list, and a conforming renderer needs no knowledge of a library in advance:
+the record carries everything required to fetch it and to decide whether what
+arrived is right.
 
 The collection repeats the declaration in its metadata, under
 `aleatory:libraries`, so a renderer can resolve a piece without parsing the
@@ -110,9 +117,7 @@ A library that is not on a public registry has no independent authority behind
 it, so it belongs inside the document.
 
 This section specifies the mechanism. [libraries.md](libraries.md) is the same
-thing for the person writing a generator: which libraries can be declared
-today, what happens at each stage, and what to do when the one you want is not
-among them.
+thing for the person writing a generator.
 
 ---
 
@@ -328,3 +333,69 @@ Everything a front end needs, from public chain data:
 | Every marketplace there has been | the router's storage history, `marketplace` at each state |
 
 No index held by anyone is required for any of it.
+
+---
+
+## 9. Building a renderer
+
+A renderer turns a minted piece into an image and writes that image to the
+token. Nothing here is privileged: the only step needing permission is the
+last, and the collection decides who has it.
+
+**1. Find the work.** A piece needs rendering when its `token_info[""]` still
+equals the collection's `art.pending_metadata`. One comparison, and it covers
+new mints, pieces missed while you were down, and pieces inherited from a
+provider an artist switched away from. It needs no state of your own.
+
+**2. Read the generator.** From the collection's storage: `art.code`, decoded
+per `art.code_encoding`, which is `identity` or `gzip`. A generator past the
+operation cap has `art.code_uri` instead and empty `art.code`. Check the bytes
+against `art.code_hash`, which is SHA-256 of the decoded source.
+
+**3. Resolve declared libraries.** Read `aleatory:libraries` from the
+collection's metadata. Fetch each by its coordinates from any mirror, check
+blake2b-256 against the recorded `hash`, and inline them ahead of the artist's
+code. **If a library will not resolve, do not draw.** A p5 sketch rendered
+without p5 is a blank frame, and writing that to a token is worse than writing
+nothing.
+
+**4. Install `$alea`** with the seed set to the hash of the `mint` operation
+that created the token, and `params` from that operation's `params` field. The
+whole surface is in §7 and a renderer installs all of it.
+
+**5. Make it reproducible.** Replace `Math.random` with the seeded stream and
+freeze `Date` and `performance.now`. Block the network for the duration. These
+are not optional: they are what makes two renders of one seed agree.
+
+**6. Capture when the piece says so**, on `$alea.ready()`, and not on a timer.
+
+**7. Publish** with `set_token_metadata` on the collection. You may call it if
+the collection names you: its `render.provider_agent`, an address in
+`render.local_writers`, or a key the resolver vouches for while
+`render.trust_resolver` is set. It is a plain write rather than write-once, so
+a piece rendered wrongly can be rendered again.
+
+Rebuilding a piece produces the same bytes. The seed is fixed, the parameters
+are in the operation, and the generator cannot change, so a retry is the same
+answer rather than a second opinion.
+
+## 10. Building a viewer
+
+A viewer is steps 2 through 6 without step 7, and it needs nobody's
+permission at all.
+
+Read the generator and its libraries exactly as a renderer does, install
+`$alea` with the same seed and parameters, make the same substitutions, and
+show the result live instead of capturing it.
+
+**Run it in an origin of its own.** Artist code is untrusted and it executes in
+your visitors' browsers. Same-origin gives it reach into wallet state and
+session storage, so serve artwork from a separate host in a sandboxed frame
+whose policy forbids the network outright. That restriction should be the
+browser's, not your care: a piece that cannot reach the network cannot phone
+home, cannot load a tracker, and cannot be told anything by anyone after it
+was minted.
+
+A viewer that only lists pieces needs even less. Everything in §8 is public
+chain data, so a gallery, a market page, or an artist's page can be built
+without contacting whoever minted the work.

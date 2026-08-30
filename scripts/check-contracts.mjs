@@ -49,7 +49,7 @@ for (const doc of docs) {
     }
 }
 
-// Runtime kinds, from the catalogue that defines them.
+// Runtime kinds, from the catalog that defines them.
 {
     const runtimes = readFileSync("src/lib/runtimes.ts", "utf8");
     const kinds = [...runtimes.matchAll(/kindId:\s*(\d+),\s*\n\s*name:\s*"([a-z]+)"/g)].map(

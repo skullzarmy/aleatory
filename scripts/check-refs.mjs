@@ -37,6 +37,9 @@ for (const doc of docs) {
         // A path inside a published npm package is not a path in this repo.
         if (!path.includes("/") || path.startsWith(".")) continue;
         if (/^(lib|dist|build|package)\//.test(path)) continue;
+        // Placeholders in prose. `/path/to/file.js` describes a shape rather
+        // than naming anything.
+        if (/^\/?path\/to\//.test(path)) continue;
         if (!isReal(path)) {
             bad++;
             console.log(`MISSING FILE    ${doc}: ${path}`);

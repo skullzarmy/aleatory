@@ -1,6 +1,6 @@
 "use client";
 
-import { CATALOGUE, declaredIn, withLibraries } from "@/lib/libraries";
+import { SUGGESTED, declaredIn, specFor, withLibraries } from "@/lib/libraries";
 
 /**
  * Which libraries this generator asks for.
@@ -23,9 +23,9 @@ export function LibraryPicker({
     onChange: (html: string) => void;
 }) {
     const declared = declaredIn(html);
-    const unknown = declared.filter(
-        (c) => !CATALOGUE.some((d) => `${d.id}@${d.version}` === c),
-    );
+    // Malformed only. Anything shaped like name@version resolves against npm,
+    // so there is nothing here to be absent from.
+    const malformed = declared.filter((c) => specFor(c) === null);
 
     function toggle(coordinate: string, on: boolean) {
         const next = on
@@ -37,13 +37,13 @@ export function LibraryPicker({
     return (
         <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-                Declared libraries are loaded for you, so they cost you none of your
-                generator&apos;s size. Anything else your piece needs, put in the file.
+                A declared library is loaded for you and costs you none of your
+                generator&apos;s size. Any package on npm works, by name and version.
             </p>
 
             <ul className="space-y-2">
-                {CATALOGUE.map((d) => {
-                    const coordinate = `${d.id}@${d.version}`;
+                {SUGGESTED.map((coordinate) => {
+                    const d = specFor(coordinate)!;
                     const on = declared.includes(coordinate);
                     return (
                         <li key={coordinate}>
@@ -70,11 +70,11 @@ export function LibraryPicker({
                 })}
             </ul>
 
-            {unknown.length > 0 && (
+            {malformed.length > 0 && (
                 <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
-                    This file asks for {unknown.join(", ")}, which is not in the catalogue.
-                    Nothing will load it, so either bundle it into the file or remove the
-                    tag.
+                    {malformed.join(", ")} is not a package and a version, so nothing can
+                    resolve it. Write it as <code className="font-mono">name@1.2.3</code>,
+                    and add the file after it when the package needs one named.
                 </p>
             )}
 

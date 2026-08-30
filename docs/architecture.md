@@ -165,7 +165,7 @@ records. One harness runs all four, and the kind is a label on the work rather
 than a switch in the renderer. That is why a mislabelled piece still renders
 correctly, and why the studio can read the kind back out of an uploaded file.
 
-The catalogue lives in `src/lib/runtimes.ts`. Moving it on chain would let a
+The catalog lives in `src/lib/runtimes.ts`. Moving it on chain would let a
 kind be added without a front-end release; nothing in the record shape changes
 if that happens, which is why kind_id is a number rather than a string.
 
@@ -176,7 +176,7 @@ if that happens, which is why kind_id is a number rather than a string.
    that expects one absent from an older collection treats it as undeclared.
 2. **Every harness is archived and content-addressed.** Serving an old harness
    is a permanent obligation.
-3. **Version fields are ids where the value comes from a catalogue.** Bytes on
+3. **Version fields are ids where the value comes from a catalog.** Bytes on
    chain are money (§5).
 
 ---

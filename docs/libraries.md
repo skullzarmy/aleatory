@@ -1,8 +1,7 @@
 # Libraries
 
-How a generator asks for p5 or three.js instead of carrying a copy, what that
-costs, what happens at each stage, and what to do when the library you want is
-not one we can load.
+How a generator asks for a library instead of carrying a copy: what it costs,
+what happens at each stage, and why the record is a hash rather than a URL.
 
 Written for the artist. The protocol view is
 [ALEATORY-001 §1](interface.md#declared-libraries).
@@ -34,9 +33,10 @@ One meta tag, in `<head>`, per library:
 <meta name="alea:library" content="p5@1.5.0">
 ```
 
-`name` is always `alea:library`. `content` is `package@version`, an exact
-version, never a range and never `latest`. Two libraries means two tags, and
-they load in the order they appear.
+`name` is always `alea:library`. `content` is `package@version`, optionally
+followed by `/path/to/file.js`. The version is exact, never a range and never
+`latest`. Two libraries means two tags, and they load in the order they
+appear.
 
 That tag is the whole declaration. It travels inside your file, so you can
 download a template, work on it for a month in your own editor, upload it
@@ -50,20 +50,37 @@ ask for a library; a script tag is how you lose a piece.
 
 ---
 
-## What you can declare today
+## What you can declare
 
-| Tag | Size | Notes |
-|---|---|---|
-| `p5@1.5.0` | ~900 kB | The p5 global build. `setup`/`draw` work as normal. |
-| `three@0.160.1` | ~670 kB | The last three.js release with a classic global build. Later versions ship ES modules only, which a generator cannot use from a plain script tag. |
+**Any package on npm.** Name it and pin a version.
 
-That is the list. It is short because each entry has to be pinned, hashed and
-checked, not because the mechanism is limited.
+```html
+<meta name="alea:library" content="p5@1.5.0">
+<meta name="alea:library" content="three@0.160.1">
+<meta name="alea:library" content="d3@7.9.0">
+<meta name="alea:library" content="@tweenjs/tween.js@23.1.3">
+```
 
-**Anything else fails**, and it fails the same way everywhere: the local server
-in your starter kit refuses it and tells you, the studio warns that nothing
-will load it, and no renderer will draw it. If you need a library that is not
-here, bundle it into your file.
+There is no list of approved libraries and no request to make. A package's own
+default browser build is used, which is what a bare `name@version` means. When
+a package has several builds and you want a particular one, name the file:
+
+```html
+<meta name="alea:library" content="d3@7.9.0/dist/d3.min.js">
+```
+
+Two things to watch, both about the file rather than the package:
+
+**It has to work from a plain `<script>` tag.** A build that only exists as an
+ES module cannot be loaded this way. three.js is the common case: `0.160.1` is
+the last release shipping the classic global build, and later ones are modules
+only.
+
+**Pin an exact version.** Not a range, not `latest`. The version is recorded
+with your piece and has to mean one thing forever.
+
+If a package has nothing loadable, bundle it into your file instead. It costs
+you the bytes and it always works.
 
 ---
 
@@ -73,9 +90,10 @@ here, bundle it into your file.
 loads those libraries from a CDN so your piece runs. It never edits your file.
 
 **In the studio.** The same tags are read, and the library is fetched through
-our own origin and checked against the hash we recorded for it. If the bytes
-are not what we expect, it does not load, and the preview says so rather than
-drawing something wrong.
+our own origin rather than by your browser, so no CDN sees you. It is checked
+against the digest jsDelivr publishes for that exact file, and bytes that do
+not match are refused instead of drawn. The digest of what did arrive is what
+gets recorded when you publish.
 
 **At publish.** The declaration is written into your collection's metadata
 alongside your code:
@@ -108,40 +126,31 @@ executes, forever, and could change it after you minted. With coordinates and a
 hash, the mirror is interchangeable and untrusted. Any of them either returns
 the right bytes or is ignored.
 
-We are not the authority either. `id@version` points at npm, npm publishes its
-own integrity digest for every package it serves, and anyone can check the hash
-we recorded against a source with no relationship to us:
+We are not the authority either. `id@version` points at npm, and anyone can
+check a recorded hash against a source with no relationship to us:
 
 ```
-npm view p5@1.5.0 dist.integrity
-npm pack p5@1.5.0 && tar xzOf p5-1.5.0.tgz package/lib/p5.min.js | sha256sum
+npm pack p5@1.5.0
+tar xzOf p5-1.5.0.tgz package/lib/p5.min.js | b2sum -l 256
 ```
 
-We host a fast copy of p5 because it is one hop instead of two. We are never
-the thing being trusted.
+We host a copy of p5 because it is one hop instead of two. We are never the
+thing being trusted.
 
 Caching is by hash, never by `id@version`, so a generator declaring `p5@1.5.0`
 with different bytes can only ever harm itself.
 
 ---
 
-## Getting a library added
+## If a package will not load
 
-Open an issue. A library can be added when:
+Some packages have no build that works from a `<script>` tag. Modern three.js
+is the clearest case: after `0.160.1` it ships ES modules only.
 
-- It is on npm, publicly, with an integrity digest.
-- It has a build that works from a plain `<script>` tag and defines a global.
-  ES-module-only packages cannot be loaded this way.
-- A specific version can be pinned. Not a range, not a dist-tag.
+Two ways through. Pin the last version that has a classic build, which is what
+`three@0.160.1` is. Or bundle: paste the minified source into a `<script>`
+block in your file. Bundling costs you the bytes and always works, which for
+anything unusual is the right trade.
 
-Adding one means recording its coordinates and hash in the catalogue, after
-which it works in the kit, the studio and every renderer at once.
-
----
-
-## If your library is not on the list
-
-Bundle it. Paste the minified source into a `<script>` block in your file. It
-costs you the bytes and it always works, which for anything unusual is the
-right trade. The three rules do not change: self-contained, deterministic, and
+The three rules do not change either way: self-contained, deterministic, and
 call `$alea.ready()` when the drawing is done.

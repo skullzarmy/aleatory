@@ -11,17 +11,13 @@
  * Runs before dev and before build, so neither the generated module nor the
  * kits can be stale.
  *
- * Written as TypeScript and run under tsx so it can import the real library
- * catalogue. The kit's local server needs to know where p5 lives inside its
- * package, and a second copy of that mapping in a build script is a second
- * thing to get wrong.
+ * Written as TypeScript and run under tsx, alongside the rest of the source.
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { zip } from "./lib/zip.mjs";
-import { LIBRARIES } from "../src/lib/runtimes";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const KINDS = ["vanilla", "svg", "p5", "custom"] as const;
@@ -74,15 +70,7 @@ if (before !== module) writeFileSync(target, module);
 
 // --- the starter kits ------------------------------------------------------
 
-/** Where each catalogue library lives inside its published package. */
-const paths = Object.fromEntries(
-    LIBRARIES.map((l) => [`${l.id}@${l.version}`, l.registry.path]),
-);
-
-const serve = readFileSync(join(root, "scripts/kit/serve.mjs"), "utf8").replace(
-    "__LIBRARIES__",
-    JSON.stringify(paths, null, 4),
-);
+const serve = readFileSync(join(root, "scripts/kit/serve.mjs"), "utf8");
 
 function readme(kind: string, source: string): string {
     const declared = [...source.matchAll(/content\s*=\s*["']([^"']+)["']/gi)]

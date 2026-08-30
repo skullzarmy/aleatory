@@ -26,7 +26,7 @@ The parts worth knowing before changing anything:
 |---|---|
 | `config.ts` | Network, contract addresses, brand. One place, read everywhere. |
 | `ops.ts` | Every operation the site can send. Encoded by field name via Taquito, never by position, because SmartPy orders record fields alphabetically. |
-| `runtimes.ts` | Runtime kinds and the library catalogue, with each library's npm coordinates and hash. |
+| `runtimes.ts` | Runtime kinds, and resolving a declared library against npm. |
 | `libraries.ts` | Reading and writing a generator's `alea:library` declarations. |
 | `identity.ts` | Address to name, avatar and profile. Tezos Domains, then hack.tez, then objkt. One cached call. |
 | `metadata.ts` | Building the TZIP-21 document a provider publishes. |

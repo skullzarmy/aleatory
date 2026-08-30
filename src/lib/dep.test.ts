@@ -1,6 +1,12 @@
 /**
  * The dependency proxy, and the things it must refuse.
  *
+ * A missing hash is not one of them. Without a recorded digest the proxy
+ * resolves the package against jsDelivr's own per-file digest and answers with
+ * the blake2b to record, which is what lets any package on npm be declared
+ * without us keeping a list. What it still refuses is bytes that match
+ * nothing.
+ *
  * This route fetches a URL built from a query string and serves the result
  * from our own origin, which is the shape of an open proxy if the pieces are
  * not constrained. The validation cases below are the constraint, and they run
@@ -42,7 +48,6 @@ async function run() {
 
     // Refusals. None of these reach the network.
     const refusals: [string, Record<string, string>][] = [
-        ["a missing hash is refused", { ...GOOD, hash: "" }],
         ["a short hash is refused", { ...GOOD, hash: "abc123" }],
         ["a traversing path is refused", { ...GOOD, path: "../../etc/passwd" }],
         ["an absolute path is refused", { ...GOOD, path: "//evil.example/x.js" }],
@@ -61,6 +66,23 @@ async function run() {
     {
         const res = await GET(q({ ...GOOD, id: "@scope/pkg", version: "1.0.0" }));
         check("a scoped package name is allowed through validation", res.status !== 400);
+    }
+
+    // The path that removed the need for a catalog.
+    {
+        const res = await GET(q({ id: "d3", version: "7.9.0" }));
+        const body = res.status === 200 ? await res.text() : "";
+        check(
+            "a package with no recorded hash resolves, and names its own file",
+            res.status === 200 &&
+                body.length > 0 &&
+                res.headers.get("x-alea-path") === "dist/d3.min.js",
+            `status ${res.status}`,
+        );
+        check(
+            "and answers with the digest to record",
+            /^[0-9a-f]{64}$/.test(res.headers.get("x-alea-hash") ?? ""),
+        );
     }
 
     let online = true;

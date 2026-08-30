@@ -12,7 +12,7 @@
  * Run: npx tsx src/lib/studio.test.ts
  */
 import { existsSync, globSync, readFileSync } from "node:fs";
-import { LIBRARIES, getKind, RUNTIME_KINDS } from "./runtimes";
+import { getKind, RUNTIME_KINDS } from "./runtimes";
 import { templateFor, templateParamsFor } from "./templates";
 import { resolveParams, validateSchema } from "./params";
 import { newDraft, seedAt } from "./draft";
@@ -125,32 +125,8 @@ console.log("\nLibraries");
     // got written into an artist's immutable record with the chain vouching
     // for it.
     // Every library, not only the ones a runtime kind depends on. The
-    // catalogue used to be a projection of kind.deps, so a library any kind
+    // catalog used to be a projection of kind.deps, so a library any kind
     // could declare went unchecked here simply by not being p5.
-    {
-        const seen = new Map<string, (typeof LIBRARIES)[number]>();
-        for (const dep of [...LIBRARIES, ...RUNTIME_KINDS.flatMap((k) => k.deps)]) {
-            seen.set(`${dep.id}@${dep.version}`, dep);
-        }
-        for (const dep of seen.values()) {
-            check(
-                `${dep.label} ${dep.version}: has a hash`,
-                /^[0-9a-f]{64}$/.test(dep.hash),
-                "an unhashed library is an unverifiable one",
-            );
-            check(
-                `${dep.label} ${dep.version}: cites a registry it can be checked against`,
-                dep.registry.integrity.startsWith("sha512-") && dep.registry.path.length > 0,
-                "we must not be the authority for what a library is",
-            );
-            check(
-                `${dep.label} ${dep.version}: nothing cross-origin in the browser's path`,
-                dep.url === undefined || dep.url.startsWith("/"),
-                "a CDN reached from the page is a third party deciding what runs",
-            );
-        }
-    }
-
     const runtimes = readFileSync("src/lib/runtimes.ts", "utf8");
     check(
         "an unhashed library is refused",
@@ -203,7 +179,7 @@ console.log("\nLibraries");
     );
 
     // And a piece has to say what it needs, on chain, or a renderer that has
-    // never heard of our catalogue cannot draw it.
+    // never heard of our catalog cannot draw it.
     // Resolving a library and never handing it to a frame looks exactly like
     // not resolving one: a p5 sketch with no p5 draws a blank square and says
     // nothing. The studio shipped that way for an afternoon because a revert
@@ -232,7 +208,7 @@ console.log("\nLibraries");
     check(
         "a collection records the libraries it expects",
         publish.includes("aleatory:libraries"),
-        "a renderer is not required to know anything about our catalogue",
+        "a renderer is not required to know anything about our catalog",
     );
 
     // The declaration lives in the document, so it survives a download, a week
@@ -251,8 +227,13 @@ console.log("\nLibraries");
         librariesIn(doc).specs.length === 0 && librariesIn(doc).unknown.length === 0,
     );
     check(
-        "an unknown coordinate is reported, not dropped",
-        librariesIn(withLibraries(doc, ["nope@9.9.9"])).unknown.length === 1,
+        "a package nobody has declared here before still resolves",
+        librariesIn(withLibraries(doc, ["d3@7.9.0"])).specs.length === 1,
+        "any package on npm can be declared; there is no list to be absent from",
+    );
+    check(
+        "a coordinate with no version is reported, not dropped",
+        librariesIn(withLibraries(doc, ["d3"])).unknown.length === 1,
         "a silently missing library is a blank frame with no explanation",
     );
 }

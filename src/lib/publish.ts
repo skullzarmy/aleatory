@@ -166,7 +166,7 @@ export async function publishCollection(
 
     // What this generator expects a renderer to load for it. Recorded on chain
     // because a renderer that cannot see this cannot draw the piece, and a
-    // renderer is not required to know anything about our catalogue. Id,
+    // renderer is not required to know anything about our catalog. Id,
     // version and package path make it resolvable from any registry mirror;
     // the hash makes every one of those answers checkable.
     const libraries = getKind(draft.kindId).deps.map((d) => ({

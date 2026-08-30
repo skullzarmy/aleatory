@@ -145,7 +145,7 @@ export async function currentFactory(): Promise<string> {
     return (await addresses()).factories[0] ?? "";
 }
 
-/** Every factory, so a reader sees the whole catalogue and not just the newest. */
+/** Every factory, so a reader sees the whole catalog and not just the newest. */
 export async function allFactories(): Promise<string[]> {
     return (await addresses()).factories;
 }

@@ -1,8 +1,8 @@
 /**
- * Aleatory, the runtime kinds catalogue.
+ * Aleatory, the runtime kinds catalog.
  *
  * This is the v0 mirror of what becomes the on-chain **Runtimes** contract
- * (docs/aleatory/architecture.md §3). Kinds live in an append-only catalogue
+ * (docs/aleatory/architecture.md §3). Kinds live in an append-only catalog
  * rather than an enum precisely so that adding a runtime in 2029 is one append
  * operation instead of a registry migration, and the v0 shape is deliberately
  * identical to the on-chain record so the swap is a data-source change.
@@ -149,7 +149,7 @@ export const THREE_DEP: DepSpec = {
  *
  * Separate from the runtime kinds. A kind says which harness a piece boots
  * under; a library is something any kind can ask for, and tying the two
- * together meant the catalogue held exactly what the p5 kind depended on and
+ * together meant the catalog held exactly what the p5 kind depended on and
  * a custom piece asking for three.js was told its library was unknown.
  */
 export const LIBRARIES: DepSpec[] = [P5_DEP, THREE_DEP];
@@ -251,11 +251,11 @@ async function blake2b(bytes: Uint8Array): Promise<string> {
  * asked for it.
  */
 export async function resolveDep(spec: DepSpec): Promise<ResolvedDep> {
-    if (!spec.hash) {
-        throw new Error(
-            `${spec.label} ${spec.version} carries no hash. Refusing to load it.`,
-        );
-    }
+    // No hash yet means this is the first time anybody has asked for this
+    // package here. The proxy resolves it against the digest published for
+    // that exact file and answers with the blake2b to record, so the artist
+    // does not have to supply one and we do not have to keep a list.
+    if (!spec.hash) return await firstResolve(spec);
 
     const cached = cache.get(spec.hash);
     if (cached) return cached;
@@ -301,6 +301,57 @@ export async function resolveDep(spec: DepSpec): Promise<ResolvedDep> {
     throw new Error(
         `${spec.label} ${spec.version} could not be loaded. Tried: ${failures.join(", ")}`,
     );
+}
+
+/**
+ * A package with no recorded digest, fetched and hashed.
+ *
+ * Cached by coordinate rather than by hash, since the hash is what is being
+ * learned. Once the piece is published the recorded digest is what every
+ * renderer checks against, and this path is not taken again for it.
+ */
+const firstCache = new Map<string, ResolvedDep>();
+
+async function firstResolve(spec: DepSpec): Promise<ResolvedDep> {
+    const coordinate = `${spec.id}@${spec.version}/${spec.registry.path}`;
+    const cached = firstCache.get(coordinate);
+    if (cached) return cached;
+
+    const url =
+        `/api/dep?id=${encodeURIComponent(spec.id)}` +
+        `&version=${encodeURIComponent(spec.version)}` +
+        (spec.registry.path ? `&path=${encodeURIComponent(spec.registry.path)}` : "");
+
+    const res = await fetch(url);
+    if (!res.ok) {
+        throw new Error(
+            `${spec.id}@${spec.version} could not be loaded. ${(await res.text()).split("\n")[0]}`,
+        );
+    }
+
+    const source = await res.text();
+    const bytes = new TextEncoder().encode(source);
+    const hash = res.headers.get("x-alea-hash") ?? (await blake2b(bytes));
+
+    const resolved: ResolvedDep = {
+        // Carry back what was actually fetched, so publishing records the file
+        // that ran rather than the empty path the declaration left open.
+        spec: {
+            ...spec,
+            registry: {
+                ...spec.registry,
+                path: res.headers.get("x-alea-path") ?? spec.registry.path,
+            },
+            hash,
+            approxBytes: bytes.length,
+        },
+        source,
+        bytes: bytes.length,
+        hash,
+    };
+    firstCache.set(coordinate, resolved);
+    cache.set(hash, resolved);
+    return resolved;
 }
 
 export async function resolveDeps(specs: DepSpec[]): Promise<ResolvedDep[]> {

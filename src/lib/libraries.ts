@@ -11,23 +11,46 @@
  * One tag per library, so a piece wanting two says so twice, and the order they
  * appear in is the order they load in.
  */
-import { LIBRARIES, RUNTIME_KINDS, type DepSpec } from "./runtimes";
+import { type DepSpec } from "./runtimes";
 
 const TAG = /<meta\s+[^>]*name\s*=\s*["']alea:library["'][^>]*>/gi;
 const CONTENT = /content\s*=\s*["']([^"']+)["']/i;
 
-/** Every library the catalogue knows, by `id@version`. */
-export const CATALOGUE: DepSpec[] = [
-    ...new Map(
-        [...LIBRARIES, ...RUNTIME_KINDS.flatMap((k) => k.deps)].map((d) => [
-            `${d.id}@${d.version}`,
-            d,
-        ]),
-    ).values(),
-];
+/**
+ * Two names the picker offers, so nobody types coordinates from memory.
+ *
+ * Not a list of what may be declared. Any package on npm may be.
+ */
+export const SUGGESTED = ["p5@1.5.0", "three@0.160.1"] as const;
 
+/** `d3@7.9.0`, or `d3@7.9.0/dist/d3.min.js` when the file has to be named. */
+const COORDINATE =
+    /^(@[a-z0-9][a-z0-9._-]*\/)?([a-z0-9][a-z0-9._-]*)@([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?:\/(.+))?$/;
+
+/**
+ * A declaration, read into something resolvable.
+ *
+ * Any package on npm works. The proxy fetches it from jsDelivr, checks it
+ * against the digest published for that exact file, and answers with the
+ * blake2b recorded when the piece is published. Nothing needs to know a
+ * library in advance, which is why there is no list of them.
+ *
+ * The file is optional: without one the package's own default browser build is
+ * used, which is what `p5@1.5.0` means.
+ */
 export function specFor(coordinate: string): DepSpec | null {
-    return CATALOGUE.find((d) => `${d.id}@${d.version}` === coordinate) ?? null;
+    const m = COORDINATE.exec(coordinate.trim());
+    if (!m) return null;
+    const [, scope = "", name, version, path = ""] = m;
+    const id = `${scope}${name}`;
+    return {
+        id,
+        label: id,
+        version,
+        registry: { integrity: "", path },
+        approxBytes: 0,
+        hash: "",
+    };
 }
 
 /** The coordinates a document declares, in order, deduplicated. */
@@ -41,11 +64,11 @@ export function declaredIn(html: string): string[] {
 }
 
 /**
- * Resolve a document's declarations against the catalogue.
+ * A document's declarations, resolved.
  *
- * Unknown coordinates come back separately rather than being dropped. A piece
- * asking for something we cannot supply is a thing the artist has to be told
- * about, not a silently missing library and a blank frame.
+ * `unknown` is what is malformed: something that is not `name@version`. A
+ * well-formed coordinate npm does not have fails when it is fetched, with the
+ * registry saying so, rather than being guessed at here.
  */
 export function librariesIn(html: string): { specs: DepSpec[]; unknown: string[] } {
     const specs: DepSpec[] = [];

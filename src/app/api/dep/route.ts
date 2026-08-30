@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import blakejs from "blakejs";
 
 /**
@@ -14,10 +15,23 @@ import blakejs from "blakejs";
  * is served, which is the same rule the renderer applies and the reason it
  * does not matter which mirror answered.
  *
- * A hash is required, deliberately. Without one this would be an open proxy
- * that fetches whatever a query string names and hands it back from our
- * origin, and "here are some bytes, they are probably three.js" is exactly
- * the thing the declaration model exists to refuse.
+ * Two ways in, and both end in bytes somebody other than us vouched for.
+ *
+ * **With a hash**, the fast path: fetch from a mirror and check. Used once a
+ * library has been published, when the recorded digest is the thing being
+ * satisfied.
+ *
+ * **Without one**, the first time anybody asks for a package: fetch npm's
+ * packument, fetch the tarball it names, check that tarball against the
+ * `dist.integrity` npm publishes for it, and take the file out. The answer
+ * carries the blake2b of those bytes, which is what gets recorded when the
+ * piece is published.
+ *
+ * The second path is what makes the catalog unnecessary. Any package on npm
+ * can be declared, because npm is the authority on what a package is and this
+ * checks against npm rather than against a list we keep. What it will not do
+ * is hand back unverified bytes: "these are probably three.js" is the thing
+ * the declaration model exists to refuse.
  */
 
 const { blake2bHex } = blakejs;
@@ -47,12 +61,17 @@ export async function GET(request: Request) {
     const bad =
         (!ID.test(id) && "id") ||
         (!VERSION.test(version) && "version") ||
-        (!PATH.test(path) && "path") ||
+        (path !== "" && !PATH.test(path) && "path") ||
         (path.includes("..") && "path") ||
-        (!HASH.test(hash) && "hash");
+        (hash !== "" && !HASH.test(hash) && "hash");
 
     if (bad) {
         return new Response(`Bad ${bad}.`, { status: 400 });
+    }
+
+    // No recorded digest yet, so npm's own is the thing to satisfy.
+    if (hash === "") {
+        return fromRegistry(id, version, path);
     }
 
     const tried: string[] = [];
@@ -95,4 +114,95 @@ export async function GET(request: Request) {
         `No mirror served ${id}@${version}/${path} matching ${hash}.\n${tried.join("\n")}\n`,
         { status: 502, headers: { "content-type": "text/plain; charset=utf-8" } },
     );
+}
+
+/**
+ * The file from jsDelivr, checked against the digest jsDelivr publishes for it.
+ *
+ * Its data API lists every file in a package with a sha256 and a size, and
+ * names the package's default browser build, so a declaration of `d3@7.9.0`
+ * needs nothing else to resolve. Bytes that do not match are refused.
+ *
+ * This is the path taken the first time anybody asks for a package. The answer
+ * carries the blake2b of the file, which is what gets recorded when the piece
+ * is published, and every renderer afterwards checks against that instead.
+ */
+async function fromRegistry(
+    id: string,
+    version: string,
+    requested: string,
+): Promise<Response> {
+    const fail = (why: string, status = 502) =>
+        new Response(`${why}\n`, {
+            status,
+            headers: { "content-type": "text/plain; charset=utf-8" },
+        });
+
+    interface Entry {
+        type: string;
+        name: string;
+        hash?: string;
+        files?: Entry[];
+    }
+
+    let listing: { default?: string; files?: Entry[] };
+    try {
+        const res = await fetch(
+            `https://data.jsdelivr.com/v1/packages/npm/${id}@${version}`,
+        );
+        if (!res.ok) return fail(`No ${id}@${version} on npm (${res.status}).`, 404);
+        listing = (await res.json()) as typeof listing;
+    } catch {
+        return fail("The package index could not be reached.");
+    }
+
+    // A declaration is `d3@7.9.0`, so when it names no file the package's own
+    // default browser build is used.
+    const path = (requested || listing.default || "").replace(/^\//, "");
+    if (!path) {
+        return fail(
+            `${id}@${version} declares no default build, so the file has to be named.`,
+            400,
+        );
+    }
+
+    // The listing is a tree of directories; walk it to the file.
+    let level = listing.files ?? [];
+    let entry: Entry | undefined;
+    for (const segment of path.split("/")) {
+        entry = level.find((f) => f.name === segment);
+        if (!entry) break;
+        level = entry.files ?? [];
+    }
+    if (!entry || entry.type !== "file" || !entry.hash) {
+        return fail(`${id}@${version} contains no ${path}.`, 404);
+    }
+
+    let body: Buffer;
+    try {
+        const res = await fetch(`https://cdn.jsdelivr.net/npm/${id}@${version}/${path}`);
+        if (!res.ok) return fail(`${path} returned ${res.status}.`);
+        body = Buffer.from(await res.arrayBuffer());
+    } catch {
+        return fail(`${path} could not be fetched.`);
+    }
+
+    const sha256 = createHash("sha256").update(body).digest("base64");
+    if (sha256 !== entry.hash) {
+        return fail(
+            `${id}@${version}/${path} is not the file that was published.\n` +
+                `expected ${entry.hash}\ngot      ${sha256}`,
+        );
+    }
+
+    return new Response(new Uint8Array(body), {
+        status: 200,
+        headers: {
+            "content-type": "application/javascript; charset=utf-8",
+            "cache-control": "public, max-age=31536000, immutable",
+            // What to record when the piece is published.
+            "x-alea-hash": blake2bHex(body, undefined, 32),
+            "x-alea-path": path,
+        },
+    });
 }
