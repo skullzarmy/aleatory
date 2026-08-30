@@ -15,15 +15,21 @@ taking listings and offers. Not on mainnet yet.
 
 ## What this is for
 
-fxhash moved to Ethereum and Base. EditArt went dark when its creator died.
-Bootloader is good work owned by an exchange. Acquisition drift, a single point
-of failure, corporate dependency: three ways a platform stops being there, and
-no indie option left standing.
+Generative art on Tezos grew up around fxhash, and most of what an artist
+expects from a platform still comes from there.
 
-HEN proved the alternative. When the contracts are unowned and the data is
-addressable, the community rebuilds the front end and carries on. That rebuild
-became Teia. **This project treats that as a design requirement rather than a
-happy accident.**
+The requirement here is narrower: **a piece should outlive the platform that
+sold it.** EditArt went quiet after its creator died, and the work was only as
+reachable as the site. That is what happens whenever the artwork lives on
+somebody's server, and it is a property of the arrangement rather than a
+failing of anyone who built one.
+
+HEN showed the other outcome. The contracts were unowned and the data was
+addressable, so when the front end stopped the community built another and the
+pieces never moved. That rebuild became Teia.
+
+**This project treats that as a design requirement rather than a happy
+accident.** Everything below is what it costs to mean it.
 
 ## What that means in practice
 
