@@ -39,16 +39,10 @@ interface MarketplaceStorage {
     fee_bps: string;
     paused: boolean;
     fees_accrued: string;
-    royalties_owed: number;
     offers: number;
     listings: number;
     next_offer_id: string;
     next_listing_id: string;
-}
-
-export interface RoyaltyRow {
-    recipient: string;
-    mutez: number;
 }
 
 export interface MarketplaceState {
@@ -58,22 +52,22 @@ export interface MarketplaceState {
     treasury: string;
     feeBps: number;
     paused: boolean;
-    /** The three claims on the balance. */
+    /**
+     * The two claims on the balance. A sale pays every royalty recipient in
+     * the same operation, so nobody else's money is ever held here.
+     */
     feesAccrued: number;
-    royaltiesOwed: number;
     escrowed: number;
-    royaltyRows: RoyaltyRow[];
     activeOffers: number;
     activeListings: number;
     /** What the contract actually holds. */
     balance: number;
     /**
-     * Balance minus everything spoken for.
+     * Balance minus everything spoken for: its fee, and live offer escrow.
      *
-     * Should be zero. Positive means tez arrived that nothing accounts for;
-     * negative means the contract has promised more than it holds, which
-     * would mean a claim is going to fail. Either way it is the number worth
-     * looking at, and nothing else in the system reports it.
+     * Should be zero. Positive means tez arrived that nothing accounts for.
+     * Negative means the contract has promised more than it holds, and a
+     * cancelled offer is going to fail. Nothing else reports this.
      */
     unaccounted: number;
 }
@@ -87,17 +81,7 @@ export async function fetchMarketplace(address: string): Promise<MarketplaceStat
         balanceOf(address),
     ]);
 
-    const [royalties, offers] = await Promise.all([
-        bigMapKeys<string>(storage.royalties_owed),
-        bigMapKeys<{ amount: string }>(storage.offers),
-    ]);
-
-    const royaltyRows = royalties
-        .map((r) => ({ recipient: r.key, mutez: Number(r.value) }))
-        .filter((r) => r.mutez > 0)
-        .sort((a, b) => b.mutez - a.mutez);
-
-    const royaltiesOwed = royaltyRows.reduce((n, r) => n + r.mutez, 0);
+    const offers = await bigMapKeys<{ amount: string }>(storage.offers);
     const escrowed = offers.reduce((n, o) => n + Number(o.value.amount), 0);
     const feesAccrued = Number(storage.fees_accrued);
 
@@ -109,13 +93,11 @@ export async function fetchMarketplace(address: string): Promise<MarketplaceStat
         feeBps: Number(storage.fee_bps),
         paused: storage.paused,
         feesAccrued,
-        royaltiesOwed,
         escrowed,
-        royaltyRows,
         activeOffers: offers.length,
         activeListings: (await bigMapKeys<unknown>(storage.listings)).length,
         balance,
-        unaccounted: balance - feesAccrued - royaltiesOwed - escrowed,
+        unaccounted: balance - feesAccrued - escrowed,
     };
 }
 

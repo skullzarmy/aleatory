@@ -5,7 +5,7 @@ import { useWallet } from "@/context/WalletContext";
 import { addresses } from "@/lib/router";
 import { royaltyPreview, type RoyaltySplit } from "@/lib/metadata";
 import { parseTez, shortAddress } from "@/lib/utils";
-import { tzktLink } from "@/lib/config";
+import { tzktApi, tzktLink } from "@/lib/config";
 import type { Provider } from "@/lib/providers";
 import type { Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
@@ -59,11 +59,25 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const provider = providers.find((p) => p.address === providerAddress);
     // The cover renders through the same isolate as everything else, so it
     // needs the same libraries the generator does.
-    // Where a shared royalty goes. Resolved from the router.
+    /**
+     * Where a shared royalty goes: the marketplace's treasury.
+     *
+     * The marketplace contract itself was used here, and it cannot receive a
+     * plain transfer. Now that a sale pays each royalty share in the same
+     * operation, naming it would have made every sale of the collection
+     * revert, permanently, because the royalty map has no setter.
+     */
     const [platformAddress, setPlatformAddress] = useState("");
     useEffect(() => {
         void addresses()
-            .then((a) => setPlatformAddress(a.marketplaces[0] ?? ""))
+            .then(async (a) => {
+                const market = a.marketplaces[0];
+                if (!market) return;
+                const res = await fetch(`${tzktApi()}/v1/contracts/${market}/storage`);
+                if (!res.ok) return;
+                const { treasury } = (await res.json()) as { treasury?: string };
+                if (treasury) setPlatformAddress(treasury);
+            })
             .catch(() => {});
     }, []);
 
@@ -119,10 +133,54 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         return null;
     }
 
+    /**
+     * Every royalty recipient has to be able to receive tez.
+     *
+     * The marketplace pays each share inside the sale, so a recipient that
+     * rejects a transfer reverts the buy. `royalties` has no setter, which
+     * makes that permanent: every token in the collection would be unsellable
+     * there, forever, and the artist could do nothing about it.
+     *
+     * A tz1, tz2 or tz3 is an implicit account and cannot refuse. A KT1 is a
+     * contract, and only some of them accept a plain transfer, so it is asked
+     * before the address becomes immutable. ALEATORY-001 section 1 puts this
+     * on any front end that originates collections, because there is nowhere
+     * else it can be checked.
+     */
+    async function unpayableRecipient(): Promise<string | null> {
+        const recipients = split.recipients
+            .map((r) => r.address)
+            .filter((a) => a && a.startsWith("KT1"));
+
+        for (const address of new Set(recipients)) {
+            try {
+                const res = await fetch(
+                    `${tzktApi()}/v1/contracts/${address}/entrypoints`,
+                );
+                if (!res.ok) {
+                    return `${shortAddress(address)} could not be checked. A royalty recipient has to be reachable before this is written, because it cannot be changed afterwards.`;
+                }
+                const entrypoints = (await res.json()) as { name: string }[];
+                const takesTez = entrypoints.some((e) => e.name === "default");
+                if (!takesTez) {
+                    return `${shortAddress(address)} is a contract with no default entrypoint, so it cannot be paid. Every sale would fail, and royalties cannot be changed after this. Use a wallet address, or a contract that accepts tez.`;
+                }
+            } catch {
+                return `${shortAddress(address)} could not be checked. Try again, or use a wallet address.`;
+            }
+        }
+        return null;
+    }
+
     async function submit() {
         const bad = problem();
         if (bad) {
             setError(bad);
+            return;
+        }
+        const unpayable = await unpayableRecipient();
+        if (unpayable) {
+            setError(unpayable);
             return;
         }
         if (!draft) {

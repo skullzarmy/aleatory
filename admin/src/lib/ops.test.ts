@@ -27,7 +27,6 @@ import {
     acceptAdmin,
     addFactory,
     addWriter,
-    claimRoyalties,
     encode,
     proposeAdmin,
     removeWriter,
@@ -134,17 +133,6 @@ async function run() {
         const { entrypoint, value } = await encode(setFee(marketplace, 250));
         check("set_fee targets the right entrypoint", entrypoint === "set_fee");
         check("set_fee carries the bps", JSON.stringify(value).includes("250"), value);
-    }
-
-    {
-        const recipient = router.administrator;
-        const { entrypoint, value } = await encode(claimRoyalties(marketplace, recipient));
-        check("claim_royalties targets the right entrypoint", entrypoint === "claim_royalties");
-        check(
-            "claim_royalties carries the recipient",
-            JSON.stringify(value).includes(recipient),
-            value,
-        );
     }
 
     // Entrypoints taking unit. A one-element array reaches Taquito as a scalar

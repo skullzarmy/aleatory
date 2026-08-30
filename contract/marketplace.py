@@ -87,12 +87,6 @@ def marketplace():
         fee_bps=sp.nat,
         treasury=sp.address,
         fees_accrued=sp.mutez,
-        # Royalties owed, by recipient. Held rather than sent, because a
-        # recipient that rejects tez would otherwise revert the sale, and a
-        # collection's royalty map has no setter: every token in it would be
-        # untradeable here forever. An artist naming a contract address by
-        # accident produces the same outcome as a hostile one.
-        royalties_owed=sp.big_map[sp.address, sp.mutez],
         listings=sp.big_map[sp.nat, t_listing],
         next_listing_id=sp.nat,
         offers=sp.big_map[sp.nat, t_offer],
@@ -113,9 +107,6 @@ def marketplace():
             self.data.fee_bps = fee_bps
             self.data.treasury = treasury
             self.data.fees_accrued = sp.mutez(0)
-            self.data.royalties_owed = sp.cast(
-                sp.big_map(), sp.big_map[sp.address, sp.mutez]
-            )
             self.data.listings = sp.cast(
                 sp.big_map(), sp.big_map[sp.nat, t_listing]
             )
@@ -222,10 +213,16 @@ def marketplace():
             assert sp.amount == listing.price, "WRONG_PRICE"
             del self.data.listings[listing_id]
 
-            # Split the sale: platform fee, then royalties read
-            # from the collection itself, then whatever is left to
-            # the seller. Royalties never come from the listing, so
-            # a seller cannot zero out the artist's share.
+            # Split the sale in this operation: platform fee, then royalties
+            # read from the collection itself, then whatever is left to the
+            # seller. Royalties never come from the listing, so a seller
+            # cannot zero out the artist's share.
+            #
+            # Paid rather than held. A recipient that rejects tez reverts the
+            # sale, which is why a front end originating a collection has to
+            # check its royalty addresses before they become immutable
+            # (ALEATORY-001 section 1). Holding them instead meant an artist
+            # had money in a contract they had to know to claim.
             fee = sp.split_tokens(sp.amount, listing.fee_bps, 10000)
             self.data.fees_accrued += fee
             remaining = sp.amount - fee
@@ -251,12 +248,7 @@ def marketplace():
                     cut = sp.split_tokens(sp.amount, share, 10000)
                     if cut > sp.mutez(0):
                         remaining -= cut
-                        self.data.royalties_owed[recipient.key] = (
-                            self.data.royalties_owed.get(
-                                recipient.key, default=sp.mutez(0)
-                            )
-                            + cut
-                        )
+                        sp.send(recipient.key, cut)
 
             if remaining > sp.mutez(0):
                 sp.send(listing.seller, remaining)
@@ -390,12 +382,7 @@ def marketplace():
                     cut = sp.split_tokens(offer.amount, share, 10000)
                     if cut > sp.mutez(0):
                         remaining -= cut
-                        self.data.royalties_owed[recipient.key] = (
-                            self.data.royalties_owed.get(
-                                recipient.key, default=sp.mutez(0)
-                            )
-                            + cut
-                        )
+                        sp.send(recipient.key, cut)
 
             if remaining > sp.mutez(0):
                 sp.send(sp.sender, remaining)
@@ -413,29 +400,6 @@ def marketplace():
             )
 
         # --- administration ---
-
-        @sp.entrypoint
-        def claim_royalties(self, recipient):
-            """(Anyone) Pay out what a sale set aside for a recipient.
-
-            Permissionless because the destination is the recipient, so there
-            is nothing to steal by calling it, and an artist should not need
-            to be present for their own royalties to move.
-            """
-            sp.cast(recipient, sp.address)
-            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
-            owed = self.data.royalties_owed.get(recipient, default=sp.mutez(0))
-            assert owed > sp.mutez(0), "NOTHING_OWED"
-            del self.data.royalties_owed[recipient]
-            sp.send(recipient, owed)
-            sp.emit(
-                sp.record(recipient=recipient, amount=owed), tag="claim_royalties"
-            )
-
-        @sp.onchain_view()
-        def royalties_owed_to(self, recipient):
-            sp.cast(recipient, sp.address)
-            return self.data.royalties_owed.get(recipient, default=sp.mutez(0))
 
         @sp.entrypoint
         def set_fee(self, fee_bps):

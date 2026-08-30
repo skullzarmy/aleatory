@@ -167,20 +167,12 @@ def test_full_lifecycle():
     # 2.5% of 100 tez to the platform, and the royalties came from the
     # collection's own storage rather than from anything Alice supplied.
     scenario.verify(market.data.fees_accrued == sp.mutez(2_500_000))
-    # 10% and 2.5% of 100 tez, credited to the two recipients the
-    # collection named. This is the crossing the test exists to prove:
-    # nothing in the listing or in Alice's hands set these numbers.
-    scenario.verify(market.royalties_owed_to(artist.address) == sp.mutez(10_000_000))
-    scenario.verify(market.royalties_owed_to(collab.address) == sp.mutez(2_500_000))
-    # The seller was paid during the sale. The fee and the credited
-    # royalties stay behind until each is claimed.
-    scenario.verify(market.balance == sp.mutez(15_000_000))
-
-    # And the credit is really payable, rather than a number that only
-    # looks right in storage.
-    market.claim_royalties(artist.address, _sender=bob)
-    scenario.verify(market.royalties_owed_to(artist.address) == sp.mutez(0))
-    scenario.verify(market.balance == sp.mutez(5_000_000))
+    # 10% and 2.5% of 100 tez went to the two recipients the collection
+    # named, in this operation. This is the crossing the test exists to
+    # prove: nothing in the listing or in Alice's hands set those numbers.
+    #
+    # The seller was paid here too, so the fee is all that stays behind.
+    scenario.verify(market.balance == sp.mutez(2_500_000))
 
 
 @sp.add_test()
@@ -235,8 +227,8 @@ def test_royalties_actually_cross_the_contract_boundary():
 
     # 2.5% platform on 40 tez, and the 25% royalty the collection declared.
     scenario.verify(market.data.fees_accrued == sp.mutez(1_000_000))
-    scenario.verify(market.royalties_owed_to(artist.address) == sp.mutez(10_000_000))
-    scenario.verify(market.balance == sp.mutez(11_000_000))
+    # The 25% royalty was paid out in the sale, so only the fee remains.
+    scenario.verify(market.balance == sp.mutez(1_000_000))
 
 
 @sp.add_test()
@@ -334,10 +326,9 @@ def test_offer_on_a_piece_pays_royalties_too():
     market.accept_offer(0, _sender=alice)
     scenario.verify(c.data.ledger[0] == bob.address)
     scenario.verify(market.data.fees_accrued == sp.mutez(500_000))
-    # The offer path reads the same view and credits the same way the
-    # listing path does, which is the point of testing it separately.
-    scenario.verify(market.royalties_owed_to(artist.address) == sp.mutez(2_000_000))
-    scenario.verify(market.balance == sp.mutez(2_500_000))
+    # The offer path reads the same view and pays the same way the listing
+    # path does, which is the point of testing it separately.
+    scenario.verify(market.balance == sp.mutez(500_000))
 
 
 @sp.add_test()

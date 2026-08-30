@@ -156,14 +156,6 @@ export const withdrawMarketplaceFees = (marketplace: string): AdminOp => ({
     authority: "anyone",
 });
 
-export const claimRoyalties = (marketplace: string, recipient: string): AdminOp => ({
-    label: `Pay out royalties owed to ${recipient}`,
-    to: marketplace,
-    entrypoint: "claim_royalties",
-    args: recipient,
-    authority: "anyone",
-});
-
 export const setFee = (marketplace: string, feeBps: number): AdminOp => ({
     label: `Set the marketplace fee to ${(feeBps / 100).toFixed(2)}%`,
     to: marketplace,

@@ -147,32 +147,15 @@ def test_list_buy_and_split():
     # 2.5% of 10 tez.
     scenario.verify(m.data.fees_accrued == sp.mutez(250_000))
 
-    # Royalties are credited, not pushed. A recipient can be a contract
-    # that rejects transfers or burns gas, and pushing to one during the
-    # sale lets any single recipient make every sale of that collection
-    # fail. So each share is booked here and the recipient pulls it.
-    scenario.verify(m.royalties_owed_to(artist.address) == sp.mutez(1_000_000))
-    scenario.verify(m.royalties_owed_to(collab.address) == sp.mutez(250_000))
-
-    # The seller is paid during the sale. What stays behind is exactly the
-    # fee plus the credited royalties, and nothing else.
-    scenario.verify(m.balance == sp.mutez(1_500_000))
-
-    m.withdraw_fees(_sender=bob)
-    scenario.verify(m.data.fees_accrued == sp.mutez(0))
-    scenario.verify(m.balance == sp.mutez(1_250_000))
-
-    # Anyone may trigger a claim, and it pays the recipient, so an artist
-    # is never dependent on us to be paid.
-    m.claim_royalties(artist.address, _sender=bob)
-    scenario.verify(m.royalties_owed_to(artist.address) == sp.mutez(0))
+    # Everyone is paid in the sale itself: the artist's 10%, the collab's
+    # 2.5%, and the seller's remainder. Nothing is left owed to anybody and
+    # there is nothing for an artist to know to claim.
     scenario.verify(m.balance == sp.mutez(250_000))
 
-    m.claim_royalties(collab.address, _sender=collab)
+    # So the balance is the fee and only the fee.
+    m.withdraw_fees(_sender=bob)
+    scenario.verify(m.data.fees_accrued == sp.mutez(0))
     scenario.verify(m.balance == sp.mutez(0))
-
-    # Nothing owed means nothing to claim, rather than a zero transfer.
-    m.claim_royalties(artist.address, _sender=artist, _valid=False)
 
 
 @sp.add_test()
@@ -428,11 +411,9 @@ def test_hostile_collection_cannot_take_the_sellers_proceeds():
     m.buy(0, _sender=bob, _amount=sp.mutez(4_000_000))
     scenario.verify(fa2.data.ledger[0] == bob.address)
     scenario.verify(m.data.fees_accrued == sp.mutez(100_000))
-    # It asked for 100% and was credited 25%, the cap.
-    scenario.verify(m.royalties_owed_to(greedy.address) == sp.mutez(1_000_000))
-    # 2.5% fee plus the capped royalty stay behind; the remaining 72.5%
-    # went to the seller during the sale.
-    scenario.verify(m.balance == sp.mutez(1_100_000))
+    # It asked for 100% and was paid 25%, the cap. The seller kept the rest,
+    # so the fee is all that stays behind.
+    scenario.verify(m.balance == sp.mutez(100_000))
 
 
 @sp.add_test()
@@ -451,3 +432,43 @@ def test_admin_surface():
     scenario.verify(m.data.administrator == new_admin.address)
     m.set_paused(True, _sender=admin, _valid=False)
     m.set_paused(True, _sender=new_admin)
+
+
+@sp.add_test()
+def test_royalties_are_paid_in_the_sale():
+    """Every recipient is paid in the buy operation, so what the contract
+    holds afterwards is the fee and nothing else.
+
+    Royalties used to accrue here and be claimed later, which meant an artist
+    had money sitting in a contract they had to know about. They are pushed
+    now, and the price of that is stated in ALEATORY-001 section 1: a front
+    end originating a collection has to check its royalty addresses, because a
+    recipient that rejects tez reverts the sale and the royalty map has no
+    setter."""
+    scenario = sp.test_scenario("Royalties are paid", [stub, marketplace])
+    admin = sp.test_account("Admin")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    collab = sp.test_account("Collaborator")
+    alice = sp.test_account("Alice")
+    bob = sp.test_account("Bob")
+
+    fa2 = stub.StubFa2({artist.address: 1000, collab.address: 250})
+    scenario += fa2
+    fa2.mint(sp.record(to_=alice.address, token_id=0))
+
+    m = _market(scenario, admin, treasury)
+    m.list_token(
+        sp.record(collection=fa2.address, token_id=0, price=sp.mutez(10_000_000)),
+        _sender=alice,
+    )
+    m.buy(0, _sender=bob, _amount=sp.mutez(10_000_000))
+
+    # 2.5% fee, 10% artist, 2.5% collab, 85% seller. Only the fee is held.
+    scenario.verify(m.data.fees_accrued == sp.mutez(250_000))
+    scenario.verify(m.balance == sp.mutez(250_000))
+
+    # Sweeping empties it, which is the invariant: what a marketplace holds
+    # is its own fee and live offer escrow, never somebody else's royalties.
+    m.withdraw_fees(_sender=bob)
+    scenario.verify(m.balance == sp.mutez(0))

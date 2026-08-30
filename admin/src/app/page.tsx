@@ -14,7 +14,6 @@ import { Action } from "@/components/Action";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { Amount } from "@/components/Amount";
 import {
-    claimRoyalties,
     deregisterProvider,
     registerProvider,
     removeWriter,
@@ -101,9 +100,9 @@ export default async function Dashboard() {
                         note={provider ? "Operator key to withdraw" : "No provider configured"}
                     />
                     <Stat
-                        label="Owed to artists"
-                        value={marketplace ? tez(marketplace.royaltiesOwed) : "—"}
-                        note="Unclaimed royalties, not ours"
+                        label="Escrowed in offers"
+                        value={marketplace ? tez(marketplace.escrowed) : "—"}
+                        note="Bidders' money, refundable on cancel"
                     />
                     <Stat
                         label="Daemon key"
@@ -130,9 +129,6 @@ export default async function Dashboard() {
                             <Row label="Contract balance">{tez(marketplace.balance)}</Row>
                             <Row label="Platform fees accrued">
                                 {tez(marketplace.feesAccrued)}
-                            </Row>
-                            <Row label="Royalties owed out">
-                                {tez(marketplace.royaltiesOwed)}
                             </Row>
                             <Row label={`Escrowed in ${marketplace.activeOffers} offer(s)`}>
                                 {tez(marketplace.escrowed)}
@@ -211,24 +207,6 @@ export default async function Dashboard() {
                         />
                     </div>
 
-                    {marketplace.royaltyRows.length > 0 && (
-                        <div className="border-t border-line pt-4">
-                            <p className="label mb-2">Unclaimed royalties</p>
-                            <p className="mb-3 text-xs text-dim">
-                                Claiming is permissionless and pays the recipient, so you can
-                                settle these on an artist&rsquo;s behalf.
-                            </p>
-                            <ul className="space-y-3">
-                                {marketplace.royaltyRows.map((r) => (
-                                    <li key={r.recipient} className="flex flex-wrap items-center gap-3">
-                                        <Addr address={r.recipient} />
-                                        <span className="text-sm">{tez(r.mutez)}</span>
-                                        <Action op={claimRoyalties(marketplace.address, r.recipient)} />
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
                 </Card>
             )}
 
@@ -553,7 +531,6 @@ async function RetiredMarketplaces({ addresses }: { addresses: string[] }) {
                     </Row>
                     <Row label="Balance">{tez(m.balance)}</Row>
                     <Row label="Fees accrued">{tez(m.feesAccrued)}</Row>
-                    <Row label="Royalties owed out">{tez(m.royaltiesOwed)}</Row>
                     <Row label={`Escrowed in ${m.activeOffers} offer(s)`}>
                         {tez(m.escrowed)}
                     </Row>

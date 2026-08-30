@@ -463,7 +463,9 @@ Every one of these is a decision rather than a gap.
 - **No fee to deploy.** The artist's own storage burn is already a real floor
   against spam.
 - **No escrow.** A collection holds no funds between operations, so there is
-  nothing in it to drain.
+  nothing in it to drain. A marketplace holds its own fee and live offers and
+  nothing else: a sale pays every royalty recipient in the same operation. A marketplace holds its own fee and live offers, and
+  nobody else's royalties: a sale pays every recipient in the same operation.
 - **No collector self-reveal, and no commit-reveal seed.** The seed is the mint
   operation's hash: nobody picks it and nobody can predict it.
 - **No moderation on chain.** A blocklist is this front end declining to

@@ -116,6 +116,26 @@ able to harm only itself.
 A library that is not on a public registry has no independent authority behind
 it, so it belongs inside the document.
 
+### Royalty recipients must be payable
+
+**A front end that originates a collection must check that every royalty
+recipient can receive tez, before the collection exists.**
+
+A sale pays each share in the same operation. A recipient that rejects a
+transfer reverts the sale, and `royalties` has no setter, so every token in
+that collection would be unsellable on that marketplace permanently, with the
+artist unable to fix it.
+
+An implicit account, `tz1`, `tz2` or `tz3`, cannot refuse and needs no check. An
+originated account, `KT1`, can, so ask it: a contract with no `default`
+entrypoint accepting tez is not a payable recipient. Split contracts used for
+collaborations normally are.
+
+There is nowhere else this can be enforced. The collection cannot check it at
+origination without paying to call every recipient, and the marketplace cannot
+fix it afterwards, so the obligation sits with whoever writes the address
+down.
+
 This section specifies the mechanism. [libraries.md](libraries.md) is the same
 thing for the person writing a generator.
 
