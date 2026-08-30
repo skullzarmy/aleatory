@@ -6,7 +6,7 @@ import Link from "next/link";
 import { getKind, RUNTIME_KINDS } from "@/lib/runtimes";
 import { templateFor, templateParamsFor } from "@/lib/templates";
 import { packageFromFile, packageFromHtml } from "@/lib/project";
-import { detectKind } from "@/lib/detect";
+import { detectKind, detectParams } from "@/lib/detect";
 import { newDraft, saveDraft } from "@/lib/draft";
 
 /**
@@ -54,13 +54,27 @@ export default function NewGeneratorPage() {
             // choice from the way out, and to be punished for misremembering.
             const guess = detectKind(project.html);
             setKindId(guess.kindId);
-            setDetected(guess.because);
+
+            const detectedParams = detectParams(project.html);
+            const params = detectedParams?.params ?? templateParamsFor(guess.kindId);
+
+            setDetected(
+                detectedParams
+                    ? [
+                          `${guess.because}, and ${detectedParams.because} (${detectedParams.params.length} parameter${detectedParams.params.length === 1 ? "" : "s"})`,
+                          // What reading the declaration cost. An artist who
+                          // declared seven and is given five cannot see the
+                          // two that went missing unless we say so.
+                          ...detectedParams.notes,
+                      ].join(". ")
+                    : guess.because,
+            );
 
             const draft = newDraft(
                 file.name.replace(/\.(html?|zip)$/i, ""),
                 guess.kindId,
                 project,
-                templateParamsFor(guess.kindId),
+                params,
             );
             await saveDraft(draft);
             router.push(`/studio/${draft.id}`);

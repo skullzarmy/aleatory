@@ -330,15 +330,16 @@ export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes:
                 const max = num(options.max, isInt ? 100 : 1);
                 const step = num(options.step, isInt ? 1 : 0.01);
                 const fallbackDefault = min + (max - min) / 2;
-                params.push({
-                    id,
-                    label,
-                    type: isInt ? "int" : "number",
-                    min,
-                    max,
-                    step,
-                    default: resolveParam({ id, label, type: isInt ? "int" : "number", min, max, step, default: fallbackDefault }, d.default),
-                });
+                const spec: ParamSpec = { id, label, type: isInt ? "int" : "number", min, max, step, default: fallbackDefault };
+                const resolved = resolveParam(spec, d.default);
+                // Said out loud, like every other loss here. A default is the
+                // position a collector finds the control in, and the schema is
+                // immutable once the collection exists, so a default that moved
+                // is worth one line now and worth nothing afterwards.
+                if (typeof d.default === "number" && Number.isFinite(d.default) && (d.default < min || d.default > max)) {
+                    notes.push(`"${label}" declared a default of ${d.default}, outside ${min}…${max}. It starts at ${resolved}.`);
+                }
+                params.push({ ...spec, default: resolved });
                 break;
             }
             case "boolean":
@@ -357,13 +358,11 @@ export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes:
                     notes.push(`"${label}" is a select with fewer than two options, skipped.`);
                     break;
                 }
-                params.push({
-                    id,
-                    label,
-                    type: "select",
-                    options: choices,
-                    default: choices.includes(String(d.default)) ? String(d.default) : choices[0],
-                });
+                const chosen = choices.includes(String(d.default)) ? String(d.default) : choices[0];
+                if (d.default !== undefined && chosen !== String(d.default)) {
+                    notes.push(`"${label}" declared a default of "${String(d.default)}", which is not one of its options. It starts at "${chosen}".`);
+                }
+                params.push({ id, label, type: "select", options: choices, default: chosen });
                 break;
             }
             default:
