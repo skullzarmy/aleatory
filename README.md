@@ -18,18 +18,20 @@ taking listings and offers. Not on mainnet yet.
 Generative art on Tezos grew up around fxhash, and most of what an artist
 expects from a platform still comes from there.
 
-The requirement here is narrower: **a piece should outlive the platform that
-sold it.** EditArt went quiet after its creator died, and the work was only as
-reachable as the site. That is what happens whenever the artwork lives on
-somebody's server, and it is a property of the arrangement rather than a
-failing of anyone who built one.
+EditArt showed it can be done properly. The platform is gone and the pieces
+still render, because the artwork was put on the chain instead of on a server.
+Nothing was lost when the site stopped.
 
-HEN showed the other outcome. The contracts were unowned and the data was
-addressable, so when the front end stopped the community built another and the
-pieces never moved. That rebuild became Teia.
+HEN showed the other half. The contracts were unowned and the data was
+addressable, so when the front end went the community built another one, and
+that rebuild became Teia.
 
-**This project treats that as a design requirement rather than a happy
-accident.** Everything below is what it costs to mean it.
+Between them: **the work can outlive the platform, and the front end can be
+replaced by whoever cares enough to write one.** This is built so both stay
+true of everything made here, and so that what is left behind is something
+anyone can pick up and carry on with.
+
+Everything below is what it costs to mean that.
 
 ## What that means in practice
 
