@@ -74,6 +74,66 @@ for (const doc of docs) {
     }
 }
 
+// Storage the deploy script builds, against the storage the contract declares.
+//
+// Taquito encodes an origination by walking the contract's own storage schema
+// and taking the keys it finds, so a field the contract dropped stays in
+// deploy.ts and is silently discarded. `royalties_owed` sat there through a
+// deploy that worked, naming a field that no longer existed, which is the one
+// place a rename can hide with nothing failing.
+{
+    const deploy = readFileSync("contract/deploy.ts", "utf8");
+    for (const [name, cls] of [
+        ["marketplace", "AleatoryMarketplace"],
+        ["registry", "AleatoryRegistry"],
+        ["router", "AleatoryRouter"],
+        ["factory", "AleatoryFactory"],
+        ["resolver", "AleatoryResolver"],
+        ["provider", "AleatoryProvider"],
+    ]) {
+        const at = deploy.indexOf(`case '${name}':`);
+        if (at === -1) continue;
+
+        // The storage object this arm returns, and only that: bounded by its
+        // own `return {` and the brace that closes it, so neither a nested
+        // value nor the next arm nor an unrelated call further down is read
+        // as one of this contract's fields.
+        const arm = deploy.slice(at + 1);
+        const nextCase = arm.search(/^\s*case '/m);
+        const lines = (nextCase === -1 ? arm : arm.slice(0, nextCase)).split("\n");
+        // A one-line `return { ... }` arm has no fields worth checking this
+        // way, and looking past it would read the following arm's.
+        const opens = lines.findIndex((l) => /^\s*return \{\s*$/.test(l));
+        if (opens === -1) continue;
+        const indent = lines[opens].match(/^\s*/)[0];
+        const closes = lines.findIndex((l, i) => i > opens && l === `${indent}}`);
+        if (closes === -1) continue;
+
+        const built = lines
+            .slice(opens + 1, closes)
+            .filter((l) => l.startsWith(`${indent}  `) && !l.startsWith(`${indent}   `))
+            .map((l) => /^\s*([a-z_][a-z0-9_]*):/.exec(l)?.[1])
+            .filter(Boolean);
+        if (built.length === 0) continue;
+
+        // The contract's own storage fields, from its sp.Contract __init__.
+        const body = source.slice(source.indexOf(`class ${cls}(`));
+        const init = body.slice(0, body.indexOf("\n    @sp."));
+        const declared = new Set(
+            [...init.matchAll(/self\.data\.([a-z_][a-z0-9_]*)\s*=/g)].map((m) => m[1]),
+        );
+        if (declared.size === 0) continue;
+
+        for (const field of built) {
+            if (declared.has(field)) continue;
+            bad++;
+            console.log(
+                `STORAGE contract/deploy.ts: ${name} builds \`${field}\`, which ${cls} does not declare`,
+            );
+        }
+    }
+}
+
 console.log(
     bad === 0
         ? `the docs agree with the contracts (${classes.length}: ${classes.join(", ")})`

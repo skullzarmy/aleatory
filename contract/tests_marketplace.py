@@ -445,14 +445,13 @@ def test_admin_surface():
 @sp.add_test()
 def test_royalties_are_paid_in_the_sale():
     """Every recipient is paid in the buy operation, so what the contract
-    holds afterwards is the fee and nothing else.
+    holds afterwards is the fee and nothing else. An artist never has money
+    sitting here waiting on them to know it exists.
 
-    Royalties used to accrue here and be claimed later, which meant an artist
-    had money sitting in a contract they had to know about. They are pushed
-    now. A recipient that cannot take a plain transfer is skipped rather than
-    allowed to revert the sale, and ALEATORY-001 section 1 still asks a front
-    end to check royalty addresses before they become immutable, so a skipped
-    share is a misconfiguration caught early and not a surprise later."""
+    A recipient that cannot take a plain transfer is skipped, and its share
+    goes to the seller. ALEATORY-001 section 1 asks a front end to check
+    royalty addresses before they become immutable, so a skipped share is a
+    misconfiguration caught at publishing time."""
     scenario = sp.test_scenario("Royalties are paid", [stub, marketplace])
     admin = sp.test_account("Admin")
     treasury = sp.test_account("Treasury")

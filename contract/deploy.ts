@@ -361,7 +361,6 @@ async function main() {
           fee_bps: feeBps,
           treasury,
           fees_accrued: 0,
-          royalties_owed: new MichelsonMap(),
           listings: new MichelsonMap(),
           next_listing_id: 0,
           offers: new MichelsonMap(),

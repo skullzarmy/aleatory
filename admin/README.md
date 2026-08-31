@@ -27,7 +27,7 @@ still sets `noindex`: there is nothing to steal here, and nothing to find.
 
 | Holder | Contains | Moved by |
 | --- | --- | --- |
-| Marketplace | platform fees, royalties owed to artists, offers in escrow | **anyone** |
+| Marketplace | platform fees, offers in escrow | **anyone** |
 | Factory | deploy fees | **anyone** |
 | Provider | render gas collected from mints | operator key, to anywhere |
 | Agent `tz1` | gas the daemon spends publishing | the daemon itself |
@@ -39,10 +39,13 @@ online. The provider's `withdraw` is the exception: it is operator-gated and
 takes a destination, which makes it the one call here that a signature can
 misdirect.
 
-The marketplace balance is three people's money at once, so the console
-reports it decomposed and shows what is left over. That figure should be zero.
+The marketplace balance is two people's money at once, its own fee and live
+offer escrow, so the console reports it decomposed and shows what is left
+over. A sale pays every royalty recipient in the same operation, so no
+artist's money is ever held here. That leftover figure should be zero.
 Anything else means either tez arrived that nothing accounts for, or the
-contract has promised more than it holds and a claim is going to fail.
+contract has promised more than it holds and a cancelled offer is going to
+fail.
 
 ## If the daemon key leaks
 
