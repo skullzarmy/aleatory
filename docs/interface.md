@@ -246,12 +246,15 @@ Advertise a push endpoint in your TZIP-016 metadata if you want mint UIs to
 notify you directly. Polling the chain works without it, and finds the same
 pieces, so the endpoint buys latency and nothing else.
 
-A published endpoint is a URL strangers will call. Treat every request as
-hostile, authenticate it, and let a push do no more than shorten the wait
-before you next read the chain: the queue is a comparison against chain state,
-so a caller who reaches you should be unable to make you render, publish or
-spend. A UI calling you may send no credential at all, since it has none of
-yours.
+**A push carries no authentication and cannot.** A UI calling you holds none
+of your secrets, and any UI may call any provider, so a credential would mean
+an endpoint that worked for one caller and refused the rest.
+
+Treat it as a shoulder tap from a stranger. Let it do no more than bring
+forward the moment you next read the chain, and make ignoring it free: the
+queue is a comparison against chain state, so a caller who reaches you should
+be unable to make you render, publish or spend, and a caller you never hear
+from costs you one polling interval.
 
 ---
 

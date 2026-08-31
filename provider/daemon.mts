@@ -20,7 +20,6 @@
  */
 import dotenv from "dotenv";
 import { createServer } from "node:http";
-import { timingSafeEqual } from "node:crypto";
 dotenv.config();
 
 const { collectionsServed, pendingIn, handle } = await import(
@@ -31,14 +30,14 @@ const { renderConfigFromEnv } = await import("./render.mts");
 /** How often to look when there is nothing to do. */
 const IDLE_MS = Number(process.env.ALEA_POLL_MS || 15_000);
 /**
- * Where the push endpoint listens. Loopback by default, so exposing it is a
- * decision somebody makes on purpose.
+ * The push endpoint, off until it is asked for.
+ *
+ * Loopback by default, so reaching it from outside is a decision somebody
+ * makes on purpose.
  */
-const PING_PORT = Number(process.env.ALEA_PROVIDER_PORT || 8787);
-const PING_BIND = process.env.ALEA_PROVIDER_BIND || "127.0.0.1";
-const PING_TOKEN = process.env.ALEA_PROVIDER_PING_TOKEN || "";
-/** Short enough to guess is the same as no token at all. */
-const MIN_TOKEN_CHARS = 32;
+const PUSH_ON = /^(1|on|true|yes)$/i.test(process.env.ALEA_PROVIDER_PUSH || "");
+const PUSH_PORT = Number(process.env.ALEA_PROVIDER_PORT || 8787);
+const PUSH_BIND = process.env.ALEA_PROVIDER_BIND || "127.0.0.1";
 /** How long to wait after a failure, doubling, so a broken dependency is not hammered. */
 const BACKOFF_MIN_MS = 5_000;
 const BACKOFF_MAX_MS = 5 * 60_000;
@@ -97,92 +96,58 @@ const sleep = (ms: number) =>
 /**
  * The push endpoint this provider advertises.
  *
- * ALEATORY-001 §5 lets a provider put a URL in its TZIP-016 metadata, and a
- * mint UI reads that URL off the chain and calls it the moment a piece is
- * minted. Work is found by comparing chain state either way, so this shortens
- * one poll interval and carries no other meaning. Running without it is a
- * complete way to run a provider.
+ * ALEATORY-001 §5: a provider may publish a URL, and a mint UI calls it when a
+ * piece is minted. **It carries no authentication and cannot.** The UI doing
+ * the calling holds none of this provider's secrets, and any UI is entitled to
+ * call any provider, so a credential here would mean the endpoint only worked
+ * for whoever we happened to share a secret with.
  *
- * **Everything about this listener assumes the caller is hostile.** It is an
- * open port on a machine holding an agent key, so a flood has to cost close to
- * nothing and a stranger has to learn close to nothing.
+ * So it is a shoulder tap from a stranger, and the design follows from that:
+ * it may be ignored at any time with no loss. A tap sets a flag. The flag
+ * shortens the wait before the next read of the chain, and the chain is what
+ * decides the work. Nothing a caller sends is read, kept, or believed.
  *
- * A request is refused in the cheapest order the protocol allows: wrong
- * method, then a token that fails a constant-time compare. Either way the
- * socket is destroyed with no response written and no body read, so a
- * hammering client pays for a TCP handshake and learns nothing about which
- * check it failed.
- *
- * A valid push sets a flag. That is the entire effect, and it is idempotent
- * inside one interval, so the rate gate throws away everything past the first
- * without losing anything.
- *
- * The bind address defaults to loopback. Reaching it from the internet is then
- * a deliberate act by whoever runs it: a reverse proxy that terminates TLS and
- * rate limits, or a firewall rule. See docs/provider.md.
+ * Which makes a flood uninteresting. Taps are answered and dropped above
+ * PUSH_FLOOR_MS, so the most a caller can buy is one early scan every few
+ * seconds, which is a thing this process does on its own anyway.
  */
 let pushServer: ReturnType<typeof createServer> | null = null;
 
 /**
- * Authenticated pushes acted on per second.
+ * The soonest a tap may bring the next scan forward.
  *
- * A wake is idempotent inside one interval, so the rest are answered and
- * dropped. Counted after the token check, or an anonymous flood would spend
- * the allowance a real caller needs.
+ * The ceiling on what tapping achieves, and therefore the ceiling on what
+ * flooding achieves. Below this a tap is answered and forgotten.
  */
-const PUSH_RATE_PER_SEC = 2;
-let gateAt = 0;
-let gateCount = 0;
+const PUSH_FLOOR_MS = 5_000;
+let lastTapAt = 0;
 
-function overRate(): boolean {
-    const now = Date.now();
-    if (now - gateAt > 1_000) {
-        gateAt = now;
-        gateCount = 0;
-    }
-    return ++gateCount > PUSH_RATE_PER_SEC;
-}
-
-function listen(bind: string, port: number, token: string) {
-    const expected = Buffer.from(token);
-
+function listen(bind: string, port: number) {
     pushServer = createServer((req, res) => {
-        // Cheapest checks first, and a refusal never writes a response: a
-        // destroyed socket costs one packet and tells a prober nothing about
-        // whether the method, the path or the token was the problem.
         if (req.method !== "POST") {
             req.socket.destroy();
             return;
         }
 
-        const given = Buffer.from((req.headers.authorization || "").replace(/^Bearer /, ""));
-        if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
-            req.socket.destroy();
+        // Answered either way, because a caller has done nothing wrong by
+        // tapping twice and there is nothing here worth hiding from them.
+        const now = Date.now();
+        if (now - lastTapAt < PUSH_FLOOR_MS) {
+            res.writeHead(202).end();
             return;
         }
-
-        // Rate limited after the token, so a flood of anonymous requests can
-        // never consume the allowance a real caller needs. Answering is worth
-        // one packet here: this caller is holding the token.
-        if (overRate()) {
-            res.writeHead(429, { "retry-after": "1" }).end();
-            return;
-        }
-
-        // The body goes unread. Nothing a caller could say changes what
-        // happens next.
+        lastTapAt = now;
         res.writeHead(202).end();
 
-        // Drop the collection cache too: a push usually means a mint, and a
-        // mint into a collection deployed a minute ago would otherwise wait
-        // for the next rescan.
+        // A tap usually means a mint, and a mint into a collection deployed a
+        // minute ago would otherwise wait for the next rescan.
         servedAt = 0;
-        log("push received");
+        log("tapped, looking early");
         wake?.();
     });
 
-    // Slow-loris and header-flood limits. Node's defaults are generous for a
-    // public web server and far too generous for a one-verb endpoint.
+    // Slow-loris and header-flood limits. Node's defaults suit a public web
+    // server and are far too generous for a one-verb endpoint.
     pushServer.maxHeadersCount = 20;
     pushServer.headersTimeout = 3_000;
     pushServer.requestTimeout = 5_000;
@@ -191,11 +156,11 @@ function listen(bind: string, port: number, token: string) {
     pushServer.on("clientError", (_e, socket) => socket.destroy());
 
     pushServer.listen(port, bind, () => {
-        log(`push endpoint on ${bind}:${port}`);
+        log(`push endpoint on ${bind}:${port}, unauthenticated by design`);
         if (bind !== "127.0.0.1" && bind !== "localhost") {
-            log("  WARNING: bound to a public interface, in plain HTTP.");
-            log("  WARNING: put TLS and a rate limiter in front, or bind 127.0.0.1.");
-            log("  WARNING: see docs/provider.md, 'The push endpoint'.");
+            log("  bound to a public interface, in plain HTTP.");
+            log("  Put a reverse proxy in front for TLS and connection limits.");
+            log("  See docs/provider.md, 'The push endpoint'.");
         }
     });
 }
@@ -204,20 +169,8 @@ let backoff = BACKOFF_MIN_MS;
 let served: string[] = [];
 let servedAt = 0;
 
-if (!PING_TOKEN) {
-    log(`polling every ${IDLE_MS / 1000}s, no push endpoint`);
-} else if (PING_TOKEN.length < MIN_TOKEN_CHARS) {
-    // Refused rather than warned: a guessable token on an open port is worse
-    // than the polling this replaces, and polling already works.
-    console.log(
-        `\nALEA_PROVIDER_PING_TOKEN is ${PING_TOKEN.length} characters. ` +
-            `Use at least ${MIN_TOKEN_CHARS}:\n\n  openssl rand -hex 32\n\n` +
-            `Or unset it and poll, which needs no open port.\n`,
-    );
-    process.exit(1);
-} else {
-    listen(PING_BIND, PING_PORT, PING_TOKEN);
-}
+if (PUSH_ON) listen(PUSH_BIND, PUSH_PORT);
+else log(`polling every ${IDLE_MS / 1000}s, no push endpoint`);
 
 while (!stopping) {
     try {

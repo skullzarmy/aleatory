@@ -154,9 +154,9 @@ CF_API_TOKEN=
 ALEA_ROUTER_ADDRESS=
 ```
 
-The push endpoint is optional and off until `ALEA_PROVIDER_PING_TOKEN` is set.
-It shortens one poll interval and opens a port on the machine holding the agent
-key. [provider.md](provider.md) has the wiring and the implications.
+The push endpoint is optional and off until `ALEA_PROVIDER_PUSH=on`. It is an
+unauthenticated shoulder tap that shortens one poll interval.
+[provider.md](provider.md) has the wiring and the implications.
 
 `ALEA_ROUTER_ADDRESS` is how the daemon finds the factories whose collections
 it should look at. Without it, it scans nothing and reports serving no

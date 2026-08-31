@@ -17,12 +17,14 @@ import { fetchProvider } from "@/lib/providers";
  * whose metadata names any URL, this route is unauthenticated, and it is a
  * server making the request, so without the checks below it is a machine that
  * fetches whatever it is told to. That is the whole threat here: the response
- * is discarded, no body is sent, and the token below never travels to an
- * address that is not ours.
+ * is discarded and nothing of ours travels with the request.
  *
- * A route rather than a call from the browser, because the token is a shared
- * secret: in a browser bundle it would let anyone spend a provider's render
- * budget.
+ * Nothing is sent: no body, no credential. A provider is entitled to be
+ * tapped by any UI, so there is no secret a UI could hold, and the tap only
+ * asks a provider to read the chain sooner than it was going to.
+ *
+ * A route rather than a call from the browser so the checks above run on a
+ * machine, out of reach of whoever is minting.
  */
 
 /** Hosts that only ever mean "somewhere inside the network this runs on". */
@@ -76,17 +78,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         return NextResponse.json({ pinged: false, why: "no usable push endpoint" });
     }
 
-    // Ours is the only provider we hold a token for, and it is the only one it
-    // is ever sent to. A planted endpoint cannot collect it.
-    const token =
-        provider === process.env.ALEA_PROVIDER_ADDRESS
-            ? process.env.ALEA_PROVIDER_PING_TOKEN
-            : undefined;
-
     try {
         await fetch(endpoint, {
             method: "POST",
-            headers: token ? { authorization: `Bearer ${token}` } : {},
             // A redirect is a second destination this route never checked, and
             // is how an allowed host hands the request to a forbidden one.
             redirect: "manual",

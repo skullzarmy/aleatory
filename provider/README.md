@@ -31,13 +31,15 @@ Everything here imports from here, apart from the npm packages in the root
 
 ## The push endpoint
 
-Optional, and off unless `ALEA_PROVIDER_PING_TOKEN` is set. Polling finds
-everything on its own; this shortens one interval and opens a port on the
-machine holding the agent key. It binds loopback, refuses a token under 32
-characters, destroys refused sockets without answering, and rate limits after
-the token check so a flood cannot starve a real caller. TLS, volume and
-firewalling are the operator's, and [provider.md](../docs/provider.md) spells
-out which is which.
+Optional, and off unless `ALEA_PROVIDER_PUSH=on`. Polling finds everything on
+its own; this shortens one interval and opens a port.
+
+It is unauthenticated, because a mint UI tapping a provider holds none of that
+provider's secrets and any UI may tap any provider. A tap brings the next chain
+read forward and does nothing else, at most once every five seconds, so
+ignoring one costs nothing and flooding achieves nothing. Binds loopback. TLS,
+volume and firewalling are the operator's, and
+[provider.md](../docs/provider.md) spells out which is which.
 
 ## Two keys
 

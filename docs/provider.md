@@ -140,7 +140,7 @@ Optional, and worth setting once you are listed:
 |---|---|
 | `ALEA_PROVIDER_NAME`, `ALEA_PROVIDER_DESC`, `ALEA_PROVIDER_AVATAR` | how you appear in the provider list, in place of a bare KT1 |
 | `ALEA_POLL_MS` | how often the daemon looks, 15000 by default |
-| `ALEA_PROVIDER_URL`, `ALEA_PROVIDER_PING_TOKEN`, `ALEA_PROVIDER_PORT` | the push endpoint, below |
+| `ALEA_PROVIDER_PUSH`, `ALEA_PROVIDER_URL`, `ALEA_PROVIDER_BIND`, `ALEA_PROVIDER_PORT` | the push endpoint, below |
 
 `.env.example` in the repository root carries the same list with blanks.
 
@@ -149,20 +149,36 @@ Optional, and worth setting once you are listed:
 **Start by not running it.** Polling every fifteen seconds finds everything: new
 mints, pieces missed while the process was down, and pieces inherited from a
 provider an artist switched away from. The push shortens one interval. That is
-its whole value, and it costs you an open port on the machine holding your
-agent key.
+its whole value, and it costs you an open port.
 
 Run it when a first reveal in two seconds instead of fifteen is worth that
-trade to you. Plenty of providers should decide it is not.
+trade. Plenty of providers should decide it is not.
 
-#### What it is
+#### It is a shoulder tap, and it carries no authentication
+
+A mint UI calling you holds none of your secrets, and any UI is entitled to
+call any provider. A credential here would mean an endpoint that worked only
+for whoever you had shared a secret with, which is not the thing the interface
+describes.
+
+So the endpoint takes an unauthenticated `POST` from anyone and answers `202`.
+A tap sets a flag, the flag brings the next read of the chain forward, and the
+chain decides the work. Nothing a caller sends is read, kept or believed, and
+ignoring a tap costs nothing: the piece is found by the next poll on the same
+comparison.
+
+That is what makes a flood uninteresting. **A tap can bring the next scan
+forward by at most one every five seconds.** Everything above that is answered
+and dropped, so two hundred taps buy exactly what one buys.
+
+#### Turning it on
 
 | | |
 |---|---|
-| `ALEA_PROVIDER_PING_TOKEN` | the daemon listens once this is set. At least 32 characters, or it refuses to start. |
+| `ALEA_PROVIDER_PUSH` | `on` to listen. Absent, nothing is opened. |
 | `ALEA_PROVIDER_BIND` | interface. `127.0.0.1` by default. |
 | `ALEA_PROVIDER_PORT` | port. 8787 by default. |
-| `ALEA_PROVIDER_URL` | the public https URL, written into your contract's metadata as `endpoint` |
+| `ALEA_PROVIDER_URL` | the public https URL, published in your contract's metadata as `endpoint` |
 
 `ALEA_PROVIDER_URL` is the part that connects it. A mint UI reads the
 collection's provider address off the chain, reads `endpoint` out of that
@@ -179,50 +195,45 @@ ALEA_PROVIDER_URL=https://provider.example/push npx tsx contract/deploy.ts --onl
 
 `npm run provider:setup` does not write it. That command generates and funds
 the agent key and nothing else. Changing the URL later means writing your
-contract's metadata again, and a provider contract you originated yourself is
-yours to update however you built it.
+contract's metadata again, and a provider contract you originated is yours to
+update however you built it.
 
 ```
-openssl rand -hex 32
+2026-08-31T20:23:40.101Z  push endpoint on 127.0.0.1:8787, unauthenticated by design
+2026-08-31T20:23:47.692Z  tapped, looking early
 ```
 
 #### What the daemon does to protect itself
 
-A valid push sets a flag and returns `202`. That is the entire effect.
-
 | | |
 |---|---|
-| binds loopback | reaching it from outside is a decision you make, not a default |
-| refuses in order | wrong method, then a constant-time token compare |
-| destroys refused sockets | no response body, so a prober learns nothing about which check failed |
+| binds loopback | reaching it from outside is a decision you make |
+| one early scan per 5s | the ceiling on what tapping achieves, and so on what flooding achieves |
+| refuses anything but POST | socket destroyed, no response written |
 | never reads a body | nothing a caller sends changes what happens |
-| rate limits after the token | an anonymous flood cannot spend a real caller's allowance |
 | caps headers and timeouts | 20 headers, 3s for headers, 5s per request, 4 requests per socket |
 
-Measured: 400 unauthenticated requests are refused in 0.6 seconds, and a valid
-push arriving immediately afterwards still gets its `202`.
+Measured: 200 taps arriving in 0.53 seconds produced one early scan.
 
 #### What it does not protect you from
 
-**It speaks plain HTTP and it does not authenticate you to the caller.** The
-daemon is one process on your machine. Everything below is yours.
+**It speaks plain HTTP.** The daemon is one process on your machine.
+Everything below is yours.
 
-- **Exposing it directly.** Setting `ALEA_PROVIDER_BIND=0.0.0.0` puts an
-  unencrypted port on the internet and the token crosses it in the clear. The
-  daemon warns about this at startup, every start, and then does as it is told.
-- **TLS.** Terminate it in nginx, Caddy or a tunnel, and proxy to
+- **Exposing it directly.** `ALEA_PROVIDER_BIND=0.0.0.0` puts an unencrypted
+  port on the internet. The daemon says so at every start and then does as it
+  is told.
+- **TLS.** Terminate it in nginx, Caddy or a tunnel, proxying to
   `127.0.0.1:8787`. `ALEA_PROVIDER_URL` is the https address of that front end.
-- **Volume.** The in-process gate protects the daemon's own work; it does
-  nothing about the bandwidth arriving at your machine. A reverse proxy with
-  connection limits, or a firewall that only admits the hosts you expect, is
-  what handles that.
-- **Firewalling.** If you bind loopback and proxy, no inbound rule is needed at
-  all. If you bind publicly, allow that one port and nothing else.
+- **Volume.** The floor above protects the daemon's own work and does nothing
+  about bandwidth arriving at your machine. A reverse proxy with connection
+  limits, or a firewall admitting only the hosts you expect, is what handles
+  that.
+- **Firewalling.** Bind loopback and proxy, and no inbound rule is needed. Bind
+  publicly and allow that one port and nothing else.
 
-A leaked token buys somebody the ability to make your daemon look at the chain,
-which it already does on its own clock. It cannot make it render, publish, or
-spend: the queue is computed from chain state, and a push only shortens the
-wait before that computation runs.
+There is no credential to leak. The most a caller achieves is making your
+daemon read the chain slightly sooner than it was going to.
 
 ---
 
