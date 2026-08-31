@@ -47,8 +47,17 @@ Turn **Public Bot** off. No privileged intents: it never reads a message.
 
 ### 2. Invite it
 
-**OAuth2 → URL Generator**, scope `bot`, bot permission **Manage Channels**.
-That is the whole permission set. Open the URL and add it to the server.
+**OAuth2 → URL Generator**, scope `bot`, bot permissions **View Channels** and
+**Manage Channels**. That is the whole set, and it is permission integer
+`1040`:
+
+```
+https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=1040
+```
+
+View Channels is not optional: a name is read before it is written, so a bot
+that cannot see the channel gets a 404 on the read and never reaches the
+rename.
 
 ### 3. The channels
 
@@ -57,13 +66,19 @@ show the name at full width and nobody joins one by accident.
 
 Name them anything. They get overwritten.
 
-On each channel, or once on the category with the channels syncing:
+Set these on the **category**, and leave the channels synced to it, so a new
+figure later is one channel and no permission work.
 
 | Role | Permission | |
 | --- | --- | --- |
 | `@everyone` | View Channel | allow, so it stays in the sidebar |
 | `@everyone` | Connect | deny, which is what puts the padlock on |
-| the bot | Manage Channel | allow |
+| the bot's role | View Channel | allow |
+| the bot's role | Manage Channel | allow |
+
+The bot needs its own overwrite here. A server-wide permission is overridden by
+a channel that denies it, and the read that comes before every rename fails
+with a 404 that looks like a wrong channel ID.
 
 ### 4. The IDs
 
