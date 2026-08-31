@@ -1,33 +1,25 @@
+---
+name: aleatory-generator
+description: Write a generative art piece for Aleatory, the fully on-chain platform on Tezos. Use when someone asks for an Aleatory generator or piece, mentions the $alea harness, or wants a single self-contained HTML artwork that renders identically from a seed forever. Covers the harness, determinism, declaring libraries, and mint-time parameters.
+---
+
 # Writing a generator for Aleatory
 
-You are helping someone make a piece of generative art for Aleatory, a fully
-on-chain generative art platform on Tezos. Your job is to produce **one
-self-contained HTML file**. That file is the artwork. It goes on chain, and it
-can never be edited afterwards.
-
-This page is everything you need.
-
----
+Produce **one self-contained HTML file**. That file is the artwork. It goes on
+chain, and it can never be edited afterwards.
 
 ## The three rules
 
-A generator has to satisfy exactly three things. Technique, style, library
-and medium are yours.
-
-1. **Self-contained.** One HTML file. Nothing is fetched while it renders.
-2. **Deterministic.** The same seed produces the same image, on any machine,
-   forever. Run it twice from a clean frame and the two captures agree.
+1. **Self-contained.** One HTML file. Nothing fetched while it renders.
+2. **Deterministic.** Same seed, same image, on any machine, forever.
 3. **It calls `alea.ready()`** when the drawing is finished.
 
-A piece can keep animating after `ready()`. It has one canonical image,
-captured at that moment, and that image is what goes on chain.
-
----
+Technique, style, library and medium are the artist's. A piece can keep
+animating after `ready()`; it has one canonical image, captured at that moment.
 
 ## The harness
 
-These globals exist before your first line runs. `$alea` is the global, and
-almost every generator binds it once at the top:
+Installed before the generator's first line runs. Bind it once:
 
 ```js
 var alea = window.$alea;
@@ -48,54 +40,34 @@ alea.ready()                 the capture point
 ```
 
 Everything above `params` draws from one seeded stream, so calling any of them
-advances it. `random` and `rand` are the same function.
+advances it. `Math.random` is replaced by that stream, the clock is frozen so
+`Date.now()` is fixed, and the network is blocked for the render.
 
-**Two substitutions are made for you.** `Math.random` is replaced by the seeded
-stream, and the clock is frozen, so `Date.now()` returns a fixed value and a
-piece that reads the date renders the same way in any year. Network access is
-blocked for the duration.
+`$alea` is the entire surface. A piece written against `fxrand`, `tokenData`
+or another platform's helper draws a blank frame.
 
-**`$alea` is the entire surface.** A piece written against `fxrand`,
-`tokenData` or another platform's helper draws a blank frame.
+## Determinism
 
----
+Safe: `alea.rand()` and anything derived from it. Each of these renders
+differently for different people, and the failure only shows after minting:
 
-## Determinism, concretely
-
-This is the rule that is easiest to break by accident, and the break is only
-visible after the piece is minted and unchangeable.
-
-Safe: `alea.rand()`, and anything derived from it.
-
-Each of these makes a piece that renders differently for different people:
-
-- `Math.random()` directly. It is substituted so it works, but write
-  `alea.rand()` and mean it.
 - `Date`, `performance.now()`, or anything time-derived deciding what is drawn.
 - `window.innerWidth`, `devicePixelRatio`, or any measurement of the viewer's
   screen deciding composition. Draw to a fixed coordinate space and scale it.
 - A library's own PRNG. Seed it from `alea.rand()`. In p5 that is
   `randomSeed(alea.rand() * 4294967296)` and the same for `noiseSeed`.
 - Anything asynchronous whose completion order is not fixed.
-- Counting animation frames before capture. Frame timing varies. Call `ready()`
-  after a fixed amount of work, never after a duration.
-
----
+- Counting animation frames before capture. Frame timing varies; call `ready()`
+  after a fixed amount of work.
 
 ## Size
 
-The whole file has to fit in one Tezos operation: **32,768 bytes**. Most
-hand-written pieces sit well under it. If you are close, minify, and declare
-any library you can.
-
----
+The whole file fits in one Tezos operation: **32,768 bytes**.
 
 ## Declaring a library
 
-Your file names the library it needs, and whoever renders it supplies that
-library before your code runs. Your bytes stay yours.
-
-One meta tag in `<head>` per library:
+The file names what it needs and the renderer supplies it before the generator
+runs, so the bytes stay the artist's.
 
 ```html
 <meta name="alea:library" content="p5@1.5.0">
@@ -105,29 +77,22 @@ One meta tag in `<head>` per library:
 `content` is `package@version` from npm, optionally with a path, as in
 `d3@7.9.0/dist/d3.min.js`. Any package on npm, named and pinned.
 
-Three things decide whether it works:
+- **Pin an exact version.** Never a range, never `latest`.
+- **It must load from a plain `<script>` tag.** A build that exists only as an
+  ES module cannot be used. three.js is the common case: `0.160.1` is the last
+  release shipping the classic global build.
+- **Never write `<script src="https://...">`.** The network is refused during a
+  render, so the piece draws nothing and is captured blank.
 
-- **Pin an exact version.** Never a range, never `latest`. The version is
-  recorded with the piece and has to mean one thing forever.
-- **It has to load from a plain `<script>` tag.** A build that exists only as
-  an ES module cannot be used this way. three.js is the common case:
-  `0.160.1` is the last release shipping the classic global build.
-- **Never write `<script src="https://...">`.** A piece is refused the network
-  while it renders. It fetches nothing, draws nothing, and is captured as a
-  blank frame, which is discovered after minting.
-
-When a package has only an ES module build, paste its source into your file.
-That costs bytes and always works.
-
----
+When a package has only an ES module build, paste its source into the file.
 
 ## Declaring parameters
 
-Optional, and most pieces have none. A parameter is a dimension you hand to
+Optional, and most pieces have none. A parameter is a dimension handed to
 whoever mints, so declare one you are confident about in every position it can
 take. The seed should still do the interesting work.
 
-At most **five**. Declare them in a script in `<head>`, before your code:
+At most **five**, declared in `<head>` before the generator:
 
 ```html
 <script>
@@ -142,11 +107,7 @@ At most **five**. Declare them in a script in `<head>`, before your code:
 </script>
 ```
 
-Read them back by the id you gave:
-
-```js
-var density = alea.param("density", 140);
-```
+Read back by the id given: `alea.param("density", 140)`.
 
 | type | |
 |---|---|
@@ -157,33 +118,23 @@ var density = alea.param("density", 140);
 | `select` | one of `options`, two or more |
 
 `id` is lowercase letters, digits and underscores, starting with a letter, up
-to 24 characters. It is how the code finds the value, so it is permanent.
-`label` is what a collector reads on the control. The `default` has to sit
-inside the range you declared.
-
----
+to 24 characters. It is how the code finds the value, so it is permanent. The
+`default` must sit inside the range declared.
 
 ## Traits
 
-`alea.features({ ... })` declares traits, which are indexed and shown to
-collectors. Keep them meaningful. A trait derived from a parameter is honest,
-though two collectors can then share one.
-
 ```js
-alea.features({
-  Palette: paletteName,
-  Density: density > 200 ? "Dense" : "Sparse"
-});
+alea.features({ Palette: name, Density: density > 200 ? "Dense" : "Sparse" });
 ```
 
----
+Indexed and shown to collectors. Keep them meaningful. A trait derived from a
+parameter is honest, though two collectors can then share one.
 
 ## Runtime kinds
 
 A piece declares which kind it was written against: `vanilla` (Canvas 2D),
-`svg`, `p5`, or `custom`. It selects a default parameter set and describes the
-work. A wrong kind is a wrong label and the piece still renders, because
-libraries load from the `alea:library` tags.
+`svg`, `p5`, or `custom`. A wrong kind is a wrong label and the piece still
+renders, because libraries load from the `alea:library` tags.
 
 A `custom` piece exports a lifecycle and the harness drives it:
 
@@ -195,13 +146,11 @@ window.ALEA_MAIN = {
 };
 ```
 
----
-
 ## A complete file
 
-Minimal, correct, and it opens from disk: the guard at the top provides a local
-harness with a random seed when the real one is not there. Keep that guard. It
-is what lets someone reload for a new seed while working.
+The guard at the top supplies a local `$alea` when the real one is absent, so
+this opens from disk and `?seed=abc` pins a draw. Keep it; the real harness
+replaces it.
 
 ```html
 <!doctype html>
@@ -281,26 +230,16 @@ alea.ready();
 </html>
 ```
 
----
-
 ## Before handing the file over
 
 - One HTML file, nothing fetched, no `<script src="http...">`
-- `alea.ready()` is called on every path
+- `alea.ready()` reached on every path
 - Every random value comes from `alea`
-- Nothing time-derived or screen-derived affects what is drawn
-- Any library is declared with an exact version and loads from a script tag
+- Nothing time-derived or screen-derived affects the drawing
+- Any library declared with an exact version, loading from a script tag
 - Under 32,768 bytes
 - Opening it twice with the same seed gives the same image
 
----
-
-If you install skills, this page is also packaged as one:
-<https://aleatory.art/skill/aleatory-generator/SKILL.md>
-
-Starter kits, and a studio that checks all of the above before publishing:
-<https://aleatory.art/templates>
-
-ALEATORY-001, the protocol specification, is at
-<https://aleatory.art/docs/interface>, for anyone building a renderer or a
-viewer.
+Starter kits and a studio that checks all of this before publishing:
+<https://aleatory.art/templates>. The protocol specification is ALEATORY-001,
+at <https://aleatory.art/docs/interface>.

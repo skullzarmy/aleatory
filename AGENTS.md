@@ -9,7 +9,8 @@ anyone can implement.
 Writing a generator is a different job with a different document:
 [public/llms.txt](public/llms.txt), served at
 <https://aleatory.art/llms.txt>. It carries the harness, the three rules, the
-two declarations and a worked file.
+two declarations and a worked file. The same thing packaged as an installable
+skill is [public/skill/aleatory-generator/SKILL.md](public/skill/aleatory-generator/SKILL.md).
 
 ---
 
