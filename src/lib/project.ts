@@ -99,7 +99,13 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
 
     let html = strFromU8(files[entry]);
     const notes: string[] = [];
-    const unresolved: string[] = [];
+    // Sets rather than lists. A stylesheet is walked for `url(…)` when it is
+    // inlined and again in the pass over the document's own <style> blocks, and
+    // two stylesheets may point at the same missing asset, so the same name
+    // arrives more than once. What the artist needs to read is which files are
+    // missing, each said once.
+    const missing = new Set<string>();
+    const inlined = new Set<string>();
 
     const lookup = (raw: string): Uint8Array | undefined => {
         const key = normalize(raw);
@@ -115,10 +121,11 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
         }
         const file = lookup(src);
         if (!file) {
-            unresolved.push(src);
+            missing.add(normalize(src));
             return match;
         }
         if (!TEXT_INLINE.has(ext(src))) return match;
+        inlined.add(normalize(src));
         return `<script>${literal(strFromU8(file))}</script>`;
     });
 
@@ -136,9 +143,10 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
             if (/^(https?:|data:|blob:|#)/i.test(ref)) return match;
             const file = lookup(ref);
             if (!file) {
-                unresolved.push(ref);
+                missing.add(normalize(ref));
                 return match;
             }
+            inlined.add(normalize(ref));
             const mime = MIME[ext(ref)] ?? "application/octet-stream";
             return `url("data:${mime};base64,${toBase64(file)}")`;
         });
@@ -148,9 +156,10 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
         if (!/stylesheet/i.test(match)) return match;
         const file = lookup(href);
         if (!file) {
-            if (!/^(https?:)?\/\//.test(href)) unresolved.push(href);
+            if (!/^(https?:)?\/\//.test(href)) missing.add(normalize(href));
             return match;
         }
+        inlined.add(normalize(href));
         return `<style>${literal(inlineCssUrls(strFromU8(file)))}</style>`;
     });
 
@@ -162,19 +171,31 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
     // Any remaining src="…" (images, audio, video) → data URI
     html = html.replace(/\bsrc\s*=\s*["']([^"']+)["']/gi, (match: string, src: string) => {
         const file = lookup(src);
-        if (!file) return match;
+        if (!file) {
+            // An <img> pointing at a file the zip does not carry used to go by
+            // in silence: no inline, no note, and a piece with a hole in it
+            // that nothing anywhere explained. Remote and already-inlined
+            // references are not missing, they are simply not ours to inline.
+            if (!/^(https?:|data:|blob:)/i.test(src)) missing.add(normalize(src));
+            return match;
+        }
+        inlined.add(normalize(src));
         const mime = MIME[ext(src)] ?? "application/octet-stream";
         return `src="data:${mime};base64,${literal(toBase64(file))}"`;
     });
 
-    const inlinedCount = paths.length - 1 - unresolved.length;
+    // Files actually pulled in, counted rather than inferred. Subtracting the
+    // unresolved references from the files in the package counted two unlike
+    // things: one missing asset referenced twice made the total negative, and a
+    // package that had inlined a stylesheet reported nothing at all.
+    const inlinedCount = inlined.size;
     if (inlinedCount > 0) notes.push(`Flattened ${inlinedCount} file${inlinedCount === 1 ? "" : "s"} into one document.`);
 
     return {
         html,
         bytes: new TextEncoder().encode(html).length,
         notes,
-        unresolved,
+        unresolved: [...missing],
     };
 }
 

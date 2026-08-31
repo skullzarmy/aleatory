@@ -16,8 +16,9 @@ import { getKind, RUNTIME_KINDS } from "./runtimes";
 import { templateFor, templateParamsFor } from "./templates";
 import { resolveParams, validateSchema } from "./params";
 import { newDraft, seedAt } from "./draft";
-import { packageFromHtml } from "./project";
+import { packageFromHtml, packageFromZip } from "./project";
 import { declaredIn, librariesIn, withLibraries } from "./libraries";
+import { strToU8, zipSync } from "fflate";
 
 let failures = 0;
 
@@ -623,6 +624,61 @@ console.log("\nParameter resolution");
     const once = JSON.stringify(resolveParams(specs, { density: 0.61, count: 3.7 }));
     const twice = JSON.stringify(resolveParams(specs, { density: 0.61, count: 3.7 }));
     check("is a function, not a process", once === twice, once);
+}
+
+console.log("\nPackaging a zip");
+{
+    const zip = (files: Record<string, string>) =>
+        packageFromZip(zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)]))));
+
+    const flattened = zip({
+        "index.html": `<html><head><link rel="stylesheet" href="style.css"></head><body><script src="sketch.js"></script></body></html>`,
+        "style.css": `body{margin:0}`,
+        "sketch.js": `$alea.ready();`,
+    });
+    check("inlines a stylesheet and a script", /<style>body\{margin:0\}<\/style>/.test(flattened.html) && /\$alea\.ready\(\);<\/script>/.test(flattened.html));
+    check("counts what it actually inlined", flattened.notes.includes("Flattened 2 files into one document."), flattened.notes.join(" | "));
+    check("has nothing left unresolved", flattened.unresolved.length === 0, flattened.unresolved.join(", "));
+
+    // An <img> pointing at a file the package does not carry is the whole
+    // reason to report anything: it renders as a hole, and silently.
+    const holed = zip({
+        "index.html": `<html><head><link rel="stylesheet" href="style.css"></head><body><img src="textures/gone.png"></body></html>`,
+        "style.css": `body{background:url("textures/gone.png")}`,
+    });
+    check("reports a file the package does not carry", holed.unresolved.includes("textures/gone.png"), holed.unresolved.join(", "));
+    check(
+        "names each missing file once, however many times it is referenced",
+        holed.unresolved.length === 1,
+        holed.unresolved.join(", "),
+    );
+    check("still counts the stylesheet it did inline", holed.notes.includes("Flattened 1 file into one document."), holed.notes.join(" | "));
+
+    // Only an <img> refers to it, so nothing else can report it on its behalf.
+    const imageOnly = zip({
+        "index.html": `<html><body><img src="textures/grain.png"></body></html>`,
+    });
+    check(
+        "reports a missing image no stylesheet happens to mention",
+        imageOnly.unresolved.includes("textures/grain.png"),
+        imageOnly.unresolved.join(", ") || "(nothing reported)",
+    );
+
+    // A remote script cannot be inlined and is not missing from the package.
+    // It is reported as what it is: something the sandbox will refuse later.
+    const remote = zip({
+        "index.html": `<html><body><script src="https://cdn.example.com/p5.js"></script></body></html>`,
+    });
+    check("leaves a remote script in place", /cdn\.example\.com/.test(remote.html));
+    check("says so", remote.notes.some((n) => n.includes("remote script")), remote.notes.join(" | "));
+    check("does not call a remote script a missing file", remote.unresolved.length === 0, remote.unresolved.join(", "));
+
+    // What every OS produces when you zip a folder.
+    const wrapped = zip({
+        "my-piece/index.html": `<html><body><script src="sketch.js"></script></body></html>`,
+        "my-piece/sketch.js": `$alea.ready();`,
+    });
+    check("finds index.html inside a wrapper folder", /\$alea\.ready\(\);<\/script>/.test(wrapped.html));
 }
 
 console.log("\nDrafts");
