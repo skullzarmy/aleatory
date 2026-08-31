@@ -64,6 +64,29 @@ function api(token: string, path: string, init?: RequestInit): Promise<Response>
     });
 }
 
+/**
+ * Discord's own words for a refusal.
+ *
+ * Every failure here arrives as a 403 or a 404, and guessing at which
+ * permission is behind one sends whoever reads the log to the wrong screen.
+ * The body carries a numeric code that says exactly which, so it is quoted
+ * rather than interpreted.
+ */
+async function refusal(res: Response): Promise<string> {
+    const body = (await res.json().catch(() => ({}))) as { message?: string; code?: number };
+    const said = body.message ? `${body.message} (${body.code ?? res.status})` : `HTTP ${res.status}`;
+
+    const meaning: Record<number, string> = {
+        // Not in the server at all, or cannot see this channel.
+        50001: "the bot is not in that server, or has no View Channel here",
+        // In the channel, but not allowed to change it.
+        50013: "it can see the channel but cannot rename it, so Manage Channel is missing",
+        10003: "no channel with that id",
+    };
+    const why = body.code ? meaning[body.code] : undefined;
+    return why ? `${said}, ${why}` : said;
+}
+
 /** Write a name, and only when it differs from the one already there. */
 export async function rename(
     token: string,
@@ -72,14 +95,9 @@ export async function rename(
 ): Promise<Result> {
     const current = await api(token, `/channels/${channel.id}`);
     if (!current.ok) {
-        return {
-            id: channel.id,
-            outcome: "failed",
-            detail:
-                current.status === 403
-                    ? "no access, check Manage Channel on this channel"
-                    : `could not be read (${current.status})`,
-        };
+        // A read needs View Channel and nothing more, so a refusal here is
+        // never about Manage Channel however much it looks like it.
+        return { id: channel.id, outcome: "failed", detail: `read: ${await refusal(current)}` };
     }
 
     const { name: existing = "" } = (await current.json()) as { name?: string };
@@ -105,7 +123,7 @@ export async function rename(
         };
     }
     if (!res.ok) {
-        return { id: channel.id, outcome: "failed", detail: `refused (${res.status})` };
+        return { id: channel.id, outcome: "failed", detail: `rename: ${await refusal(res)}` };
     }
     return { id: channel.id, outcome: "wrote", detail: `"${existing}" → "${name}"` };
 }

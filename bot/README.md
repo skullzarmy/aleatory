@@ -15,6 +15,7 @@ so it keeps working if the site is deleted.
 
 ```
 npm run bot:check     read the chain, print the names, write nothing
+npm run bot:doctor    ask Discord why it is refusing
 npm run bot:run       one pass, then exit
 npm run bot:daemon    the process. This is how it runs.
 ```
@@ -224,13 +225,19 @@ A healthy quiet run:
 `no figure changed` is the normal line. Names are only written when a number
 moves.
 
+A refusal quotes Discord's own code rather than guessing at which permission
+is behind it, because they are different screens in the settings:
+
 | line | what it means |
 | --- | --- |
-| `could not be read (401)` | the token is wrong or was reset |
-| `could not be read (404)` | wrong channel ID, or the bot has no View Channel there |
-| `no access, check Manage Channel` | it can see the channel and cannot rename it |
+| `read: Missing Access (50001)` | it cannot see the channel: no View Channel, or the channel is in a server the bot is not in |
+| `read: Unknown Channel (10003)` | that id does not exist |
+| `rename: Missing Permissions (50013)` | it can see the channel and cannot change it, so Manage Channel is missing |
 | `rate limited, retry after Ns` | expected under a burst, the next pass writes it |
 | `incomplete, nothing written` | a chain read failed, the names are left alone |
+
+`npm run bot:doctor` asks those three questions separately and names which one
+failed, which is faster than reading them out of a rename.
 
 ## Placeholders
 

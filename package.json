@@ -40,7 +40,8 @@
         "test:stats": "npx tsx bot/stats.test.ts",
         "bot:daemon": "npx tsx bot/daemon.ts",
         "bot:run": "npx tsx bot/run.ts",
-        "bot:check": "npx tsx bot/run.ts --dry-run"
+        "bot:check": "npx tsx bot/run.ts --dry-run",
+        "bot:doctor": "npx tsx bot/doctor.ts"
     },
     "dependencies": {
         "@codemirror/lang-html": "^6.4.12",
