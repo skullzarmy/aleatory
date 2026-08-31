@@ -139,9 +139,11 @@ function listen(bind: string, port: number) {
         lastTapAt = now;
         res.writeHead(202).end();
 
-        // A tap usually means a mint, and a mint into a collection deployed a
-        // minute ago would otherwise wait for the next rescan.
-        servedAt = 0;
+        // The collection list is deliberately rescanned at most once a minute,
+        // because that scan is most of the work here. A tap leaves that alone:
+        // clearing it would let a stranger pick how often this process runs its
+        // heaviest query. A collection deployed a moment ago is found by the
+        // next rescan either way.
         log("tapped, looking early");
         wake?.();
     });

@@ -209,6 +209,7 @@ update however you built it.
 |---|---|
 | binds loopback | reaching it from outside is a decision you make |
 | one early scan per 5s | the ceiling on what tapping achieves, and so on what flooding achieves |
+| leaves the collection scan alone | that scan runs at most once a minute, and a tap cannot change it |
 | refuses anything but POST | socket destroyed, no response written |
 | never reads a body | nothing a caller sends changes what happens |
 | caps headers and timeouts | 20 headers, 3s for headers, 5s per request, 4 requests per socket |

@@ -52,11 +52,19 @@ async function run() {
         provider: "KT1FcUZAsMihzHX2pAHpCDqUmMSEjhqmxfmQ",
     });
 
-    // The gate itself: two in a row, the second is refused outright.
+    // The gate itself. Started together rather than in sequence: awaiting the
+    // first lets its chain read outlast the gap, so a sequential version of
+    // this passes or fails on how quick the network was.
     await pause();
-    await ask({ provider: "KT1FcUZAsMihzHX2pAHpCDqUmMSEjhqmxfmQ" });
-    const burst = await ask({ provider: "KT1FcUZAsMihzHX2pAHpCDqUmMSEjhqmxfmQ" });
-    check("a second call inside the gap is refused", burst.status === 429, `${burst.status}`);
+    const together = await Promise.all([
+        ask({ provider: "KT1FcUZAsMihzHX2pAHpCDqUmMSEjhqmxfmQ" }),
+        ask({ provider: "KT1FcUZAsMihzHX2pAHpCDqUmMSEjhqmxfmQ" }),
+    ]);
+    check(
+        "a second call inside the gap is refused",
+        together.some((r) => r.status === 429),
+        together.map((r) => r.status).join(", "),
+    );
 
     console.log(
         failures === 0

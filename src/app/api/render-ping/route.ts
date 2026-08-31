@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isIP } from "node:net";
 import { fetchProvider } from "@/lib/providers";
 
 /**
@@ -56,7 +57,15 @@ function reachable(raw: string): URL | null {
     return url;
 }
 
-/** One in flight at a time, so this cannot be used to generate volume. */
+/**
+ * A gap between calls, held per running instance.
+ *
+ * Best effort, and named as such: this file can be running in more than one
+ * instance at once, so it slows a hammer without bounding one. What actually
+ * limits the damage is that the request is 1:1 with no body, and that a
+ * destination has to have been published on chain by a contract somebody paid
+ * to originate.
+ */
 let lastAt = 0;
 const MIN_GAP_MS = 250;
 
