@@ -29,7 +29,6 @@ const BACKOFF_MIN_MS = 30_000;
 const BACKOFF_MAX_MS = 10 * 60_000;
 
 const log = (msg: string) => console.log(`${new Date().toISOString()}  ${msg}`);
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
     const token = process.env.DISCORD_BOT_TOKEN || "";
@@ -53,13 +52,32 @@ async function main() {
     );
 
     let stopping = false;
+    let wake: (() => void) | null = null;
+
     for (const sig of ["SIGINT", "SIGTERM"] as const) {
         process.on(sig, () => {
             if (stopping) process.exit(1);
             stopping = true;
             log(`${sig}, stopping after this pass`);
+            // Most of this process's life is spent inside the wait between
+            // passes. Without waking it, a stop would sit there until the ten
+            // minutes were up, and every `systemctl restart` would stall until
+            // TimeoutStopSec ran out and killed it.
+            wake?.();
         });
     }
+
+    /** Interruptible, so a signal is acted on when it arrives. */
+    const wait = (ms: number) =>
+        new Promise<void>((resolve) => {
+            const timer = setTimeout(finish, ms);
+            function finish() {
+                clearTimeout(timer);
+                wake = null;
+                resolve();
+            }
+            wake = finish;
+        });
 
     let backoff = BACKOFF_MIN_MS;
 
@@ -82,11 +100,11 @@ async function main() {
             }
 
             if (stopping) break;
-            await sleep(TICK_MS);
+            await wait(TICK_MS);
         } catch (e) {
             log(`pass failed: ${e instanceof Error ? e.message : e}`);
             if (stopping) break;
-            await sleep(backoff);
+            await wait(backoff);
             backoff = Math.min(BACKOFF_MAX_MS, backoff * 2);
         }
     }

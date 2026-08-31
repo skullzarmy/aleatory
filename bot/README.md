@@ -90,15 +90,16 @@ with a 404 that looks like a wrong channel ID.
 In `.env`, beside the provider's:
 
 ```
-ALEA_NETWORK=shadownet
-ALEA_ROUTER_ADDRESS=KT1LWD8kiuyVzkSUAHKVovw6ymsjHcKykADc
-ALEA_PROVIDER_ADDRESS=KT1G8ivJQiXNTHBbCSwhTgjSjt5Jp3c8bv6m
-DISCORD_BOT_TOKEN=...
-DISCORD_STAT_CHANNELS=[{"id":"...","label":"🎨 Generators: {generators}"},{"id":"...","label":"🖼 Pieces: {pieces}"},{"id":"...","label":"💸 Minted: {minted} ꜩ"},{"id":"...","label":"🏦 Earned: {earned} ꜩ"}]
+ALEA_NETWORK=              # shadownet or mainnet. The only place it is named.
+ALEA_ROUTER_ADDRESS=KT1…   # the router on that network
+ALEA_PROVIDER_ADDRESS=KT1… # the render provider on that network
+DISCORD_BOT_TOKEN=
+DISCORD_STAT_CHANNELS=[{"id":"…","label":"🎨 Generators: {generators}"},{"id":"…","label":"🖼 Pieces: {pieces}"},{"id":"…","label":"💸 Minted: {minted} ꜩ"},{"id":"…","label":"🏦 Earned: {earned} ꜩ"}]
 ```
 
-The router is the only contract address configured. Factories, marketplaces,
-the registry and the resolver are all read from it.
+The router is the only contract address that has to be configured. Factories,
+marketplaces, the registry and the resolver are all read from it, so the three
+values above are the whole difference between one network and another.
 
 ### 6. Check it, then run it
 
@@ -123,7 +124,113 @@ shadownet, router KT1LWD8kiuyVzkSUAHKVovw6ymsjHcKykADc
   dry run, nothing written
 ```
 
-Then `npm run bot:daemon`, under whatever keeps the provider up.
+Then `npm run bot:daemon` in the foreground once, to watch a pass go by.
+
+---
+
+## Keeping it running
+
+### Linux, systemd
+
+Same shape as the provider in [deploying.md](../docs/deploying.md), and it can
+live in the same checkout beside it, reading the same `.env`.
+
+**Get the three real values first.** systemd resolves none of them, and each is
+a common way to fail:
+
+```
+id -un                          # the user
+ls -d ~/aleatory                # the checkout
+readlink -f "$(which node)"     # node, absolutely
+```
+
+Then `/etc/systemd/system/aleatory-stats.service`:
+
+```ini
+[Unit]
+Description=Aleatory stats bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_USER
+WorkingDirectory=/home/YOUR_USER/aleatory
+EnvironmentFile=/home/YOUR_USER/aleatory/.env
+
+# node and tsx by absolute path, not `npm run`. systemd has no shell profile,
+# so nothing is on PATH: `npm` is frequently not in /usr/bin at all, and never
+# is under nvm. npx would also try to resolve a package at start, over a
+# network that may not be up yet.
+ExecStart=/usr/bin/node /home/YOUR_USER/aleatory/node_modules/.bin/tsx bot/daemon.ts
+
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+# The wait between passes is interruptible, so a stop is acted on when it
+# arrives and not ten minutes later.
+TimeoutStopSec=20
+
+# It reads the chain, writes to Discord, and touches no file at all.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable --now aleatory-stats
+systemctl status aleatory-stats --no-pager -l
+```
+
+No `ReadWritePaths`. The provider needs one because it writes; this holds no
+state between passes and every figure is read fresh, so it needs the checkout
+read-only and nothing else.
+
+`ProtectHome=read-only` rather than `true`: the checkout is usually under
+`/home`, and `true` hides it from the service.
+
+### When it will not start
+
+The failure to expect is systemd never launching the process, which reports as
+a summary about unavailable resources. The journal is more specific:
+
+| line | what is missing |
+|---|---|
+| `Failed to load environment files` | the `EnvironmentFile=` path |
+| `Failed to spawn 'start' task` | the `ExecStart=` binary |
+
+```
+journalctl -u aleatory-stats --no-pager -n 50
+```
+
+`--no-pager` matters. Without it these open `less`, and a unit with no output
+yet looks like it has hung.
+
+### Reading the log
+
+A healthy quiet run:
+
+```
+2026-08-31T08:35:58.416Z  shadownet, router KT1LWD8kiuyVzkSUAHKVovw6ymsjHcKykADc
+2026-08-31T08:35:58.417Z  4 channels, every 10m
+2026-08-31T08:45:58.502Z  no figure changed
+```
+
+`no figure changed` is the normal line. Names are only written when a number
+moves.
+
+| line | what it means |
+| --- | --- |
+| `could not be read (401)` | the token is wrong or was reset |
+| `could not be read (404)` | wrong channel ID, or the bot has no View Channel there |
+| `no access, check Manage Channel` | it can see the channel and cannot rename it |
+| `rate limited, retry after Ns` | expected under a burst, the next pass writes it |
+| `incomplete, nothing written` | a chain read failed, the names are left alone |
 
 ## Placeholders
 
@@ -158,8 +265,3 @@ sense except custody.
 A figure that fails to read comes back zero, so a pass with any failure writes
 nothing and logs why. Leaving the last good names up beats replacing them with
 zeros.
-
-## Mainnet
-
-`ALEA_NETWORK=mainnet`, `ALEA_ROUTER_ADDRESS` and `ALEA_PROVIDER_ADDRESS` to
-the mainnet contracts. Nothing else changes.

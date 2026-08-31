@@ -372,18 +372,17 @@ rather than being stuck forever.
 
 ---
 
-## Moving to mainnet
+## Standing up a network
 
-Every value that differs is an environment variable, with one exception: the
-contracts have to exist.
+Everything that differs between one network and another is an environment
+variable, and they are listed above. Two things are not.
 
-1. `npx tsx contract/deploy.ts` with four distinct addresses. The script
-   refuses if any two match or if any is the deployer. The admin key can pause
-   trading, change the fee and hand administration on, so decide where it
-   lives before running this rather than after.
-2. `NEXT_PUBLIC_TEZOS_NETWORK=mainnet` and the new
-   `NEXT_PUBLIC_ROUTER_ADDRESS` on the site.
-3. A provider contract and an agent for mainnet, then the daemon's
-   `ALEA_PROVIDER_ADDRESS` and `ALEA_AGENT_SK`.
+**The contracts have to exist there.** `npx tsx contract/deploy.ts` with four
+distinct addresses; the script refuses if any two match or if any is the
+deployer. The admin key can pause trading, change the fee and hand
+administration on, so decide where it lives before running this.
+
+**The provider is per network.** A provider contract and an agent key on that
+chain, because a provider is a contract and cannot be shared across chains.
 
 The isolate does not change. It never knew which chain it was on.
