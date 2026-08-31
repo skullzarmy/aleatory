@@ -57,4 +57,5 @@ public/templates/*.zip
 /docs/sitemap.md
 /docs/lab-entry.md
 /docs/pipeline.md
-/shadownet-role-keys.txt
+# Key material, whatever it gets called.
+*-keys.txt
