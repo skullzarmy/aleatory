@@ -58,14 +58,6 @@ export interface ParamsSchema {
 
 export const PARAMS_SCHEMA_VERSION = 1;
 
-/**
- * The exact resolution rule, recorded alongside the schema so a reader that
- * has never seen this file knows which one it must implement.
- */
-export const PARAMS_RESOLUTION =
-    "clamp to [min,max]; snap to the step grid from min; unknown keys dropped; " +
-    "missing or unresolvable values fall back to default";
-
 // ---------------------------------------------------------------------------
 // Declaring
 // ---------------------------------------------------------------------------

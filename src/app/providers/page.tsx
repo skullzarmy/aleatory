@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
     fetchProviders,
-    RANKING_METHOD,
     RANKING_WINDOW_DAYS,
     type Provider,
 } from "@/lib/providers";
@@ -82,7 +81,11 @@ export default async function ProvidersPage() {
                 </ul>
             )}
 
-            <p className="mt-4 text-xs text-muted-foreground">{RANKING_METHOD}</p>
+            <p className="mt-4 text-xs text-muted-foreground">
+                Sorted by pieces published in the last {RANKING_WINDOW_DAYS} days, then by
+                the share still waiting, then by median blocks from buy to publish, then by
+                time in service. Every figure is computed from public chain events.
+            </p>
 
             <RunOne />
         </div>

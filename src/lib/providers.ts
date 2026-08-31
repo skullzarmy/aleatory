@@ -349,5 +349,3 @@ export function compareProviders(a: Provider, b: Provider): number {
     const first = (p: Provider) => (p.stats.firstSeen ? Date.parse(p.stats.firstSeen) : Infinity);
     return first(a) - first(b);
 }
-
-export const RANKING_METHOD = `Sorted by pieces published in the last ${RANKING_WINDOW_DAYS} days, then by the share still waiting, then by median blocks from buy to publish, then by time in service. Every figure is computed from public chain events, and the queries are in src/lib/providers.ts.`;
