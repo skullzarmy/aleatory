@@ -54,6 +54,12 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
     const [stage, setStage] = useState<PublishStage | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // Recipients that will never be paid, shown once and deployed past on a
+    // second click. Cleared whenever a recipient changes, so an acknowledgement
+    // never carries over to an address it was not about.
+    const [royaltyWarnings, setRoyaltyWarnings] = useState<string[]>([]);
+    const [acknowledged, setAcknowledged] = useState(false);
+    const [checking, setChecking] = useState(false);
     const [done, setDone] = useState<PublishResult | null>(null);
 
     const provider = providers.find((p) => p.address === providerAddress);
@@ -100,6 +106,14 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
     const preview = useMemo(() => royaltyPreview(split), [split]);
 
+    // A new set of recipients is a new question. Without this, acknowledging a
+    // warning about one address would deploy past an unchecked different one.
+    const recipientKey = split.recipients.map((r) => r.address).join(",");
+    useEffect(() => {
+        setRoyaltyWarnings([]);
+        setAcknowledged(false);
+    }, [recipientKey]);
+
     /**
      * Everything that has to be true before a wallet is opened.
      *
@@ -141,42 +155,54 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     }
 
     /**
-     * Every royalty recipient has to be able to receive tez.
+     * What each royalty recipient will actually receive.
      *
-     * The marketplace pays each share inside the sale, so a recipient that
-     * rejects a transfer reverts the buy. `royalties` has no setter, which
-     * makes that permanent: every token in the collection would be unsellable
-     * there, forever, and the artist could do nothing about it.
+     * The marketplace pays every share inside the sale and asks first, so a
+     * recipient that cannot take a plain transfer is skipped and its share
+     * goes to the seller. That keeps the collection sellable. It also means
+     * the address is never paid, on any sale, and `royalties` has no setter,
+     * so nothing after this can put it right. This form is the last moment
+     * the address is editable, which is why it is asked here.
      *
-     * A tz1, tz2 or tz3 is an implicit account and cannot refuse. A KT1 is a
-     * contract, and only some of them accept a plain transfer, so it is asked
-     * before the address becomes immutable. ALEATORY-001 section 1 puts this
-     * on any front end that originates collections, because there is nowhere
-     * else it can be checked.
+     * ALEATORY-001 section 1 puts this on any front end that originates
+     * collections. A recipient whose entrypoint accepts the transfer and then
+     * throws is the one case the contract cannot survive, and it is the one
+     * the simulation exists to catch.
      */
-    async function unpayableRecipient(): Promise<string | null> {
-        const recipients = split.recipients
-            .map((r) => r.address)
-            .filter((a) => a && a.startsWith("KT1"));
+    async function royaltyProblems(): Promise<{ fatal: string[]; warnings: string[] }> {
+        const fatal: string[] = [];
+        const warnings: string[] = [];
+        const recipients = new Set(
+            split.recipients.map((r) => r.address).filter((a) => a.startsWith("KT1")),
+        );
 
-        for (const address of new Set(recipients)) {
+        for (const recipient of recipients) {
+            const where = shortAddress(recipient);
             try {
                 const res = await fetch(
-                    `${tzktApi()}/v1/contracts/${address}/entrypoints`,
+                    `/api/payable?address=${recipient}&source=${address ?? ""}`,
                 );
-                if (!res.ok) {
-                    return `${shortAddress(address)} could not be checked. A royalty recipient has to be reachable before this is written, because it cannot be changed afterwards.`;
-                }
-                const entrypoints = (await res.json()) as { name: string }[];
-                const takesTez = entrypoints.some((e) => e.name === "default");
-                if (!takesTez) {
-                    return `${shortAddress(address)} is a contract with no default entrypoint, so it cannot be paid. Every sale would fail, and royalties cannot be changed after this. Use a wallet address, or a contract that accepts tez.`;
+                const body = (await res.json()) as { verdict?: string; why?: string };
+                if (body.verdict === "reverts") {
+                    fatal.push(
+                        `${where} accepts a transfer and then fails (${body.why}). Every sale of this collection would revert, permanently. Use a different address.`,
+                    );
+                } else if (body.verdict === "skipped") {
+                    warnings.push(
+                        `${where} cannot be paid, because ${body.why}. Its share will go to the seller on every sale, and this cannot be changed after the collection exists.`,
+                    );
+                } else if (body.verdict !== "payable") {
+                    warnings.push(
+                        `${where} could not be checked (${body.why ?? "no answer"}). If it cannot receive tez, its share goes to the seller on every sale.`,
+                    );
                 }
             } catch {
-                return `${shortAddress(address)} could not be checked. Try again, or use a wallet address.`;
+                warnings.push(
+                    `${where} could not be checked. If it cannot receive tez, its share goes to the seller on every sale.`,
+                );
             }
         }
-        return null;
+        return { fatal, warnings };
     }
 
     async function submit() {
@@ -185,10 +211,26 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             setError(bad);
             return;
         }
-        const unpayable = await unpayableRecipient();
-        if (unpayable) {
-            setError(unpayable);
-            return;
+        // Checked once. A recipient that reverts a sale stops this outright; a
+        // recipient that will silently never be paid is shown and the artist
+        // decides, because they may know something about the address that we
+        // cannot see from here.
+        if (!acknowledged) {
+            setChecking(true);
+            const { fatal, warnings } = await royaltyProblems();
+            setChecking(false);
+            if (fatal.length > 0) {
+                setError(fatal.join(" "));
+                setRoyaltyWarnings([]);
+                return;
+            }
+            if (warnings.length > 0) {
+                setError(null);
+                setRoyaltyWarnings(warnings);
+                setAcknowledged(true);
+                return;
+            }
+            setAcknowledged(true);
         }
         if (!draft) {
             // Publishing a pointer someone else pinned is a different flow:
@@ -540,17 +582,35 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 </p>
             )}
 
+            {royaltyWarnings.length > 0 && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+                    <p className="font-medium">Read this before you sign.</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-4">
+                        {royaltyWarnings.map((w) => (
+                            <li key={w}>{w}</li>
+                        ))}
+                    </ul>
+                    <p className="mt-2 text-xs">
+                        Change the address above, or deploy anyway.
+                    </p>
+                </div>
+            )}
+
             <button
                 type={address ? "submit" : "button"}
                 onClick={address ? undefined : () => void connect()}
-                disabled={stage !== null}
+                disabled={stage !== null || checking}
                 className="w-full rounded-md bg-alea-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
             >
                 {!address
                     ? "Connect to deploy"
                     : stage
                       ? STAGE_LABEL[stage]
-                      : "Deploy collection"}
+                      : checking
+                        ? "Checking royalty recipients…"
+                        : royaltyWarnings.length > 0
+                          ? "Deploy anyway"
+                          : "Deploy collection"}
             </button>
 
             <p className="text-xs text-muted-foreground">
