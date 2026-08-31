@@ -19,6 +19,7 @@ contract/output/
 /*/
 !/.github/
 !/admin/
+!/bot/
 !/contract/
 !/docs/
 !/isolate/

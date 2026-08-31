@@ -15,6 +15,7 @@
 
 
 import { platformStats, render, EMPTY_STATS, type PlatformStats } from "./stats";
+import { router } from "./chain";
 
 let failures = 0;
 
@@ -92,7 +93,7 @@ async function run() {
         online = false;
     }
 
-    if (!online || !process.env.NEXT_PUBLIC_ROUTER_ADDRESS) {
+    if (!online || !router()) {
         console.log(
             !online ? "  skip, no connection\n" : "  skip, no router configured\n",
         );

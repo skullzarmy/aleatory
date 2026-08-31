@@ -1,5 +1,4 @@
-import { addresses } from "./router";
-import { tzktApi } from "./config";
+import { addresses, tzkt, provider } from "./chain";
 
 /**
  * What the platform has done, counted from the chain.
@@ -54,9 +53,6 @@ export const EMPTY_STATS: PlatformStats = {
     problems: ["nothing has been read yet"],
 };
 
-/** Ours. The router names the registry, and the registry lists every provider. */
-const PROVIDER = process.env.ALEA_PROVIDER_ADDRESS || "";
-
 /** Discord's own ceiling on a channel name. */
 const MAX_NAME = 100;
 
@@ -102,12 +98,6 @@ export function render(label: string, stats: PlatformStats): string {
 
 const PAGE = 1000;
 
-async function tzkt<T>(path: string): Promise<T> {
-    const res = await fetch(`${tzktApi()}${path}`);
-    if (!res.ok) throw new Error(`${path.split("?")[0]} answered ${res.status}`);
-    return (await res.json()) as T;
-}
-
 /**
  * Every value of one numeric field, added up across as many pages as there are.
  *
@@ -141,7 +131,17 @@ async function collectionsOf(factories: string[]): Promise<string[]> {
 
 export async function platformStats(): Promise<PlatformStats> {
     const problems: string[] = [];
-    const where = await addresses();
+    // The router is the one address that has to be configured, so failing to
+    // read it is a configuration problem and not a bad tick.
+    let where;
+    try {
+        where = await addresses();
+    } catch (e) {
+        return {
+            ...EMPTY_STATS,
+            problems: [`router: ${e instanceof Error ? e.message : "could not be read"}`],
+        };
+    }
 
     if (where.factories.length === 0 && where.marketplaces.length === 0) {
         return { ...EMPTY_STATS, problems: ["the router answered with nothing"] };
@@ -187,9 +187,9 @@ export async function platformStats(): Promise<PlatformStats> {
         attempt(
             "render gas",
             async () =>
-                PROVIDER
+                provider()
                     ? await sumOf(
-                          `/v1/operations/transactions?target=${PROVIDER}&status=applied`,
+                          `/v1/operations/transactions?target=${provider()}&status=applied`,
                       )
                     : 0,
             0,
@@ -200,7 +200,7 @@ export async function platformStats(): Promise<PlatformStats> {
         }),
     ]);
 
-    if (!PROVIDER) problems.push("render gas: ALEA_PROVIDER_ADDRESS is not set");
+    if (!provider()) problems.push("render gas: ALEA_PROVIDER_ADDRESS is not set");
 
     const earnedMutez = treasury.arrived + treasury.unswept + renderGasMutez;
 
