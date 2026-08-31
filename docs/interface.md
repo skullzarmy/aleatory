@@ -243,7 +243,15 @@ The contract has to be able to receive tez, since a collection pays it on
 every mint.
 
 Advertise a push endpoint in your TZIP-016 metadata if you want mint UIs to
-notify you directly. Polling the chain works without it.
+notify you directly. Polling the chain works without it, and finds the same
+pieces, so the endpoint buys latency and nothing else.
+
+A published endpoint is a URL strangers will call. Treat every request as
+hostile, authenticate it, and let a push do no more than shorten the wait
+before you next read the chain: the queue is a comparison against chain state,
+so a caller who reaches you should be unable to make you render, publish or
+spend. A UI calling you may send no credential at all, since it has none of
+yours.
 
 ---
 

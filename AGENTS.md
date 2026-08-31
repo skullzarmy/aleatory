@@ -17,10 +17,14 @@ two declarations and a worked file.
 
 ```
 npm ci
-npm test                       no network needed beyond npm
+npm test
 ```
 
-SmartPy work also needs Python 3 with `smartpy` installed, which
+`test:dep`, `test:payable`, `test:ping` and `test:stats` read the chain and a
+package registry. Each skips its network half when there is no connection, so
+the suite passes offline with fewer assertions.
+
+SmartPy work needs Python 3 with `smartpy` installed, which
 `npm run build:contracts` and `npm run test:contracts` call.
 
 ---
@@ -44,7 +48,7 @@ The provider and the bot run on a machine the operator keeps. Everything in
 contract/     SmartPy sources, tests, build and deploy
 docs/         the public documentation, including ALEATORY-001
 public/       templates, and llms.txt
-scripts/      build steps, the provider runner, one-off tooling
+scripts/      build steps, the documentation checks, one-off tooling
 ```
 
 ---

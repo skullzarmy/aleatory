@@ -75,7 +75,7 @@ Each of these makes a piece that renders differently for different people:
 - `window.innerWidth`, `devicePixelRatio`, or any measurement of the viewer's
   screen deciding composition. Draw to a fixed coordinate space and scale it.
 - A library's own PRNG. Seed it from `alea.rand()`. In p5 that is
-  `randomSeed(alea.rand() * 1e9)` and `noiseSeed(alea.rand() * 1e9)`.
+  `randomSeed(alea.rand() * 4294967296)` and the same for `noiseSeed`.
 - Anything asynchronous whose completion order is not fixed.
 - Counting animation frames before capture. Frame timing varies. Call `ready()`
   after a fixed amount of work, never after a duration.

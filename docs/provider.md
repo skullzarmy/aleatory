@@ -166,8 +166,21 @@ trade to you. Plenty of providers should decide it is not.
 
 `ALEA_PROVIDER_URL` is the part that connects it. A mint UI reads the
 collection's provider address off the chain, reads `endpoint` out of that
-provider's TZIP-016 metadata, and calls it. `npm run provider:setup` writes it
-there. Publish no `endpoint` and nothing will ever call you.
+provider's TZIP-016 metadata, and calls it. Publish no `endpoint` and nothing
+will ever call you.
+
+**It is written when the provider contract is originated**, by
+`contract/deploy.ts` from `ALEA_PROVIDER_URL`, alongside the name, description
+and avatar:
+
+```
+ALEA_PROVIDER_URL=https://provider.example/push npx tsx contract/deploy.ts --only provider
+```
+
+`npm run provider:setup` does not write it. That command generates and funds
+the agent key and nothing else. Changing the URL later means writing your
+contract's metadata again, and a provider contract you originated yourself is
+yours to update however you built it.
 
 ```
 openssl rand -hex 32
