@@ -8,7 +8,7 @@ import blakejs from "blakejs";
  * short list of named hosts, and widening it to npm's mirrors would put every
  * visitor's IP in front of them and make the privacy policy wrong. So this
  * route does the fetching, from the same mirrors and in the same order as the
- * renderer in `netlify/functions/lib/libraries.mts`, and the studio sees one
+ * renderer in `provider/libraries.mts`, and the studio sees one
  * same-origin URL.
  *
  * No mirror is trusted. The bytes hash to what the caller asked for or nothing

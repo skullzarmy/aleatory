@@ -138,11 +138,78 @@ Optional, and worth setting once you are listed:
 
 | Variable | For |
 |---|---|
-| `ALEA_PROVIDER_NAME`, `ALEA_PROVIDER_DESC`, `ALEA_PROVIDER_AVATAR`, `ALEA_PROVIDER_URL` | how you appear in the provider list, rather than as a bare KT1 |
+| `ALEA_PROVIDER_NAME`, `ALEA_PROVIDER_DESC`, `ALEA_PROVIDER_AVATAR` | how you appear in the provider list, in place of a bare KT1 |
 | `ALEA_POLL_MS` | how often the daemon looks, 15000 by default |
-| `ALEA_PROVIDER_PING_TOKEN` | lets a mint UI say "look now" instead of waiting for the next tick |
+| `ALEA_PROVIDER_URL`, `ALEA_PROVIDER_PING_TOKEN`, `ALEA_PROVIDER_PORT` | the push endpoint, below |
 
 `.env.example` in the repository root carries the same list with blanks.
+
+### The push endpoint, and whether you want one
+
+**Start by not running it.** Polling every fifteen seconds finds everything: new
+mints, pieces missed while the process was down, and pieces inherited from a
+provider an artist switched away from. The push shortens one interval. That is
+its whole value, and it costs you an open port on the machine holding your
+agent key.
+
+Run it when a first reveal in two seconds instead of fifteen is worth that
+trade to you. Plenty of providers should decide it is not.
+
+#### What it is
+
+| | |
+|---|---|
+| `ALEA_PROVIDER_PING_TOKEN` | the daemon listens once this is set. At least 32 characters, or it refuses to start. |
+| `ALEA_PROVIDER_BIND` | interface. `127.0.0.1` by default. |
+| `ALEA_PROVIDER_PORT` | port. 8787 by default. |
+| `ALEA_PROVIDER_URL` | the public https URL, written into your contract's metadata as `endpoint` |
+
+`ALEA_PROVIDER_URL` is the part that connects it. A mint UI reads the
+collection's provider address off the chain, reads `endpoint` out of that
+provider's TZIP-016 metadata, and calls it. `npm run provider:setup` writes it
+there. Publish no `endpoint` and nothing will ever call you.
+
+```
+openssl rand -hex 32
+```
+
+#### What the daemon does to protect itself
+
+A valid push sets a flag and returns `202`. That is the entire effect.
+
+| | |
+|---|---|
+| binds loopback | reaching it from outside is a decision you make, not a default |
+| refuses in order | wrong method, then a constant-time token compare |
+| destroys refused sockets | no response body, so a prober learns nothing about which check failed |
+| never reads a body | nothing a caller sends changes what happens |
+| rate limits after the token | an anonymous flood cannot spend a real caller's allowance |
+| caps headers and timeouts | 20 headers, 3s for headers, 5s per request, 4 requests per socket |
+
+Measured: 400 unauthenticated requests are refused in 0.6 seconds, and a valid
+push arriving immediately afterwards still gets its `202`.
+
+#### What it does not protect you from
+
+**It speaks plain HTTP and it does not authenticate you to the caller.** The
+daemon is one process on your machine. Everything below is yours.
+
+- **Exposing it directly.** Setting `ALEA_PROVIDER_BIND=0.0.0.0` puts an
+  unencrypted port on the internet and the token crosses it in the clear. The
+  daemon warns about this at startup, every start, and then does as it is told.
+- **TLS.** Terminate it in nginx, Caddy or a tunnel, and proxy to
+  `127.0.0.1:8787`. `ALEA_PROVIDER_URL` is the https address of that front end.
+- **Volume.** The in-process gate protects the daemon's own work; it does
+  nothing about the bandwidth arriving at your machine. A reverse proxy with
+  connection limits, or a firewall that only admits the hosts you expect, is
+  what handles that.
+- **Firewalling.** If you bind loopback and proxy, no inbound rule is needed at
+  all. If you bind publicly, allow that one port and nothing else.
+
+A leaked token buys somebody the ability to make your daemon look at the chain,
+which it already does on its own clock. It cannot make it render, publish, or
+spend: the queue is computed from chain state, and a push only shortens the
+wait before that computation runs.
 
 ---
 
@@ -191,10 +258,9 @@ the queue and for reaching a piece by hand.
 Polling rather than a subscription, because the queue rule is a comparison
 against chain state and not an event: it finds new mints, pieces missed while
 the process was down, and pieces inherited from a provider an artist switched
-away from, and it keeps no state of its own that could be wrong. A push
-endpoint can sit in front of it so a mint UI says "look now" instead of
-waiting for the next tick, and polling still has to work underneath, or the
-provider is only as reliable as whoever remembers to call it.
+away from, and it keeps no state of its own that could be wrong. The push
+endpoint sits in front of it and shortens one interval; polling underneath is
+what makes the provider reliable on its own.
 
 One bad piece does not stop the queue. It stays pending, the next pass tries
 again, and `provider:retry` reaches it if it needs a hand. A failure of the
@@ -257,7 +323,7 @@ Rebuilding a piece produces the same bytes and the same CID. The seed is the
 mint operation's hash, the parameters are in that operation, and the generator
 is immutable, so a retry is not a second opinion, it is the same answer.
 
-Two harness implementations exist: `netlify/functions/lib/render.mts`, which
+Two harness implementations exist: `provider/render.mts`, which
 draws headless, and `isolate/index.html`, which draws for a viewer. They agree
 by conforming to [ALEATORY-001](interface.md) §7 rather than by sharing a file.
 When they once disagreed on how to seed, every piece rendered from one

@@ -25,9 +25,9 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const { collectionsServed, collectionsFactories, pendingIn, handle } = await import(
-    "../netlify/functions/provider.mts"
+    "./provider.mts"
 );
-const { renderConfigFromEnv } = await import("../netlify/functions/lib/render.mts");
+const { renderConfigFromEnv } = await import("./render.mts");
 
 /**
  * Same flag as every other script here, and as `contract/deploy.ts`. It used
@@ -94,7 +94,7 @@ for (const c of collections) console.log(`  ${c}`);
 console.log("\nPieces waiting");
 let total = 0;
 for (const collection of collections) {
-    const waiting = await pendingIn(collection).catch((e) => {
+    const waiting = await pendingIn(collection).catch((e: unknown) => {
         console.log(`  ${collection}  scan failed: ${e instanceof Error ? e.message : e}`);
         return [];
     });

@@ -25,6 +25,9 @@
         "paths": {
             "@/*": [
                 "./src/*"
+            ],
+            "@provider/*": [
+                "./provider/*"
             ]
         }
     },
@@ -39,7 +42,6 @@
         "contract",
         "worker",
         "sandbox",
-        "netlify",
         "admin"
     ]
 }

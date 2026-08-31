@@ -58,7 +58,7 @@ const SURFACE = [
  */
 const HARNESSES: { name: string; path: string; renderer: boolean }[] = [
     { name: "isolate", path: "isolate/index.html", renderer: true },
-    { name: "renderer", path: "netlify/functions/lib/render.mts", renderer: true },
+    { name: "renderer", path: "provider/render.mts", renderer: true },
     { name: "template vanilla", path: "public/templates/vanilla/index.html", renderer: false },
     { name: "template svg", path: "public/templates/svg/index.html", renderer: false },
     { name: "template p5", path: "public/templates/p5/index.html", renderer: false },
@@ -141,7 +141,7 @@ function auditLibraries() {
     check("a file may be named", specFor("d3@7.9.0/dist/d3.min.js") !== null);
 
     const studio = read("src/lib/runtimes.ts");
-    const renderer = read("netlify/functions/lib/libraries.mts");
+    const renderer = read("provider/libraries.mts");
     const proxy = read("src/app/api/dep/route.ts");
 
     check(

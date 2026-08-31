@@ -3,7 +3,7 @@
 import { cloneElement, isValidElement, useEffect, useId, useMemo, useState, type ReactElement } from "react";
 import { useWallet } from "@/context/WalletContext";
 import { addresses } from "@/lib/router";
-import { royaltyPreview, type RoyaltySplit } from "@/lib/metadata";
+import { royaltyPreview, type RoyaltySplit } from "@provider/metadata";
 import { parseTez, shortAddress } from "@/lib/utils";
 import { tzktApi, tzktLink } from "@/lib/config";
 import type { Provider } from "@/lib/providers";

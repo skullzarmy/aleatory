@@ -15,7 +15,7 @@
  * network first, so a freshly pinned file can answer with nothing at all. That
  * is a propagation problem and it belongs at pin time: whoever pins warms this
  * gateway immediately afterwards, so by the time a page asks, it is cached.
- * See `warmGateway` in netlify/functions/provider.mts.
+ * See `warmGateway` in provider/provider.mts.
  */
 const GATEWAY =
     process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz";

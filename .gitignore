@@ -23,7 +23,7 @@ contract/output/
 !/contract/
 !/docs/
 !/isolate/
-!/netlify/
+!/provider/
 !/public/
 !/scripts/
 !/src/

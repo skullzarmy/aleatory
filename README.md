@@ -69,7 +69,7 @@ Each directory has its own README explaining what it holds and why.
 | [`contract/`](contract/) | The Tezos contracts. Factory, collection, marketplace, provider, registry, resolver. |
 | [`src/`](src/) | The website: browsing, the studio, minting, the market. |
 | [`isolate/`](isolate/) | The sandboxed origin a piece runs in, and nothing else. |
-| [`netlify/`](netlify/) | The render provider: the daemon that draws pieces and publishes their metadata. |
+| [`provider/`](provider/) | The render provider: the daemon that draws pieces and publishes their metadata. |
 | [`admin/`](admin/) | The operator console. A separate site, separately deployed. |
 | [`scripts/`](scripts/) | Deploying, running a provider, building the starter kits. |
 | [`public/templates/`](public/templates/) | The starting points an artist downloads. |

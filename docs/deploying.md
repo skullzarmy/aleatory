@@ -154,6 +154,10 @@ CF_API_TOKEN=
 ALEA_ROUTER_ADDRESS=
 ```
 
+The push endpoint is optional and off until `ALEA_PROVIDER_PING_TOKEN` is set.
+It shortens one poll interval and opens a port on the machine holding the agent
+key. [provider.md](provider.md) has the wiring and the implications.
+
 `ALEA_ROUTER_ADDRESS` is how the daemon finds the factories whose collections
 it should look at. Without it, it scans nothing and reports serving no
 collections while otherwise looking perfectly configured.
@@ -216,7 +220,7 @@ EnvironmentFile=/home/YOUR_USER/aleatory/.env
 # so nothing is on PATH: `npm` is frequently not in /usr/bin at all, and never
 # is under nvm. npx would also try to resolve a package at start, over a
 # network that may not be up yet.
-ExecStart=/usr/bin/node /home/YOUR_USER/aleatory/node_modules/.bin/tsx scripts/provider-daemon.mts
+ExecStart=/usr/bin/node /home/YOUR_USER/aleatory/node_modules/.bin/tsx provider/daemon.mts
 
 Restart=always
 RestartSec=10
@@ -224,7 +228,8 @@ RestartSec=10
 KillSignal=SIGTERM
 TimeoutStopSec=60
 
-# It needs the network, its own directory and nothing else.
+# The push endpoint, when enabled, binds 127.0.0.1:8787 by default. Terminate
+# TLS in a proxy and point it there; nothing needs to be opened at the firewall.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

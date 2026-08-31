@@ -100,6 +100,20 @@ export async function fetchProviders(): Promise<Provider[]> {
     return providers.filter((p) => !isBlockedProvider(p.address)).sort(compareProviders);
 }
 
+/**
+ * One provider, by address, whether or not it is in the registry.
+ *
+ * A collection names the provider it pays, and that address is authoritative
+ * for the piece. The registry is a directory somebody has to add themselves
+ * to, so a collection can perfectly well name a provider missing from it.
+ */
+export async function fetchProvider(
+    address: string,
+): Promise<{ address: string; endpoint?: string } | null> {
+    const meta = await fetchProviderMetadata(address);
+    return meta ? { address, endpoint: meta.endpoint } : null;
+}
+
 interface ProviderMeta {
     name?: string;
     description?: string;

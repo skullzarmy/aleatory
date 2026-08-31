@@ -429,7 +429,7 @@ Brand strings live in one module, so a fork is a one-file change.
 
 **One hard constraint: generator code never renders on the app's own origin.** Artist JavaScript is untrusted, it runs in every visitor's browser, and same-origin would give it reach into wallet state and session storage. Artifacts are served from a separate host in a sandboxed frame, the arrangement fxhash uses, and a DNS decision far cheaper to make before the first piece renders than after.
 
-That host belongs to the provider stack: it is the same harness `netlify/functions/lib/render.mts` uses to capture the image that goes on chain, serving live to a browser instead of headless. It renders a piece that is already minted, addressed by CID. Which host it is, is deployment; that it is a different origin from the app, is architecture.
+That host belongs to the provider stack: it is the same harness `provider/render.mts` uses to capture the image that goes on chain, serving live to a browser instead of headless. It renders a piece that is already minted, addressed by CID. Which host it is, is deployment; that it is a different origin from the app, is architecture.
 
 It is not a sandbox, and calling it one obscured for a while that there was no sandbox: a sandbox is where an artist builds and iterates before minting.
 

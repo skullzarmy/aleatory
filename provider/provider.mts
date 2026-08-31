@@ -17,22 +17,20 @@
  * the contract that emits it, so it can say anything, and it is treated as a
  * hint about where to look rather than as evidence.
  */
-import type { Config, Context } from "@netlify/functions";
 import { TezosToolkit } from "@taquito/taquito";
 import { InMemorySigner } from "@taquito/signer";
-import { getStore } from "@netlify/blobs";
 
 const TZKT = process.env.TZKT_API || "https://api.shadownet.tzkt.io";
 const RPC = process.env.TEZOS_RPC || "https://rpc.tzkt.io/shadownet";
 const PROVIDER_ADDRESS = process.env.ALEA_PROVIDER_ADDRESS || "";
 const AGENT_SK = process.env.ALEA_AGENT_SK || "";
-import { render as renderPiece, renderConfigFromEnv } from "./lib/render.mts";
-import { buildPieceDocument } from "../../src/lib/metadata";
+import { render as renderPiece, renderConfigFromEnv } from "./render.mts";
+import { buildPieceDocument } from "./metadata";
 import {
     parseLibraries,
     resolveLibraries,
     type DeclaredLibrary,
-} from "./lib/libraries.mts";
+} from "./libraries.mts";
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
 const KT1 = /^KT1[1-9A-HJ-NP-Za-km-z]{33}$/;
@@ -90,7 +88,6 @@ export async function collectionsFactories(): Promise<string[]> {
     if (addresses.length > 0) factoryCache = { at: Date.now(), addresses };
     return addresses;
 }
-const PING_TOKEN = process.env.ALEA_PROVIDER_PING_TOKEN || "";
 const IPFS_GATEWAY = process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz";
 
 /**
@@ -108,15 +105,12 @@ const BLOCKED_COLLECTIONS = new Set(
         .filter(Boolean),
 );
 
-/** How many pieces one invocation will take on. */
+/** How many pieces one pass will take on before looking again. */
 const BATCH = 5;
 
 /** Generators larger than this are refused rather than rendered. */
 const MAX_GENERATOR_BYTES = 5 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 15_000;
-
-/** How long a claim is held before another invocation may retry a piece. */
-const CLAIM_TTL_MS = 5 * 60 * 1000;
 
 const ADDRESS = /^(tz[123]|KT1)[A-Za-z0-9]{33}$/;
 const CID = /^[A-Za-z0-9]{46,64}$/;
@@ -493,7 +487,7 @@ async function decodeCode(hex: string, encoding: string): Promise<string> {
  */
 async function pin(bytes: Uint8Array, name: string): Promise<string> {
     const form = new FormData();
-    form.append("file", new Blob([bytes], { type: "image/png" }), name);
+    form.append("file", new Blob([bytes as BlobPart], { type: "image/png" }), name);
     const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
         method: "POST",
         headers: { authorization: `Bearer ${PINATA_JWT}` },
@@ -731,111 +725,3 @@ function safeParse(s: string): Record<string, unknown> {
 /* ------------------------------------------------------------------ */
 /* Claims                                                              */
 /* ------------------------------------------------------------------ */
-
-/**
- * One invocation at a time per piece.
- *
- * A second publish of the same piece is harmless rather than fatal now,
- * so this is about money rather than correctness: without it, two concurrent
- * runs both render and both pin, and one of the two operations is rejected
- * after the spending has happened.
- */
-async function claim(key: string): Promise<boolean> {
-    try {
-        const store = getStore("aleatory-provider");
-        const held = await store.get(key, { type: "json" }) as { at: number } | null;
-        if (held && Date.now() - held.at < CLAIM_TTL_MS) return false;
-        await store.setJSON(key, { at: Date.now() });
-        return true;
-    } catch {
-        // Blobs unavailable. Proceed rather than stall the queue: the
-        // on-chain guard still prevents a double write.
-        return true;
-    }
-}
-
-async function release(key: string): Promise<void> {
-    try {
-        await getStore("aleatory-provider").delete(key);
-    } catch {
-        /* the TTL covers it */
-    }
-}
-
-/* ------------------------------------------------------------------ */
-
-function configured(): string | null {
-    if (!PROVIDER_ADDRESS || !AGENT_SK) return "provider is not configured";
-    if (!renderConfigFromEnv()) return "rendering is not configured";
-    if (!PINATA_JWT) return "pinning is not configured";
-    return null;
-}
-
-/** Constant-time compare, so a token cannot be guessed a byte at a time. */
-function tokenMatches(given: string, expected: string): boolean {
-    if (!expected || given.length !== expected.length) return false;
-    let diff = 0;
-    for (let i = 0; i < given.length; i++) diff |= given.charCodeAt(i) ^ expected.charCodeAt(i);
-    return diff === 0;
-}
-
-export default async function handler(req: Request, context: Context): Promise<Response> {
-    const problem = configured();
-    if (problem) return new Response(problem, { status: 503 });
-
-    // The cron carries no headers of ours, so a scheduled run is identified
-    // by Netlify rather than by a secret. Every other caller needs the token:
-    // each invocation spends render budget, pinning quota, and gas.
-    const scheduled = req.headers.get("x-nf-event") === "schedule";
-    if (!scheduled) {
-        const given = (req.headers.get("authorization") || "").replace(/^Bearer /, "");
-        if (!tokenMatches(given, PING_TOKEN)) {
-            return new Response("Unauthorized", { status: 401 });
-        }
-    }
-
-    const runId = crypto.randomUUID();
-    let published = 0;
-    let failed = 0;
-
-    try {
-        const collections = await collectionsServed();
-        let budget = BATCH;
-
-        for (const collection of collections) {
-            if (budget <= 0) break;
-            const waiting = await pendingIn(collection).catch((e) => {
-                console.error(`[${runId}] scan ${collection}`, e);
-                return [] as PendingPiece[];
-            });
-
-            for (const piece of waiting) {
-                if (budget <= 0) break;
-                const key = `${piece.collection}:${piece.tokenId}`;
-                if (!(await claim(key))) continue;
-                budget--;
-                try {
-                    await handle(piece);
-                    published++;
-                } catch (e) {
-                    // The piece stays pending, which is the state it was
-                    // already in, and the next run picks it up.
-                    failed++;
-                    console.error(`[${runId}] publish ${key}`, e);
-                    await release(key);
-                }
-            }
-        }
-
-        // Counts and a correlation id. Internal error text stays in the logs,
-        // where it is not also a probe channel for an unauthenticated caller.
-        return Response.json({ runId, collections: collections.length, published, failed });
-    } catch (e) {
-        console.error(`[${runId}] run failed`, e);
-        return Response.json({ runId, error: "run failed" }, { status: 500 });
-    }
-}
-
-export const config: Config = {
-    schedule: "*/5 * * * *",
-};

@@ -17,7 +17,7 @@
  */
 import type { DAppClient } from "@tezos-x/octez.connect-sdk";
 import { deployCollection } from "./ops";
-import { buildPendingDocument, royaltiesToBps, type RoyaltySplit } from "./metadata";
+import { buildPendingDocument, royaltiesToBps, type RoyaltySplit } from "@provider/metadata";
 import { schemaForRecord } from "./params";
 import { getKind } from "./runtimes";
 import type { Draft } from "./draft";

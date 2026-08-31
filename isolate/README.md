@@ -54,7 +54,7 @@ are not part of this, and a generator written for one is not an Aleatory piece.
 - Network access is blocked, and what the CSP already refused is reported so an
   artist is told why rather than watching a piece half-run.
 
-`netlify/functions/lib/render.mts` carries the other implementation, the one
+`provider/render.mts` carries the other implementation, the one
 that produces the image published on chain. The two agree by conforming to
 [ALEATORY-001](../docs/interface.md) §7, not by sharing a file. Change one,
 change the other, in the same commit.

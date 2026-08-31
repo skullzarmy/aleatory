@@ -5,23 +5,22 @@ on-chain generative art platform on Tezos. Your job is to produce **one
 self-contained HTML file**. That file is the artwork. It goes on chain, and it
 can never be edited afterwards.
 
-This page is everything you need to do that well. It is not the protocol
-specification, and you do not need the specification to write a piece.
+This page is everything you need.
 
 ---
 
 ## The three rules
 
-A generator has to satisfy exactly three things. Nothing about technique,
-style, library or medium is prescribed.
+A generator has to satisfy exactly three things. Technique, style, library
+and medium are yours.
 
 1. **Self-contained.** One HTML file. Nothing is fetched while it renders.
 2. **Deterministic.** The same seed produces the same image, on any machine,
    forever. Run it twice from a clean frame and the two captures agree.
 3. **It calls `alea.ready()`** when the drawing is finished.
 
-A piece that keeps animating after `ready()` is fine. It simply has one
-canonical image, captured at that moment, and that image is what goes on chain.
+A piece can keep animating after `ready()`. It has one canonical image,
+captured at that moment, and that image is what goes on chain.
 
 ---
 
@@ -56,9 +55,8 @@ stream, and the clock is frozen, so `Date.now()` returns a fixed value and a
 piece that reads the date renders the same way in any year. Network access is
 blocked for the duration.
 
-**`$alea` is the entire surface.** Helpers from other generative platforms do
-not exist here. A piece written against `fxrand`, `tokenData` or similar draws
-nothing.
+**`$alea` is the entire surface.** A piece written against `fxrand`,
+`tokenData` or another platform's helper draws a blank frame.
 
 ---
 
@@ -87,16 +85,15 @@ Each of these makes a piece that renders differently for different people:
 ## Size
 
 The whole file has to fit in one Tezos operation: **32,768 bytes**. Most
-hand-written pieces are well under it. If you are close, minify, and do not
-bundle a library you could declare instead.
+hand-written pieces sit well under it. If you are close, minify, and declare
+any library you can.
 
 ---
 
 ## Declaring a library
 
 Your file names the library it needs, and whoever renders it supplies that
-library before your code runs. You do not spend your bytes storing a copy of
-p5 that thousands of other pieces also store.
+library before your code runs. Your bytes stay yours.
 
 One meta tag in `<head>` per library:
 
@@ -106,8 +103,7 @@ One meta tag in `<head>` per library:
 ```
 
 `content` is `package@version` from npm, optionally with a path, as in
-`d3@7.9.0/dist/d3.min.js`. Any package on npm. There is no approved list and
-nothing to request.
+`d3@7.9.0/dist/d3.min.js`. Any package on npm, named and pinned.
 
 Three things decide whether it works:
 
@@ -120,17 +116,16 @@ Three things decide whether it works:
   while it renders. It fetches nothing, draws nothing, and is captured as a
   blank frame, which is discovered after minting.
 
-If a package has no loadable build, paste its source into your file. That costs
-bytes and always works.
+When a package has only an ES module build, paste its source into your file.
+That costs bytes and always works.
 
 ---
 
 ## Declaring parameters
 
-Optional, and most pieces have none. A parameter is a dimension you are handing
-to whoever mints, deliberately. The seed should still do the interesting work.
-A parameter is a dimension you are confident about in every position it can
-take.
+Optional, and most pieces have none. A parameter is a dimension you hand to
+whoever mints, so declare one you are confident about in every position it can
+take. The seed should still do the interesting work.
 
 At most **five**. Declare them in a script in `<head>`, before your code:
 
@@ -303,5 +298,6 @@ alea.ready();
 Starter kits, and a studio that checks all of the above before publishing:
 <https://aleatory.art/templates>
 
-The protocol specification is ALEATORY-001, at
-<https://aleatory.art/docs/interface>. You do not need it to write a piece.
+ALEATORY-001, the protocol specification, is at
+<https://aleatory.art/docs/interface>, for anyone building a renderer or a
+viewer.

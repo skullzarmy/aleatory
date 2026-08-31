@@ -38,7 +38,7 @@ export interface LogoOptions {
 }
 
 /* ------------------------------------------------------------------ */
-/* Seeded stream, matching netlify/functions/lib/render.mts so the two agree exactly.  */
+/* Seeded stream, matching provider/render.mts so the two agree exactly.  */
 /* ------------------------------------------------------------------ */
 
 function xmur3(str: string) {

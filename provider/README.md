@@ -13,11 +13,31 @@ one, and [ALEATORY-001 §5](../docs/interface.md) for what conformance requires.
 
 | | |
 |---|---|
-| `functions/provider.mts` | The work: find pieces needing rendering, draw, pin, publish. |
-| `functions/lib/render.mts` | The harness. Installs `$alea`, seeds it, freezes the clock, blocks the network, captures. |
-| `functions/lib/libraries.mts` | Resolving a piece's declared libraries and verifying them by hash. |
+| `provider.ts` | The work: find pieces needing rendering, draw, pin, publish. |
+| `render.ts` | The harness. Installs `$alea`, seeds it, freezes the clock, blocks the network, captures. |
+| `libraries.ts` | Resolving a piece's declared libraries and verifying them by hash. |
+| `metadata.ts` | The TZIP-21 document a piece carries. One builder, so a published document and the studio's preview agree. |
+| `daemon.ts` | The process. `run.ts`, `retry.ts` and `setup.ts` are its one-shot siblings. |
 
-The daemon that drives it is [`scripts/provider-daemon.mts`](../scripts/).
+```
+npm run provider:setup     generate the agent, fund it, reveal it
+npm run provider:check     a pass that reads only
+npm run provider:run       one pass
+npm run provider:daemon    the process. This is how it runs.
+```
+
+Everything here imports from here, apart from the npm packages in the root
+`package.json`. Copy this directory and the lockfile to a box and it runs.
+
+## The push endpoint
+
+Optional, and off unless `ALEA_PROVIDER_PING_TOKEN` is set. Polling finds
+everything on its own; this shortens one interval and opens a port on the
+machine holding the agent key. It binds loopback, refuses a token under 32
+characters, destroys refused sockets without answering, and rate limits after
+the token check so a flood cannot starve a real caller. TLS, volume and
+firewalling are the operator's, and [provider.md](../docs/provider.md) spells
+out which is which.
 
 ## Two keys
 
@@ -47,7 +67,7 @@ Rebuilding a piece produces the same bytes and the same CID. The seed is the
 mint operation's hash, the parameters are in that operation, and the generator
 is immutable, so a retry is the same answer rather than a second opinion.
 
-`render.mts` and [`isolate/index.html`](../isolate/) are two implementations of
-the same harness, and they agree by both conforming to ALEATORY-001 rather than
-by sharing code. `npm test` checks that they still do. When they once disagreed
-about seeding, every piece from one of them drew the same picture.
+`render.ts` and [`isolate/index.html`](../isolate/) are two implementations of
+the same harness. Each conforms to ALEATORY-001, and `npm test` checks that they
+agree. A disagreement about seeding once made every piece from one of them draw
+the same picture.

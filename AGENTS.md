@@ -2,52 +2,63 @@
 
 Aleatory is fully on-chain generative art on Tezos. A generator is one HTML
 file stored on chain; a piece is that file plus a seed fixed at mint. The
-contracts and [ALEATORY-001](docs/interface.md) are the platform, and the
-artwork resolves from chain state alone, so anyone can rebuild everything else
-here from the spec.
+contracts and [ALEATORY-001](docs/interface.md) are the platform, and a piece
+resolves from chain state, so the code here is one implementation of a spec
+anyone can implement.
 
-**Helping somebody write a generator?** Use
+Writing a generator is a different job with a different document:
 [public/llms.txt](public/llms.txt), served at
-<https://aleatory.art/llms.txt>. It is the artist's brief: the harness, the
-three rules, library and parameter declarations, and a worked file. This file
-is for working on the platform itself.
+<https://aleatory.art/llms.txt>. It carries the harness, the three rules, the
+two declarations and a worked file.
+
+---
+
+## First time here
+
+```
+npm ci
+npm test                       no network needed beyond npm
+```
+
+SmartPy work also needs Python 3 with `smartpy` installed, which
+`npm run build:contracts` and `npm run test:contracts` call.
 
 ---
 
 ## What is here
 
-Five things ship, from one checkout.
+Five things ship from one checkout.
 
 | | | |
 |---|---|---|
 | the site | `src/` | Next 15, App Router. Reads public chain state. |
 | the isolate | `isolate/` | A separate origin where artwork runs. |
-| the admin console | `admin/` | Operator console, its own Next app and Netlify site. |
-| the render provider | `scripts/provider-daemon.mts` | A process. Renders pieces, pins them, publishes. |
-| the stats bot | `bot/` | A process. Writes chain figures into Discord channel names. |
+| the admin console | `admin/` | Its own Next app and its own Netlify site. |
+| the render provider | `provider/provider.mts` | Renders pieces, pins them, publishes. Run as a process by `provider/daemon.mts`. |
+| the stats bot | `bot/` | Reads the chain, writes figures into Discord channel names. |
 
-The last two run on a machine the operator keeps. `bot/` stands alone, so it
-keeps working from a checkout with the site deleted.
+The provider and the bot run on a machine the operator keeps. Everything in
+`bot/` imports from `bot/`, so the directory is the whole program.
 
 ```
 contract/     SmartPy sources, tests, build and deploy
 docs/         the public documentation, including ALEATORY-001
 public/       templates, and llms.txt
-scripts/      build steps, the provider, one-off tooling
+scripts/      build steps, the provider runner, one-off tooling
 ```
 
 ---
 
-## Rendering, and why the isolate exists
+## Rendering
 
 Artwork runs in `isolate/`, on its own origin, under a CSP that blocks the
-network. A piece draws from the bytes it carries and the seed it is given. The
-browser enforces that.
+network. That CSP is what makes "a piece cannot phone home" a property of the
+browser, so a piece draws from the bytes it carries and the seed it is given.
 
-Two implementations of the harness exist, the isolate and
-`netlify/functions/lib/render.mts`. They agree by each conforming to
-ALEATORY-001 §7, and `src/lib/conformance.test.ts` holds them to it. Treat the
-spec as the source of truth when they differ.
+The harness has two implementations: the isolate, and
+`provider/render.mts`. Each conforms to ALEATORY-001 §7 and
+`src/lib/conformance.test.ts` holds them to it. When they disagree, the spec
+decides.
 
 ---
 
@@ -68,9 +79,9 @@ Seven, in `contract/aleatory.py` and `contract/marketplace.py`.
 **The artist holds every authority a collection has**: pause the sale, reprice
 the unsold remainder, reduce or close the edition, switch render provider, and
 hand the contract on in two steps. `code`, `code_uri`, `code_hash` and
-`royalties` are written once at origination and stand for the life of the
-contract. That immutability is what lets an artist be told the work is theirs,
-and it is why the template stays boring and is audited before it ships.
+`royalties` are written at origination and stand for the life of the contract.
+A bug in the collection template is therefore frozen into every collection made
+from it, which is why the template is small and is audited before it ships.
 
 ### Things that have cost real time
 
@@ -78,10 +89,10 @@ and it is why the template stays boring and is audited before it ships.
   parameters by field name through Taquito.
 - **`sp.cons` prepends**, so `router.factories` runs newest first and
   `factories[0]` is where a deploy goes.
-- **The marketplace lineage comes from storage history.** The first
-  marketplace is written at origination and emits no event, so storage history
-  is the only record that carries it, along with every listing and escrowed
-  offer on it.
+- **The marketplace lineage lives in the router's storage history.** The first
+  marketplace is written at origination and emits no event, so an event scan
+  finds every marketplace except that one, and loses the listings and escrowed
+  offers still held there.
 - **The router can name one factory twice.** `add_factory` conses on, so
   re-pointing at an earlier one adds a second entry. Dedupe before querying.
 - **Taquito encodes an origination from the contract's own storage schema**,
@@ -90,11 +101,11 @@ and it is why the template stays boring and is audited before it ships.
   compares the two.
 - **An implicit account always accepts tez; a `KT1` accepts it through a
   `default` entrypoint of type unit.** The marketplace asks
-  `sp.contract(sp.unit, recipient)` before paying a royalty and pays the
-  seller when the answer is None, because `royalties` is immutable and one bad
-  address would otherwise revert every sale of that collection forever.
+  `sp.contract(sp.unit, recipient)` before paying a royalty and pays the seller
+  when the answer is None, because `royalties` is immutable and one bad address
+  would otherwise revert every sale of that collection forever.
 - **32,768 bytes** is the operation ceiling, code included. The factory embeds
-  the collection template, so it is the largest thing here.
+  the collection template, which makes it the largest contract here.
 - **On shadownet the per-operation gas cap equals the per-block cap**, so an
   operation at the per-operation maximum consumes the whole block budget and is
   rejected. `contract/deploy.ts` reads both and stays under.
@@ -104,10 +115,10 @@ and it is why the template stays boring and is audited before it ships.
 ## Running things
 
 ```
-npm test                  the whole JS suite
+npm test                  the JS suite
 npm run test:contracts    SmartPy scenarios
 npm run build:contracts   compile to contract/build
-npm run deploy            originate, --dry-run to price it first
+npm run deploy            originate. --dry-run prices it first
 ```
 
 ```
@@ -116,10 +127,9 @@ npm run provider:check    a provider pass that reads only
 npm run bot:check         read the chain, print the channel names
 ```
 
-Every daemon has a `:check` that reads only. Use it first. A provider run
-spends render budget, pinning quota and gas, and writes a token's metadata
-permanently: `set_token_metadata` accepts one write per token and refuses the
-second.
+Reach for a `:check` first. A provider run spends render budget, pinning quota
+and gas, and writes a token's metadata permanently: `set_token_metadata`
+accepts one write per token and refuses the second.
 
 **The operator runs their own dev server.** Leave the ports alone.
 
@@ -128,9 +138,9 @@ second.
 Tests here run the code they are about: a template is parsed, a zip is
 packaged, a schema is resolved, an API route is called.
 
-Three scans exist, and each is honest about being one. `hooks.test.ts` is a
-lint rule for React hook order. `check-contracts.mjs` counts contracts and
-compares `deploy.ts` storage against what each contract declares.
+Three source scans survive, and each earns it. `hooks.test.ts` is a lint rule
+for React hook order. `check-contracts.mjs` counts contracts and compares
+`deploy.ts` storage against what each contract declares.
 `conformance.test.ts` checks the harness implementations agree. Each caught a
 bug that had shipped.
 
@@ -139,8 +149,7 @@ bug that had shipped.
 ## Conventions
 
 **`.gitignore` allow-lists the top level.** A new directory becomes visible to
-git when `!/name/` is added. A directory that appeared on its own is litter and
-stays invisible.
+git when `!/name/` is added, which makes adding one a deliberate act.
 
 **Some docs are private and gitignored**: the audit and its response, the
 roadmap, the decision log, open questions, the sitemap, the pipeline notes.
@@ -152,8 +161,9 @@ parentheses. American spelling. Four habits to keep out: em dashes, "not an X,
 a Y" constructions, accounts of decisions since replaced, and justification by
 contrast ("rather than", "instead of").
 
-**Git:** push straight to `main`. Branch names stay plain, and a push names the
-same branch on both sides, which is what triggers a Netlify build.
+**Git:** work on `main` and `git push origin main`. Pushing one branch onto a
+differently named one (`git push origin work:main`) updates the ref and leaves
+Netlify without a build.
 
 **`.env` holds secret keys** and is gitignored. Key material stays out of the
 repository.

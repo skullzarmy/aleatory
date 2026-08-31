@@ -82,9 +82,14 @@ export function MintPanel({
                 collection.totalMutez,
             );
             setHash(res.hash);
-            // Ask the provider to look now. It polls anyway, so a failure
-            // here costs nothing but a slower reveal.
-            void fetch("/api/render-ping", { method: "POST" }).catch(() => {});
+            // Tell the provider this collection pays to look now. It polls
+            // regardless, so this only shortens the wait, and a provider that
+            // advertises no push endpoint is left to its own clock.
+            void fetch("/api/render-ping", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ provider: collection.provider }),
+            }).catch(() => {});
             // The contract decides the token id, so it is only knowable once
             // the operation is indexed. Until then the collector waits here
             // rather than on a page for a token that does not resolve yet.

@@ -40,6 +40,6 @@ The code documents itself one level down.
 | [`contract/`](../contract/) | What each contract owns, and who can change it |
 | [`src/`](../src/) | The website |
 | [`isolate/`](../isolate/) | The origin artwork runs in |
-| [`netlify/`](../netlify/) | The render provider |
+| [`provider/`](../provider/) | The render provider |
 | [`admin/`](../admin/) | The operator console |
 | [`scripts/`](../scripts/) | Operator commands and build steps |
