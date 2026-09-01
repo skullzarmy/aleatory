@@ -3,19 +3,14 @@
 Operator commands and build steps. Every one of them does its work when you run
 it; `--dry-run` is how you ask it to show you instead.
 
-## Running a provider
+The two long-running programs live beside their own code, in
+[`provider/`](../provider/) and [`bot/`](../bot/), each with a README covering
+what its environment needs.
 
 ```
-npm run provider:setup                generate an agent, fund it, reveal it
-npm run provider:setup -- --dry-run   show what that would do
-npm run provider:daemon               the process. This is how a provider runs.
-npm run provider:run                  one pass, then exit
-npm run provider:check                a pass that changes nothing
-npm run provider:retry -- <KT1> <id>  one piece, by name
+npm run provider:daemon               draws minted pieces and publishes them
+npm run bot:daemon                    writes chain figures into Discord
 ```
-
-What has to be in the environment first, and why, is in
-[provider.md](../docs/provider.md).
 
 ## Deploying
 

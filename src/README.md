@@ -26,11 +26,17 @@ The parts worth knowing before changing anything:
 |---|---|
 | `config.ts` | Network, contract addresses, brand. One place, read everywhere. |
 | `ops.ts` | Every operation the site can send. Encoded by field name via Taquito, never by position, because SmartPy orders record fields alphabetically. |
+| `router.ts` | Where every contract is, read from the router. `lineage()` is the whole history, current and retired. |
 | `runtimes.ts` | Runtime kinds, and resolving a declared library against npm. |
 | `libraries.ts` | Reading and writing a generator's `alea:library` declarations. |
+| `detect.ts` | What an uploaded file says about itself: its runtime kind, and the parameters it declares. Parsed, never executed. |
 | `identity.ts` | Address to name, avatar and profile. Tezos Domains, then hack.tez, then objkt. One cached call. |
-| `metadata.ts` | Building the TZIP-21 document a provider publishes. |
 | `blocklist.ts` | What this site declines to show. The only curation, and deliberately one readable file. |
+
+The TZIP-21 document a provider publishes is built in
+[`provider/metadata.ts`](../provider/metadata.ts), which the deploy form imports
+for its royalty preview. One builder, because two would drift, and the provider
+is the thing that publishes documents.
 
 ## Rendering a piece
 

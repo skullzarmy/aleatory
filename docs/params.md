@@ -24,6 +24,26 @@ The five-parameter ceiling is kept. Not for storage reasons; because a collector
 
 JSON, written under the collection's `aleatory:params` metadata key when a generator declares anything. One key, one place to read it, which is what §5 is for.
 
+**A generator declares its own parameters, in the file.** The studio reads that declaration when the file is uploaded and seeds the params panel with it, so an artist who already wrote their ranges down does not type them a second time and is not punished for a typo in the retyping. Four forms are read:
+
+```html
+<meta name="alea:params" content='[{"id":"density", …}]'>
+```
+
+```js
+window.$alea.paramsSchema = [ … ];   // what the starter kits write
+ALEA_PARAMS = [ … ];                 // the same list under its own name
+$fx.params([ … ]);                   // an fxhash piece, converted on the way in
+```
+
+Read by a parser for the literal subset of JavaScript. **Nothing is evaluated**: an uploaded file is a stranger's code, and it never runs on the studio's own origin. Unquoted keys, single quotes, trailing commas, comments and numbers JSON rejects all parse; a schema built by a function call is declined instead of guessed at.
+
+The last literal assignment wins, which is what the file itself does with those lines. A generator assigning `paramsSchema` twice runs with the second, and the starter kits open with a dev harness assigning an empty array before the artist's declaration.
+
+One bad field costs one parameter, never the set. An unusable name, a step larger than its range, or a second id that collides once cleaned is dropped with a line saying so, and the rest survive. Ids are never repaired: `alea.param("density")` reads the id back at render time, so a renamed one is a control that tunes nothing.
+
+The declaration in the file is a starting point shown to the artist. What is published is whatever the params panel holds when they deploy, and that is what lands under `aleatory:params`.
+
 ```json
 {
   "version": 1,

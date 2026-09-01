@@ -11,6 +11,10 @@ possibility space is on chain.
 Contracts deployed, collections made, pieces minted and rendered, marketplace
 taking listings and offers. Not on mainnet yet.
 
+Every contract it runs on, current and retired, is listed at `/contracts` on
+whichever host is serving it, read from the router in your own browser and
+linked to a block explorer.
+
 ---
 
 ## What this is for
@@ -70,9 +74,11 @@ Each directory has its own README explaining what it holds and why.
 | [`src/`](src/) | The website: browsing, the studio, minting, the market. |
 | [`isolate/`](isolate/) | The sandboxed origin a piece runs in, and nothing else. |
 | [`provider/`](provider/) | The render provider: the daemon that draws pieces and publishes their metadata. |
+| [`bot/`](bot/) | The stats bot: reads the chain, writes the figures into Discord channel names. |
 | [`admin/`](admin/) | The operator console. A separate site, separately deployed. |
-| [`scripts/`](scripts/) | Deploying, running a provider, building the starter kits. |
+| [`scripts/`](scripts/) | Deploying contracts, and the build steps. |
 | [`public/templates/`](public/templates/) | The starting points an artist downloads. |
+| [`public/skill/`](public/skill/SKILL.md) | The same guidance packaged for agents, one skill per job. |
 | [`docs/`](docs/) | Specifications and guides, indexed by who they are for. |
 
 ## Where to go next
