@@ -25,6 +25,19 @@ export function useDeps(html: string): {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Keyed on what the document *declares*, never on the document.
+    //
+    // The effect used to depend on `html`, so every debounced keystroke
+    // re-resolved the libraries and flipped `loading` back on. A consumer that
+    // swaps the frame out while loading then tore the iframe down and rebuilt
+    // it every time the artist paused typing, which is a p5 sketch blinking
+    // away mid-sentence. Editing the drawing code changes no declaration, so
+    // it should reach none of this.
+    const key = useMemo(() => {
+        const { specs } = librariesIn(html);
+        return specs.map((s) => `${s.id}@${s.version}#${s.hash ?? ""}`).join(",");
+    }, [html]);
+
     useEffect(() => {
         const { specs } = librariesIn(html);
         if (specs.length === 0) {
@@ -51,7 +64,10 @@ export function useDeps(html: string): {
         return () => {
             cancelled = true;
         };
-    }, [html]);
+        // `html` is read inside and deliberately absent: `key` is the part of it
+        // that can change the answer.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [key]);
 
     // Memoised. Returning a fresh array each render makes every consumer's
     // dependency arrays unstable, and a consumer that remounts a frame on

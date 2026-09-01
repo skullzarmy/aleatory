@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CodePane } from "./CodePane";
 import { Frame } from "./Frame";
@@ -13,7 +13,9 @@ import { useDeps } from "./useDeps";
 import { getKind } from "@/lib/runtimes";
 import { saveDraft, randomSeed, type Draft } from "@/lib/draft";
 import { downloadText } from "@/lib/project";
-import { resolveParams } from "@/lib/params";
+import { resolveParams, type ParamSpec } from "@/lib/params";
+import { detectParams } from "@/lib/detect";
+import { templateParamsFor } from "@/lib/templates";
 import { Dice5 } from "lucide-react";
 
 /**
@@ -75,6 +77,45 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
     const update = useCallback((patch: Partial<Draft>) => {
         setDraft((d) => ({ ...d, ...patch }));
     }, []);
+
+    /**
+     * Parameters the document declares, taken up as the artist writes them.
+     *
+     * The declaration is in the file, so it can arrive by paste, by drop, or by
+     * typing, and reading it only on the import page meant the ordinary case,
+     * pasting a generator into a blank draft, silently kept the kind's
+     * defaults. If we tell people to declare parameters, this is where it has
+     * to be read.
+     *
+     * **Applied only while the panel is untouched.** Untouched means it still
+     * holds exactly the kind's defaults, so nothing the artist did is lost.
+     * Once they have edited the panel it is theirs, and a declaration that
+     * disagrees is offered rather than imposed: overwriting a control somebody
+     * is in the middle of setting is the worst thing this could do.
+     *
+     * Runs on the debounced document, which is the same value that redraws the
+     * frame, so it costs one parse per pause and never one per keystroke.
+     */
+    const declared = useMemo(() => detectParams(draft.html), [draft.html]);
+    const [offered, setOffered] = useState<ParamSpec[] | null>(null);
+    const [dismissed, setDismissed] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!declared) return;
+        const next = JSON.stringify(declared.params);
+        if (next === JSON.stringify(draft.params) || next === dismissed) {
+            setOffered(null);
+            return;
+        }
+        const untouched =
+            JSON.stringify(draft.params) === JSON.stringify(templateParamsFor(draft.kindId));
+        if (untouched) {
+            setOffered(null);
+            update({ params: declared.params });
+        } else {
+            setOffered(declared.params);
+        }
+    }, [declared, draft.params, draft.kindId, dismissed, update]);
 
     const setHtml = useCallback(
         (html: string) => {
@@ -192,6 +233,14 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                     }`}
                                 >
                                     {t.label}
+                                    {/* A count on the tab, so parameters taken
+                                        up from the code are visible without
+                                        opening the panel to find them. */}
+                                    {t.id === "params" && draft.params.length > 0 && (
+                                        <span className="ml-1.5 text-xs text-muted-foreground">
+                                            {draft.params.length}
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </nav>
@@ -221,12 +270,51 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                             )}
 
                             {tool === "params" && (
-                                <ParamsPanel
-                                    specs={draft.params}
-                                    values={resolveParams(draft.params, values)}
-                                    onSpecsChange={(params) => update({ params })}
-                                    onValuesChange={setValues}
-                                />
+                                <>
+                                    {/* Offered, never applied over an edited
+                                        panel. Shown in the panel it is about,
+                                        so nothing appears over the code while
+                                        somebody is typing in it. */}
+                                    {offered && (
+                                        <div className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                                            <p>
+                                                Your code declares{" "}
+                                                <strong>{offered.length}</strong>{" "}
+                                                parameter{offered.length === 1 ? "" : "s"}:{" "}
+                                                {offered.map((p) => p.label || p.id).join(", ")}.
+                                                These are different from the ones below.
+                                            </p>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        update({ params: offered });
+                                                        setOffered(null);
+                                                    }}
+                                                    className="rounded-md bg-alea-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-alea-700"
+                                                >
+                                                    Use the declaration
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDismissed(JSON.stringify(offered));
+                                                        setOffered(null);
+                                                    }}
+                                                    className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-accent"
+                                                >
+                                                    Keep mine
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <ParamsPanel
+                                        specs={draft.params}
+                                        values={resolveParams(draft.params, values)}
+                                        onSpecsChange={(params) => update({ params })}
+                                        onValuesChange={setValues}
+                                    />
+                                </>
                             )}
 
                             {tool === "libraries" && (
