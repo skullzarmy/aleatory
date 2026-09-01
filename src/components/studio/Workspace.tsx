@@ -38,9 +38,12 @@ import { Dice5 } from "lucide-react";
  * All of it is local. The draft lives in this browser and nothing leaves it
  * until publish.
  */
-type Tool = "seeds" | "params" | "libraries" | "checks" | "cost";
+type Tool = "code" | "preview" | "seeds" | "params" | "libraries" | "checks" | "cost";
 
+/** `code` is offered only below lg, where it has no column of its own. */
 const TOOLS: { id: Tool; label: string }[] = [
+    { id: "code", label: "Code" },
+    { id: "preview", label: "Preview" },
     { id: "seeds", label: "Seeds" },
     { id: "params", label: "Parameters" },
     { id: "libraries", label: "Libraries" },
@@ -50,7 +53,7 @@ const TOOLS: { id: Tool; label: string }[] = [
 
 export function Workspace({ draft: initial }: { draft: Draft }) {
     const [draft, setDraft] = useState(initial);
-    const [tool, setTool] = useState<Tool | null>(null);
+    const [tool, setTool] = useState<Tool>("preview");
     const [values, setValues] = useState<Record<string, unknown>>({});
     const [saved, setSaved] = useState(true);
     // What the piece last threw. Cleared on every re-run, since the point of
@@ -72,6 +75,17 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
         }, 600);
         return () => clearTimeout(t);
     }, [draft]);
+
+    // Code has its own column from lg up, so the tab is offered only below it.
+    // Widening the window while that tab is open would otherwise leave the
+    // panel showing nothing, since the pane it selects is hidden at that size.
+    useEffect(() => {
+        const wide = window.matchMedia("(min-width: 1024px)");
+        const snap = () => setTool((t) => (wide.matches && t === "code" ? "preview" : t));
+        snap();
+        wide.addEventListener("change", snap);
+        return () => wide.removeEventListener("change", snap);
+    }, []);
 
     const update = useCallback((patch: Partial<Draft>) => {
         setDraft((d) => ({ ...d, ...patch }));
@@ -134,94 +148,122 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
             </header>
 
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+                {/* The code keeps its own column on a wide screen. On a narrow
+                    one it is a tab like everything else, because stacking a
+                    code editor above a preview above a panel gives all three
+                    too little and makes the page a scroll. */}
                 <section
-                    className="flex min-h-[40vh] flex-col border-b border-border lg:min-h-0 lg:w-1/2 lg:border-b-0 lg:border-r"
+                    className="hidden min-h-0 flex-col border-border lg:flex lg:w-1/2 lg:border-r"
                     aria-label="Generator source"
                 >
                     <CodePane value={draft.html} onChange={setHtml} onReplace={setHtml} />
                 </section>
 
-                <section
-                    className="flex min-h-0 flex-col lg:w-1/2"
-                    aria-label="Preview"
-                >
-                    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2">
-                        <code
-                            className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
-                            title={draft.seed}
-                        >
-                            {draft.seed}
-                        </code>
-                        <button
-                            type="button"
-                            onClick={() => update({ seed: randomSeed() })}
-                            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
-                        >
-                            <Dice5 size={12} aria-hidden />
-                            New seed
-                        </button>
-                    </div>
+                <section className="flex min-h-0 flex-1 flex-col lg:w-1/2" aria-label="Workspace">
+                    {/* One row of tabs owning one area. The preview used to be
+                        pinned above them, which left every panel a strip at the
+                        bottom of the column and put the parameters below the
+                        fold on a laptop. A panel that needs to show the work
+                        renders it: the seed grid does, checks does, and the
+                        parameters panel does, because tuning a control you
+                        cannot see the effect of is the one thing it must not
+                        ask of anybody. */}
+                    <nav
+                        className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-2"
+                        aria-label="Workspace panels"
+                    >
+                        {TOOLS.map((t) => (
+                            <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setTool(t.id)}
+                                aria-current={tool === t.id ? "true" : undefined}
+                                className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors ${
+                                    t.id === "code" ? "lg:hidden " : ""
+                                }${
+                                    tool === t.id
+                                        ? "border-alea-600 font-medium text-foreground"
+                                        : "border-transparent text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                {t.label}
+                                {t.id === "params" && params.length > 0 && (
+                                    <span className="ml-1.5 text-xs text-muted-foreground">
+                                        {params.length}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </nav>
 
-                    <div className="min-h-0 flex-1 overflow-auto p-3">
-                        <div className="relative mx-auto aspect-square w-full max-w-[min(100%,70vh)] overflow-hidden rounded-lg border border-border">
-                            {depsLoading ? (
-                                <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                                    Loading {kind.deps.map((d) => d.label).join(", ") || "libraries"}…
-                                </p>
-                            ) : (
-                                <Frame
-                                    html={draft.html}
-                                    seed={draft.seed}
-                                    params={params}
-                                    values={values}
-                                    deps={deps}
-                                    onError={setError}
-                                />
-                            )}
+                    {/* The seed belongs to whatever is drawing, so it sits with
+                        the panels that draw and stays out of the way of the
+                        ones that do not. */}
+                    {(tool === "preview" || tool === "params") && (
+                        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2">
+                            <code
+                                className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
+                                title={draft.seed}
+                            >
+                                {draft.seed}
+                            </code>
+                            <button
+                                type="button"
+                                onClick={() => update({ seed: randomSeed() })}
+                                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                            >
+                                <Dice5 size={12} aria-hidden />
+                                New seed
+                            </button>
                         </div>
+                    )}
 
-                        {depsError && (
-                            <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
-                                {depsError}
-                            </p>
-                        )}
-
-                        {error && (
-                            <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-xs">
-                                {error}
-                            </p>
-                        )}
-
-                        <nav className="mt-4 flex flex-wrap gap-1 border-b border-border">
-                            {TOOLS.map((t) => (
-                                <button
-                                    key={t.id}
-                                    type="button"
-                                    onClick={() => setTool(tool === t.id ? null : t.id)}
-                                    className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
-                                        tool === t.id
-                                            ? "border-alea-600 font-medium text-foreground"
-                                            : "border-transparent text-muted-foreground hover:text-foreground"
+                    {tool === "code" ? (
+                        <div className="flex min-h-0 flex-1 flex-col lg:hidden">
+                            <CodePane value={draft.html} onChange={setHtml} onReplace={setHtml} />
+                        </div>
+                    ) : (
+                        <div className="min-h-0 flex-1 overflow-auto p-3">
+                            {(tool === "preview" || tool === "params") && (
+                                <div
+                                    className={`relative mx-auto aspect-square w-full overflow-hidden rounded-lg border border-border ${
+                                        tool === "params"
+                                            ? "max-w-[min(100%,38vh)]"
+                                            : "max-w-[min(100%,70vh)]"
                                     }`}
                                 >
-                                    {t.label}
-                                    {/* A count on the tab, so parameters taken
-                                        up from the code are visible without
-                                        opening the panel to find them. */}
-                                    {t.id === "params" && params.length > 0 && (
-                                        <span className="ml-1.5 text-xs text-muted-foreground">
-                                            {params.length}
-                                        </span>
+                                    {depsLoading ? (
+                                        <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                                            Loading{" "}
+                                            {kind.deps.map((d) => d.label).join(", ") || "libraries"}…
+                                        </p>
+                                    ) : (
+                                        <Frame
+                                            html={draft.html}
+                                            seed={draft.seed}
+                                            params={params}
+                                            values={values}
+                                            deps={deps}
+                                            onError={setError}
+                                        />
                                     )}
-                                </button>
-                            ))}
-                        </nav>
+                                </div>
+                            )}
 
-                        <div className="pt-4">
-                            {tool === null && (
-                                <p className="text-xs text-muted-foreground">
-                                    {/* The workspace is a column until lg, where the
-                                        code sits above this. */}
+                            {depsError && (
+                                <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
+                                    {depsError}
+                                </p>
+                            )}
+
+                            {error && (
+                                <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-xs">
+                                    {error}
+                                </p>
+                            )}
+
+                            {tool === "preview" && (
+                                <p className="mt-4 text-xs text-muted-foreground">
                                     Edit the code and this redraws. The seed stays put until
                                     you change it.
                                 </p>
@@ -236,20 +278,20 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                     values={values}
                                     onPick={(seed) => {
                                         update({ seed });
-                                        setTool(null);
+                                        setTool("preview");
                                     }}
                                 />
                             )}
 
                             {tool === "params" && (
-                                <>
+                                <div className="mt-4">
                                     <ParamsPanel
                                         specs={params}
                                         values={resolveParams(params, values)}
                                         onSpecsChange={(next) => setHtml(withParams(draft.html, next))}
                                         onValuesChange={setValues}
                                     />
-                                </>
+                                </div>
                             )}
 
                             {tool === "libraries" && (
@@ -268,7 +310,7 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
 
                             {tool === "cost" && <Cost html={draft.html} />}
                         </div>
-                    </div>
+                    )}
                 </section>
             </div>
         </div>
