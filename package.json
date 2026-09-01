@@ -16,6 +16,7 @@
         "deploy:collection": "npx tsx contract/deploy-collection.ts",
         "test:metadata": "npx tsx provider/metadata.test.ts",
         "build:icons": "npx tsx scripts/build-icons.mts",
+    "build:social": "npx tsx scripts/build-social.mts",
         "logo": "npx tsx scripts/logo-preview.mts",
         "dev:isolate": "node scripts/dev-isolate.mjs",
         "test:studio": "npx tsx src/lib/studio.test.ts",

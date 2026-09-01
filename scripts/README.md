@@ -26,8 +26,12 @@ npm run deploy:collection             one collection, for testing
 ```
 npm run templates:build               starter kits from public/templates
 npm run build:icons                   favicons and the mark
+npm run build:social                  the 3000x1000 profile banner
 npm run logo                          preview the generated logo
 ```
+
+`build:social` rasterizes through headless Chrome, since neither X nor
+Bluesky takes an SVG for a banner. Without Chrome it writes the SVG alone.
 
 `templates:build` runs before `dev` and `build`, so the module the studio
 imports and the kits on the site cannot be stale.
