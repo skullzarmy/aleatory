@@ -1,13 +1,14 @@
 /**
- * What has happened since last time.
+ * What the contracts said happened.
  *
- * Both reads are the same shape: ask TzKT for rows newer than a cursor, in
- * ascending id order, so the caller can post them in the order they happened
- * and move the cursor as it goes.
+ * The factory emits `deploy` and every collection emits `mint`. Those are the
+ * events, they are part of the contract's interface, and they are what this
+ * reads. An origination row or a token row is the indexer's record of a side
+ * effect; the event is the contract stating the thing itself, with the figures
+ * it chose to publish already in the payload.
  *
- * Row id rather than a timestamp. Ids are assigned by the indexer and only go
- * up, so "newer than this" is exact. Two mints in one block share a timestamp,
- * and a cursor built on time either posts one twice or never posts it.
+ * **An event is emitted once.** That is where exactly-once comes from here.
+ * The mark is an event id, ids only go up, and `id.gt` is the whole of it.
  */
 import { addresses, tzkt } from "./chain";
 import { collectionsOf } from "./stats";
@@ -15,14 +16,45 @@ import { collectionsOf } from "./stats";
 /** Nothing sensible produces this many in a minute; it is a runaway guard. */
 const LIMIT = 50;
 
+interface EventRow<P> {
+    id: number;
+    level: number;
+    timestamp: string;
+    contract: { address: string };
+    tag: string;
+    payload: P;
+    transactionId: number;
+}
+
+/** `deploy`, from the factory. */
+interface DeployPayload {
+    collection_id?: string;
+    address?: string;
+    artist?: string;
+    code_hash?: string;
+    code_uri?: string;
+    edition_size?: string;
+}
+
+/** `mint`, from a collection. */
+interface MintPayload {
+    token_id?: string;
+    buyer?: string;
+    params?: string;
+    paid?: string;
+    render_gas?: string;
+}
+
 export interface NewGenerator {
     cursor: number;
     address: string;
+    artist: string;
+    editionSize: number;
+    codeHash: string;
+    /** From the collection's own metadata, which the event does not carry. */
     name: string;
     description: string;
-    /** `ipfs://…`, or empty when the deploy pinned no cover. */
     coverUri: string;
-    artist: string;
     at: string;
 }
 
@@ -30,15 +62,16 @@ export interface NewMint {
     cursor: number;
     contract: string;
     tokenId: string;
-    name: string;
-    description: string;
-    /** `ipfs://…`, or empty while the piece is still being rendered. */
-    imageUri: string;
     collector: string;
+    /** Mutez. Price and render gas together, as the collector paid it. */
+    paidMutez: number;
+    /** From the token's own metadata, which the event does not carry. */
+    name: string;
+    imageUri: string;
     at: string;
 }
 
-/** Hex bytes out of a big map, as TzKT stores them. */
+/** Hex bytes, as TzKT carries `sp.bytes` and big map values. */
 function bytesToString(hex: string): string {
     const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
     let out = "";
@@ -58,9 +91,9 @@ interface Meta {
 /**
  * A collection's own metadata document.
  *
- * TZIP-16 puts it in a `metadata` big map under the key `content`, as bytes.
- * The artist typed the name that comes out of here, which is the reason to go
- * and get it rather than announce a KT1 address at people.
+ * The `deploy` event carries what the contract knows: who, what code, how
+ * many. The name the artist typed is TZIP-16 and lives in a big map, so it
+ * takes this one read on top.
  */
 async function collectionMeta(address: string): Promise<Meta> {
     try {
@@ -74,93 +107,102 @@ async function collectionMeta(address: string): Promise<Meta> {
     }
 }
 
-/** The highest id on each feed right now. What a first run records. */
-export async function highWaterMark(): Promise<{ generators: number; mints: number }> {
-    const where = await addresses();
-    const factories = [...new Set(where.factories.filter(Boolean))];
-    if (factories.length === 0) return { generators: 0, mints: 0 };
-
-    const collections = await collectionsOf(factories);
-    const [gen, mint] = await Promise.all([
-        tzkt<number[]>(
-            `/v1/contracts?creator.in=${factories.join(",")}&sort.desc=id&limit=1&select=id`,
-        ),
-        collections.length === 0
-            ? Promise.resolve([] as number[])
-            : tzkt<number[]>(
-                  `/v1/tokens?contract.in=${collections.join(",")}&sort.desc=id&limit=1&select=id`,
-              ),
-    ]);
-
-    return { generators: gen[0] ?? 0, mints: mint[0] ?? 0 };
+/** A piece's own metadata. The `mint` event carries the sale, not the picture. */
+async function tokenMeta(contract: string, tokenId: string): Promise<Meta> {
+    try {
+        const rows = await tzkt<{ metadata?: Meta }[]>(
+            `/v1/tokens?contract=${contract}&tokenId=${tokenId}&limit=1`,
+        );
+        return rows[0]?.metadata ?? {};
+    } catch {
+        return {};
+    }
 }
 
-/** Collections originated by any factory the router has ever named. */
-export async function newGenerators(since: number): Promise<NewGenerator[]> {
+async function watched(): Promise<{ factories: string[]; collections: string[] }> {
     const where = await addresses();
     const factories = [...new Set(where.factories.filter(Boolean))];
+    if (factories.length === 0) return { factories: [], collections: [] };
+    return { factories, collections: await collectionsOf(factories) };
+}
+
+/** The newest event id on each feed. What a start records and goes on from. */
+export async function highWaterMark(): Promise<{ generators: number; mints: number }> {
+    const { factories, collections } = await watched();
+    if (factories.length === 0) return { generators: 0, mints: 0 };
+
+    const newest = async (contracts: string[], tag: string): Promise<number> => {
+        if (contracts.length === 0) return 0;
+        const rows = await tzkt<EventRow<unknown>[]>(
+            `/v1/contracts/events?contract.in=${contracts.join(",")}&tag=${tag}` +
+                `&sort.desc=id&limit=1`,
+        );
+        return rows[0]?.id ?? 0;
+    };
+
+    const [generators, mints] = await Promise.all([
+        newest(factories, "deploy"),
+        newest(collections, "mint"),
+    ]);
+    return { generators, mints };
+}
+
+/** `deploy` events from any factory the router has ever named. */
+export async function newGenerators(since: number): Promise<NewGenerator[]> {
+    const { factories } = await watched();
     if (factories.length === 0) return [];
 
-    const rows = await tzkt<{ id: number; address: string; firstActivityTime: string }[]>(
-        `/v1/contracts?creator.in=${factories.join(",")}&id.gt=${since}` +
-            `&sort.asc=id&limit=${LIMIT}&select=id,address,firstActivityTime`,
+    const rows = await tzkt<EventRow<DeployPayload>[]>(
+        `/v1/contracts/events?contract.in=${factories.join(",")}&tag=deploy` +
+            `&id.gt=${since}&sort.asc=id&limit=${LIMIT}`,
     );
 
     const out: NewGenerator[] = [];
     for (const row of rows) {
-        // Two reads per generator, and a generator is a rare event. The
-        // metadata carries what the artist called it, the storage carries who
-        // they are.
-        const [meta, storage] = await Promise.all([
-            collectionMeta(row.address),
-            tzkt<{ administrator?: string }>(`/v1/contracts/${row.address}/storage`).catch(
-                () => ({}) as { administrator?: string },
-            ),
-        ]);
+        const address = row.payload?.address ?? "";
+        if (!address) continue;
+        const meta = await collectionMeta(address);
         out.push({
             cursor: row.id,
-            address: row.address,
+            address,
+            artist: row.payload?.artist ?? "",
+            editionSize: Number(row.payload?.edition_size ?? 0),
+            codeHash: row.payload?.code_hash ?? "",
             name: meta.name || "",
             description: meta.description || "",
             coverUri: meta.displayUri || meta.thumbnailUri || "",
-            artist: storage.administrator || "",
-            at: row.firstActivityTime,
+            at: row.timestamp,
         });
     }
     return out;
 }
 
-/** Tokens minted in any of those collections. */
+/** `mint` events from every collection those factories deployed. */
 export async function newMints(since: number): Promise<NewMint[]> {
-    const where = await addresses();
-    const factories = [...new Set(where.factories.filter(Boolean))];
-    if (factories.length === 0) return [];
-
-    const collections = await collectionsOf(factories);
+    const { collections } = await watched();
     if (collections.length === 0) return [];
 
-    const rows = await tzkt<
-        {
-            id: number;
-            contract: { address: string };
-            tokenId: string;
-            firstMinter: { address: string };
-            firstTime: string;
-            metadata?: Meta;
-        }[]
-    >(
-        `/v1/tokens?contract.in=${collections.join(",")}&id.gt=${since}` +
-            `&sort.asc=id&limit=${LIMIT}&select=id,contract,tokenId,firstMinter,firstTime,metadata`,
+    const rows = await tzkt<EventRow<MintPayload>[]>(
+        `/v1/contracts/events?contract.in=${collections.join(",")}&tag=mint` +
+            `&id.gt=${since}&sort.asc=id&limit=${LIMIT}`,
     );
 
-    return rows.map((row) => ({
-        cursor: row.id,
-        contract: row.contract?.address ?? "",
-        tokenId: row.tokenId,
-        name: row.metadata?.name || "",
-        description: row.metadata?.description || "",
-        imageUri: row.metadata?.displayUri || row.metadata?.thumbnailUri || "",
-        collector: row.firstMinter?.address ?? "",
-        at: row.firstTime,
-    }));
+    const out: NewMint[] = [];
+    for (const row of rows) {
+        const contract = row.contract?.address ?? "";
+        const tokenId = row.payload?.token_id ?? "";
+        if (!contract || tokenId === "") continue;
+        const meta = await tokenMeta(contract, tokenId);
+        out.push({
+            cursor: row.id,
+            contract,
+            tokenId,
+            collector: row.payload?.buyer ?? "",
+            paidMutez: Number(row.payload?.paid ?? 0),
+            name: meta.name || "",
+            imageUri: meta.displayUri || meta.thumbnailUri || "",
+            at: row.timestamp,
+        });
+    }
+    return out;
 }

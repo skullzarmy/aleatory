@@ -35,6 +35,12 @@ function short(a: string): string {
     return !a || a.length <= 12 ? a : `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
+/** Mutez, as tez, without trailing zeroes. */
+function tez(mutez: number): string {
+    const value = mutez / 1_000_000;
+    return `${value.toFixed(6).replace(/\.?0+$/, "")} ꜩ`;
+}
+
 /**
  * A pinned URI, as something Discord can fetch.
  *
@@ -50,12 +56,14 @@ function image(uri: string): string | undefined {
     return `${site()}/api/img/${cid}`;
 }
 
+/** Everything here except the name and the cover came out of the event. */
 export function generatorEmbed(g: {
     address: string;
     name: string;
     description: string;
     coverUri: string;
     artist: string;
+    editionSize: number;
     at: string;
 }): Embed {
     const embed: Embed = {
@@ -64,7 +72,15 @@ export function generatorEmbed(g: {
         color: GOLD,
         timestamp: g.at,
         footer: { text: "New generator" },
-        fields: [{ name: "Artist", value: short(g.artist) || "unknown", inline: true }],
+        fields: [
+            { name: "Artist", value: short(g.artist) || "unknown", inline: true },
+            {
+                name: "Edition",
+                // Zero is the contract's way of saying there is no ceiling.
+                value: g.editionSize > 0 ? `${g.editionSize}` : "open",
+                inline: true,
+            },
+        ],
     };
     if (g.description) embed.description = g.description.slice(0, 400);
     const picture = image(g.coverUri);
@@ -72,13 +88,14 @@ export function generatorEmbed(g: {
     return embed;
 }
 
+/** The collector and the price are the event's own words for the sale. */
 export function mintEmbed(m: {
     contract: string;
     tokenId: string;
     name: string;
-    description: string;
     imageUri: string;
     collector: string;
+    paidMutez: number;
     at: string;
 }): Embed {
     const embed: Embed = {
@@ -89,6 +106,7 @@ export function mintEmbed(m: {
         footer: { text: "Minted" },
         fields: [
             { name: "Collector", value: short(m.collector) || "unknown", inline: true },
+            { name: "Paid", value: tez(m.paidMutez), inline: true },
             {
                 name: "Collection",
                 value: `[${short(m.contract)}](${site()}/collection/${m.contract})`,

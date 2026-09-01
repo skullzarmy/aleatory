@@ -47,11 +47,33 @@ says nothing about posting a message, and a mint announced nine minutes after
 the mint is not an announcement. `ALEA_BOT_ANNOUNCE_MS` moves it, with a floor
 of fifteen seconds, because the chain reads behind it are not free.
 
+## What it watches
+
+The contracts say what happened. The factory emits `deploy` and every
+collection emits `mint`, and those events are the interface this reads:
+
+```
+tag=deploy   collection_id, address, artist, code, code_encoding,
+             code_hash, code_uri, edition_size
+tag=mint     token_id, buyer, params, paid, render_gas
+```
+
+So the price in a mint announcement is the price the contract published, not a
+figure reconstructed from an indexer's tables. Neither event carries a display
+name or a picture, because those are metadata documents rather than contract
+state, so each announcement adds one metadata read for the title and the image.
+
+```
+GET /v1/contracts/events?contract.in=…&tag=mint&id.gt=<mark>&sort.asc=id
+```
+
 ## Forward only
 
 The bot reads where the chain is when it starts and goes on from there. It has
-no memory across restarts and no state file, and it wants none: a mint happens
-once, so a process that only ever looks forward can never announce one twice.
+no memory across restarts and no state file, and it wants none: **an event is
+emitted once**, so a process that only ever looks forward can never announce
+one twice. The mark is an event id, ids only go up, and `id.gt` is the whole of
+it.
 
 The consequence is the other side of that. **Anything that happens while the
 bot is down is never announced.** It is not a queue and it does not catch up.
@@ -287,8 +309,9 @@ A healthy quiet run:
 `no figure changed` is the normal line. Names are only written when a number
 moves.
 
-The `announcing from` line is the mark the bot started at. Everything at or
-below those two ids already happened and is not announced.
+The `announcing from` line is the mark the bot started at. Those are event ids.
+Everything at or below them was emitted before the process came up and is not
+announced.
 
 A refusal quotes Discord's own code rather than guessing at which permission
 is behind it, because they are different screens in the settings:
