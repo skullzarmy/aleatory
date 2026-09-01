@@ -20,12 +20,16 @@ export function PieceCard({ piece }: { piece: FeedPiece }) {
             href={`/piece/${piece.contract}/${piece.tokenId}`}
             className="group block overflow-hidden rounded-lg border border-border bg-card-background transition-shadow hover:shadow-lg"
         >
-            <div className="relative aspect-square">
+            {/* The plate matters: an image that fails to load collapses to it
+                instead of painting the browser's broken glyph into the grid.
+                `alt=""` is what makes it collapse, and the name is already the
+                first line of the card, so the link is named without it. */}
+            <div className="relative aspect-square bg-muted">
                 {piece.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                         src={piece.imageUrl}
-                        alt={piece.name}
+                        alt=""
                         loading="lazy"
                         className="h-full w-full object-cover"
                     />

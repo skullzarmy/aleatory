@@ -59,13 +59,24 @@ self.addEventListener("fetch", (event) => {
     // revalidate: the bytes behind this URL cannot change.
     if (url.pathname.startsWith("/api/img/")) {
         event.respondWith(
-            caches.open(ART).then(async (cache) => {
-                const hit = await cache.match(request);
-                if (hit) return hit;
-                const res = await fetch(request);
-                if (res.ok) cache.put(request, res.clone());
-                return res;
-            }),
+            (async () => {
+                try {
+                    const cache = await caches.open(ART);
+                    const hit = await cache.match(request);
+                    if (hit) return hit;
+                    const res = await fetch(request);
+                    if (res.ok) cache.put(request, res.clone());
+                    return res;
+                } catch {
+                    // Anything thrown above rejects respondWith, and the
+                    // browser hands that to the <img> as a hard network error.
+                    // A dropped connection, a cache that is full, a private
+                    // window: all of them would have taken the piece down with
+                    // them. The cache is a speed-up and never the reason
+                    // something fails to load, so go straight to the network.
+                    return fetch(request);
+                }
+            })(),
         );
         return;
     }

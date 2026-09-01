@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImageIcon, Play } from "lucide-react";
 import { IsolateFrame } from "@/components/IsolateFrame";
 
@@ -37,14 +37,26 @@ export function ArtifactFrame({
     name: string;
 }) {
     const runnable = Boolean(code && seed);
-    /** null while the gateway is still deciding. */
-    const [loaded, setLoaded] = useState<boolean | null>(imageUrl ? null : false);
+    /** True once the published image has actually arrived. */
+    const [ready, setReady] = useState(false);
     /** What the viewer asked for, once they have asked. */
     const [prefer, setPrefer] = useState<"image" | "live" | null>(null);
 
+    // Bumping this remounts the element, which is what re-requests the image.
+    // A failure used to be terminal: the element came down, nothing asked
+    // again, and the toggle it gates was gone for the life of the page. One
+    // dropped request should not cost somebody the published image.
+    const [attempt, setAttempt] = useState(0);
+    const timer = useRef(0);
+    useEffect(() => {
+        setReady(false);
+        setAttempt(0);
+    }, [imageUrl]);
+    useEffect(() => () => window.clearTimeout(timer.current), []);
+
     // The image when it is there and wanted, the live render whenever it is
     // not: still loading, failed, or switched away from.
-    const showImage = Boolean(imageUrl) && loaded === true && prefer !== "live";
+    const showImage = ready && prefer !== "live";
     const showLive = runnable && !showImage;
 
     return (
@@ -60,15 +72,27 @@ export function ArtifactFrame({
             )}
 
             {/* Mounted while it loads so the fetch starts, and kept out of the
-                way until it has something to show. `loaded === false` after an
-                error, which is the state that never puts it on screen. */}
-            {imageUrl && loaded !== false && (
+                way until it has something to show. A failure leaves it mounted
+                and invisible, which costs the viewer nothing: the piece is
+                already running underneath it. */}
+            {imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
+                    key={attempt}
                     src={imageUrl}
                     alt={name}
-                    onLoad={() => setLoaded(true)}
-                    onError={() => setLoaded(false)}
+                    onLoad={() => setReady(true)}
+                    onError={() => {
+                        // Once, on the same URL. A failed response was never
+                        // cached, so this is a real second request, and a blip
+                        // is the case worth covering. If it fails again the
+                        // live render stands, which is the honest answer.
+                        if (attempt > 0) return;
+                        timer.current = window.setTimeout(
+                            () => setAttempt((n) => n + 1),
+                            1500,
+                        );
+                    }}
                     className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-200 ${
                         showImage ? "opacity-100" : "pointer-events-none opacity-0"
                     }`}
@@ -82,7 +106,7 @@ export function ArtifactFrame({
             )}
 
             {/* Offered only once there are two things to choose between. */}
-            {runnable && loaded === true && (
+            {runnable && ready && (
                 <button
                     type="button"
                     onClick={() => setPrefer(showImage ? "live" : "image")}
