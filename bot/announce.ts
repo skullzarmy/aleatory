@@ -56,6 +56,18 @@ function image(uri: string): string | undefined {
     return `${site()}/api/img/${cid}`;
 }
 
+/** Discord's ceiling on one field's value. */
+const MAX_FIELD = 1024;
+
+/** Who made it, as the line above the title, linked to their page here. */
+function by(artist: string): Embed["author"] {
+    if (!artist) return undefined;
+    return { name: short(artist), url: `${site()}/wallet/${artist}` };
+}
+
+/** Zero is the contract's way of saying there is no ceiling. */
+const edition = (size: number) => (size > 0 ? `${size}` : "open");
+
 /** Everything here except the name and the cover came out of the event. */
 export function generatorEmbed(g: {
     address: string;
@@ -71,16 +83,9 @@ export function generatorEmbed(g: {
         url: `${site()}/collection/${g.address}`,
         color: GOLD,
         timestamp: g.at,
+        author: by(g.artist),
         footer: { text: "New generator" },
-        fields: [
-            { name: "Artist", value: short(g.artist) || "unknown", inline: true },
-            {
-                name: "Edition",
-                // Zero is the contract's way of saying there is no ceiling.
-                value: g.editionSize > 0 ? `${g.editionSize}` : "open",
-                inline: true,
-            },
-        ],
+        fields: [{ name: "Edition", value: edition(g.editionSize), inline: true }],
     };
     if (g.description) embed.description = g.description.slice(0, 400);
     const picture = image(g.coverUri);
@@ -88,7 +93,7 @@ export function generatorEmbed(g: {
     return embed;
 }
 
-/** The collector and the price are the event's own words for the sale. */
+/** The collector, the price and the traits are the event's own words. */
 export function mintEmbed(m: {
     contract: string;
     tokenId: string;
@@ -96,6 +101,10 @@ export function mintEmbed(m: {
     imageUri: string;
     collector: string;
     paidMutez: number;
+    params: Record<string, unknown>;
+    collectionName: string;
+    artist: string;
+    editionSize: number;
     at: string;
 }): Embed {
     const embed: Embed = {
@@ -103,17 +112,32 @@ export function mintEmbed(m: {
         url: `${site()}/piece/${m.contract}/${m.tokenId}`,
         color: GOLD,
         timestamp: m.at,
+        author: by(m.artist),
         footer: { text: "Minted" },
         fields: [
-            { name: "Collector", value: short(m.collector) || "unknown", inline: true },
+            {
+                name: "Edition",
+                value: `${Number(m.tokenId) + 1} of ${edition(m.editionSize)}`,
+                inline: true,
+            },
             { name: "Paid", value: tez(m.paidMutez), inline: true },
+            { name: "Collector", value: short(m.collector) || "unknown", inline: true },
             {
                 name: "Collection",
-                value: `[${short(m.contract)}](${site()}/collection/${m.contract})`,
+                value: `[${m.collectionName || short(m.contract)}](${site()}/collection/${m.contract})`,
                 inline: true,
             },
         ],
     };
+
+    // What this draw actually is. A generator's whole point is that two pieces
+    // differ, so the settings behind one are the thing worth reading.
+    const traits = Object.entries(m.params)
+        .map(([key, value]) => `${key} ${String(value)}`)
+        .join(" · ");
+    if (traits) {
+        embed.fields?.push({ name: "Traits", value: traits.slice(0, MAX_FIELD) });
+    }
     // A piece is minted before it is rendered, so this is often empty on the
     // pass that announces it. The link still goes to a page where the piece is
     // already running from its code and its seed.

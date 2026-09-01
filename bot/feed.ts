@@ -65,9 +65,15 @@ export interface NewMint {
     collector: string;
     /** Mutez. Price and render gas together, as the collector paid it. */
     paidMutez: number;
+    /** What the collector chose, decoded from the event's own payload. */
+    params: Record<string, unknown>;
     /** From the token's own metadata, which the event does not carry. */
     name: string;
     imageUri: string;
+    /** The collection this belongs to, so a mint can name it rather than a KT1. */
+    collectionName: string;
+    artist: string;
+    editionSize: number;
     at: string;
 }
 
@@ -114,6 +120,54 @@ async function tokenMeta(contract: string, tokenId: string): Promise<Meta> {
             `/v1/tokens?contract=${contract}&tokenId=${tokenId}&limit=1`,
         );
         return rows[0]?.metadata ?? {};
+    } catch {
+        return {};
+    }
+}
+
+interface Facts {
+    name: string;
+    artist: string;
+    editionSize: number;
+}
+
+/**
+ * What a collection is, looked up once.
+ *
+ * A mint announcement wants the collection's name and how big the edition is,
+ * and neither is in the `mint` event because neither changes per mint. Held
+ * for the life of the process: a collection is named at deploy and an edition
+ * only ever shrinks, so a busy collection costs two reads in total rather than
+ * two per piece.
+ */
+const known = new Map<string, Facts>();
+
+async function collectionFacts(address: string): Promise<Facts> {
+    const hit = known.get(address);
+    if (hit) return hit;
+
+    const [meta, storage] = await Promise.all([
+        collectionMeta(address),
+        tzkt<{ administrator?: string; sale?: { edition_size?: string } }>(
+            `/v1/contracts/${address}/storage`,
+        ).catch(() => ({}) as { administrator?: string; sale?: { edition_size?: string } }),
+    ]);
+
+    const facts: Facts = {
+        name: meta.name || "",
+        artist: storage.administrator || "",
+        editionSize: Number(storage.sale?.edition_size ?? 0),
+    };
+    known.set(address, facts);
+    return facts;
+}
+
+/** The parameters the collector picked, as the event carries them. */
+function decodeParams(hex: string | undefined): Record<string, unknown> {
+    if (!hex) return {};
+    try {
+        const parsed: unknown = JSON.parse(bytesToString(hex));
+        return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
     } catch {
         return {};
     }
@@ -192,15 +246,22 @@ export async function newMints(since: number): Promise<NewMint[]> {
         const contract = row.contract?.address ?? "";
         const tokenId = row.payload?.token_id ?? "";
         if (!contract || tokenId === "") continue;
-        const meta = await tokenMeta(contract, tokenId);
+        const [meta, facts] = await Promise.all([
+            tokenMeta(contract, tokenId),
+            collectionFacts(contract),
+        ]);
         out.push({
             cursor: row.id,
             contract,
             tokenId,
             collector: row.payload?.buyer ?? "",
             paidMutez: Number(row.payload?.paid ?? 0),
+            params: decodeParams(row.payload?.params),
             name: meta.name || "",
             imageUri: meta.displayUri || meta.thumbnailUri || "",
+            collectionName: facts.name,
+            artist: facts.artist,
+            editionSize: facts.editionSize,
             at: row.timestamp,
         });
     }

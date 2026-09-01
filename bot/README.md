@@ -58,10 +58,14 @@ tag=deploy   collection_id, address, artist, code, code_encoding,
 tag=mint     token_id, buyer, params, paid, render_gas
 ```
 
-So the price in a mint announcement is the price the contract published, not a
-figure reconstructed from an indexer's tables. Neither event carries a display
-name or a picture, because those are metadata documents rather than contract
-state, so each announcement adds one metadata read for the title and the image.
+So the price and the traits in a mint announcement are what the contract
+published, rather than figures reconstructed from an indexer's tables.
+
+Neither event carries a display name or a picture, because those are metadata
+documents rather than contract state, so an announcement adds one read for the
+title and the image. What a collection is called, who made it and how large the
+edition is are read once per collection and held for the life of the process:
+none of it changes per mint, so a busy collection costs two reads in total.
 
 ```
 GET /v1/contracts/events?contract.in=…&tag=mint&id.gt=<mark>&sort.asc=id

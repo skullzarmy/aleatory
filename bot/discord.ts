@@ -135,6 +135,7 @@ export interface Embed {
     url?: string;
     color?: number;
     timestamp?: string;
+    author?: { name: string; url?: string };
     image?: { url: string };
     fields?: { name: string; value: string; inline?: boolean }[];
     footer?: { text: string };
