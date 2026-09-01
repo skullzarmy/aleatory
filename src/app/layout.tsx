@@ -1,6 +1,7 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Anybody } from "next/font/google";
+import { ServiceWorker } from "@/components/ServiceWorker";
 import { ThemeProvider } from "@/components/themeProvider";
 import { WalletProvider } from "@/context/WalletContext";
 import { Header } from "@/components/layout/Header";
@@ -23,6 +24,32 @@ export const metadata: Metadata = {
         url: BRAND.url,
     },
     twitter: { card: "summary_large_image" },
+    // Written as metadata rather than as tags in the markup so there is one
+    // source and nothing can be emitted twice.
+    manifest: "/site.webmanifest",
+    icons: {
+        icon: [
+            { url: "/favicon-96x96.png", type: "image/png", sizes: "96x96" },
+            { url: "/favicon.svg", type: "image/svg+xml" },
+        ],
+        shortcut: "/favicon.ico",
+        apple: { url: "/apple-touch-icon.png", sizes: "180x180" },
+    },
+    appleWebApp: {
+        title: BRAND.name,
+        capable: true,
+        statusBarStyle: "black-translucent",
+    },
+};
+
+/**
+ * The colour the browser paints around the page, and the one behind a splash
+ * screen on a phone. Matching the app means an install does not flash white
+ * before it starts.
+ */
+export const viewport: Viewport = {
+    themeColor: "#17191c",
+    colorScheme: "dark light",
 };
 
 export default function RootLayout({
@@ -59,6 +86,7 @@ export default function RootLayout({
                         </div>
                     </WalletProvider>
                 </ThemeProvider>
+                            <ServiceWorker />
             </body>
         </html>
     );

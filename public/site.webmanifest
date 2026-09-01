@@ -1,0 +1,44 @@
+{
+  "id": "/",
+  "name": "Aleatory",
+  "short_name": "Aleatory",
+  "description": "Fully on-chain generative art on Tezos. A generator is code, published once and never changed.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#17191c",
+  "background_color": "#17191c",
+  "icons": [
+    {
+      "src": "/web-app-manifest-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/web-app-manifest-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/web-app-manifest-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/web-app-manifest-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Recent pieces", "url": "/" },
+    { "name": "Collections", "url": "/collections" },
+    { "name": "Market", "url": "/market" },
+    { "name": "Studio", "url": "/studio" }
+  ]
+}

@@ -23,7 +23,7 @@ export default function robots(): MetadataRoute.Robots {
             {
                 userAgent: "*",
                 allow: "/",
-                disallow: ["/studio/", "/manage/", "/mine", "/api/"],
+                disallow: ["/studio/", "/manage/", "/mine", "/api/", "/offline"],
             },
         ],
         sitemap: `${BRAND.url}/sitemap.xml`,

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Link2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, Link2, Share2 } from "lucide-react";
 
 /**
  * Share a piece.
@@ -29,6 +29,13 @@ export function ShareButtons({
     className?: string;
 }) {
     const [copied, setCopied] = useState(false);
+    // Offered only where it exists. Rendered from an effect rather than during
+    // render, because the server has no navigator and guessing produces a
+    // button that appears and vanishes on hydration.
+    const [canShare, setCanShare] = useState(false);
+    useEffect(() => {
+        setCanShare(typeof navigator !== "undefined" && typeof navigator.share === "function");
+    }, []);
 
     const u = encodeURIComponent(url);
     const t = encodeURIComponent(text);
@@ -44,6 +51,18 @@ export function ShareButtons({
         },
         { name: "Telegram", href: `https://t.me/share/url?url=${u}&text=${t}`, icon: <Paper /> },
     ];
+
+    /**
+     * The platform's own sheet, which knows the apps this person actually has.
+     * A cancelled share throws, and a cancelled share is not a failure.
+     */
+    async function share() {
+        try {
+            await navigator.share({ text, url });
+        } catch {
+            /* dismissed, or refused */
+        }
+    }
 
     async function copy() {
         try {
@@ -73,6 +92,16 @@ export function ShareButtons({
                     </a>
                 ))}
             </div>
+            {canShare && (
+                <button
+                    type="button"
+                    onClick={() => void share()}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-alea-600 px-3 py-2 text-sm font-medium text-white hover:bg-alea-700"
+                >
+                    <Share2 size={14} aria-hidden />
+                    Share
+                </button>
+            )}
             <button
                 type="button"
                 onClick={() => void copy()}
