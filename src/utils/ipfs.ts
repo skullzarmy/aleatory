@@ -60,3 +60,33 @@ export function bytesToString(hex: string): string {
     const bytes = clean.match(/.{2}/g) ?? [];
     return new TextDecoder().decode(new Uint8Array(bytes.map((b) => parseInt(b, 16))));
 }
+
+/**
+ * Gateways to try, in order, when this runs on a server.
+ *
+ * The configured one first, then public fallbacks. A CID names its own bytes,
+ * so any of them either returns exactly the right content or nothing.
+ */
+export const IPFS_GATEWAYS = [
+    ...new Set([GATEWAY, "https://ipfs.fileship.xyz", "https://ipfs.io", "https://gateway.pinata.cloud"]),
+];
+
+/**
+ * The URL to put in an `<img>`.
+ *
+ * Our own origin, not a gateway. A CID is a hash of its bytes, so the content
+ * can never change and the answer is cacheable forever: the first viewer pays
+ * a gateway round trip and the CDN serves everyone after them. It also keeps
+ * every visitor's address off a third party we do not run, which is the same
+ * reason `/api/dep` exists.
+ *
+ * Server-side fetching wants `convertIpfsToGatewayUrl` instead: a relative
+ * path has nothing to resolve against outside a browser.
+ */
+export function ipfsImageUrl(uri: string | undefined): string {
+    if (!uri) return "";
+    if (!isIpfsUri(uri)) return uri;
+    const cid = cidOf(uri).split(/[/?#]/)[0];
+    if (!CID.test(cid)) return "";
+    return `/api/img/${cid}`;
+}

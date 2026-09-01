@@ -14,7 +14,7 @@ import {
     fetchStorage,
     type TokenMetadata,
 } from "./tzkt";
-import { bytesToString, convertIpfsToGatewayUrl } from "@/utils/ipfs";
+import { bytesToString, convertIpfsToGatewayUrl, ipfsImageUrl } from "@/utils/ipfs";
 
 /** The shape of a collection's storage that this page reads. */
 interface CollectionStorage {
@@ -186,7 +186,7 @@ export async function fetchPiece(
         codeHash: storage?.art.code_hash ?? "",
         editionSize: storage ? parseInt(storage.sale.edition_size, 10) : 0,
         minted: storage ? parseInt(storage.next_token_id, 10) : 0,
-        imageUrl: display ? convertIpfsToGatewayUrl(display) : undefined,
+        imageUrl: display ? ipfsImageUrl(display) : undefined,
         provider: m?.aleaProvider,
         renderUrl: codeUri ? renderUrl(codeUri, mint?.hash, m?.aleaParams) : undefined,
         pending,

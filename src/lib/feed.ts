@@ -17,7 +17,7 @@ import {
     type TzktToken,
 } from "./tzkt";
 import { isBlockedCollection } from "./blocklist";
-import { bytesToString, convertIpfsToGatewayUrl } from "@/utils/ipfs";
+import { bytesToString, convertIpfsToGatewayUrl, ipfsImageUrl } from "@/utils/ipfs";
 
 interface TokenDoc {
     name?: string;
@@ -195,7 +195,7 @@ export async function coversFor(collections: string[]): Promise<Map<string, stri
         if (out.has(address)) continue;
         const m = t.metadata ?? docs.get(key(t));
         const display = m?.displayUri || m?.thumbnailUri;
-        if (display) out.set(address, convertIpfsToGatewayUrl(display));
+        if (display) out.set(address, ipfsImageUrl(display));
     }
     return out;
 }
@@ -261,8 +261,8 @@ function toPiece(
         collectionName,
         artist: t.firstMinter?.address,
         mintedAt: t.firstTime,
-        imageUrl: display ? convertIpfsToGatewayUrl(display) : undefined,
-        artifactUrl: m?.artifactUri ? convertIpfsToGatewayUrl(m.artifactUri) : undefined,
+        imageUrl: display ? ipfsImageUrl(display) : undefined,
+        artifactUrl: m?.artifactUri ? ipfsImageUrl(m.artifactUri) : undefined,
         pending,
     };
 }

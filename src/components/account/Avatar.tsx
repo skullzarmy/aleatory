@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchProfile, avatarUrl } from "@/lib/identity";
-import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
+import { ipfsImageUrl } from "@/utils/ipfs";
 
 /**
  * A face for an address.
@@ -50,7 +50,7 @@ export function Avatar({
         };
     }, [address, src]);
 
-    const resolved = url?.startsWith("ipfs://") ? convertIpfsToGatewayUrl(url) : url;
+    const resolved = url?.startsWith("ipfs://") ? ipfsImageUrl(url) : url;
     const round = shape === "circle" ? "rounded-full" : "rounded-md";
 
     if (!resolved || failed) {

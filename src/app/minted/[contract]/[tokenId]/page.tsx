@@ -42,6 +42,19 @@ export default function MintedPage({
     const [collection, setCollection] = useState<Collection | null>(null);
     const [piece, setPiece] = useState<Piece | null>(null);
     const [waited, setWaited] = useState(0);
+    // The published image is an upgrade over a piece already on screen, so it
+    // is loaded out of band and only swapped in once it has actually arrived.
+    // A gateway that is slow or gone leaves the live render where it is.
+    const [imageOk, setImageOk] = useState(false);
+
+    useEffect(() => {
+        setImageOk(false);
+        const url = piece?.imageUrl;
+        if (!url) return;
+        const img = new Image();
+        img.onload = () => setImageOk(true);
+        img.src = url;
+    }, [piece?.imageUrl]);
 
     // The collection has everything needed to draw: the generator, and the
     // royalties and name the piece will inherit.
@@ -91,7 +104,7 @@ export default function MintedPage({
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
                 <div>
                     <div className="aspect-square overflow-hidden rounded-lg border border-border">
-                        {piece?.imageUrl ? (
+                        {piece?.imageUrl && imageOk ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                                 src={piece.imageUrl}

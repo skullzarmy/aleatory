@@ -14,7 +14,7 @@ export { fetchCollectionMeta, type CollectionMeta };
 import { tzktApi } from "./config";
 import { allFactories } from "./router";
 import { isBlockedCollection } from "./blocklist";
-import { bytesToString, convertIpfsToGatewayUrl } from "@/utils/ipfs";
+import { bytesToString, convertIpfsToGatewayUrl, ipfsImageUrl } from "@/utils/ipfs";
 import { coversFor, type FeedPiece } from "./feed";
 import type { ParamsSchema } from "./params";
 import { decodeCode } from "./piece";
@@ -176,8 +176,8 @@ export async function fetchCollectionPieces(
             collectionName: t.contract.alias || "",
             artist: t.firstMinter?.address,
             mintedAt: t.firstTime,
-            imageUrl: display ? convertIpfsToGatewayUrl(display) : undefined,
-            artifactUrl: m?.artifactUri ? convertIpfsToGatewayUrl(m.artifactUri) : undefined,
+            imageUrl: display ? ipfsImageUrl(display) : undefined,
+            artifactUrl: m?.artifactUri ? ipfsImageUrl(m.artifactUri) : undefined,
             pending: !display,
         };
     });
@@ -228,7 +228,7 @@ export async function fetchAllCollections(): Promise<CollectionSummary[]> {
         coverUrl:
             (() => {
                 const own = metas[i].displayUri ?? metas[i].thumbnailUri;
-                return own ? convertIpfsToGatewayUrl(own) : covers.get(c.address);
+                return own ? ipfsImageUrl(own) : covers.get(c.address);
             })(),
         minted: c.tokensCount ?? 0,
         firstActivity: c.firstActivityTime,

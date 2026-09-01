@@ -7,7 +7,7 @@ import { fetchWallet } from "@/lib/feed";
 import { isAddress } from "@/lib/tzkt";
 import { shortAddress } from "@/lib/utils";
 import { resolveName, fetchProfile, avatarUrl, sourceFor } from "@/lib/identity";
-import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
+import { ipfsImageUrl } from "@/utils/ipfs";
 import { LiveRefresh } from "@/components/LiveRefresh";
 
 export const revalidate = 60;
@@ -25,7 +25,7 @@ export async function generateMetadata({
     const title = profile?.name || name || shortAddress(address);
     const picture = avatarUrl(profile);
     const image = picture?.startsWith("ipfs://")
-        ? convertIpfsToGatewayUrl(picture)
+        ? ipfsImageUrl(picture)
         : picture;
 
     return {
