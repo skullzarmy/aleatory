@@ -154,3 +154,141 @@ export async function allFactories(): Promise<string[]> {
 export async function currentMarketplace(): Promise<string> {
     return (await addresses()).marketplaces[0] ?? "";
 }
+
+// ---------------------------------------------------------------------------
+// Every contract the router has ever named
+// ---------------------------------------------------------------------------
+
+/** One contract, and when the router adopted it. */
+export interface Held {
+    address: string;
+    /** Still the one in use. */
+    current: boolean;
+    /** When the router adopted it. Null for the ones it was originated with. */
+    since: string | null;
+    /** The operation that adopted it, for anyone checking. Null at origination. */
+    op: string | null;
+}
+
+export interface Lineage {
+    /** The one address in the environment. Everything else is read from it. */
+    router: string;
+    factories: Held[];
+    marketplaces: Held[];
+    registries: Held[];
+    resolvers: Held[];
+    /** True when the history was longer than we read, so the oldest are missing. */
+    truncated: boolean;
+}
+
+interface HistoryRow {
+    timestamp?: string;
+    operation?: { hash?: string };
+    value?: {
+        factories?: string[];
+        marketplace?: string;
+        registry?: string;
+        resolver?: string;
+    };
+}
+
+const PAGE = 100;
+
+/**
+ * Every contract this router has pointed at, current and retired.
+ *
+ * Read from storage history, which carries each value a field has held and the
+ * operation that put it there. Events would miss everything set at
+ * origination, which is the first of all four.
+ *
+ * A retired contract is still a real contract: collections a retired factory
+ * made are owned by real artists, and a retired marketplace still holds the
+ * listings and escrowed offers made on it. Publishing the whole list is what
+ * lets anyone check that claim rather than take it.
+ */
+export async function lineage(): Promise<Lineage> {
+    const router = CONTRACTS.router;
+    const empty: Lineage = {
+        router,
+        factories: [],
+        marketplaces: [],
+        registries: [],
+        resolvers: [],
+        truncated: false,
+    };
+    if (!router) return empty;
+
+    const rows: HistoryRow[] = [];
+    let truncated = false;
+    for (let offset = 0; ; offset += PAGE) {
+        const res = await fetch(
+            `${tzktApi()}/v1/contracts/${router}/storage/history?limit=${PAGE}&offset=${offset}`,
+        );
+        if (!res.ok) return offset === 0 ? empty : finish(rows, router, true);
+        const page = (await res.json()) as HistoryRow[];
+        rows.push(...page);
+        if (page.length < PAGE) break;
+        // Ten pages is a thousand administrative operations. Past that the page
+        // says the tail is missing instead of scrolling the chain forever.
+        if (rows.length >= 10 * PAGE) {
+            truncated = true;
+            break;
+        }
+    }
+    return finish(rows, router, truncated);
+}
+
+/**
+ * Turn newest-first storage snapshots into an adoption order.
+ *
+ * Walked oldest first, so the moment a field's value differs from the one
+ * before it, that row is when the new one was adopted. The oldest row carries
+ * whatever the router was originated with, which has no adopting operation.
+ */
+function finish(rows: HistoryRow[], router: string, truncated: boolean): Lineage {
+    const oldestFirst = [...rows].reverse();
+
+    const single = (pick: (v: NonNullable<HistoryRow["value"]>) => string | undefined): Held[] => {
+        const held: Held[] = [];
+        for (const [i, row] of oldestFirst.entries()) {
+            const address = row.value ? pick(row.value) : undefined;
+            if (!address || address === held[held.length - 1]?.address) continue;
+            held.push({
+                address,
+                current: false,
+                since: i === 0 ? null : (row.timestamp ?? null),
+                op: i === 0 ? null : (row.operation?.hash ?? null),
+            });
+        }
+        return mark(held);
+    };
+
+    // A factory is consed on, so each row's head is the one that row added.
+    const factories: Held[] = [];
+    for (const [i, row] of oldestFirst.entries()) {
+        for (const address of row.value?.factories ?? []) {
+            if (factories.some((f) => f.address === address)) continue;
+            factories.push({
+                address,
+                current: false,
+                since: i === 0 ? null : (row.timestamp ?? null),
+                op: i === 0 ? null : (row.operation?.hash ?? null),
+            });
+        }
+    }
+
+    return {
+        router,
+        factories: mark(factories),
+        marketplaces: single((v) => v.marketplace),
+        registries: single((v) => v.registry),
+        resolvers: single((v) => v.resolver),
+        truncated,
+    };
+}
+
+/** Newest first, with the head marked as the one in use. */
+function mark(held: Held[]): Held[] {
+    const newestFirst = [...held].reverse();
+    return newestFirst.map((h, i) => ({ ...h, current: i === 0 }));
+}

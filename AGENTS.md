@@ -6,11 +6,13 @@ contracts and [ALEATORY-001](docs/interface.md) are the platform, and a piece
 resolves from chain state, so the code here is one implementation of a spec
 anyone can implement.
 
-Writing a generator is a different job with a different document:
-[public/llms.txt](public/llms.txt), served at
-<https://aleatory.art/llms.txt>. It carries the harness, the three rules, the
-two declarations and a worked file. The same thing packaged as an installable
-skill is [public/skill/aleatory-generator/SKILL.md](public/skill/aleatory-generator/SKILL.md).
+Working on the platform is this file. Using it is
+[public/skill/SKILL.md](public/skill/SKILL.md), served at
+`/skill/SKILL.md`: a map, and three skills
+beside it for the artist, the provider operator and anyone building against
+ALEATORY-001. [public/llms.txt](public/llms.txt) at `/llms.txt` is the artist
+one again, as a single page for anything that reads a site rather than
+installing a skill.
 
 ---
 
@@ -133,8 +135,9 @@ npm run bot:check         read the chain, print the channel names
 ```
 
 Reach for a `:check` first. A provider run spends render budget, pinning quota
-and gas, and writes a token's metadata permanently: `set_token_metadata`
-accepts one write per token and refuses the second.
+and gas. `set_token_metadata` is rewritable by an authorised writer, on
+purpose, so a publish whose confirmation was missed can be retried; the
+spending is what a dry run saves.
 
 **The operator runs their own dev server.** Leave the ports alone.
 

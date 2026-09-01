@@ -972,8 +972,8 @@ def aleatory():
         def register(self, provider):
             """(Anyone) List a provider contract.
 
-            Checks the two views that define a provider, so an entry that
-            cannot possibly be used never lands in the list. That is a
+            Checks the three views that define a provider, so an entry
+            that cannot possibly be used never lands in the list. That is a
             type check, not an endorsement.
             """
             sp.cast(provider, sp.address)

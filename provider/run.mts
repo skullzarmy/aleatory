@@ -9,9 +9,10 @@
  *   npm run provider:check   scan and report, change nothing
  *   npm run provider:run     render, pin and publish
  *
- * A run spends render budget, pinning quota and the agent's gas, and writes a
- * token's metadata permanently: `set_token_metadata` accepts one write per
- * token and refuses the second.
+ * A run spends render budget, pinning quota and the agent's gas.
+ * `set_token_metadata` is rewritable by an authorised writer, deliberately, so
+ * a publish that landed without its confirmation being seen can be corrected.
+ * The spending is the part a dry run saves.
  *
  * No claim store here. That exists to stop two concurrent invocations
  * rendering the same piece; one process cannot race itself.

@@ -240,6 +240,6 @@ alea.ready();
 - Under 32,768 bytes
 - Opening it twice with the same seed gives the same image
 
-Starter kits and a studio that checks all of this before publishing:
-<https://aleatory.art/templates>. The protocol specification is ALEATORY-001,
-at <https://aleatory.art/docs/interface>.
+This file is self-contained. The site it came from serves starter kits at
+`/templates` and the protocol specification, ALEATORY-001, at
+`/docs/interface`.

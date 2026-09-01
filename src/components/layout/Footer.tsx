@@ -7,6 +7,7 @@ const LINKS = [
     { href: "/tezos", label: "New to Tezos" },
     { href: "/templates", label: "Starter kits" },
     { href: "/docs/interface", label: "ALEATORY-001" },
+    { href: "/contracts", label: "Contracts" },
     { href: "/terms", label: "Terms" },
     { href: "/terms/privacy", label: "Privacy" },
 ];

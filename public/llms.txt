@@ -295,12 +295,8 @@ alea.ready();
 
 ---
 
-If you install skills, this page is also packaged as one:
-<https://aleatory.art/skill/aleatory-generator/SKILL.md>
+Paths below are on this host, the one you fetched this page from.
 
-Starter kits, and a studio that checks all of the above before publishing:
-<https://aleatory.art/templates>
-
-ALEATORY-001, the protocol specification, is at
-<https://aleatory.art/docs/interface>, for anyone building a renderer or a
-viewer.
+- `/skill/aleatory-generator/SKILL.md`, this page packaged as an installable skill
+- `/templates`, starter kits and a studio that checks all of the above before publishing
+- `/docs/interface`, ALEATORY-001, for anyone building a renderer or a viewer
