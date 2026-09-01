@@ -9,6 +9,7 @@ import { tzktApi, tzktLink } from "@/lib/config";
 import type { Provider } from "@/lib/providers";
 import type { Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
+import { detectParams } from "@/lib/detect";
 import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
 import {
@@ -105,6 +106,14 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     }, [address, royaltyTotal, platformShare, platformPercent, platformAddress]);
 
     const preview = useMemo(() => royaltyPreview(split), [split]);
+
+    // Read from the document, which is where the declaration lives. This form
+    // shows what is about to be written on chain, so it reads the same source
+    // the publish path does.
+    const declared = useMemo(
+        () => (draft ? (detectParams(draft.html)?.params ?? []) : []),
+        [draft],
+    );
 
     // A new set of recipients is a new question. Without this, acknowledging a
     // warning about one address would deploy past an unchecked different one.
@@ -357,7 +366,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 >
                     <CoverPicker
                         html={draft.html}
-                        params={draft.params}
+                        params={declared}
                         baseSeed={draft.seed}
                         onCaptured={setCover}
                     />
@@ -375,8 +384,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                         <p className="mt-0.5 text-xs text-muted-foreground">
                             {new TextEncoder().encode(draft.html).length.toLocaleString()} bytes
                             from your draft
-                            {draft.params.length > 0 &&
-                                `, ${draft.params.length} parameter${draft.params.length === 1 ? "" : "s"}: ${draft.params
+                            {declared.length > 0 &&
+                                `, ${declared.length} parameter${declared.length === 1 ? "" : "s"}: ${declared
                                     .map((p) => p.label || p.id)
                                     .join(", ")}`}
                         </p>

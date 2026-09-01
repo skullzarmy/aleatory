@@ -18,6 +18,7 @@
 import type { DAppClient } from "@tezos-x/octez.connect-sdk";
 import { deployCollection } from "./ops";
 import { buildPendingDocument, royaltiesToBps, type RoyaltySplit } from "@provider/metadata";
+import { detectParams } from "./detect";
 import { schemaForRecord } from "./params";
 import { getKind } from "./runtimes";
 import type { Draft } from "./draft";
@@ -162,7 +163,7 @@ export async function publishCollection(
     });
 
     onStage?.("signing");
-    const schema = schemaForRecord(draft.params);
+    const schema = schemaForRecord(detectParams(draft.html)?.params ?? []);
 
     // What this generator expects a renderer to load for it. Recorded on chain
     // because a renderer that cannot see this cannot draw the piece, and a

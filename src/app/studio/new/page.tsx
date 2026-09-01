@@ -29,11 +29,10 @@ import type { ParamSpec } from "@/lib/params";
  * the file and opening it are two steps now, and the second one is the artist's.
  */
 /** A file that has been read, waiting on the artist to confirm what it says. */
+/** A file that has been read and not yet opened. */
 interface Held {
     name: string;
     project: PackagedProject;
-    /** What the file declared, or null if it declared nothing. */
-    params: ParamSpec[] | null;
 }
 
 export default function NewGeneratorPage() {
@@ -103,13 +102,7 @@ export default function NewGeneratorPage() {
                 // unless we say so.
                 notes: found?.notes ?? [],
             });
-            setOpened({
-                name: file.name.replace(/\.(html?|zip)$/i, ""),
-                project,
-                // Null rather than the kind's defaults: which defaults are right
-                // depends on the kind, and the kind is still being corrected.
-                params: found?.params ?? null,
-            });
+            setOpened({ name: file.name.replace(/\.(html?|zip)$/i, ""), project });
             setBusy(false);
         } catch (e) {
             setBusy(false);
@@ -122,11 +115,14 @@ export default function NewGeneratorPage() {
         setBusy(true);
         setError(null);
         try {
+            // A file that declares its own parameters already carries them, so
+            // nothing is written over them. One that declares none gets the
+            // kind's defaults, on whatever kind the artist settled on.
             const draft = newDraft(
                 held.name,
                 kindId,
                 held.project,
-                held.params ?? templateParamsFor(kindId),
+                detectParams(held.project.html) ? [] : templateParamsFor(kindId),
             );
             await saveDraft(draft);
             router.push(`/studio/${draft.id}`);

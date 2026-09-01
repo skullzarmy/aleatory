@@ -10,6 +10,7 @@
  * real answer to durability: the artist's own disk.
  */
 import type { ParamSpec } from "./params";
+import { withParams } from "./detect";
 import type { PackagedProject } from "./project";
 
 const DB = "aleatory-studio";
@@ -21,10 +22,15 @@ export interface Draft {
     name: string;
     /** Runtime kind, from runtimes.ts. */
     kindId: number;
-    /** The generator, with its local files already inlined. */
+    /**
+     * The generator, with its local files already inlined.
+     *
+     * It carries the declared parameters too, in `$alea.paramsSchema`, the way
+     * it carries declared libraries in a meta tag. Read them with
+     * `detectParams`, write them with `withParams`. A second copy beside the
+     * document is a copy that can disagree with it.
+     */
     html: string;
-    /** Declared parameters, up to five, per params.md. */
-    params: ParamSpec[];
     /** The seed the artist pinned as the one they look at. */
     seed: string;
     createdAt: number;
@@ -146,8 +152,9 @@ export function newDraft(
         id: crypto.randomUUID(),
         name,
         kindId,
-        html: project.html,
-        params,
+        // Declared into the document when a kind supplies defaults, so the
+        // starting point is a file that says what it wants, like any other.
+        html: params.length > 0 ? withParams(project.html, params) : project.html,
         seed: randomSeed(),
         createdAt: Date.now(),
         updatedAt: Date.now(),

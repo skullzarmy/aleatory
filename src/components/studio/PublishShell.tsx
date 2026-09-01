@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { getDraft, type Draft } from "@/lib/draft";
+import { detectParams } from "@/lib/detect";
 import { validateSchema } from "@/lib/params";
 import type { Provider } from "@/lib/providers";
 import { DeployForm } from "./DeployForm";
@@ -53,7 +54,7 @@ export function PublishShell({ providers }: { providers: Provider[] }) {
         );
     }
 
-    const errors = validateSchema(draft.params);
+    const errors = validateSchema(detectParams(draft.html)?.params ?? []);
 
     return (
         <div className="mx-auto max-w-2xl px-4 py-8">

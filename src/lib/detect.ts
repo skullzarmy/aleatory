@@ -542,3 +542,71 @@ export function detectParams(html: string): ParamsDetection | null {
 
     return null;
 }
+
+/**
+ * Rewrite a document's parameter declaration to exactly these.
+ *
+ * The mirror of `withLibraries`, and for the same reason: the declaration
+ * belongs inside the artist's file. A schema kept beside the document is lost
+ * the first time they export it, work on it elsewhere for a week and bring it
+ * back, and until then the panel and the file can disagree about a piece that
+ * is published immutably.
+ *
+ * ALEATORY-001 says a generator declares its own parameters. Writing them here
+ * is what makes the standard the storage.
+ *
+ * **Every parseable declaration is replaced by one canonical block**, the way
+ * `withLibraries` rewrites every meta tag. The panel is the editor for this
+ * part of the document, so leaving an older one behind would leave the file
+ * saying two things.
+ *
+ * The block goes last, before `</body>`. The starter kits build their dev
+ * harness in the body, so a block in `<head>` would both lose to the harness's
+ * own assignment and create `window.$alea` early enough that the guard below
+ * skips building the harness at all.
+ *
+ * Only the `$alea.paramsSchema` form is written. The other three are import
+ * paths, and rewriting somebody's `$fx.params` call would edit code that still
+ * has to run.
+ */
+export function withParams(html: string, specs: ParamSpec[]): string {
+    let out = html;
+
+    // Each assignment, with its array and any trailing semicolon, removed by
+    // measuring the literal rather than by pattern, so a `]` inside a string
+    // or a comment cannot cut one short.
+    for (;;) {
+        const at = out.search(/(?:window\.)?\$alea\.paramsSchema\s*=\s*\[/);
+        if (at === -1) break;
+        const open = out.indexOf("[", at);
+        const raw = arrayLiteralAt(out, open);
+        if (raw === null) break;
+        let end = open + raw.length;
+        while (out[end] === ";" || out[end] === " " || out[end] === "\t") end++;
+        if (out[end] === "\r") end++;
+        if (out[end] === "\n") end++;
+        let begin = at;
+        while (begin > 0 && (out[begin - 1] === " " || out[begin - 1] === "\t")) begin--;
+        out = out.slice(0, begin) + out.slice(end);
+    }
+
+    // A script tag left holding nothing but whitespace after that.
+    out = out.replace(/[ \t]*<script>\s*<\/script>[ \t]*\r?\n?/gi, "");
+
+    if (specs.length === 0) return out;
+
+    const body = specs.map((spec) => `    ${JSON.stringify(spec)}`).join(",\n");
+    const block = `<script>
+  // Declared parameters. Edit here or in the studio panel; they are the same
+  // thing. Written on chain at publish, and read by your code as
+  // alea.param(id, fallback).
+  window.$alea = window.$alea || {};
+  window.$alea.paramsSchema = [
+${body}
+  ];
+</script>`;
+
+    if (/<\/body>/i.test(out)) return out.replace(/<\/body>/i, `${block}\n</body>`);
+    if (/<\/html>/i.test(out)) return out.replace(/<\/html>/i, `${block}\n</html>`);
+    return `${out}\n${block}\n`;
+}

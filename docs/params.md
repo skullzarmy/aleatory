@@ -42,7 +42,7 @@ The last literal assignment wins, which is what the file itself does with those 
 
 One bad field costs one parameter, never the set. An unusable name, a step larger than its range, or a second id that collides once cleaned is dropped with a line saying so, and the rest survive. Ids are never repaired: `alea.param("density")` reads the id back at render time, so a renamed one is a control that tunes nothing.
 
-The declaration in the file is a starting point shown to the artist. What is published is whatever the params panel holds when they deploy, and that is what lands under `aleatory:params`.
+**The document is the record.** The studio's params panel edits the declaration in the file, the way the library picker edits the `alea:library` tags, so there is one copy and it is the artist's own file. Export it, work on it elsewhere for a week, bring it back, and it still says what it wants. What lands under `aleatory:params` at publish is read from the document.
 
 ```json
 {
