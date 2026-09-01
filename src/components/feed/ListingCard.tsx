@@ -59,10 +59,16 @@ export function ListingCard({
                     {piece?.collectionName || shortAddress(listing.collection)}
                 </p>
                 <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
-                    <span className="truncate">
+                    <span className="min-w-0 truncate">
                         <AccountName address={listing.seller} />
                     </span>
-                    {piece?.mintedAt ? <TimeAgo iso={piece.mintedAt} /> : <span />}
+                    {piece?.mintedAt ? (
+                        <span className="shrink-0">
+                            <TimeAgo iso={piece.mintedAt} />
+                        </span>
+                    ) : (
+                        <span />
+                    )}
                 </div>
             </div>
         </Link>

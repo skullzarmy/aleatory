@@ -8,7 +8,7 @@ import { AccountLink } from "@/components/account/AccountLink";
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <div className="flex items-baseline justify-between gap-4 py-2 text-sm">
-            <span className="text-muted-foreground">{label}</span>
+            <span className="shrink-0 text-muted-foreground">{label}</span>
             <span className="min-w-0 truncate text-right font-medium">{children}</span>
         </div>
     );
@@ -80,9 +80,15 @@ export function PieceFacts({ piece }: { piece: Piece }) {
                     <p className="pb-2 text-sm text-muted-foreground">Parameters</p>
                     <dl className="space-y-1">
                         {Object.entries(params).map(([k, v]) => (
-                            <div key={k} className="flex justify-between text-sm">
-                                <dt className="text-muted-foreground">{k}</dt>
-                                <dd className="font-medium">{String(v)}</dd>
+                            <div key={k} className="flex justify-between gap-4 text-sm">
+                                <dt className="min-w-0 truncate text-muted-foreground" title={k}>
+                                    {k}
+                                </dt>
+                                {/* A parameter is part of what determines the
+                                    piece, so it wraps and stays readable. */}
+                                <dd className="min-w-0 break-words text-right font-medium">
+                                    {String(v)}
+                                </dd>
                             </div>
                         ))}
                     </dl>
@@ -94,11 +100,13 @@ export function PieceFacts({ piece }: { piece: Piece }) {
                     <p className="pb-2 text-sm text-muted-foreground">Royalties</p>
                     <dl className="space-y-1">
                         {piece.royalties.map((r) => (
-                            <div key={r.address} className="flex justify-between text-sm">
-                                <dt className="text-muted-foreground">
+                            <div key={r.address} className="flex justify-between gap-4 text-sm">
+                                <dt className="min-w-0 text-muted-foreground">
                                     <AccountLink address={r.address} />
                                 </dt>
-                                <dd className="font-medium">{(r.bps / 100).toFixed(2)}%</dd>
+                                <dd className="shrink-0 font-medium">
+                                    {(r.bps / 100).toFixed(2)}%
+                                </dd>
                             </div>
                         ))}
                     </dl>

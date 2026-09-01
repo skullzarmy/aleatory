@@ -551,12 +551,13 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                         On every secondary sale
                     </p>
                     {preview.map((r) => (
-                        <div key={r.address} className="flex justify-between">
-                            <span className="text-muted-foreground">
+                        <div key={r.address} className="flex justify-between gap-3">
+                            <span className="min-w-0 truncate text-muted-foreground">
                                 <AccountName address={r.address} />
                             </span>
-                            <span className="font-medium">
-                                {r.percentOfSale.toFixed(2)}% of the sale price
+                            <span className="shrink-0 font-medium">
+                                {r.percentOfSale.toFixed(2)}%
+                                <span className="hidden sm:inline"> of the sale price</span>
                             </span>
                         </div>
                     ))}

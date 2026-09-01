@@ -113,8 +113,8 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
 function Row({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="text-right font-medium">{value}</dd>
+            <dt className="shrink-0 text-muted-foreground">{label}</dt>
+            <dd className="min-w-0 truncate text-right font-medium">{value}</dd>
         </div>
     );
 }

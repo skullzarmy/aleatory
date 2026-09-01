@@ -102,7 +102,7 @@ export default function MintedPage({
             </header>
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <div>
+                <div className="min-w-0">
                     <div className="aspect-square overflow-hidden rounded-lg border border-border">
                         {piece?.imageUrl && imageOk ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -135,7 +135,7 @@ export default function MintedPage({
                     </p>
                 </div>
 
-                <div className="space-y-4">
+                <div className="min-w-0 space-y-4">
                     <dl className="divide-y divide-border rounded-lg border border-border text-sm">
                         <Row label="Owner">
                             {piece?.owner && piece.owner !== address ? (
@@ -181,8 +181,13 @@ export default function MintedPage({
                                 <dl className="space-y-1 text-sm">
                                     {specsOf(collection.paramsSchema).map((spec) => (
                                         <div key={spec.id} className="flex justify-between gap-3">
-                                            <dt className="text-muted-foreground">{spec.label}</dt>
-                                            <dd className="font-medium">
+                                            <dt
+                                                className="min-w-0 truncate text-muted-foreground"
+                                                title={spec.label}
+                                            >
+                                                {spec.label}
+                                            </dt>
+                                            <dd className="min-w-0 break-words text-right font-medium">
                                                 {formatParamValue(spec, values[spec.id])}
                                             </dd>
                                         </div>

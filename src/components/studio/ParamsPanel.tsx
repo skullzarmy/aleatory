@@ -362,8 +362,8 @@ export function ParamsTuner({
                 return (
                     <div key={spec.id}>
                         <div className="flex items-baseline justify-between gap-2">
-                            <span className="text-sm">{spec.label}</span>
-                            <span className="font-mono text-xs text-muted-foreground">
+                            <span className="min-w-0 truncate text-sm">{spec.label}</span>
+                            <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
                                 {formatParamValue(spec, value)}
                             </span>
                         </div>

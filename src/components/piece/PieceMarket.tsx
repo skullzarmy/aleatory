@@ -269,11 +269,14 @@ export function PieceMarket({
                 {offers.length > 0 && (
                     <ul className="mt-3 space-y-1.5">
                         {offers.map((o) => (
-                            <li key={o.id} className="flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">
+                            <li
+                                key={o.id}
+                                className="flex items-center justify-between gap-3 text-sm"
+                            >
+                                <span className="min-w-0 text-muted-foreground">
                                     <AccountLink address={o.buyer} />
                                 </span>
-                                <span className="flex items-center gap-2">
+                                <span className="flex shrink-0 items-center gap-2">
                                     <span className="font-medium">{tez(o.amountMutez)}</span>
                                     {isOwner && (
                                         <button

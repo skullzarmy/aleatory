@@ -32,7 +32,7 @@ export function MintView({
 
     return (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-            <div>
+            <div className="min-w-0">
                 <ArtifactFrame
                     code={collection.code}
                     seed={previewSeed}
@@ -45,7 +45,7 @@ export function MintView({
                 </p>
             </div>
 
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4">
                 <MintPanel
                     collection={collection}
                     schema={schema}

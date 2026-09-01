@@ -30,9 +30,9 @@ export function SkeletonGrid({ count = 8 }: { count?: number }) {
 
 export function SkeletonPiece() {
     return (
-        <div className="grid gap-8 lg:grid-cols-[1fr_20rem]" aria-hidden="true">
-            <div className="pending-shimmer aspect-square w-full rounded-lg border border-border" />
-            <div className="space-y-4">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]" aria-hidden="true">
+            <div className="pending-shimmer aspect-square w-full min-w-0 rounded-lg border border-border" />
+            <div className="min-w-0 space-y-4">
                 <div className="pending-shimmer h-6 w-2/3 rounded" />
                 <div className="pending-shimmer h-4 w-1/3 rounded" />
                 <div className="pending-shimmer h-32 w-full rounded-lg" />

@@ -36,9 +36,13 @@ export function ProfileCard({
 
             <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <h1 className="text-xl font-semibold tracking-tight">{heading}</h1>
+                    <h1 className="break-words text-xl font-semibold tracking-tight">
+                        {heading}
+                    </h1>
                     {subtitle && (
-                        <span className="text-sm text-muted-foreground">{subtitle}</span>
+                        <span className="break-words text-sm text-muted-foreground">
+                            {subtitle}
+                        </span>
                     )}
                     {profile?.status && (
                         <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
@@ -48,7 +52,7 @@ export function ProfileCard({
                 </div>
 
                 {profile?.bio && (
-                    <p className="mt-2 max-w-prose text-sm text-muted-foreground">
+                    <p className="mt-2 max-w-prose break-words text-sm text-muted-foreground">
                         {profile.bio}
                     </p>
                 )}

@@ -23,11 +23,16 @@ function escape(s: string): string {
 /** Inline markup, applied to already-escaped text. */
 function inline(s: string): string {
     return escape(s)
-        .replace(/`([^`]+)`/g, '<code class="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">$1</code>')
+        // An entrypoint name, a contract address or a storage key has no
+        // spaces in it, and a phone is narrower than most of them.
+        .replace(
+            /`([^`]+)`/g,
+            '<code class="break-words rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">$1</code>',
+        )
         .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
         .replace(
             /\[([^\]]+)\]\(([^)\s]+)\)/g,
-            '<a href="$2" class="underline underline-offset-2 hover:text-foreground">$1</a>',
+            '<a href="$2" class="break-words underline underline-offset-2 hover:text-foreground">$1</a>',
         );
 }
 

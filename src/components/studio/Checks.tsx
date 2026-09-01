@@ -187,7 +187,7 @@ export function Checks({
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-muted-foreground">
                     Checks run against the seed you have chosen.
                 </p>
@@ -195,7 +195,7 @@ export function Checks({
                     type="button"
                     onClick={() => void run()}
                     disabled={running}
-                    className="rounded-md bg-alea-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
+                    className="shrink-0 rounded-md bg-alea-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
                 >
                     {running ? "Running" : "Run checks"}
                 </button>

@@ -80,16 +80,18 @@ export default async function ProviderPage({
                     size={48}
                     fallback={provider.name}
                 />
-                {provider.name || shortAddress(provider.address)}
+                <span className="min-w-0 break-words">
+                    {provider.name || shortAddress(provider.address)}
+                </span>
                 {provider.isOurs && (
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                         ours
                     </span>
                 )}
             </h1>
 
             {provider.description && (
-                <p className="mt-2 max-w-prose text-sm text-muted-foreground">
+                <p className="mt-2 max-w-prose break-words text-sm text-muted-foreground">
                     {provider.description}
                 </p>
             )}
@@ -99,7 +101,7 @@ export default async function ProviderPage({
                     href={tzktLink(provider.address)}
                     target="_blank"
                     rel="noreferrer"
-                    className="underline hover:text-foreground"
+                    className="break-all underline hover:text-foreground"
                 >
                     {provider.address}
                 </a>

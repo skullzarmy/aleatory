@@ -188,7 +188,7 @@ export function MintPanel({
                         type="button"
                         onClick={randomize}
                         disabled={busy}
-                        className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-60"
+                        className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-60"
                     >
                         Randomize
                     </button>
@@ -268,9 +268,13 @@ function ParamControl({
 
     return (
         <label className="block space-y-1">
-            <span className="flex items-baseline justify-between text-sm">
-                <span>{spec.label}</span>
-                <span className="text-xs text-muted-foreground">{String(current)}</span>
+            {/* Both sides are the artist's: they named the parameter and they
+                set its range. Neither length is ours to assume. */}
+            <span className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate">{spec.label}</span>
+                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                    {String(current)}
+                </span>
             </span>
 
             {spec.type === "number" || spec.type === "int" ? (

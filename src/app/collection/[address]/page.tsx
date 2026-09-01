@@ -66,7 +66,7 @@ export default async function CollectionPage({ params }: { params: Params }) {
                     it is the first thing the page is about. The address is
                     here too, because this is the page somebody checks, but it
                     is not the title. */}
-                <h1 className="text-xl font-semibold tracking-tight">
+                <h1 className="break-words text-xl font-semibold tracking-tight">
                     {collection.name || shortAddress(collection.address)}
                 </h1>
 
@@ -89,7 +89,7 @@ export default async function CollectionPage({ params }: { params: Params }) {
                 </div>
 
                 {collection.description && (
-                    <p className="mt-3 max-w-prose whitespace-pre-line text-sm text-muted-foreground">
+                    <p className="mt-3 max-w-prose whitespace-pre-line break-words text-sm text-muted-foreground">
                         {collection.description}
                     </p>
                 )}
@@ -101,11 +101,13 @@ export default async function CollectionPage({ params }: { params: Params }) {
                 <div className="mt-6 max-w-sm rounded-lg border border-border p-4">
                     <p className="pb-2 text-sm text-muted-foreground">Royalties</p>
                     {collection.royalties.map((r) => (
-                        <div key={r.address} className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">
+                        <div key={r.address} className="flex justify-between gap-4 text-sm">
+                            <span className="min-w-0 text-muted-foreground">
                                 <AccountLink address={r.address} />
                             </span>
-                            <span className="font-medium">{(r.bps / 100).toFixed(2)}%</span>
+                            <span className="shrink-0 font-medium">
+                                {(r.bps / 100).toFixed(2)}%
+                            </span>
                         </div>
                     ))}
                 </div>

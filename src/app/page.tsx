@@ -39,7 +39,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-4 py-8">
             <LiveRefresh seconds={30} />
             <SiteJsonLd />
-            <div className="mb-6 flex items-baseline justify-between">
+            <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
                 <h1 className="text-xl font-semibold tracking-tight">Recent</h1>
                 <p className="text-sm text-muted-foreground">
                     Newest pieces across every collection

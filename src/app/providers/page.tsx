@@ -51,11 +51,11 @@ export default async function ProvidersPage() {
                             <Avatar address={p.address} src={p.avatarUri ?? null} shape="square" size={40} fallback={p.name} />
                             <span className="min-w-0 flex-1">
                                 <span className="flex items-center gap-2">
-                                    <span className="truncate font-medium">
+                                    <span className="min-w-0 truncate font-medium">
                                         {p.name || shortAddress(p.address)}
                                     </span>
                                     {p.isOurs && (
-                                        <span className="rounded bg-alea-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-alea-800 dark:bg-alea-900 dark:text-alea-100">
+                                        <span className="shrink-0 rounded bg-alea-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-alea-800 dark:bg-alea-900 dark:text-alea-100">
                                             ours
                                         </span>
                                     )}

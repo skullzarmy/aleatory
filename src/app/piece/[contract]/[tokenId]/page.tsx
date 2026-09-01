@@ -74,17 +74,23 @@ export default async function PiecePage({ params }: { params: Params }) {
                 url={`${BRAND.url}/piece/${contract}/${tokenId}`}
             />
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-                <ArtifactFrame
-                    code={piece.code}
-                    seed={piece.seed}
-                    imageUrl={piece.imageUrl}
-                    name={piece.name}
-                />
+                <div className="min-w-0">
+                    <ArtifactFrame
+                        code={piece.code}
+                        seed={piece.seed}
+                        imageUrl={piece.imageUrl}
+                        name={piece.name}
+                    />
+                </div>
 
-                <div>
-                    <h1 className="text-xl font-semibold tracking-tight">{piece.name}</h1>
+                <div className="min-w-0">
+                    <h1 className="break-words text-xl font-semibold tracking-tight">
+                        {piece.name}
+                    </h1>
                     {piece.description && (
-                        <p className="mt-2 text-sm text-muted-foreground">{piece.description}</p>
+                        <p className="mt-2 break-words text-sm text-muted-foreground">
+                            {piece.description}
+                        </p>
                     )}
 
                     {piece.pending && (
