@@ -4,7 +4,7 @@ import { fetchCollection, fetchCollectionPieces } from "@/lib/collection";
 import { MintView } from "@/components/collection/MintView";
 import { FeedGrid } from "@/components/feed/FeedGrid";
 import { shortAddress } from "@/lib/utils";
-import { BRAND } from "@/lib/config";
+import { BRAND, tzktLink } from "@/lib/config";
 import { coversFor } from "@/lib/feed";
 import { AccountLink } from "@/components/account/AccountLink";
 import { LiveRefresh } from "@/components/LiveRefresh";
@@ -62,13 +62,37 @@ export default async function CollectionPage({ params }: { params: Params }) {
                 url={`${BRAND.url}/collection/${address}`}
             />
             <header className="mb-6">
+                {/* The artist's name for it. They typed it, it is on chain, and
+                    it is the first thing the page is about. The address is
+                    here too, because this is the page somebody checks, but it
+                    is not the title. */}
                 <h1 className="text-xl font-semibold tracking-tight">
-                    {shortAddress(collection.address)}
+                    {collection.name || shortAddress(collection.address)}
                 </h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    by{" "}
+
+                {/* A row rather than a paragraph with an inline-flex dropped
+                    into it: an avatar is taller than the text beside it, so on
+                    a text baseline the name sits low and the gap where the
+                    picture goes reads as a hole. */}
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                    <span>by</span>
                     <AccountLink address={collection.artist} withAvatar />
-                </p>
+                    <span aria-hidden>·</span>
+                    <a
+                        href={tzktLink(collection.address)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-xs hover:text-foreground hover:underline"
+                    >
+                        {shortAddress(collection.address)}
+                    </a>
+                </div>
+
+                {collection.description && (
+                    <p className="mt-3 max-w-prose whitespace-pre-line text-sm text-muted-foreground">
+                        {collection.description}
+                    </p>
+                )}
             </header>
 
             <MintView collection={collection} schema={collection.paramsSchema} />

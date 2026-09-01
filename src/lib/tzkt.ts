@@ -244,6 +244,15 @@ export async function fetchMintOperation(
 export interface CollectionMeta {
     name?: string;
     description?: string;
+    /**
+     * The cover the artist picked at deploy, pinned then and on chain since.
+     *
+     * The deploy form calls it "what your collection looks like everywhere it
+     * is listed", so anywhere a collection is shown before a piece of it has
+     * been rendered, this is the picture to show.
+     */
+    displayUri?: string;
+    thumbnailUri?: string;
 }
 
 export async function fetchCollectionMeta(address: string): Promise<CollectionMeta> {
@@ -257,11 +266,13 @@ export async function fetchCollectionMeta(address: string): Promise<CollectionMe
     const raw = (row as { value?: string } | null)?.value;
     if (!raw) return {};
     try {
-        const doc = JSON.parse(bytesToString(raw)) as {
-            name?: string;
-            description?: string;
+        const doc = JSON.parse(bytesToString(raw)) as CollectionMeta;
+        return {
+            name: doc.name,
+            description: doc.description,
+            displayUri: doc.displayUri,
+            thumbnailUri: doc.thumbnailUri,
         };
-        return { name: doc.name, description: doc.description };
     } catch {
         return {};
     }

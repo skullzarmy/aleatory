@@ -187,7 +187,10 @@ export interface CollectionSummary {
     address: string;
     name?: string;
     description?: string;
-    /** The newest piece that has an image. Absent until one is published. */
+    /**
+     * The cover the artist chose at deploy, or the newest rendered piece when
+     * a collection has none. Absent only when there is neither.
+     */
     coverUrl?: string;
     minted: number;
     firstActivity?: string;
@@ -219,7 +222,14 @@ export async function fetchAllCollections(): Promise<CollectionSummary[]> {
         // contracts it happens to know and never for ours.
         name: metas[i].name || c.alias,
         description: metas[i].description,
-        coverUrl: covers.get(c.address),
+        // The artist's own cover first. They picked it and we pinned it at
+        // deploy, so a collection has a face from the moment it exists rather
+        // than from whenever its first piece finishes rendering.
+        coverUrl:
+            (() => {
+                const own = metas[i].displayUri ?? metas[i].thumbnailUri;
+                return own ? convertIpfsToGatewayUrl(own) : covers.get(c.address);
+            })(),
         minted: c.tokensCount ?? 0,
         firstActivity: c.firstActivityTime,
     }));
