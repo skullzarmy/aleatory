@@ -16,6 +16,7 @@ import {
     type ParamSpec,
 } from "@/lib/params";
 import * as ops from "@/lib/ops";
+import { IsolateFrame } from "@/components/IsolateFrame";
 
 /**
  * Buy one piece.
@@ -105,15 +106,34 @@ export function MintPanel({
         }
     }
 
-    // Reached when the operation landed but the indexer has not caught up
-    // within the window. The piece exists and is theirs; this says where it is.
+    // Reached when the operation landed and the indexer has not caught up
+    // within the window.
+    //
+    // Nothing here waits on anybody. The seed is the hash of the operation
+    // they just signed, the generator came out of contract storage before they
+    // signed it, and a piece is a pure function of the two, so their piece can
+    // be on screen the moment it exists. The indexer, the render provider and
+    // the pin are all downstream of a picture we can already draw.
     if (hash) {
         return (
-            <div className="space-y-2 rounded-lg border border-border p-4">
-                <p className="text-sm font-medium">It&apos;s yours</p>
+            <div className="space-y-3 rounded-lg border border-border p-4">
+                {collection.code && (
+                    <div className="overflow-hidden rounded-lg border border-border">
+                        <div className="aspect-square">
+                            <IsolateFrame
+                                code={collection.code}
+                                seed={hash}
+                                params={resolveParams(schema?.params ?? [], chosen)}
+                                paramsSchema={schema?.params ?? []}
+                                title="Your piece"
+                            />
+                        </div>
+                    </div>
+                )}
+                <p className="text-sm font-medium">Yours. Here it is.</p>
                 <p className="text-xs text-muted-foreground">
-                    The indexer is a little behind. Your piece will be on your wallet page
-                    in a moment.
+                    Drawn from the seed your signature made. The permanent image is being
+                    published now, and your piece appears on your wallet page in a moment.
                 </p>
                 <div className="flex flex-wrap gap-2 pt-1">
                     <Link

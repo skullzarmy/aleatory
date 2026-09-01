@@ -295,7 +295,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                         label="Generator"
                         value={
                             done.codeBytes > 0
-                                ? `${done.codeBytes.toLocaleString()} bytes in contract storage` +
+                                ? `${done.codeBytes.toLocaleString("en-US")} bytes in contract storage` +
                                   (done.codeEncoding === "gzip" ? ", gzipped" : "") +
                                   `, ${(done.codeBurnMutez / 1e6).toFixed(3)} \u2721 of storage`
                                 : `too large for one operation, stored at ${done.codeUri}`
@@ -382,7 +382,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     <div className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm">
                         <p className="font-medium">{getKind(draft.kindId).label}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                            {new TextEncoder().encode(draft.html).length.toLocaleString()} bytes
+                            {new TextEncoder().encode(draft.html).length.toLocaleString("en-US")} bytes
                             from your draft
                             {declared.length > 0 &&
                                 `, ${declared.length} parameter${declared.length === 1 ? "" : "s"}: ${declared

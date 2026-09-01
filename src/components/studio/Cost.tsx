@@ -65,19 +65,19 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
                     {formatTez(burn)} ꜩ
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    one-off, to store your {bytes.toLocaleString()}-byte generator on chain.
+                    one-off, to store your {bytes.toLocaleString("en-US")}-byte generator on chain.
                 </p>
             </div>
 
             <dl className="divide-y divide-border rounded-lg border border-border text-sm">
-                <Row label="Generator" value={`${bytes.toLocaleString()} bytes`} />
+                <Row label="Generator" value={`${bytes.toLocaleString("en-US")} bytes`} />
                 <Row
                     label="Storage"
                     value={`${constants.costPerByte} mutez per byte`}
                 />
                 <Row
                     label="Size limit"
-                    value={`${constants.maxOperationBytes.toLocaleString()} bytes`}
+                    value={`${constants.maxOperationBytes.toLocaleString("en-US")} bytes`}
                 />
                 <Row
                     label="Per mint"

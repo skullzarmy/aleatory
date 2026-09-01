@@ -59,7 +59,6 @@ if (missing.length > 0) {
 }
 
 log(`provider ${process.env.ALEA_PROVIDER_ADDRESS}`);
-log(`polling every ${IDLE_MS / 1000}s`);
 
 let stopping = false;
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
