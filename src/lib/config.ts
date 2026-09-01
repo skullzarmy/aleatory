@@ -12,6 +12,8 @@ export const BRAND = {
     url: process.env.NEXT_PUBLIC_SITE_URL || "https://aleatory.art",
     repo: "https://github.com/skullzarmy/aleatory",
     discord: "https://discord.gg/3kFMF8gUxP",
+    x: "https://x.com/AleatoryArt",
+    bluesky: "https://bsky.app/profile/aleatory.art",
 } as const;
 
 export type Network = "shadownet" | "mainnet";

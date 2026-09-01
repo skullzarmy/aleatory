@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SiDiscord, SiGithub } from "@icons-pack/react-simple-icons";
+import { SiBluesky, SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
 import { BRAND } from "@/lib/config";
 
 const LINKS = [
@@ -21,6 +21,8 @@ const LINKS = [
 const ELSEWHERE = [
     { href: BRAND.repo, label: "Source on GitHub", Icon: SiGithub },
     { href: BRAND.discord, label: "Discord", Icon: SiDiscord },
+    { href: BRAND.x, label: "Aleatory on X", Icon: SiX },
+    { href: BRAND.bluesky, label: "Aleatory on Bluesky", Icon: SiBluesky },
 ];
 
 /**
