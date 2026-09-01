@@ -90,6 +90,11 @@ export function PieceMarket({
     const isOwner = Boolean(address && owner && address === owner);
     const isSeller = Boolean(address && listing && address === listing.seller);
 
+    // Listing escrows the token into the marketplace, so a seller stops being
+    // the owner the moment they list. Both flags, or the check misses every
+    // piece that is currently for sale.
+    const yours = isOwner || isSeller;
+
     if (!marketplace) {
         return (
             <p className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
@@ -222,104 +227,118 @@ export function PieceMarket({
                 <p className="text-sm text-muted-foreground">Not for sale</p>
             )}
 
-            <div className="border-t border-border pt-3">
-                <div className="flex gap-2">
-                    <input
-                        inputMode="decimal"
-                        aria-label="Offer amount, in tez"
-                        placeholder="Offer in ꜩ"
-                        value={offer}
-                        onChange={(e) => setOffer(e.target.value)}
-                        className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
-                    />
-                    <button
-                        type="button"
-                        disabled={busy !== null || offerMutez === null}
-                        onClick={() =>
-                            address
-                                ? run("offer", async () => {
-                                      const mutez = offerMutez as bigint;
-                                      // An offer escrows real money the moment
-                                      // it is signed, so a fat finger costs
-                                      // more here than anywhere else on the
-                                      // page.
-                                      if (
-                                          mutez >= CONFIRM_ABOVE_MUTEZ &&
-                                          !window.confirm(
-                                              `Offer ${formatTez(mutez)} tez? This escrows the amount until the offer is accepted or cancelled.`,
-                                          )
-                                      ) {
-                                          return;
-                                      }
-                                      return ops.makeOffer(
-                                          await getClient(),
-                                          contract,
-                                          tokenId,
-                                          mutez,
-                                      );
-                                  })
-                                : void connect()
-                        }
-                        className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-60"
-                    >
-                        {busy === "offer" ? "Offering" : "Offer"}
-                    </button>
-                </div>
-
-                {offers.length > 0 && (
-                    <ul className="mt-3 space-y-1.5">
-                        {offers.map((o) => (
-                            <li
-                                key={o.id}
-                                className="flex items-center justify-between gap-3 text-sm"
+            {/* Bidding against yourself costs a fee and moves nothing, so the
+                form is for everyone else. Standing offers stay on screen
+                either way: an owner needs to see what has been offered, and
+                somebody who offered and then acquired the piece needs the way
+                back to their money. */}
+            {(!yours || offers.length > 0) && (
+                <div className="border-t border-border pt-3">
+                    {!yours && (
+                        <div className="flex gap-2">
+                            <input
+                                inputMode="decimal"
+                                aria-label="Offer amount, in tez"
+                                placeholder="Offer in ꜩ"
+                                value={offer}
+                                onChange={(e) => setOffer(e.target.value)}
+                                className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
+                            />
+                            <button
+                                type="button"
+                                disabled={busy !== null || offerMutez === null}
+                                onClick={() =>
+                                    address
+                                        ? run("offer", async () => {
+                                              const mutez = offerMutez as bigint;
+                                              // An offer escrows real money the moment
+                                              // it is signed, so a fat finger costs
+                                              // more here than anywhere else on the
+                                              // page.
+                                              if (
+                                                  mutez >= CONFIRM_ABOVE_MUTEZ &&
+                                                  !window.confirm(
+                                                      `Offer ${formatTez(mutez)} tez? This escrows the amount until the offer is accepted or cancelled.`,
+                                                  )
+                                              ) {
+                                                  return;
+                                              }
+                                              return ops.makeOffer(
+                                                  await getClient(),
+                                                  contract,
+                                                  tokenId,
+                                                  mutez,
+                                              );
+                                          })
+                                        : void connect()
+                                }
+                                className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-60"
                             >
-                                <span className="min-w-0 text-muted-foreground">
-                                    <AccountLink address={o.buyer} />
-                                </span>
-                                <span className="flex shrink-0 items-center gap-2">
-                                    <span className="font-medium">{tez(o.amountMutez)}</span>
-                                    {isOwner && (
-                                        <button
-                                            type="button"
-                                            disabled={busy !== null || settling}
-                                            onClick={() =>
-                                                run(`accept-${o.id}`, async () => {
-                                                    const client = await getClient();
-                                                    await ops.acceptOfferFor(
-                                                        client,
-                                                        contract,
-                                                        address as string,
-                                                        tokenId,
-                                                        o.id,
-                                                        o.marketplace,
-                                                    );
-                                                })
-                                            }
-                                            className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
-                                        >
-                                            Accept
-                                        </button>
-                                    )}
-                                    {address === o.buyer && (
-                                        <button
-                                            type="button"
-                                            disabled={busy !== null || settling}
-                                            onClick={() =>
-                                                run(`cancel-${o.id}`, async () =>
-                                                    ops.cancelOffer(await getClient(), o.id, o.marketplace),
-                                                )
-                                            }
-                                            className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
-                                        >
-                                            Cancel
-                                        </button>
-                                    )}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
+                                {busy === "offer" ? "Offering" : "Offer"}
+                            </button>
+                        </div>
+                    )}
+
+                    {offers.length > 0 && (
+                        <ul className={yours ? "space-y-1.5" : "mt-3 space-y-1.5"}>
+                            {offers.map((o) => (
+                                <li
+                                    key={o.id}
+                                    className="flex items-center justify-between gap-3 text-sm"
+                                >
+                                    <span className="min-w-0 text-muted-foreground">
+                                        <AccountLink address={o.buyer} />
+                                    </span>
+                                    <span className="flex shrink-0 items-center gap-2">
+                                        <span className="font-medium">{tez(o.amountMutez)}</span>
+                                        {/* One action per row, never two. An offer
+                                            you made is yours to cancel, and
+                                            accepting it would pay you your own
+                                            money less the fee and the royalty.
+                                            Anyone else's is yours to accept, if
+                                            you are holding the piece. */}
+                                        {address === o.buyer ? (
+                                            <button
+                                                type="button"
+                                                disabled={busy !== null || settling}
+                                                onClick={() =>
+                                                    run(`cancel-${o.id}`, async () =>
+                                                        ops.cancelOffer(await getClient(), o.id, o.marketplace),
+                                                    )
+                                                }
+                                                className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
+                                            >
+                                                Cancel
+                                            </button>
+                                        ) : isOwner ? (
+                                            <button
+                                                type="button"
+                                                disabled={busy !== null || settling}
+                                                onClick={() =>
+                                                    run(`accept-${o.id}`, async () => {
+                                                        const client = await getClient();
+                                                        await ops.acceptOfferFor(
+                                                            client,
+                                                            contract,
+                                                            address as string,
+                                                            tokenId,
+                                                            o.id,
+                                                            o.marketplace,
+                                                        );
+                                                    })
+                                                }
+                                                className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
+                                            >
+                                                Accept
+                                            </button>
+                                        ) : null}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            )}
 
             {settling && (
                 <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
