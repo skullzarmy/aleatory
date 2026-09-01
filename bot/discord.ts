@@ -128,6 +128,54 @@ export async function rename(
     return { id: channel.id, outcome: "wrote", detail: `"${existing}" → "${name}"` };
 }
 
+/** A Discord embed. Only the fields we set. */
+export interface Embed {
+    title?: string;
+    description?: string;
+    url?: string;
+    color?: number;
+    timestamp?: string;
+    image?: { url: string };
+    fields?: { name: string; value: string; inline?: boolean }[];
+    footer?: { text: string };
+}
+
+/**
+ * Say something in a channel.
+ *
+ * Still no gateway. A gateway is for hearing, and this bot only ever speaks,
+ * so posting is `POST /channels/{id}/messages` and nothing is held open.
+ *
+ * Needs Send Messages and Embed Links on the channel, which is more than the
+ * rename job ever asked for: a token that has been renaming names happily for
+ * weeks can still fail the first time it tries to say something.
+ */
+export async function post(
+    token: string,
+    channelId: string,
+    embed: Embed,
+): Promise<Result> {
+    const res = await api(token, `/channels/${channelId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ embeds: [embed] }),
+    });
+
+    if (res.status === 429) {
+        const { retry_after } = (await res.json().catch(() => ({}))) as {
+            retry_after?: number;
+        };
+        return {
+            id: channelId,
+            outcome: "limited",
+            detail: `retry after ${retry_after ?? "?"}s`,
+        };
+    }
+    if (!res.ok) {
+        return { id: channelId, outcome: "failed", detail: `post: ${await refusal(res)}` };
+    }
+    return { id: channelId, outcome: "wrote", detail: embed.title ?? "" };
+}
+
 /**
  * One pass over every configured channel.
  *

@@ -1,4 +1,4 @@
-# The stats bot
+# The Discord bot
 
 Aleatory's numbers, written into Discord channel names.
 
@@ -9,6 +9,10 @@ Aleatory's numbers, written into Discord channel names.
  🔒 💸 Minted: 913.27 ꜩ
  🔒 🏦 Earned: 9.7 ꜩ
 ```
+
+It also announces. A generator published on chain gets a message in one
+channel, a piece minted gets one in another, each with its picture and a link
+to its page.
 
 A process, run wherever the provider runs. Nothing here imports from the site,
 so it keeps working if the site is deleted.
@@ -23,18 +27,36 @@ npm run bot:daemon    the process. This is how it runs.
 ## Why there is no gateway connection
 
 A Discord bot needs a persistent WebSocket only to *receive* events: messages,
-joins, presence. This receives nothing. Renaming a channel is one request:
+joins, presence. This receives nothing. It renames and it speaks, and both are
+one request:
 
 ```
-PATCH /channels/{id}    {"name": "🎨 Generators: 12"}
+PATCH /channels/{id}             {"name": "🎨 Generators: 12"}
+POST  /channels/{id}/messages    {"embeds": [ … ]}
 ```
 
-So this is an outbound HTTP client on a timer.
+So this is an outbound HTTP client on two timers.
 
-**The timer is ten minutes because Discord allows about two renames per ten
+**The slow one is ten minutes because Discord allows about two renames per ten
 minutes, per channel.** Polling faster spends that allowance on names that have
 not changed. A name that matches what is already there is never written, so a
 quiet week leaves the whole allowance for the hour something happens.
+
+**The fast one is a minute, and is only for announcements.** That rename limit
+says nothing about posting a message, and a mint announced nine minutes after
+the mint is not an announcement. `ALEA_BOT_ANNOUNCE_MS` moves it, with a floor
+of fifteen seconds, because the chain reads behind it are not free.
+
+## Forward only
+
+The bot reads where the chain is when it starts and goes on from there. It has
+no memory across restarts and no state file, and it wants none: a mint happens
+once, so a process that only ever looks forward can never announce one twice.
+
+The consequence is the other side of that. **Anything that happens while the
+bot is down is never announced.** It is not a queue and it does not catch up.
+If that matters for a particular deploy, the pieces are all on the site and on
+the chain, where they were the whole time.
 
 ## Setting it up
 
@@ -48,17 +70,22 @@ Turn **Public Bot** off. No privileged intents: it never reads a message.
 
 ### 2. Invite it
 
-**OAuth2 → URL Generator**, scope `bot`, bot permissions **View Channels** and
-**Manage Channels**. That is the whole set, and it is permission integer
-`1040`:
+**OAuth2 → URL Generator**, scope `bot`, bot permissions **View Channels**,
+**Manage Channels**, **Send Messages** and **Embed Links**. That is the whole
+set, and it is permission integer `19472`:
 
 ```
-https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=1040
+https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=19472
 ```
 
 View Channels is not optional: a name is read before it is written, so a bot
 that cannot see the channel gets a 404 on the read and never reaches the
 rename.
+
+Send Messages and Embed Links are only for the announcement channels, and they
+are the pair that catches people out. A token that has been renaming stat
+channels for weeks has never once needed either, so the first failure arrives
+long after setup looked finished.
 
 ### 3. The channels
 
@@ -81,12 +108,27 @@ The bot needs its own overwrite here. A server-wide permission is overridden by
 a channel that denies it, and the read that comes before every rename fails
 with a 404 that looks like a wrong channel ID.
 
-### 4. The IDs
+### 4. The announcement channels
+
+Two ordinary **text** channels, wherever you want them. They are separate from
+the stat category on purpose: this is the half of the bot that talks, and a
+channel that is only ever announcements is a channel somebody can mute.
+
+| Role | Permission | |
+| --- | --- | --- |
+| the bot's role | View Channel | allow |
+| the bot's role | Send Messages | allow |
+| the bot's role | Embed Links | allow, or the message arrives empty |
+
+Embed Links is the quiet one. Without it Discord accepts the request and drops
+the embed, so the bot logs a success and the channel shows nothing.
+
+### 5. The IDs
 
 **User Settings → Advanced → Developer Mode** on. Right-click each channel,
 **Copy Channel ID**.
 
-### 5. The environment
+### 6. The environment
 
 In `.env`, beside the provider's:
 
@@ -94,15 +136,33 @@ In `.env`, beside the provider's:
 ALEA_NETWORK=              # shadownet or mainnet. The only place it is named.
 ALEA_ROUTER_ADDRESS=KT1…   # the router on that network
 ALEA_PROVIDER_ADDRESS=KT1… # the render provider on that network
+ALEA_SITE_URL=             # where the links in an announcement point
 DISCORD_BOT_TOKEN=
 DISCORD_STAT_CHANNELS=[{"id":"…","label":"🎨 Generators: {generators}"},{"id":"…","label":"🖼 Pieces: {pieces}"},{"id":"…","label":"💸 Minted: {minted} ꜩ"},{"id":"…","label":"🏦 Earned: {earned} ꜩ"}]
+DISCORD_GENERATORS_CHANNEL=
+DISCORD_MINTS_CHANNEL=
 ```
+
+Optional:
+
+```
+ALEA_BOT_TICK_MS=          # the rename clock. Ten minutes, and its own floor.
+ALEA_BOT_ANNOUNCE_MS=      # the announcement clock. A minute, floor of fifteen seconds.
+```
+
+Leave either announcement channel empty and that half stays quiet. Leave both
+empty and the bot is what it was before: stat channels on the slow clock.
+
+`ALEA_SITE_URL` is what an announcement links to and where it loads pictures
+from, through the site's own `/api/img` route. It has nothing to do with which
+chain is read, which is `ALEA_NETWORK` above, so point it at whichever site is
+showing that network.
 
 The router is the only contract address that has to be configured. Factories,
 marketplaces, the registry and the resolver are all read from it, so the three
 values above are the whole difference between one network and another.
 
-### 6. Check it, then run it
+### 7. Check it, then run it
 
 ```
 npm run bot:check
@@ -219,11 +279,16 @@ A healthy quiet run:
 ```
 2026-08-31T08:35:58.416Z  shadownet, router KT1LWD8kiuyVzkSUAHKVovw6ymsjHcKykADc
 2026-08-31T08:35:58.417Z  4 channels, every 10m
+2026-08-31T08:35:59.108Z  announcing from generator 164643, mint 163537734336513, every 60s
 2026-08-31T08:45:58.502Z  no figure changed
+2026-08-31T09:02:11.330Z  announced 1
 ```
 
 `no figure changed` is the normal line. Names are only written when a number
 moves.
+
+The `announcing from` line is the mark the bot started at. Everything at or
+below those two ids already happened and is not announced.
 
 A refusal quotes Discord's own code rather than guessing at which permission
 is behind it, because they are different screens in the settings:
@@ -233,8 +298,12 @@ is behind it, because they are different screens in the settings:
 | `read: Missing Access (50001)` | it cannot see the channel: no View Channel, or the channel is in a server the bot is not in |
 | `read: Unknown Channel (10003)` | that id does not exist |
 | `rename: Missing Permissions (50013)` | it can see the channel and cannot change it, so Manage Channel is missing |
+| `post: Missing Permissions (50013)` | it can see the announcement channel and cannot speak in it, so Send Messages is missing |
 | `rate limited, retry after Ns` | expected under a burst, the next pass writes it |
 | `incomplete, nothing written` | a chain read failed, the names are left alone |
+
+A post that is refused leaves the mark where it was, so the next pass tries the
+same event again rather than stepping over it.
 
 `npm run bot:doctor` asks those three questions separately and names which one
 failed, which is faster than reading them out of a rename.

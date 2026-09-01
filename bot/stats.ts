@@ -114,7 +114,7 @@ async function sumOf(path: string): Promise<number> {
 }
 
 /** Contracts a list of factories originated, which is every generator. */
-async function collectionsOf(factories: string[]): Promise<string[]> {
+export async function collectionsOf(factories: string[]): Promise<string[]> {
     // The router's list can name one twice: `add_factory` conses on, and
     // re-pointing at an earlier factory adds it again rather than moving it.
     const unique = [...new Set(factories.filter(Boolean))];
