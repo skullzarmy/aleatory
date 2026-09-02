@@ -100,7 +100,7 @@ export function mintEmbed(m: {
     name: string;
     imageUri: string;
     collector: string;
-    paidMutez: number;
+    paidMutez: number | null;
     params: Record<string, unknown>;
     collectionName: string;
     artist: string;
@@ -120,7 +120,6 @@ export function mintEmbed(m: {
                 value: `${Number(m.tokenId) + 1} of ${edition(m.editionSize)}`,
                 inline: true,
             },
-            { name: "Paid", value: tez(m.paidMutez), inline: true },
             { name: "Collector", value: short(m.collector) || "unknown", inline: true },
             {
                 name: "Collection",
@@ -129,6 +128,14 @@ export function mintEmbed(m: {
             },
         ],
     };
+
+    // Absent when only the render was seen, which happens to a piece minted
+    // just before this process started. The contract stated the figure and we
+    // missed it, so the field is left off rather than filled from the
+    // collection's current price, which would be a guess dressed as a fact.
+    if (m.paidMutez !== null) {
+        embed.fields?.push({ name: "Paid", value: tez(m.paidMutez), inline: true });
+    }
 
     // What this draw actually is. A generator's whole point is that two pieces
     // differ, so the settings behind one are the thing worth reading.
@@ -185,13 +192,23 @@ export async function announce(token: string, marks: Marks): Promise<Pass> {
     const mints = mintsChannel();
     if (mints) {
         try {
-            for (const m of await newMints(next.mints)) {
+            const { items, consumed } = await newMints(next.mints);
+            let complete = true;
+            for (const m of items) {
                 const result = await post(token, mints, mintEmbed(m));
                 results.push(result);
-                if (result.outcome !== "wrote") break;
+                if (result.outcome !== "wrote") {
+                    complete = false;
+                    break;
+                }
                 next.mints = m.cursor;
                 posted++;
             }
+            // Most rows on this feed are mints being held for their render, so
+            // they post nothing and carry no cursor out. Without this the mark
+            // would sit still through a busy stretch and those rows would be
+            // re-read every pass until they filled the page.
+            if (complete) next.mints = Math.max(next.mints, consumed);
         } catch (e) {
             results.push({ id: mints, outcome: "failed", detail: said(e) });
         }

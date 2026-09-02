@@ -49,17 +49,50 @@ of fifteen seconds, because the chain reads behind it are not free.
 
 ## What it watches
 
-The contracts say what happened. The factory emits `deploy` and every
-collection emits `mint`, and those events are the interface this reads:
+The contracts say what happened, and those events are the interface this reads:
 
 ```
-tag=deploy   collection_id, address, artist, code, code_encoding,
-             code_hash, code_uri, edition_size
-tag=mint     token_id, buyer, params, paid, render_gas
+tag=deploy              collection_id, address, artist, code, code_encoding,
+                        code_hash, code_uri, edition_size
+tag=mint                token_id, buyer, params, paid, render_gas
+tag=set_token_metadata  token_id, metadata_uri, renderer
 ```
 
-So the price and the traits in a mint announcement are what the contract
-published, rather than figures reconstructed from an indexer's tables.
+So the price and the traits in an announcement are what the contract published,
+rather than figures reconstructed from an indexer's tables.
+
+## A piece is announced when it is rendered
+
+**The trigger is `set_token_metadata`, not `mint`.** At mint time
+`token_info[""]` still holds the collection's pending document, so a message
+sent then has no picture in it, and a picture is the point of announcing a
+piece of art. `set_token_metadata` refuses the pending document outright, so it
+fires only when there is something real to show.
+
+That costs the time between the two, usually under a minute, and buys a message
+that is never an empty frame.
+
+Both tags come back on one cursor. A `mint` row is held in memory keyed on
+contract and token together, since every collection numbers from zero and token
+0 is a different piece in each one. The render releases it.
+
+Two things follow:
+
+**A piece that is never rendered is never announced.** Its mint waits and
+nothing fires. That is a stuck provider, and the piece is on the site either
+way.
+
+**`set_token_metadata` is rewritable on purpose**, so a provider retrying a
+publish emits it again for a piece already posted. Thirteen of thirty-nine
+pieces on shadownet have been written more than once, so the bot remembers what
+it has announced and stays quiet the second time.
+
+Across a restart, a piece minted before startup and rendered after it arrives
+with no `mint` event. The traits come off the piece's own document instead,
+which the chain published just the same. **`paid` does not**, so that field is
+left off rather than filled in from the collection's current price.
+
+## The reads on top
 
 Neither event carries a display name or a picture, because those are metadata
 documents rather than contract state, so an announcement adds one read for the
