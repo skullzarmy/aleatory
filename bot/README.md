@@ -365,8 +365,24 @@ is behind it, because they are different screens in the settings:
 A post that is refused leaves the mark where it was, so the next pass tries the
 same event again rather than stepping over it.
 
-`npm run bot:doctor` asks those three questions separately and names which one
+`npm run bot:doctor` asks those questions separately and names which one
 failed, which is faster than reading them out of a rename.
+
+It also works out what the bot may actually do in each channel, and checks that
+against what that channel is for: a stat channel needs View Channel and Manage
+Channels, an announcement channel needs View Channel, Send Messages and Embed
+Links. Discord has no endpoint that answers this, so the doctor applies the
+same rule Discord does, walking `@everyone`, then the bot's roles, then any
+overwrite aimed at the bot itself. That last part is why reading a channel
+proves nothing about posting in it: a server-wide permission is overridden by a
+channel that denies it.
+
+```
+  ok         1410000000000000001  rename       "🎨 Generators: 12" in Aleatory
+  FAILED     1543729359742050484  mints        "mints" in Aleatory
+             missing Send Messages, Embed Links. Edit Channel, Permissions,
+             add the bot, allow them there.
+```
 
 ## Placeholders
 
