@@ -125,7 +125,7 @@ async function collectionMeta(address: string): Promise<Meta> {
 }
 
 const IPFS_GATEWAY = (
-    process.env.ALEA_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs"
+    process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz"
 ).replace(/\/+$/, "");
 
 /**

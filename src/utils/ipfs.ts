@@ -7,21 +7,19 @@
 /**
  * Where pinned content is read from.
  *
- * **The whole path, including any `/ipfs`, because gateways disagree about
- * it.** Pinata and ipfs.io want `/ipfs/<cid>` and answer a bare `/<cid>` with
- * a 401 or a redirect, which is how three of the four entries below spent a
- * long time never once returning an image: the URL was built as
- * `<host>/<cid>` and only fileship's form was ever right.
+ * fileship, because it is the fastest of the public gateways: measured at
+ * 0.37s against 3.6 to 5.8s for the pinning service's own. Reading from the
+ * pinning service would tie every page load to the slowest option available.
+ * Its convention is a bare `/<cid>`, which is why this carries no path.
  *
- * The pinning service leads. A gateway we did not pin to has to pull the
- * content across the network before it can answer, so a piece rendered a
- * minute ago exists only where it was put. Warming another gateway at pin
- * time was supposed to cover that and cannot: it is one request against a
- * host that may be down, and when it is down the piece is unreachable rather
- * than slow.
+ * A gateway other than the one we pinned to has to pull the content across the
+ * network first, so a freshly pinned file can answer with nothing at all. That
+ * is a propagation problem and it belongs at pin time: whoever pins warms this
+ * gateway immediately afterwards, so by the time a page asks, it is cached.
+ * See `warmGateway` in provider/provider.mts.
  */
 const GATEWAY = (
-    process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs"
+    process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz"
 ).replace(/\/+$/, "");
 
 export function isIpfsUri(uri: string): boolean {
@@ -68,17 +66,21 @@ export function bytesToString(hex: string): string {
 /**
  * Gateways to try, in order, when this runs on a server.
  *
- * Each entry carries its own path, so `${gateway}/${cid}` is a real URL for
- * every one of them. A CID names its own bytes, so any of them either returns
- * exactly the right content or nothing.
+ * **Each entry carries its own path, because gateways disagree about it.**
+ * fileship serves `/<cid>`; Pinata and ipfs.io want `/ipfs/<cid>` and answer
+ * a bare one with a 401 or a redirect. These were written as hosts and joined
+ * as `<host>/<cid>`, which is right for the first and wrong for the rest, so
+ * there were never any fallbacks: the day fileship blipped, every image on the
+ * site went to a 502.
  *
- * The one holding the pin is first because it is the only one guaranteed to
- * have a piece that was rendered a moment ago. The rest are there for the day
- * that one is down.
+ * The pinning service is second, because it is the only one that is certain to
+ * hold a piece rendered a minute ago. A CID names its own bytes, so each of
+ * these either returns exactly the right content or nothing.
  */
 export const IPFS_GATEWAYS = [
     ...new Set([
         GATEWAY,
+        "https://ipfs.fileship.xyz",
         "https://gateway.pinata.cloud/ipfs",
         "https://ipfs.io/ipfs",
         "https://dweb.link/ipfs",

@@ -88,7 +88,7 @@ export async function collectionsFactories(): Promise<string[]> {
     if (addresses.length > 0) factoryCache = { at: Date.now(), addresses };
     return addresses;
 }
-const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs").replace(/\/+$/, "");
+const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz").replace(/\/+$/, "");
 
 /**
  * Collections this provider declines to render for.

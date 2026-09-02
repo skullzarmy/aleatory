@@ -159,7 +159,7 @@ async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
     if (!cid) return;
     const base = (
-        process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs"
+        process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz"
     ).replace(/\/+$/, "");
     await fetch(`${base}/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {});
 }
