@@ -18,15 +18,10 @@ export async function generateMetadata({
     params: Promise<{ address: string }>;
 }): Promise<Metadata> {
     const { address } = await params;
-    const [name, profile] = await Promise.all([
-        resolveName(address),
-        fetchProfile(address),
-    ]);
+    const [name, profile] = await Promise.all([resolveName(address), fetchProfile(address)]);
     const title = profile?.name || name || shortAddress(address);
     const picture = avatarUrl(profile);
-    const image = picture?.startsWith("ipfs://")
-        ? ipfsImageUrl(picture)
-        : picture;
+    const image = picture?.startsWith("ipfs://") ? ipfsImageUrl(picture) : picture;
 
     return {
         title,
@@ -60,11 +55,7 @@ export async function generateMetadata({
  * stored here, which is why this page exists for people who have never used the
  * site.
  */
-export default async function WalletPage({
-    params,
-}: {
-    params: Promise<{ address: string }>;
-}) {
+export default async function WalletPage({ params }: { params: Promise<{ address: string }> }) {
     const { address } = await params;
     if (!isAddress(address)) notFound();
 

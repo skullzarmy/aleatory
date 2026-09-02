@@ -44,9 +44,7 @@ export function PieceCard({ piece }: { piece: FeedPiece }) {
 
             <div className="space-y-1 p-3">
                 <p className="truncate text-sm font-medium">{piece.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                    {piece.collectionName}
-                </p>
+                <p className="truncate text-xs text-muted-foreground">{piece.collectionName}</p>
                 <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
                     <span className="min-w-0 truncate">
                         {piece.artist ? <AccountName address={piece.artist} /> : ""}

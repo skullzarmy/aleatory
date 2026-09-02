@@ -15,9 +15,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const { pieceAt, handle, collectionsServed, tokenIdsIn } = await import(
-    "./provider.mts"
-);
+const { pieceAt, handle, collectionsServed, tokenIdsIn } = await import("./provider.mts");
 
 const [target, tokenId] = process.argv.slice(2);
 

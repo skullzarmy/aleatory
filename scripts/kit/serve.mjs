@@ -66,9 +66,7 @@ function withLibraries(html) {
     const declared = declaredIn(html);
     if (declared.length === 0) return { html, declared };
 
-    const tags = declared
-        .map((c) => `  <script src="${sourceFor(c)}"></script>`)
-        .join("\n");
+    const tags = declared.map((c) => `  <script src="${sourceFor(c)}"></script>`).join("\n");
 
     const injected = html.includes("</head>")
         ? html.replace("</head>", `${tags}\n</head>`)

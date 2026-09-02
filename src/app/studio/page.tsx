@@ -4,7 +4,11 @@ import { DraftList } from "@/components/studio/DraftList";
 
 export const metadata: Metadata = {
     alternates: { canonical: "/studio" },
-    openGraph: { type: "website", title: "Studio", description: "Write a generator, read its space, prove it behaves, publish it." },
+    openGraph: {
+        type: "website",
+        title: "Studio",
+        description: "Write a generator, read its space, prove it behaves, publish it.",
+    },
     title: "Studio",
     description: "Write a generator, read its space, prove it behaves, publish it.",
 };
@@ -16,8 +20,8 @@ export default function StudioPage() {
                 <div>
                     <h1 className="text-xl font-semibold tracking-tight">Studio</h1>
                     <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-                        Write a generator, explore what it makes, and publish it to a
-                        contract you own.
+                        Write a generator, explore what it makes, and publish it to a contract you
+                        own.
                     </p>
                 </div>
                 <Link
@@ -32,8 +36,8 @@ export default function StudioPage() {
                 <h2 className="mb-3 text-sm font-medium">Open drafts</h2>
                 <DraftList />
                 <p className="mt-3 text-xs text-muted-foreground">
-                    Drafts are saved in this browser only. Export anything you&apos;d be
-                    sorry to lose.
+                    Drafts are saved in this browser only. Export anything you&apos;d be sorry to
+                    lose.
                 </p>
             </section>
 

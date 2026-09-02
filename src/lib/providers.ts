@@ -67,10 +67,10 @@ export async function fetchProviders(): Promise<Provider[]> {
     const registry = (await addresses()).registry;
     if (!registry) return [];
 
-    const rows = await tzkt<RegistryRow[]>(
-        `/v1/contracts/${registry}/bigmaps/providers/keys`,
-        { active: "true", limit: 100 },
-    ).catch(() => []);
+    const rows = await tzkt<RegistryRow[]>(`/v1/contracts/${registry}/bigmaps/providers/keys`, {
+        active: "true",
+        limit: 100,
+    }).catch(() => []);
 
     const providers = await Promise.all(
         rows.map(async (r) => {
@@ -224,17 +224,16 @@ function median(xs: number[]): number | null {
     if (xs.length === 0) return null;
     const sorted = [...xs].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 === 0
-        ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
-        : sorted[mid];
+    return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
 }
 
 /** Collections whose storage names this provider. */
 async function collectionsNaming(provider: string): Promise<string[]> {
-    const events = await tzkt<{ contract: { address: string } }[]>(
-        "/v1/contracts/events",
-        { tag: "set_provider", "sort.desc": "id", limit: 500 },
-    ).catch(() => []);
+    const events = await tzkt<{ contract: { address: string } }[]>("/v1/contracts/events", {
+        tag: "set_provider",
+        "sort.desc": "id",
+        limit: 500,
+    }).catch(() => []);
 
     const candidates = [...new Set(events.map((e) => e.contract?.address).filter(Boolean))];
     const naming: string[] = [];
@@ -291,13 +290,11 @@ async function outstandingFor(provider: string): Promise<number> {
  * recompute all of it.
  */
 export async function fetchProviderStats(address: string): Promise<ProviderStats> {
-    const since = new Date(
-        Date.now() - RANKING_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-    ).toISOString();
+    const since = new Date(Date.now() - RANKING_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-    const storage = await tzkt<{ agent: string }>(
-        `/v1/contracts/${address}/storage`,
-    ).catch(() => null);
+    const storage = await tzkt<{ agent: string }>(`/v1/contracts/${address}/storage`).catch(
+        () => null,
+    );
     if (!storage?.agent) {
         return { delivered: 0, medianBlocksToPublish: null, outstanding: 0 };
     }

@@ -40,7 +40,10 @@ interface BigMapRow<V> {
     active: boolean;
 }
 
-async function bigmap<V>(path: string, params: Record<string, string | number>): Promise<BigMapRow<V>[]> {
+async function bigmap<V>(
+    path: string,
+    params: Record<string, string | number>,
+): Promise<BigMapRow<V>[]> {
     const url = new URL(`${tzktApi()}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
     const res = await fetch(url.toString(), { next: { revalidate: 15 } });
@@ -98,14 +101,10 @@ const bigmapPath = (marketplace: string, name: string) =>
  * would hide live listings and escrowed offers from the people who own them.
  * One slow or missing marketplace returns nothing and the rest still answer.
  */
-async function acrossMarketplaces<T>(
-    read: (marketplace: string) => Promise<T[]>,
-): Promise<T[]> {
+async function acrossMarketplaces<T>(read: (marketplace: string) => Promise<T[]>): Promise<T[]> {
     const { marketplaces } = await addresses();
     if (marketplaces.length === 0) return [];
-    const results = await Promise.all(
-        marketplaces.map((m) => read(m).catch(() => [] as T[])),
-    );
+    const results = await Promise.all(marketplaces.map((m) => read(m).catch(() => [] as T[])));
     return results.flat();
 }
 
@@ -146,10 +145,7 @@ export async function fetchListingFor(
     return found.sort((a, b) => b.id - a.id)[0] ?? null;
 }
 
-export async function fetchOffersFor(
-    collection: string,
-    tokenId: string,
-): Promise<Offer[]> {
+export async function fetchOffersFor(collection: string, tokenId: string): Promise<Offer[]> {
     const all = await acrossMarketplaces(async (m) => {
         const rows = await bigmap<RawOffer>(bigmapPath(m, "offers"), {
             active: "true",

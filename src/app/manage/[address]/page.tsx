@@ -8,13 +8,7 @@ import { fetchProviders, type Provider } from "@/lib/providers";
 import { tzktLink } from "@/lib/config";
 import { AccountLink } from "@/components/account/AccountLink";
 import { formatTez, parseTez, shortAddress } from "@/lib/utils";
-import {
-    setEditionSize,
-    setPaused,
-    setPrice,
-    setProvider,
-    setTrustResolver,
-} from "@/lib/ops";
+import { setEditionSize, setPaused, setPrice, setProvider, setTrustResolver } from "@/lib/ops";
 
 /**
  * One collection, from the artist's side.
@@ -24,11 +18,7 @@ import {
  * contract refuses, it refuses here too: edition size only shrinks, and a
  * provider whose price moved above the ceiling fails the call.
  */
-export default function ManageCollectionPage({
-    params,
-}: {
-    params: Promise<{ address: string }>;
-}) {
+export default function ManageCollectionPage({ params }: { params: Promise<{ address: string }> }) {
     const { address: contract } = use(params);
     const { address: wallet, getClient, connect } = useWallet();
     const [collection, setCollection] = useState<Collection | null | undefined>(undefined);
@@ -42,11 +32,16 @@ export default function ManageCollectionPage({
 
     useEffect(() => {
         void reload();
-        void fetchProviders().then(setProviders).catch(() => setProviders([]));
+        void fetchProviders()
+            .then(setProviders)
+            .catch(() => setProviders([]));
     }, [reload]);
 
     /** Send one write, then re-read the chain. */
-    async function run(id: string, fn: (client: Awaited<ReturnType<typeof getClient>>) => Promise<{ hash: string }>) {
+    async function run(
+        id: string,
+        fn: (client: Awaited<ReturnType<typeof getClient>>) => Promise<{ hash: string }>,
+    ) {
         setBusy(id);
         setNote(null);
         try {
@@ -55,14 +50,19 @@ export default function ManageCollectionPage({
             setNote({ kind: "ok", text: `Signed. ${hash.slice(0, 12)}…` });
             await reload();
         } catch (e) {
-            setNote({ kind: "bad", text: e instanceof Error ? e.message : "Your wallet cancelled that." });
+            setNote({
+                kind: "bad",
+                text: e instanceof Error ? e.message : "Your wallet cancelled that.",
+            });
         } finally {
             setBusy(null);
         }
     }
 
     if (collection === undefined) {
-        return <p className="mx-auto max-w-2xl px-4 py-8 text-sm text-muted-foreground">Loading…</p>;
+        return (
+            <p className="mx-auto max-w-2xl px-4 py-8 text-sm text-muted-foreground">Loading…</p>
+        );
     }
 
     if (collection === null) {
@@ -81,7 +81,10 @@ export default function ManageCollectionPage({
 
     return (
         <div className="mx-auto max-w-2xl px-4 py-8">
-            <Link href="/manage" className="text-xs text-muted-foreground underline hover:text-foreground">
+            <Link
+                href="/manage"
+                className="text-xs text-muted-foreground underline hover:text-foreground"
+            >
                 All your collections
             </Link>
 
@@ -101,7 +104,9 @@ export default function ManageCollectionPage({
                         </a>
                         {" · "}
                         {collection.minted} minted
-                        {collection.editionSize > 0 ? ` of ${collection.editionSize}` : ", open edition"}
+                        {collection.editionSize > 0
+                            ? ` of ${collection.editionSize}`
+                            : ", open edition"}
                     </p>
                 </div>
                 <Link
@@ -155,7 +160,9 @@ export default function ManageCollectionPage({
                     <button
                         type="button"
                         onClick={() =>
-                            void run("pause", (c) => setPaused(c, collection.address, !collection.paused))
+                            void run("pause", (c) =>
+                                setPaused(c, collection.address, !collection.paused),
+                            )
                         }
                         className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-60"
                     >
@@ -189,7 +196,10 @@ export default function ManageCollectionPage({
                     onSubmit={(raw) => {
                         const size = Number.parseInt(raw, 10);
                         if (!Number.isFinite(size) || size < 0) {
-                            setNote({ kind: "bad", text: "That edition size does not look right." });
+                            setNote({
+                                kind: "bad",
+                                text: "That edition size does not look right.",
+                            });
                             return;
                         }
                         void run("edition", (c) => setEditionSize(c, collection.address, size));
@@ -208,14 +218,17 @@ export default function ManageCollectionPage({
                             const next = providers.find((p) => p.address === e.target.value);
                             if (!next) return;
                             void run("provider", (c) =>
-                                setProvider(c, collection.address, next.address, BigInt(next.renderGasMutez)),
+                                setProvider(
+                                    c,
+                                    collection.address,
+                                    next.address,
+                                    BigInt(next.renderGasMutez),
+                                ),
                             );
                         }}
                         className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
                     >
-                        <option value="">
-                            {busy === "provider" ? "Signing…" : "Switch to…"}
-                        </option>
+                        <option value="">{busy === "provider" ? "Signing…" : "Switch to…"}</option>
                         {providers
                             .filter((p) => p.address !== collection.provider)
                             .map((p) => (
@@ -244,7 +257,11 @@ export default function ManageCollectionPage({
                         }
                         className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-60"
                     >
-                        {busy === "trust" ? "Signing…" : collection.trustResolver ? "Turn off" : "Turn on"}
+                        {busy === "trust"
+                            ? "Signing…"
+                            : collection.trustResolver
+                              ? "Turn off"
+                              : "Turn on"}
                     </button>
                 </Control>
             </fieldset>

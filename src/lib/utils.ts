@@ -96,8 +96,7 @@ export function parseTez(input: string): bigint | null {
     // Through the decimal string rather than through a float, so 0.1 does not
     // arrive as 99999.99999999999.
     const [whole, frac = ""] = trimmed.split(".");
-    const mutez =
-        BigInt(whole || "0") * 1_000_000n + BigInt((frac + "000000").slice(0, 6));
+    const mutez = BigInt(whole || "0") * 1_000_000n + BigInt((frac + "000000").slice(0, 6));
     return mutez > 0n ? mutez : null;
 }
 

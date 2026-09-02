@@ -8,7 +8,11 @@ import { LiveRefresh } from "@/components/LiveRefresh";
 export const metadata: Metadata = {
     title: "Collections",
     alternates: { canonical: "/collections" },
-    openGraph: { type: "website", title: "Collections", description: "Every collection on Aleatory, fully on-chain generative art on Tezos." },
+    openGraph: {
+        type: "website",
+        title: "Collections",
+        description: "Every collection on Aleatory, fully on-chain generative art on Tezos.",
+    },
 };
 export const revalidate = 60;
 
@@ -85,7 +89,9 @@ export default async function CollectionsPage() {
                                               : `${c.editionSize - c.minted} of ${c.editionSize} remaining`}
                                     </span>
                                     <span className="shrink-0">
-                                        {c.firstActivity ? `created ${timeAgoShort(c.firstActivity)}` : ""}
+                                        {c.firstActivity
+                                            ? `created ${timeAgoShort(c.firstActivity)}`
+                                            : ""}
                                     </span>
                                 </p>
                             </div>

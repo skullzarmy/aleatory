@@ -67,5 +67,7 @@ createServer(async (req, res) => {
 }).listen(PORT, () => {
     console.log(`provider  http://localhost:${PORT}`);
     console.log(`         serving isolate/index.html on every path, with the production CSP`);
-    console.log(`         set NEXT_PUBLIC_ISOLATE_ORIGIN=http://localhost:${PORT} and restart next dev`);
+    console.log(
+        `         set NEXT_PUBLIC_ISOLATE_ORIGIN=http://localhost:${PORT} and restart next dev`,
+    );
 });

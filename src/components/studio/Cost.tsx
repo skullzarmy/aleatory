@@ -61,9 +61,7 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
     return (
         <div className="space-y-4">
             <div>
-                <p className="text-3xl font-semibold tracking-tight">
-                    {formatTez(burn)} ꜩ
-                </p>
+                <p className="text-3xl font-semibold tracking-tight">{formatTez(burn)} ꜩ</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                     one-off, to store your {bytes.toLocaleString("en-US")}-byte generator on chain.
                 </p>
@@ -71,24 +69,18 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
 
             <dl className="divide-y divide-border rounded-lg border border-border text-sm">
                 <Row label="Generator" value={`${bytes.toLocaleString("en-US")} bytes`} />
-                <Row
-                    label="Storage"
-                    value={`${constants.costPerByte} mutez per byte`}
-                />
+                <Row label="Storage" value={`${constants.costPerByte} mutez per byte`} />
                 <Row
                     label="Size limit"
                     value={`${constants.maxOperationBytes.toLocaleString("en-US")} bytes`}
                 />
-                <Row
-                    label="Per mint"
-                    value="around 0.05 ꜩ, paid by the collector"
-                />
+                <Row label="Per mint" value="around 0.05 ꜩ, paid by the collector" />
             </dl>
 
             {overSized && (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
-                    This generator is too big to publish. Trim it down, or move a library
-                    out of it, and try again.
+                    This generator is too big to publish. Trim it down, or move a library out of it,
+                    and try again.
                 </p>
             )}
 
@@ -98,8 +90,7 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
                 </p>
             ) : editionSize === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                    Open edition. Collectors pay the mint cost each time; you pay the above
-                    once.
+                    Open edition. Collectors pay the mint cost each time; you pay the above once.
                 </p>
             ) : (
                 <p className="text-xs text-muted-foreground">

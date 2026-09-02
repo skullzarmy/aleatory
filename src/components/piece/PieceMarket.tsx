@@ -128,7 +128,6 @@ export function PieceMarket({
         }
     }
 
-
     const tez = (mutez: bigint) => `${formatTez(mutez)} ꜩ`;
 
     return (
@@ -145,7 +144,9 @@ export function PieceMarket({
                             type="button"
                             disabled={busy !== null || settling}
                             onClick={() =>
-                                run("delist", async () => ops.delist(await getClient(), listing.id, listing.marketplace))
+                                run("delist", async () =>
+                                    ops.delist(await getClient(), listing.id, listing.marketplace),
+                                )
                             }
                             className="w-full rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-60"
                         >
@@ -169,7 +170,11 @@ export function PieceMarket({
                             }
                             className="w-full rounded-md bg-alea-600 px-3 py-2 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
                         >
-                            {address ? (busy === "buy" ? "Confirming" : `Buy for ${tez(listing.priceMutez)}`) : "Connect to buy"}
+                            {address
+                                ? busy === "buy"
+                                    ? "Confirming"
+                                    : `Buy for ${tez(listing.priceMutez)}`
+                                : "Connect to buy"}
                         </button>
                     )}
                 </>
@@ -212,9 +217,7 @@ export function PieceMarket({
                         </button>
                     </div>
                     {price !== "" && priceMutez === null && (
-                        <p className="text-xs text-destructive">
-                            Enter an amount in tez.
-                        </p>
+                        <p className="text-xs text-destructive">Enter an amount in tez.</p>
                     )}
                     {priceMutez !== null && (
                         <PriceBreakdown mutez={priceMutez} royaltyBps={royaltyBps} />
@@ -303,7 +306,11 @@ export function PieceMarket({
                                                 disabled={busy !== null || settling}
                                                 onClick={() =>
                                                     run(`cancel-${o.id}`, async () =>
-                                                        ops.cancelOffer(await getClient(), o.id, o.marketplace),
+                                                        ops.cancelOffer(
+                                                            await getClient(),
+                                                            o.id,
+                                                            o.marketplace,
+                                                        ),
                                                     )
                                                 }
                                                 className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"

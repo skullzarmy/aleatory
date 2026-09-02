@@ -18,8 +18,7 @@ export const BRAND = {
 
 export type Network = "shadownet" | "mainnet";
 
-export const NETWORK: Network =
-    (process.env.NEXT_PUBLIC_TEZOS_NETWORK as Network) || "shadownet";
+export const NETWORK: Network = (process.env.NEXT_PUBLIC_TEZOS_NETWORK as Network) || "shadownet";
 
 export const TZKT_API: Record<Network, string> = {
     shadownet: "https://api.shadownet.tzkt.io",
@@ -68,5 +67,4 @@ export const ISOLATE_ORIGIN =
     process.env.NEXT_PUBLIC_ISOLATE_ORIGIN || "https://isolate.aleatory.art";
 
 export const tzktApi = () => TZKT_API[NETWORK];
-export const tzktLink = (hashOrAddress: string) =>
-    `${TZKT_UI[NETWORK]}/${hashOrAddress}`;
+export const tzktLink = (hashOrAddress: string) => `${TZKT_UI[NETWORK]}/${hashOrAddress}`;

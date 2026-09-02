@@ -136,8 +136,7 @@ export default function NewGeneratorPage() {
         <div className="mx-auto max-w-3xl px-4 py-8">
             <h1 className="text-xl font-semibold tracking-tight">New generator</h1>
             <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-                Pick what your piece is built with. This can&apos;t be changed after you
-                publish.
+                Pick what your piece is built with. This can&apos;t be changed after you publish.
             </p>
 
             {/* `certain` is false when nothing in the file matched and the
@@ -150,9 +149,8 @@ export default function NewGeneratorPage() {
                 <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
                     {detected.certain ? (
                         <>
-                            Read from your file:{" "}
-                            <strong>{getKind(detected.kindId).label}</strong>, because{" "}
-                            {detected.kindBecause}.
+                            Read from your file: <strong>{getKind(detected.kindId).label}</strong>,
+                            because {detected.kindBecause}.
                         </>
                     ) : (
                         <>
@@ -187,8 +185,7 @@ export default function NewGeneratorPage() {
                     <code className="font-mono text-xs">
                         {opened.project.unresolved.join(", ")}
                     </code>
-                    . It will run without{" "}
-                    {opened.project.unresolved.length === 1 ? "it" : "them"}.
+                    . It will run without {opened.project.unresolved.length === 1 ? "it" : "them"}.
                 </p>
             )}
 
@@ -316,8 +313,8 @@ export default function NewGeneratorPage() {
             )}
 
             <p className="mt-8 text-xs text-muted-foreground">
-                Your piece should draw from its seed and nothing else. We&apos;ll check
-                that before you publish.
+                Your piece should draw from its seed and nothing else. We&apos;ll check that before
+                you publish.
             </p>
         </div>
     );

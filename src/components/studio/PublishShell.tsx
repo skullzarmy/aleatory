@@ -31,9 +31,7 @@ export function PublishShell({ providers }: { providers: Provider[] }) {
 
     if (draft === undefined) {
         return (
-            <p className="mx-auto max-w-2xl px-4 py-8 text-sm text-muted-foreground">
-                Opening…
-            </p>
+            <p className="mx-auto max-w-2xl px-4 py-8 text-sm text-muted-foreground">Opening…</p>
         );
     }
 
@@ -67,15 +65,13 @@ export function PublishShell({ providers }: { providers: Provider[] }) {
 
             <h1 className="mt-3 text-xl font-semibold tracking-tight">Publish</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-                Your generator, your contract, your terms. Anything marked permanent can
-                never be changed.
+                Your generator, your contract, your terms. Anything marked permanent can never be
+                changed.
             </p>
 
             {errors.length > 0 && (
                 <div className="mt-6 rounded-lg border border-destructive/40 bg-destructive/10 p-4">
-                    <p className="text-sm font-medium">
-                        Fix your parameters first.
-                    </p>
+                    <p className="text-sm font-medium">Fix your parameters first.</p>
                     <ul className="mt-2 space-y-1">
                         {errors.map((e) => (
                             <li key={e} className="text-xs leading-relaxed">

@@ -114,20 +114,25 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
     };
 
     // <script src="…"></script> → inline
-    html = html.replace(/<script\b([^>]*?)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>\s*<\/script>/gi, (match: string, _pre: string, src: string) => {
-        if (/^(https?:)?\/\//.test(src)) {
-            notes.push(`Left a remote script reference in place: ${src}, it will be blocked and reported at render time.`);
-            return match;
-        }
-        const file = lookup(src);
-        if (!file) {
-            missing.add(normalize(src));
-            return match;
-        }
-        if (!TEXT_INLINE.has(ext(src))) return match;
-        inlined.add(normalize(src));
-        return `<script>${literal(strFromU8(file))}</script>`;
-    });
+    html = html.replace(
+        /<script\b([^>]*?)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>\s*<\/script>/gi,
+        (match: string, _pre: string, src: string) => {
+            if (/^(https?:)?\/\//.test(src)) {
+                notes.push(
+                    `Left a remote script reference in place: ${src}, it will be blocked and reported at render time.`,
+                );
+                return match;
+            }
+            const file = lookup(src);
+            if (!file) {
+                missing.add(normalize(src));
+                return match;
+            }
+            if (!TEXT_INLINE.has(ext(src))) return match;
+            inlined.add(normalize(src));
+            return `<script>${literal(strFromU8(file))}</script>`;
+        },
+    );
 
     /**
      * `url(…)` inside CSS, wherever that CSS ends up.
@@ -139,29 +144,35 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
      * anywhere saying a file was left behind.
      */
     const inlineCssUrls = (css: string): string =>
-        css.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (match: string, _q: string, ref: string) => {
-            if (/^(https?:|data:|blob:|#)/i.test(ref)) return match;
-            const file = lookup(ref);
-            if (!file) {
-                missing.add(normalize(ref));
-                return match;
-            }
-            inlined.add(normalize(ref));
-            const mime = MIME[ext(ref)] ?? "application/octet-stream";
-            return `url("data:${mime};base64,${toBase64(file)}")`;
-        });
+        css.replace(
+            /url\(\s*(["']?)([^"')]+)\1\s*\)/gi,
+            (match: string, _q: string, ref: string) => {
+                if (/^(https?:|data:|blob:|#)/i.test(ref)) return match;
+                const file = lookup(ref);
+                if (!file) {
+                    missing.add(normalize(ref));
+                    return match;
+                }
+                inlined.add(normalize(ref));
+                const mime = MIME[ext(ref)] ?? "application/octet-stream";
+                return `url("data:${mime};base64,${toBase64(file)}")`;
+            },
+        );
 
     // <link rel="stylesheet" href="…"> → inline
-    html = html.replace(/<link\b[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>/gi, (match: string, href: string) => {
-        if (!/stylesheet/i.test(match)) return match;
-        const file = lookup(href);
-        if (!file) {
-            if (!/^(https?:)?\/\//.test(href)) missing.add(normalize(href));
-            return match;
-        }
-        inlined.add(normalize(href));
-        return `<style>${literal(inlineCssUrls(strFromU8(file)))}</style>`;
-    });
+    html = html.replace(
+        /<link\b[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>/gi,
+        (match: string, href: string) => {
+            if (!/stylesheet/i.test(match)) return match;
+            const file = lookup(href);
+            if (!file) {
+                if (!/^(https?:)?\/\//.test(href)) missing.add(normalize(href));
+                return match;
+            }
+            inlined.add(normalize(href));
+            return `<style>${literal(inlineCssUrls(strFromU8(file)))}</style>`;
+        },
+    );
 
     // …and in <style> blocks the document already had.
     html = html.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (match: string, css: string) =>
@@ -189,7 +200,10 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
     // things: one missing asset referenced twice made the total negative, and a
     // package that had inlined a stylesheet reported nothing at all.
     const inlinedCount = inlined.size;
-    if (inlinedCount > 0) notes.push(`Flattened ${inlinedCount} file${inlinedCount === 1 ? "" : "s"} into one document.`);
+    if (inlinedCount > 0)
+        notes.push(
+            `Flattened ${inlinedCount} file${inlinedCount === 1 ? "" : "s"} into one document.`,
+        );
 
     return {
         html,

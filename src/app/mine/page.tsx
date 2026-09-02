@@ -33,8 +33,8 @@ export default function MinePage() {
         <div className="mx-auto max-w-2xl px-4 py-16">
             <h1 className="text-xl font-semibold tracking-tight">What you own</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-                Connect and this goes to your wallet page: the pieces you hold and the
-                collections you made.
+                Connect and this goes to your wallet page: the pieces you hold and the collections
+                you made.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
                 <button
@@ -53,9 +53,8 @@ export default function MinePage() {
                 </Link>
             </div>
             <p className="mt-6 text-xs text-muted-foreground">
-                Every address has a page here whether or not it ever connects. If you know
-                one, it is at <code className="font-mono">/wallet/</code> followed by the
-                address.
+                Every address has a page here whether or not it ever connects. If you know one, it
+                is at <code className="font-mono">/wallet/</code> followed by the address.
             </p>
         </div>
     );

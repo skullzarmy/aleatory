@@ -47,26 +47,22 @@ const router = (
     process.env.NEXT_PUBLIC_ROUTER_ADDRESS ||
     ""
 ).trim();
-const override = (
-    process.env.ALEA_FACTORIES ||
-    process.env.ALEA_FACTORY_ADDRESS ||
-    ""
-).trim();
+const override = (process.env.ALEA_FACTORIES || process.env.ALEA_FACTORY_ADDRESS || "").trim();
 
 console.log("\nConfiguration");
 const ready = [
-    check("provider address", Boolean(process.env.ALEA_PROVIDER_ADDRESS), process.env.ALEA_PROVIDER_ADDRESS ?? ""),
+    check(
+        "provider address",
+        Boolean(process.env.ALEA_PROVIDER_ADDRESS),
+        process.env.ALEA_PROVIDER_ADDRESS ?? "",
+    ),
     check("agent key", Boolean(process.env.ALEA_AGENT_SK)),
     check("pinning", Boolean(process.env.PINATA_JWT)),
     check("rendering", Boolean(renderConfigFromEnv())),
     // Where the daemon looks for work. Unset, it scans nothing and reports
     // serving no collections, which reads exactly like "nobody has named you
     // as their provider" while every check above passes.
-    check(
-        "router",
-        Boolean(router || override),
-        override ? `overridden: ${override}` : router,
-    ),
+    check("router", Boolean(router || override), override ? `overridden: ${override}` : router),
 ].every(Boolean);
 
 if (!ready) {

@@ -26,9 +26,7 @@ function AddressLine({ address }: { address: string }) {
 
     return (
         <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-            <span className="font-mono text-xs text-muted-foreground">
-                {shortAddress(address)}
-            </span>
+            <span className="font-mono text-xs text-muted-foreground">{shortAddress(address)}</span>
             <button
                 type="button"
                 onClick={() => {

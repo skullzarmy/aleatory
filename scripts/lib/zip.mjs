@@ -43,9 +43,7 @@ export function zip(files) {
 
     for (const file of files) {
         const name = Buffer.from(file.name, "utf8");
-        const data = Buffer.isBuffer(file.data)
-            ? file.data
-            : Buffer.from(file.data, "utf8");
+        const data = Buffer.isBuffer(file.data) ? file.data : Buffer.from(file.data, "utf8");
         const deflated = deflateRawSync(data, { level: 9 });
         const sum = crc32(data);
 

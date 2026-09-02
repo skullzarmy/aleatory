@@ -109,11 +109,7 @@ export async function POST(request: Request) {
     }
 }
 
-async function pinFile(
-    bytes: Uint8Array,
-    name?: string,
-    type = "text/html",
-): Promise<string> {
+async function pinFile(bytes: Uint8Array, name?: string, type = "text/html"): Promise<string> {
     const form = new FormData();
     // The type is ours, not the caller's: it is decided by which branch above
     // accepted the body, never by anything the caller sent.
@@ -158,9 +154,10 @@ async function pinJson(doc: unknown, name?: string): Promise<string> {
 async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
     if (!cid) return;
-    const base = (
-        process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz"
-    ).replace(/\/+$/, "");
+    const base = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz").replace(
+        /\/+$/,
+        "",
+    );
     await fetch(`${base}/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {});
 }
 

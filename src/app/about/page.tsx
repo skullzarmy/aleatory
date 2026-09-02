@@ -31,74 +31,72 @@ export default function AboutPage() {
             <Entry />
 
             <p className="mt-8 text-base leading-relaxed text-muted-foreground">
-                A generator is code, published once and never changed. A piece is that code
-                plus a seed, and the seed comes from the moment somebody chose to mint it.
-                Nobody picks it: not the artist, not us.
+                A generator is code, published once and never changed. A piece is that code plus a
+                seed, and the seed comes from the moment somebody chose to mint it. Nobody picks it:
+                not the artist, not us.
             </p>
 
             <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-                One generator yields an edition the way one plate yields prints. The
-                difference is that no two impressions are alike, and the artist cannot know
-                what any of them look like before they exist.
+                One generator yields an edition the way one plate yields prints. The difference is
+                that no two impressions are alike, and the artist cannot know what any of them look
+                like before they exist.
             </p>
 
             <Section title="Minting">
                 <p>
-                    Minting is one approval, and the piece is yours before its image exists.
-                    A render provider draws it afterwards. Until that arrives your piece runs
-                    live in your browser, which is the artwork itself and not a placeholder
-                    for it.
+                    Minting is one approval, and the piece is yours before its image exists. A
+                    render provider draws it afterwards. Until that arrives your piece runs live in
+                    your browser, which is the artwork itself and not a placeholder for it.
                 </p>
             </Section>
 
             <Section title="Who draws your images">
                 <p>
-                    A feed, a marketplace and a search result all need a still image, so
-                    somebody has to run the code once and publish the picture it made. That job
-                    is a role, called a render provider, and it is deliberately not ours alone.
+                    A feed, a marketplace and a search result all need a still image, so somebody
+                    has to run the code once and publish the picture it made. That job is a role,
+                    called a render provider, and it is deliberately not ours alone.
                 </p>
                 <p>
-                    Anyone can run one. Listing it asks us for nothing: the registry checks
-                    that the contract answers the questions a provider has to answer, and that
-                    is the whole test. It is a type check, not an endorsement, and we cannot
-                    refuse anyone.
+                    Anyone can run one. Listing it asks us for nothing: the registry checks that the
+                    contract answers the questions a provider has to answer, and that is the whole
+                    test. It is a type check, not an endorsement, and we cannot refuse anyone.
                 </p>
                 <p>
-                    You choose yours when you publish, and your collection records it. We run
-                    one and it is not privileged. If ours went away, or we decided we disliked
-                    your work, another provider renders your collection and the pieces already
-                    minted are untouched either way.
+                    You choose yours when you publish, and your collection records it. We run one
+                    and it is not privileged. If ours went away, or we decided we disliked your
+                    work, another provider renders your collection and the pieces already minted are
+                    untouched either way.
                 </p>
                 <p>
                     That is the point of keeping it open. If rendering were ours alone we would
                     quietly decide whose art gets finished, which is a walled garden with extra
-                    steps. Making it a role anyone can fill means depending on us stays a
-                    choice you can revoke.
+                    steps. Making it a role anyone can fill means depending on us stays a choice you
+                    can revoke.
                 </p>
             </Section>
 
             <Section title="Costs">
                 <p>
-                    Publishing a generator costs a one-off fee, usually well under a dollar,
-                    and the studio prices your actual file before you commit to anything.
+                    Publishing a generator costs a one-off fee, usually well under a dollar, and the
+                    studio prices your actual file before you commit to anything.
                 </p>
                 <p>
-                    Minting costs the artist&rsquo;s price, which goes to the artist, plus a
-                    small fee to whoever renders the image. We take none of it. We earn 2.5%
-                    when a piece resells here and nothing before that. Royalties are paid by
-                    the collection itself, so a seller cannot cut the artist out.
+                    Minting costs the artist&rsquo;s price, which goes to the artist, plus a small
+                    fee to whoever renders the image. We take none of it. We earn 2.5% when a piece
+                    resells here and nothing before that. Royalties are paid by the collection
+                    itself, so a seller cannot cut the artist out.
                 </p>
             </Section>
 
             <Section title="Permission">
                 <p>
-                    None of it needs ours. Anyone can publish a collection, run a render
-                    provider, trade, or run this whole system themselves. What you publish is
-                    yours and we cannot touch it.
+                    None of it needs ours. Anyone can publish a collection, run a render provider,
+                    trade, or run this whole system themselves. What you publish is yours and we
+                    cannot touch it.
                 </p>
                 <p>
-                    We control this website. Everything shows by default, and the short list
-                    of what we hide is public, in{" "}
+                    We control this website. Everything shows by default, and the short list of what
+                    we hide is public, in{" "}
                     <a
                         href={`${BRAND.repo}/blob/main/src/lib/blocklist.ts`}
                         target="_blank"
@@ -113,9 +111,8 @@ export default function AboutPage() {
 
             <Section title="If this site disappears">
                 <p>
-                    Your collection is a contract on Tezos and your piece is a token in it,
-                    with the code stored right there alongside. Anyone can build a site that
-                    reads{" "}
+                    Your collection is a contract on Tezos and your piece is a token in it, with the
+                    code stored right there alongside. Anyone can build a site that reads{" "}
                     <Link href="/docs/interface" className="underline hover:text-foreground">
                         ALEATORY-001
                     </Link>{" "}
@@ -169,12 +166,9 @@ function Entry() {
                     <p>
                         <span className="mr-2 text-muted-foreground">1.</span>
                         <span className="italic text-muted-foreground">formal </span>
-                        happening, done, or chosen by chance, rather than according to any
-                        plan.
+                        happening, done, or chosen by chance, rather than according to any plan.
                     </p>
-                    <p className="mt-1 pl-6 text-xs text-muted-foreground">
-                        Synonym: random
-                    </p>
+                    <p className="mt-1 pl-6 text-xs text-muted-foreground">Synonym: random</p>
                 </div>
 
                 <div>
@@ -183,8 +177,8 @@ function Entry() {
                         <span className="italic text-muted-foreground">
                             music, art, literature{" "}
                         </span>
-                        involving some parts that are chosen by chance, for example by a
-                        computer or by a performer.
+                        involving some parts that are chosen by chance, for example by a computer or
+                        by a performer.
                     </p>
                     <p className="mt-1 pl-6 text-xs italic text-muted-foreground">
                         &ldquo;John Cage has been a key proponent of aleatory music.&rdquo;

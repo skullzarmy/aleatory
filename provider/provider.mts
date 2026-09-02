@@ -26,11 +26,7 @@ const PROVIDER_ADDRESS = process.env.ALEA_PROVIDER_ADDRESS || "";
 const AGENT_SK = process.env.ALEA_AGENT_SK || "";
 import { render as renderPiece, renderConfigFromEnv } from "./render.mts";
 import { buildPieceDocument } from "./metadata";
-import {
-    parseLibraries,
-    resolveLibraries,
-    type DeclaredLibrary,
-} from "./libraries.mts";
+import { parseLibraries, resolveLibraries, type DeclaredLibrary } from "./libraries.mts";
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
 const KT1 = /^KT1[1-9A-HJ-NP-Za-km-z]{33}$/;
@@ -47,9 +43,11 @@ const FACTORY_OVERRIDE = addressList(
     process.env.ALEA_FACTORIES || process.env.ALEA_FACTORY_ADDRESS,
 );
 
-const ROUTER = (process.env.ALEA_ROUTER_ADDRESS ||
+const ROUTER = (
+    process.env.ALEA_ROUTER_ADDRESS ||
     process.env.NEXT_PUBLIC_ROUTER_ADDRESS ||
-    "").trim();
+    ""
+).trim();
 
 let factoryCache: { at: number; addresses: string[] } | null = null;
 
@@ -78,9 +76,9 @@ export async function collectionsFactories(): Promise<string[]> {
         return factoryCache.addresses;
     }
 
-    const storage = await tzkt<{ factories?: string[] }>(
-        `/v1/contracts/${ROUTER}/storage`,
-    ).catch(() => null);
+    const storage = await tzkt<{ factories?: string[] }>(`/v1/contracts/${ROUTER}/storage`).catch(
+        () => null,
+    );
 
     // Deduplicated: the router prepends, so re-registering a factory leaves it
     // in the list twice and it would be scanned twice.
@@ -88,7 +86,10 @@ export async function collectionsFactories(): Promise<string[]> {
     if (addresses.length > 0) factoryCache = { at: Date.now(), addresses };
     return addresses;
 }
-const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz").replace(/\/+$/, "");
+const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz").replace(
+    /\/+$/,
+    "",
+);
 
 /**
  * Collections this provider declines to render for.
@@ -241,9 +242,7 @@ export async function collectionsServed(): Promise<string[]> {
  * from.
  */
 /** Name and description from the collection's own TZIP-16 document. */
-async function collectionFacts(
-    collection: string,
-): Promise<{ name: string; description: string }> {
+async function collectionFacts(collection: string): Promise<{ name: string; description: string }> {
     const raw = await metadataKey(collection, "content").catch(() => undefined);
     if (!raw) return { name: "", description: "" };
     try {
@@ -345,7 +344,7 @@ export async function pendingIn(collection: string): Promise<PendingPiece[]> {
 
         for (const t of tokens) {
             const tokenId = typeof t === "string" ? t : t.tokenId;
-            if (await tokenMetadataUri(collection, tokenId) !== pendingUri) continue;
+            if ((await tokenMetadataUri(collection, tokenId)) !== pendingUri) continue;
 
             const buy = await buyEvent(collection, tokenId);
             if (!buy) continue;
@@ -640,10 +639,10 @@ export async function pieceAt(collection: string, tokenId: string): Promise<Pend
         code = await decodeCode(storage.art.code, storage.art.code_encoding ?? "identity");
     } else {
         // `code_uri` is sp.string on chain, not sp.bytes. Decoding it as hex threw
-    // "not hex" on every collection published by pointer, so the scan died
-    // before it reached a single piece and an IPFS-stored generator could
-    // never be rendered at all.
-    const codeUri = storage.art.code_uri ?? "";
+        // "not hex" on every collection published by pointer, so the scan died
+        // before it reached a single piece and an IPFS-stored generator could
+        // never be rendered at all.
+        const codeUri = storage.art.code_uri ?? "";
         if (codeUri.startsWith("ipfs://") && CID.test(codeUri.slice(7).split(/[/?#]/)[0])) {
             code = await fetchGenerator(codeUri);
         }

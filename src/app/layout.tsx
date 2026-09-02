@@ -52,11 +52,7 @@ export const viewport: Viewport = {
     colorScheme: "dark light",
 };
 
-export default function RootLayout({
-    children,
-}: {
-    children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="en" className={anybody.className} suppressHydrationWarning>
             <body>
@@ -86,7 +82,7 @@ export default function RootLayout({
                         </div>
                     </WalletProvider>
                 </ThemeProvider>
-                            <ServiceWorker />
+                <ServiceWorker />
             </body>
         </html>
     );

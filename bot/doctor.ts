@@ -121,7 +121,9 @@ async function main() {
     //    never added at all, refuses every channel with the same 403 as a
     //    permission problem.
     const guilds = await ask(token, "/users/@me/guilds");
-    const inGuilds = Array.isArray(guilds.body) ? (guilds.body as { id: string; name: string }[]) : [];
+    const inGuilds = Array.isArray(guilds.body)
+        ? (guilds.body as { id: string; name: string }[])
+        : [];
     if (inGuilds.length === 0) {
         console.log("  servers    none");
         console.log("\n  The bot has not been added to any server. Open the invite URL.\n");

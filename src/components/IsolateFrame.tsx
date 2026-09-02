@@ -110,10 +110,7 @@ export function IsolateFrame({
                 // "*" for the same reason: an opaque origin cannot be named,
                 // so a specific targetOrigin would drop the message silently.
                 // Only this frame receives it, because we hold its window.
-                ref.current?.contentWindow?.postMessage(
-                    JSON.parse(handlers.current.payload),
-                    "*",
-                );
+                ref.current?.contentWindow?.postMessage(JSON.parse(handlers.current.payload), "*");
             }
             if (d?.type === "alea:ready") {
                 handlers.current.onReady?.({

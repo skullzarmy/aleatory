@@ -13,7 +13,6 @@
  * Run: npm test
  */
 
-
 import { platformStats, render, EMPTY_STATS, type PlatformStats } from "./stats";
 import { router } from "./chain";
 
@@ -94,9 +93,7 @@ async function run() {
     }
 
     if (!online || !router()) {
-        console.log(
-            !online ? "  skip, no connection\n" : "  skip, no router configured\n",
-        );
+        console.log(!online ? "  skip, no connection\n" : "  skip, no router configured\n");
     } else {
         const stats = await platformStats();
         check("the router answered", stats.problems.length === 0, stats.problems.join("; "));
@@ -106,15 +103,10 @@ async function run() {
             "a piece cannot exist without a generator",
             stats.pieces === 0 || stats.generators > 0,
         );
-        check(
-            "minting cost something",
-            stats.mintedMutez > 0,
-            `${stats.mintedMutez} mutez`,
-        );
+        check("minting cost something", stats.mintedMutez > 0, `${stats.mintedMutez} mutez`);
         check(
             "earnings are the three parts and nothing else",
-            stats.earnedMutez ===
-                stats.treasuryMutez + stats.unsweptMutez + stats.renderGasMutez,
+            stats.earnedMutez === stats.treasuryMutez + stats.unsweptMutez + stats.renderGasMutez,
         );
         // Every collector's tez goes to an artist, a provider or a marketplace,
         // so the platform's cut of primary sales cannot exceed what was spent.

@@ -28,17 +28,15 @@ export function LibraryPicker({
     const malformed = declared.filter((c) => specFor(c) === null);
 
     function toggle(coordinate: string, on: boolean) {
-        const next = on
-            ? [...declared, coordinate]
-            : declared.filter((c) => c !== coordinate);
+        const next = on ? [...declared, coordinate] : declared.filter((c) => c !== coordinate);
         onChange(withLibraries(html, next));
     }
 
     return (
         <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-                A declared library is loaded for you and costs you none of your
-                generator&apos;s size. Any package on npm works, by name and version.
+                A declared library is loaded for you and costs you none of your generator&apos;s
+                size. Any package on npm works, by name and version.
             </p>
 
             <ul className="space-y-2">
@@ -59,8 +57,8 @@ export function LibraryPicker({
                                         {d.label} {d.version}
                                     </span>
                                     <span className="block text-xs text-muted-foreground">
-                                        {(d.approxBytes / 1024).toFixed(0)} KB, loaded at render
-                                        and checked against{" "}
+                                        {(d.approxBytes / 1024).toFixed(0)} KB, loaded at render and
+                                        checked against{" "}
                                         <code className="font-mono">{d.hash.slice(0, 12)}…</code>
                                     </span>
                                 </span>
@@ -72,9 +70,9 @@ export function LibraryPicker({
 
             {malformed.length > 0 && (
                 <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
-                    {malformed.join(", ")} is not a package and a version, so nothing can
-                    resolve it. Write it as <code className="font-mono">name@1.2.3</code>,
-                    and add the file after it when the package needs one named.
+                    {malformed.join(", ")} is not a package and a version, so nothing can resolve
+                    it. Write it as <code className="font-mono">name@1.2.3</code>, and add the file
+                    after it when the package needs one named.
                 </p>
             )}
 

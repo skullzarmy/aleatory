@@ -63,7 +63,13 @@ async function pendingState(
     const entries = await Promise.all(
         collections.map(
             async (c) =>
-                [c, { pending: await pendingUriOf(c), uris: await fetchTokenUris(c).catch(() => new Map<string, string>()) }] as const,
+                [
+                    c,
+                    {
+                        pending: await pendingUriOf(c),
+                        uris: await fetchTokenUris(c).catch(() => new Map<string, string>()),
+                    },
+                ] as const,
         ),
     );
     const byCollection = new Map(entries);
@@ -84,10 +90,7 @@ async function pendingUriOf(collection: string): Promise<string> {
     return raw ? bytesToString(raw) : "";
 }
 
-async function resolveDocs(
-    collection: string,
-    tokenIds: string[],
-): Promise<Map<string, TokenDoc>> {
+async function resolveDocs(collection: string, tokenIds: string[]): Promise<Map<string, TokenDoc>> {
     const out = new Map<string, TokenDoc>();
     if (tokenIds.length === 0) return out;
 
@@ -132,9 +135,7 @@ const key = (t: TzktToken) => `${t.contract.address}:${t.tokenId}`;
 
 /** Every collection from every factory, deduplicated. */
 async function collectionsFrom(factories: string[]) {
-    const lists = await Promise.all(
-        factories.map((f) => fetchCollections(f).catch(() => [])),
-    );
+    const lists = await Promise.all(factories.map((f) => fetchCollections(f).catch(() => [])));
     const seen = new Set<string>();
     return lists.flat().filter((c) => {
         if (seen.has(c.address)) return false;
@@ -185,8 +186,10 @@ export async function coversFor(collections: string[]): Promise<Map<string, stri
 
     // Enough rows that a busy collection at the front cannot crowd a quiet one
     // off the end before every collection has been seen once.
-    const tokens = await fetchRecentTokens(collections, Math.min(collections.length * 8, 400))
-        .catch(() => []);
+    const tokens = await fetchRecentTokens(
+        collections,
+        Math.min(collections.length * 8, 400),
+    ).catch(() => []);
     const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
 
     const out = new Map<string, string>();
@@ -291,9 +294,9 @@ export async function piecesFor(
     const collections = [...new Set(pairs.map((p) => p.collection))];
     const tokenIds = [...new Set(pairs.map((p) => p.tokenId))];
 
-    const tokens = (
-        await fetchTokensIn(collections, tokenIds).catch(() => [])
-    ).filter((t) => wanted.has(key(t)));
+    const tokens = (await fetchTokensIn(collections, tokenIds).catch(() => [])).filter((t) =>
+        wanted.has(key(t)),
+    );
 
     const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
 

@@ -197,10 +197,7 @@ export function buildDocument(input: RenderInput): string {
 }
 
 /** Render one piece. Returns PNG bytes. */
-export async function render(
-    input: RenderInput,
-    config: RenderConfig,
-): Promise<Uint8Array> {
+export async function render(input: RenderInput, config: RenderConfig): Promise<Uint8Array> {
     const res = await fetch(`${API}/${config.accountId}/browser-rendering/screenshot`, {
         method: "POST",
         headers: {

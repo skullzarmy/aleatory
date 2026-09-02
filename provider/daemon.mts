@@ -22,9 +22,7 @@ import dotenv from "dotenv";
 import { createServer } from "node:http";
 dotenv.config();
 
-const { collectionsServed, pendingIn, handle } = await import(
-    "./provider.mts"
-);
+const { collectionsServed, pendingIn, handle } = await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
 
 /** How often to look when there is nothing to do. */

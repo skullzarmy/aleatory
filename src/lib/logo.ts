@@ -243,12 +243,7 @@ function polygon(r: number, n: number, phase = 0): string {
  * Each one is drawn in a single wedge and repeated, so it tiles the ring
  * exactly however many times the fold says.
  */
-function innerMotif(
-    rand: () => number,
-    fold: number,
-    r0: number,
-    r1: number,
-): Stroke[] {
+function innerMotif(rand: () => number, fold: number, r0: number, r1: number): Stroke[] {
     const step = TAU / fold;
     const up = -Math.PI / 2;
     const mid = (r0 + r1) / 2;
@@ -322,9 +317,7 @@ function frameMotif(rand: () => number, fold: number, r: number): Stroke[] {
         case "circle":
             return [{ d: circle(r), width: 1.8, opacity: 0.9, repeat: false }];
         case "polygon":
-            return [
-                { d: polygon(r * 1.06, fold / 2), width: 1.6, opacity: 0.9, repeat: false },
-            ];
+            return [{ d: polygon(r * 1.06, fold / 2), width: 1.6, opacity: 0.9, repeat: false }];
         default:
             return [
                 {
@@ -342,12 +335,7 @@ function frameMotif(rand: () => number, fold: number, r: number): Stroke[] {
  * The silhouette. Always petals, always reaching the outer radius, because
  * this is the part that has to be recognisable at sixteen pixels.
  */
-function petalBand(
-    rand: () => number,
-    fold: number,
-    r0: number,
-    r1: number,
-): Stroke[] {
+function petalBand(rand: () => number, fold: number, r0: number, r1: number): Stroke[] {
     const step = TAU / fold;
     const belly = range(rand, 0.95, 1.15);
     const out: Stroke[] = [
@@ -479,9 +467,7 @@ export function renderLogo(options: LogoOptions = {}): string {
         }
     });
 
-    const plate = background
-        ? `<circle cx="0" cy="0" r="${R * 1.04}" fill="${background}"/>`
-        : "";
+    const plate = background ? `<circle cx="0" cy="0" r="${R * 1.04}" fill="${background}"/>` : "";
 
     // The centre is cleared before the monogram is drawn, so no tracery runs
     // behind the A. Without a plate colour the clear is skipped and the mark

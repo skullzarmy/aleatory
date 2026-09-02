@@ -47,7 +47,11 @@ async function run() {
     for (const prefix of ["tz1", "tz2", "tz3", "tz4"]) {
         const address = `${prefix}ahmJWEYzt5k1bhyBfvxTwCAS8h1Gobw5V`;
         const body = await verdictOf(address);
-        check(`${prefix} is payable without asking the chain`, body.verdict === "payable", body.verdict);
+        check(
+            `${prefix} is payable without asking the chain`,
+            body.verdict === "payable",
+            body.verdict,
+        );
     }
 
     for (const [name, address] of [

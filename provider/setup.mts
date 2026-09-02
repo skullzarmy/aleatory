@@ -72,7 +72,9 @@ const agentAddress = await agent.publicKeyHash();
 const agentBalance = (await tezos.tz.getBalance(agentAddress)).toNumber() / 1e6;
 const revealed = Boolean(await tezos.rpc.getManagerKey(agentAddress).catch(() => null));
 
-console.log(`          ${agentAddress}  (${agentBalance.toFixed(3)} tez, ${revealed ? "revealed" : "not revealed"})`);
+console.log(
+    `          ${agentAddress}  (${agentBalance.toFixed(3)} tez, ${revealed ? "revealed" : "not revealed"})`,
+);
 
 if (agentAddress === operatorAddress) {
     console.log("\nThe agent and the operator are the same address. The whole point of the");

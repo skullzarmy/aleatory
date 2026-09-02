@@ -44,10 +44,7 @@ const FOREVER = {
     "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
 };
 
-export async function GET(
-    _request: Request,
-    { params }: { params: Promise<{ cid: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ cid: string }> }) {
     const { cid } = await params;
     if (!CID.test(cid)) {
         return new Response("not a cid", { status: 400 });

@@ -51,25 +51,25 @@ export default function PrivacyPage() {
             <H>1. What we collect</H>
             <P>
                 <strong className="text-foreground">Nothing you type,</strong> because there is
-                nowhere to type it. No email address, no name, no payment details. Buying a
-                piece is a Tezos transaction between you and a contract, so no card or bank
-                detail ever reaches this site.
+                nowhere to type it. No email address, no name, no payment details. Buying a piece is
+                a Tezos transaction between you and a contract, so no card or bank detail ever
+                reaches this site.
             </P>
             <P>
-                <strong className="text-foreground">Your wallet address,</strong> when you
-                connect one. It is used to show what you own, to build the transaction you
-                approve, and for nothing else. We never see your private key or your seed
-                phrase, and we cannot move anything without you approving it in your wallet.
+                <strong className="text-foreground">Your wallet address,</strong> when you connect
+                one. It is used to show what you own, to build the transaction you approve, and for
+                nothing else. We never see your private key or your seed phrase, and we cannot move
+                anything without you approving it in your wallet.
             </P>
             <P>
-                <strong className="text-foreground">Usage measurements,</strong> through
-                Cloudflare Web Analytics: which pages are visited, roughly where from, and how
-                fast they loaded. It sets no cookie, it does not fingerprint your browser, and
-                it cannot follow you to another site. It is not tied to your wallet address.
+                <strong className="text-foreground">Usage measurements,</strong> through Cloudflare
+                Web Analytics: which pages are visited, roughly where from, and how fast they
+                loaded. It sets no cookie, it does not fingerprint your browser, and it cannot
+                follow you to another site. It is not tied to your wallet address.
             </P>
             <P>
-                <strong className="text-foreground">Server logs,</strong> kept briefly by our
-                host and our CDN in the ordinary course of serving a page.
+                <strong className="text-foreground">Server logs,</strong> kept briefly by our host
+                and our CDN in the ordinary course of serving a page.
             </P>
 
             <H>2. What stays on your own device</H>
@@ -79,8 +79,8 @@ export default function PrivacyPage() {
             </P>
             <P>
                 Studio drafts are held in your browser&rsquo;s IndexedDB. A draft is not uploaded
-                anywhere and we cannot read it. It exists only on the device you wrote it on,
-                which also means clearing that browser&rsquo;s data deletes it for good.
+                anywhere and we cannot read it. It exists only on the device you wrote it on, which
+                also means clearing that browser&rsquo;s data deletes it for good.
             </P>
 
             <H>3. Who else sees you</H>
@@ -90,12 +90,12 @@ export default function PrivacyPage() {
             </P>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
                 <li>
-                    <strong className="text-foreground">TzKT,</strong> the chain indexer every
-                    page reads from.
+                    <strong className="text-foreground">TzKT,</strong> the chain indexer every page
+                    reads from.
                 </li>
                 <li>
-                    <strong className="text-foreground">objkt,</strong> for profile details when
-                    an artist has no hack.tez profile.
+                    <strong className="text-foreground">objkt,</strong> for profile details when an
+                    artist has no hack.tez profile.
                 </li>
                 <li>
                     <strong className="text-foreground">hack.tez,</strong> for names and avatars.
@@ -106,53 +106,51 @@ export default function PrivacyPage() {
                 </li>
                 <li>
                     <strong className="text-foreground">Your wallet&rsquo;s relay,</strong> run by
-                    Trilitech or the Beacon network, which carries the connection request to
-                    your wallet.
+                    Trilitech or the Beacon network, which carries the connection request to your
+                    wallet.
                 </li>
                 <li>
-                    <strong className="text-foreground">Netlify and Cloudflare,</strong> which
-                    host and serve the site.
+                    <strong className="text-foreground">Netlify and Cloudflare,</strong> which host
+                    and serve the site.
                 </li>
             </ul>
             <P>
-                Following a link off this site, to a block explorer or a marketplace, puts you
-                under their policy rather than this one.
+                Following a link off this site, to a block explorer or a marketplace, puts you under
+                their policy rather than this one.
             </P>
 
             <H>4. What is public forever</H>
             <P>
-                This part matters more than the rest and cannot be undone by us or by you.
-                Deploying a collection, minting a piece, listing, buying and making an offer are
-                all Tezos transactions. They are public, permanent, and readable by anyone,
-                including your wallet address and everything you chose to publish: a
-                collection&rsquo;s name and description, and the generator&rsquo;s source code.
+                This part matters more than the rest and cannot be undone by us or by you. Deploying
+                a collection, minting a piece, listing, buying and making an offer are all Tezos
+                transactions. They are public, permanent, and readable by anyone, including your
+                wallet address and everything you chose to publish: a collection&rsquo;s name and
+                description, and the generator&rsquo;s source code.
             </P>
-            <P>
-                There is no delete. Not by us, not by anyone. Publish accordingly.
-            </P>
+            <P>There is no delete. Not by us, not by anyone. Publish accordingly.</P>
 
             <H>5. Running a piece</H>
             <P>
-                Artwork runs inside a separate sandboxed origin that is forbidden from making
-                any network request at all. A piece cannot call home, cannot load a tracker and
-                cannot see your wallet. That restriction is enforced by the browser, not by our
-                good intentions.
+                Artwork runs inside a separate sandboxed origin that is forbidden from making any
+                network request at all. A piece cannot call home, cannot load a tracker and cannot
+                see your wallet. That restriction is enforced by the browser, not by our good
+                intentions.
             </P>
 
             <H>6. What we never do</H>
             <P>
                 We do not sell or rent anything about you, we run no advertising, and we share
-                nothing with data brokers. There is no cross-site tracking here and no
-                advertising cookie. We would disclose data if compelled by law, and the honest
-                answer is that there is almost nothing to hand over.
+                nothing with data brokers. There is no cross-site tracking here and no advertising
+                cookie. We would disclose data if compelled by law, and the honest answer is that
+                there is almost nothing to hand over.
             </P>
 
             <H>7. Your rights</H>
             <P>
-                Wherever you live, you can ask what we hold about you and ask us to delete it.
-                Email <Mail /> and we will answer. Two limits worth stating up front: anything
-                written to the Tezos blockchain cannot be deleted by anyone, and a draft on your
-                own device is yours to delete rather than ours.
+                Wherever you live, you can ask what we hold about you and ask us to delete it. Email{" "}
+                <Mail /> and we will answer. Two limits worth stating up front: anything written to
+                the Tezos blockchain cannot be deleted by anyone, and a draft on your own device is
+                yours to delete rather than ours.
             </P>
 
             <H>8. Children</H>
@@ -163,8 +161,8 @@ export default function PrivacyPage() {
 
             <H>9. Changes</H>
             <P>
-                Changes are posted here with a new date. The site is open source, so the history
-                of this page is public too.
+                Changes are posted here with a new date. The site is open source, so the history of
+                this page is public too.
             </P>
 
             <H>10. Contact</H>

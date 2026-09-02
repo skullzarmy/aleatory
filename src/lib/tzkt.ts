@@ -264,15 +264,16 @@ export async function fetchMintOperation(
     contract: string,
     tokenId: string,
 ): Promise<{ hash: string; level: number; timestamp: string } | null> {
-    const rows = await get<
-        { hash: string; level: number; timestamp: string }[]
-    >("/v1/tokens/transfers", {
-        "token.contract": contract,
-        "token.tokenId": tokenId,
-        "from.null": "true",
-        limit: 1,
-        select: "transactionId,level,timestamp",
-    });
+    const rows = await get<{ hash: string; level: number; timestamp: string }[]>(
+        "/v1/tokens/transfers",
+        {
+            "token.contract": contract,
+            "token.tokenId": tokenId,
+            "from.null": "true",
+            limit: 1,
+            select: "transactionId,level,timestamp",
+        },
+    );
     const row = rows[0];
     if (!row) return null;
     // `transactionId` identifies the operation; resolve it to a hash.
@@ -315,10 +316,9 @@ export interface CollectionMeta {
 }
 
 export async function fetchCollectionMeta(address: string): Promise<CollectionMeta> {
-    const row = await fetch(
-        `${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/content`,
-        { next: { revalidate: 300 } },
-    )
+    const row = await fetch(`${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/content`, {
+        next: { revalidate: 300 },
+    })
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null);
 
@@ -394,9 +394,7 @@ export async function fetchMintedTokenId(
  * So this reads `token_info[""]` out of the collection's own big_map and
  * fetches the document itself. One call covers a whole collection.
  */
-export async function fetchTokenUris(
-    collection: string,
-): Promise<Map<string, string>> {
+export async function fetchTokenUris(collection: string): Promise<Map<string, string>> {
     const rows = await get<{ key: string; value: { token_info: Record<string, string> } }[]>(
         `/v1/contracts/${requireAddress(collection)}/bigmaps/token_metadata/keys`,
         { active: "true", limit: 400 },

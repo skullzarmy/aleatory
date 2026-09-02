@@ -74,7 +74,9 @@ function api(token: string, path: string, init?: RequestInit): Promise<Response>
  */
 async function refusal(res: Response): Promise<string> {
     const body = (await res.json().catch(() => ({}))) as { message?: string; code?: number };
-    const said = body.message ? `${body.message} (${body.code ?? res.status})` : `HTTP ${res.status}`;
+    const said = body.message
+        ? `${body.message} (${body.code ?? res.status})`
+        : `HTTP ${res.status}`;
 
     const meaning: Record<number, string> = {
         // Not in the server at all, or cannot see this channel.
@@ -88,11 +90,7 @@ async function refusal(res: Response): Promise<string> {
 }
 
 /** Write a name, and only when it differs from the one already there. */
-export async function rename(
-    token: string,
-    channel: StatChannel,
-    name: string,
-): Promise<Result> {
+export async function rename(token: string, channel: StatChannel, name: string): Promise<Result> {
     const current = await api(token, `/channels/${channel.id}`);
     if (!current.ok) {
         // A read needs View Channel and nothing more, so a refusal here is
@@ -151,11 +149,7 @@ export interface Embed {
  * rename job ever asked for: a token that has been renaming names happily for
  * weeks can still fail the first time it tries to say something.
  */
-export async function post(
-    token: string,
-    channelId: string,
-    embed: Embed,
-): Promise<Result> {
+export async function post(token: string, channelId: string, embed: Embed): Promise<Result> {
     const res = await api(token, `/channels/${channelId}/messages`, {
         method: "POST",
         body: JSON.stringify({ embeds: [embed] }),

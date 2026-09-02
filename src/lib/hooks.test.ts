@@ -30,19 +30,30 @@ for (const file of globSync("src/**/*.tsx")) {
         let returned = false;
         const visit = (n: ts.Node, conditional: boolean) => {
             // A nested function has its own hook scope.
-            if (ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n)) return;
+            if (ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n))
+                return;
 
             if (ts.isCallExpression(n)) {
                 const name = ts.isIdentifier(n.expression)
                     ? n.expression.text
-                    : ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.name)
+                    : ts.isPropertyAccessExpression(n.expression) &&
+                        ts.isIdentifier(n.expression.name)
                       ? n.expression.name.text
                       : "";
                 if (HOOK.test(name)) {
-                    const why = returned ? "after an early return" : conditional ? "inside a branch" : "";
+                    const why = returned
+                        ? "after an early return"
+                        : conditional
+                          ? "inside a branch"
+                          : "";
                     if (why) {
                         const { line } = sf.getLineAndCharacterOfPosition(n.getStart());
-                        found.push({ file: file.replace("src/", ""), line: line + 1, hook: name, why });
+                        found.push({
+                            file: file.replace("src/", ""),
+                            line: line + 1,
+                            hook: name,
+                            why,
+                        });
                     }
                 }
             }
@@ -73,17 +84,24 @@ for (const file of globSync("src/**/*.tsx")) {
 
     const isComponent = (name: string) => /^[A-Z]/.test(name);
     sf.forEachChild(function top(n) {
-        if (ts.isFunctionDeclaration(n) && n.name && isComponent(n.name.text) && n.body) walkBody(n.body, file);
+        if (ts.isFunctionDeclaration(n) && n.name && isComponent(n.name.text) && n.body)
+            walkBody(n.body, file);
         if (ts.isVariableStatement(n))
             for (const d of n.declarationList.declarations)
-                if (ts.isIdentifier(d.name) && isComponent(d.name.text) && d.initializer &&
+                if (
+                    ts.isIdentifier(d.name) &&
+                    isComponent(d.name.text) &&
+                    d.initializer &&
                     (ts.isArrowFunction(d.initializer) || ts.isFunctionExpression(d.initializer)) &&
-                    d.initializer.body && ts.isBlock(d.initializer.body))
+                    d.initializer.body &&
+                    ts.isBlock(d.initializer.body)
+                )
                     walkBody(d.initializer.body, file);
         n.forEachChild(top);
     });
 }
 
 if (found.length === 0) console.log("  every hook runs unconditionally, in every client component");
-for (const f of found) console.log(`  ${f.why.toUpperCase().padEnd(20)} ${f.file}:${f.line}  ${f.hook}`);
+for (const f of found)
+    console.log(`  ${f.why.toUpperCase().padEnd(20)} ${f.file}:${f.line}  ${f.hook}`);
 process.exit(found.length ? 1 : 0);

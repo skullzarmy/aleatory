@@ -142,10 +142,7 @@ async function fetchParamsSchema(address: string): Promise<ParamsSchema | null> 
     }
 }
 
-export async function fetchCollectionPieces(
-    address: string,
-    limit = 48,
-): Promise<FeedPiece[]> {
+export async function fetchCollectionPieces(address: string, limit = 48): Promise<FeedPiece[]> {
     const tokens = await fetchRecentTokens([address], limit);
 
     // The chain's own pointers, for anything TzKT has not resolved. It fetches
@@ -203,13 +200,10 @@ export interface CollectionSummary {
     firstActivity?: string;
 }
 
-
 export async function fetchAllCollections(): Promise<CollectionSummary[]> {
     const factories = await allFactories();
     if (factories.length === 0) return [];
-    const lists = await Promise.all(
-        factories.map((f) => fetchCollections(f).catch(() => [])),
-    );
+    const lists = await Promise.all(factories.map((f) => fetchCollections(f).catch(() => [])));
     const seen = new Set<string>();
     const rows = lists
         .flat()
@@ -233,11 +227,10 @@ export async function fetchAllCollections(): Promise<CollectionSummary[]> {
         // The artist's own cover first. They picked it and we pinned it at
         // deploy, so a collection has a face from the moment it exists rather
         // than from whenever its first piece finishes rendering.
-        coverUrl:
-            (() => {
-                const own = metas[i].displayUri ?? metas[i].thumbnailUri;
-                return own ? ipfsImageUrl(own) : covers.get(c.address);
-            })(),
+        coverUrl: (() => {
+            const own = metas[i].displayUri ?? metas[i].thumbnailUri;
+            return own ? ipfsImageUrl(own) : covers.get(c.address);
+        })(),
         minted: c.tokensCount ?? 0,
         editionSize: editions.get(c.address) ?? 0,
         firstActivity: c.firstActivityTime,

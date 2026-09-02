@@ -88,10 +88,7 @@ export function ArtifactFrame({
                         // is the case worth covering. If it fails again the
                         // live render stands, which is the honest answer.
                         if (attempt > 0) return;
-                        timer.current = window.setTimeout(
-                            () => setAttempt((n) => n + 1),
-                            1500,
-                        );
+                        timer.current = window.setTimeout(() => setAttempt((n) => n + 1), 1500);
                     }}
                     className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-200 ${
                         showImage ? "opacity-100" : "pointer-events-none opacity-0"

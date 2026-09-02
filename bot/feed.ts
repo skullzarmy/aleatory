@@ -124,9 +124,10 @@ async function collectionMeta(address: string): Promise<Meta> {
     }
 }
 
-const IPFS_GATEWAY = (
-    process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz"
-).replace(/\/+$/, "");
+const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz").replace(
+    /\/+$/,
+    "",
+);
 
 /**
  * The document the render event points at.
@@ -317,9 +318,7 @@ const announced = new Set<string>();
  * pass that sees only mints produces nothing to post, and without it the mark
  * would never move and those rows would be re-read until they filled the page.
  */
-export async function newMints(
-    since: number,
-): Promise<{ items: NewMint[]; consumed: number }> {
+export async function newMints(since: number): Promise<{ items: NewMint[]; consumed: number }> {
     const { collections } = await watched();
     if (collections.length === 0) return { items: [], consumed: since };
 

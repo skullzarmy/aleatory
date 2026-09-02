@@ -51,7 +51,9 @@ export function PieceJsonLd({
                 ...(imageUrl ? { image: imageUrl } : {}),
                 ...(mintedAt ? { dateCreated: mintedAt } : {}),
                 ...(creator ? { creator: { "@type": "Person", identifier: creator } } : {}),
-                ...(collectionName ? { isPartOf: { "@type": "Collection", name: collectionName } } : {}),
+                ...(collectionName
+                    ? { isPartOf: { "@type": "Collection", name: collectionName } }
+                    : {}),
                 artform: "Generative art",
                 artMedium: "Code",
                 isAccessibleForFree: true,

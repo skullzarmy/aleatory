@@ -33,7 +33,9 @@ export default function ManagePage() {
                 factories.map((f) => fetchCollectionsDeployedBy(address, f).catch(() => [])),
             );
             const addresses = [...new Set(lists.flat())];
-            const rows = await Promise.all(addresses.map((a) => fetchCollection(a).catch(() => null)));
+            const rows = await Promise.all(
+                addresses.map((a) => fetchCollection(a).catch(() => null)),
+            );
             if (!cancelled) {
                 setCollections(rows.filter((c): c is Collection => c !== null));
             }
@@ -44,7 +46,11 @@ export default function ManagePage() {
     }, [address]);
 
     if (restoring) {
-        return <Shell><p className="text-sm text-muted-foreground">Restoring your session…</p></Shell>;
+        return (
+            <Shell>
+                <p className="text-sm text-muted-foreground">Restoring your session…</p>
+            </Shell>
+        );
     }
 
     if (!address) {
@@ -65,7 +71,11 @@ export default function ManagePage() {
     }
 
     if (collections === null) {
-        return <Shell><p className="text-sm text-muted-foreground">Loading…</p></Shell>;
+        return (
+            <Shell>
+                <p className="text-sm text-muted-foreground">Loading…</p>
+            </Shell>
+        );
     }
 
     if (collections.length === 0) {
@@ -127,8 +137,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto max-w-3xl px-4 py-8">
             <h1 className="text-xl font-semibold tracking-tight">Your collections</h1>
             <p className="mb-6 mt-2 text-sm text-muted-foreground">
-                Change the price, pause sales, shrink an edition, or switch who renders
-                your images.
+                Change the price, pause sales, shrink an edition, or switch who renders your images.
             </p>
             {children}
         </div>

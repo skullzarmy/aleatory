@@ -36,9 +36,7 @@ export function ProfileCard({
 
             <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <h1 className="break-words text-xl font-semibold tracking-tight">
-                        {heading}
-                    </h1>
+                    <h1 className="break-words text-xl font-semibold tracking-tight">{heading}</h1>
                     {subtitle && (
                         <span className="break-words text-sm text-muted-foreground">
                             {subtitle}

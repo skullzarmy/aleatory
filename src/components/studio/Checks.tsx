@@ -82,7 +82,9 @@ export function Checks({
      * implementation would only ever prove the second implementation works.
      */
     const runOnce = useCallback(
-        (runSeed: string): Promise<{ digest: string | null; violations: string[]; ready: boolean }> =>
+        (
+            runSeed: string,
+        ): Promise<{ digest: string | null; violations: string[]; ready: boolean }> =>
             new Promise((resolve) => {
                 const frame = document.createElement("iframe");
                 frame.setAttribute("sandbox", "allow-scripts");

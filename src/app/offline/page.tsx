@@ -16,13 +16,11 @@ export const metadata: Metadata = {
 export default function Offline() {
     return (
         <div className="mx-auto max-w-md px-4 py-24 text-center">
-            <p className="font-mono text-sm tracking-[0.3em] text-muted-foreground">
-                OFFLINE
-            </p>
+            <p className="font-mono text-sm tracking-[0.3em] text-muted-foreground">OFFLINE</p>
             <h1 className="mt-4 text-2xl font-semibold tracking-tight">No connection</h1>
             <p className="mt-3 text-sm text-muted-foreground">
-                Aleatory reads everything from the chain, so it needs a network to show
-                you anything new. Pieces you have already looked at are still here.
+                Aleatory reads everything from the chain, so it needs a network to show you anything
+                new. Pieces you have already looked at are still here.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <Link

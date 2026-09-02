@@ -3,7 +3,9 @@ import { PublishShell } from "@/components/studio/PublishShell";
 import { fetchProviders } from "@/lib/providers";
 
 export const metadata: Metadata = {
-    robots: { index: false, follow: false }, title: "Publish" };
+    robots: { index: false, follow: false },
+    title: "Publish",
+};
 export const revalidate = 300;
 
 /**

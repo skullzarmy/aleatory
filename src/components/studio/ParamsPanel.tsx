@@ -105,15 +105,39 @@ export function ParamsDeclaration({
         if (patch.type) {
             const spec = next[index];
             if (patch.type === "number")
-                Object.assign(spec, { min: 0, max: 1, step: 0.01, default: 0.5, options: undefined });
+                Object.assign(spec, {
+                    min: 0,
+                    max: 1,
+                    step: 0.01,
+                    default: 0.5,
+                    options: undefined,
+                });
             if (patch.type === "int")
                 Object.assign(spec, { min: 0, max: 100, step: 1, default: 50, options: undefined });
             if (patch.type === "bool")
-                Object.assign(spec, { min: undefined, max: undefined, step: undefined, default: false, options: undefined });
+                Object.assign(spec, {
+                    min: undefined,
+                    max: undefined,
+                    step: undefined,
+                    default: false,
+                    options: undefined,
+                });
             if (patch.type === "color")
-                Object.assign(spec, { min: undefined, max: undefined, step: undefined, default: "#888888", options: undefined });
+                Object.assign(spec, {
+                    min: undefined,
+                    max: undefined,
+                    step: undefined,
+                    default: "#888888",
+                    options: undefined,
+                });
             if (patch.type === "select")
-                Object.assign(spec, { min: undefined, max: undefined, step: undefined, options: ["one", "two"], default: "one" });
+                Object.assign(spec, {
+                    min: undefined,
+                    max: undefined,
+                    step: undefined,
+                    options: ["one", "two"],
+                    default: "one",
+                });
         }
         onChange(next);
     };
@@ -127,7 +151,10 @@ export function ParamsDeclaration({
             )}
 
             {specs.map((spec, index) => (
-                <div key={`${index}-${spec.id}`} className="space-y-3 rounded-lg border border-border p-3">
+                <div
+                    key={`${index}-${spec.id}`}
+                    className="space-y-3 rounded-lg border border-border p-3"
+                >
                     <div className="flex flex-wrap items-end gap-2">
                         <label className="min-w-0 flex-[1_1_130px]">
                             <span className={tinyLabel}>Name in code</span>
@@ -150,7 +177,9 @@ export function ParamsDeclaration({
                             <span className={tinyLabel}>Type</span>
                             <select
                                 value={spec.type}
-                                onChange={(e) => update(index, { type: e.target.value as ParamType })}
+                                onChange={(e) =>
+                                    update(index, { type: e.target.value as ParamType })
+                                }
                                 className={field}
                             >
                                 {TYPES.map((t) => (
@@ -178,7 +207,9 @@ export function ParamsDeclaration({
                                     <input
                                         type="number"
                                         value={spec.min ?? 0}
-                                        onChange={(e) => update(index, { min: Number(e.target.value) })}
+                                        onChange={(e) =>
+                                            update(index, { min: Number(e.target.value) })
+                                        }
                                         className={field}
                                     />
                                 </label>
@@ -187,7 +218,9 @@ export function ParamsDeclaration({
                                     <input
                                         type="number"
                                         value={spec.max ?? 1}
-                                        onChange={(e) => update(index, { max: Number(e.target.value) })}
+                                        onChange={(e) =>
+                                            update(index, { max: Number(e.target.value) })
+                                        }
                                         className={field}
                                     />
                                 </label>
@@ -196,7 +229,9 @@ export function ParamsDeclaration({
                                     <input
                                         type="number"
                                         value={spec.step ?? (spec.type === "int" ? 1 : 0.01)}
-                                        onChange={(e) => update(index, { step: Number(e.target.value) })}
+                                        onChange={(e) =>
+                                            update(index, { step: Number(e.target.value) })
+                                        }
                                         className={field}
                                     />
                                 </label>
@@ -214,7 +249,8 @@ export function ParamsDeclaration({
                                             .map((o) => o.trim())
                                             .filter(Boolean);
                                         const stillValid =
-                                            typeof spec.default === "string" && options.includes(spec.default);
+                                            typeof spec.default === "string" &&
+                                            options.includes(spec.default);
                                         update(index, {
                                             options,
                                             default: stillValid ? spec.default : (options[0] ?? ""),
@@ -227,14 +263,19 @@ export function ParamsDeclaration({
 
                         <label className="min-w-0 flex-[1_1_110px]">
                             <span className={tinyLabel}>Default</span>
-                            <DefaultInput spec={spec} onChange={(value) => update(index, { default: value })} />
+                            <DefaultInput
+                                spec={spec}
+                                onChange={(value) => update(index, { default: value })}
+                            />
                         </label>
 
                         <label className="min-w-0 flex-[2_1_180px]">
                             <span className={tinyLabel}>Hint, optional</span>
                             <input
                                 value={spec.hint ?? ""}
-                                onChange={(e) => update(index, { hint: e.target.value || undefined })}
+                                onChange={(e) =>
+                                    update(index, { hint: e.target.value || undefined })
+                                }
                                 placeholder="One line, shown under the control"
                                 className={field}
                             />
@@ -295,7 +336,11 @@ function DefaultInput({
     }
     if (spec.type === "select") {
         return (
-            <select value={String(spec.default)} onChange={(e) => onChange(e.target.value)} className={field}>
+            <select
+                value={String(spec.default)}
+                onChange={(e) => onChange(e.target.value)}
+                className={field}
+            >
                 {(spec.options ?? []).map((o) => (
                     <option key={o} value={o}>
                         {o}

@@ -18,33 +18,27 @@ export const alt = `${BRAND.name} — ${BRAND.tagline}`;
 
 export default function Image() {
     return new ImageResponse(
-        (
-            <div
-                style={{
-                    width: "100%",
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    background: "#17191c",
-                    color: "#fafafa",
-                    padding: 72,
-                    fontFamily: "sans-serif",
-                }}
-            >
-                <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                    <div style={{ fontSize: 84, fontWeight: 700, letterSpacing: -2 }}>
-                        {BRAND.name}
-                    </div>
-                    <div style={{ fontSize: 38, color: "#a1a1aa", maxWidth: 900 }}>
-                        {BRAND.tagline}
-                    </div>
-                </div>
-                <div style={{ fontSize: 26, color: "#71717a" }}>
-                    A piece is code plus a seed bound to the operation that bought it.
-                </div>
+        <div
+            style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                background: "#17191c",
+                color: "#fafafa",
+                padding: 72,
+                fontFamily: "sans-serif",
+            }}
+        >
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                <div style={{ fontSize: 84, fontWeight: 700, letterSpacing: -2 }}>{BRAND.name}</div>
+                <div style={{ fontSize: 38, color: "#a1a1aa", maxWidth: 900 }}>{BRAND.tagline}</div>
             </div>
-        ),
+            <div style={{ fontSize: 26, color: "#71717a" }}>
+                A piece is code plus a seed bound to the operation that bought it.
+            </div>
+        </div>,
         size,
     );
 }

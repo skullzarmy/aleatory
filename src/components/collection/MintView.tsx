@@ -40,8 +40,8 @@ export function MintView({
                     name="Generator preview"
                 />
                 <p className="mt-2 text-xs text-muted-foreground">
-                    One draw from this generator. Yours will be different, and nobody knows
-                    how until you sign.
+                    One draw from this generator. Yours will be different, and nobody knows how
+                    until you sign.
                 </p>
             </div>
 

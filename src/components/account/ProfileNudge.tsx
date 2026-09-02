@@ -14,13 +14,7 @@ import { PROFILE_HOME, type Profile } from "@/lib/identity";
  * Two states worth saying something about: nothing at all, and something we
  * inherited from objkt that they may not know is being shown.
  */
-export function ProfileNudge({
-    address,
-    profile,
-}: {
-    address: string;
-    profile: Profile | null;
-}) {
+export function ProfileNudge({ address, profile }: { address: string; profile: Profile | null }) {
     const { address: viewer } = useWallet();
     if (viewer !== address) return null;
     if (profile?.source === "hacktez") return null;
@@ -38,8 +32,7 @@ export function ProfileNudge({
             >
                 Set one up
             </a>
-            . It is free, it is an on-chain record you own, and nothing here has an
-            account to make.
+            . It is free, it is an on-chain record you own, and nothing here has an account to make.
         </p>
     );
 }

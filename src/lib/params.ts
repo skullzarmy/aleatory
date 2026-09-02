@@ -94,28 +94,41 @@ export function validateSchema(params: ParamSpec[]): string[] {
     for (const p of params) {
         const where = p.id || "(unnamed)";
         if (!ID_RE.test(p.id)) {
-            errors.push(`"${where}" is not a usable name, lowercase letters, digits and _ only, starting with a letter, max 24.`);
+            errors.push(
+                `"${where}" is not a usable name, lowercase letters, digits and _ only, starting with a letter, max 24.`,
+            );
         }
-        if (seen.has(p.id)) errors.push(`"${where}" is declared twice. Names are how the code finds a value.`);
+        if (seen.has(p.id))
+            errors.push(`"${where}" is declared twice. Names are how the code finds a value.`);
         seen.add(p.id);
-        if (!p.label.trim()) errors.push(`"${where}" needs a label, it is what a collector reads on the control.`);
+        if (!p.label.trim())
+            errors.push(`"${where}" needs a label, it is what a collector reads on the control.`);
 
         if (p.type === "number" || p.type === "int") {
             const min = p.min ?? 0;
             const max = p.max ?? 1;
-            if (!Number.isFinite(min) || !Number.isFinite(max)) errors.push(`"${where}" needs a numeric min and max.`);
-            else if (min >= max) errors.push(`"${where}" has min ${min} ≥ max ${max}, there is nothing to tune.`);
+            if (!Number.isFinite(min) || !Number.isFinite(max))
+                errors.push(`"${where}" needs a numeric min and max.`);
+            else if (min >= max)
+                errors.push(`"${where}" has min ${min} ≥ max ${max}, there is nothing to tune.`);
             const step = p.step ?? (p.type === "int" ? 1 : 0.01);
             if (!(step > 0)) errors.push(`"${where}" needs a step greater than zero.`);
-            else if (step > max - min) errors.push(`"${where}" has a step larger than its range, it can only ever hold one value.`);
-            if (typeof p.default !== "number" || !Number.isFinite(p.default)) errors.push(`"${where}" needs a numeric default.`);
-            else if (p.default < min || p.default > max) errors.push(`"${where}" has a default of ${p.default}, outside ${min}…${max}.`);
+            else if (step > max - min)
+                errors.push(
+                    `"${where}" has a step larger than its range, it can only ever hold one value.`,
+                );
+            if (typeof p.default !== "number" || !Number.isFinite(p.default))
+                errors.push(`"${where}" needs a numeric default.`);
+            else if (p.default < min || p.default > max)
+                errors.push(`"${where}" has a default of ${p.default}, outside ${min}…${max}.`);
         }
 
         if (p.type === "select") {
             const options = (p.options ?? []).filter((o) => o.trim().length > 0);
-            if (options.length < 2) errors.push(`"${where}" is a choice with fewer than two options.`);
-            if (new Set(options).size !== options.length) errors.push(`"${where}" repeats an option.`);
+            if (options.length < 2)
+                errors.push(`"${where}" is a choice with fewer than two options.`);
+            if (new Set(options).size !== options.length)
+                errors.push(`"${where}" repeats an option.`);
             if (typeof p.default !== "string" || !options.includes(p.default)) {
                 errors.push(`"${where}" has a default that is not one of its options.`);
             }
@@ -248,7 +261,10 @@ export function randomValues(specs: ParamSpec[], rand: () => number = Math.rando
                 break;
             case "select": {
                 const options = spec.options ?? [];
-                out[spec.id] = options.length > 0 ? options[Math.floor(rand() * options.length)] : spec.default;
+                out[spec.id] =
+                    options.length > 0
+                        ? options[Math.floor(rand() * options.length)]
+                        : spec.default;
                 break;
             }
             case "color": {
@@ -279,7 +295,9 @@ export function randomValues(specs: ParamSpec[], rand: () => number = Math.rando
  */
 export function encodeParams(specs: ParamSpec[], values: ParamValues): string {
     const resolved = resolveParams(specs, values);
-    const parts = specs.map((spec) => `${JSON.stringify(spec.id)}:${JSON.stringify(resolved[spec.id])}`);
+    const parts = specs.map(
+        (spec) => `${JSON.stringify(spec.id)}:${JSON.stringify(resolved[spec.id])}`,
+    );
     return `{${parts.join(",")}}`;
 }
 
@@ -317,10 +335,15 @@ export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes:
 
     for (const entry of list) {
         const d = (entry ?? {}) as Record<string, unknown>;
-        const id = String(d.id ?? "").toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/^[^a-z]+/, "") || `param${params.length + 1}`;
+        const id =
+            String(d.id ?? "")
+                .toLowerCase()
+                .replace(/[^a-z0-9_]/g, "_")
+                .replace(/^[^a-z]+/, "") || `param${params.length + 1}`;
         const label = String(d.name ?? d.id ?? id);
         const options = (d.options ?? {}) as Record<string, unknown>;
-        const num = (v: unknown, fallback: number) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+        const num = (v: unknown, fallback: number) =>
+            Number.isFinite(Number(v)) ? Number(v) : fallback;
 
         switch (String(d.type ?? "number")) {
             case "number":
@@ -330,14 +353,28 @@ export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes:
                 const max = num(options.max, isInt ? 100 : 1);
                 const step = num(options.step, isInt ? 1 : 0.01);
                 const fallbackDefault = min + (max - min) / 2;
-                const spec: ParamSpec = { id, label, type: isInt ? "int" : "number", min, max, step, default: fallbackDefault };
+                const spec: ParamSpec = {
+                    id,
+                    label,
+                    type: isInt ? "int" : "number",
+                    min,
+                    max,
+                    step,
+                    default: fallbackDefault,
+                };
                 const resolved = resolveParam(spec, d.default);
                 // Said out loud, like every other loss here. A default is the
                 // position a collector finds the control in, and the schema is
                 // immutable once the collection exists, so a default that moved
                 // is worth one line now and worth nothing afterwards.
-                if (typeof d.default === "number" && Number.isFinite(d.default) && (d.default < min || d.default > max)) {
-                    notes.push(`"${label}" declared a default of ${d.default}, outside ${min}…${max}. It starts at ${resolved}.`);
+                if (
+                    typeof d.default === "number" &&
+                    Number.isFinite(d.default) &&
+                    (d.default < min || d.default > max)
+                ) {
+                    notes.push(
+                        `"${label}" declared a default of ${d.default}, outside ${min}…${max}. It starts at ${resolved}.`,
+                    );
                 }
                 params.push({ ...spec, default: resolved });
                 break;
@@ -348,7 +385,10 @@ export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes:
             case "color": {
                 // fxhash colors are hex8 without a leading #; alpha has no meaning
                 // in a declaration a collector reads, so it is dropped.
-                const raw = String(d.default ?? "000000").replace(/^#/, "").slice(0, 6).padEnd(6, "0");
+                const raw = String(d.default ?? "000000")
+                    .replace(/^#/, "")
+                    .slice(0, 6)
+                    .padEnd(6, "0");
                 params.push({ id, label, type: "color", default: `#${raw.toLowerCase()}` });
                 break;
             }
@@ -360,13 +400,17 @@ export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes:
                 }
                 const chosen = choices.includes(String(d.default)) ? String(d.default) : choices[0];
                 if (d.default !== undefined && chosen !== String(d.default)) {
-                    notes.push(`"${label}" declared a default of "${String(d.default)}", which is not one of its options. It starts at "${chosen}".`);
+                    notes.push(
+                        `"${label}" declared a default of "${String(d.default)}", which is not one of its options. It starts at "${chosen}".`,
+                    );
                 }
                 params.push({ id, label, type: "select", options: choices, default: chosen });
                 break;
             }
             default:
-                notes.push(`"${label}" is a ${String(d.type)} param, which has no equivalent here, skipped.`);
+                notes.push(
+                    `"${label}" is a ${String(d.type)} param, which has no equivalent here, skipped.`,
+                );
         }
     }
 
@@ -385,5 +429,7 @@ export function formatParamValue(spec: ParamSpec, value: ParamValue): string {
 
 /** One-line human summary of a whole set, for token descriptions and lists. */
 export function summarizeParams(specs: ParamSpec[], values: ParamValues): string {
-    return specs.map((spec) => `${spec.label}: ${formatParamValue(spec, values[spec.id])}`).join(" · ");
+    return specs
+        .map((spec) => `${spec.label}: ${formatParamValue(spec, values[spec.id])}`)
+        .join(" · ");
 }

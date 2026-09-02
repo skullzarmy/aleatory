@@ -166,8 +166,8 @@ export default function GlobalError({
                         Aleatory could not start
                     </h1>
                     <p style={{ marginTop: "0.75rem", fontSize: "0.875rem", opacity: 0.7 }}>
-                        Every piece is stored on chain and is untouched by this. The site is
-                        one way to see them, and it is the only thing that failed.
+                        Every piece is stored on chain and is untouched by this. The site is one way
+                        to see them, and it is the only thing that failed.
                     </p>
                     <button
                         type="button"

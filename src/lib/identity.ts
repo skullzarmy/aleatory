@@ -190,7 +190,6 @@ export async function sourceFor(address: string): Promise<Source | null> {
     return (await resolve(address)).nameSource;
 }
 
-
 // ── Profiles ────────────────────────────────────────────────────────────────
 
 /**
@@ -258,7 +257,11 @@ function link(kind: string, value: unknown): ProfileLink | null {
             return { kind, label: `@${handle}`, href: `https://x.com/${handle}` };
         case "bluesky":
             // A DID, not a handle. bsky resolves either at the same path.
-            return { kind, label: v.startsWith("did:") ? "bluesky" : `@${handle}`, href: `https://bsky.app/profile/${v}` };
+            return {
+                kind,
+                label: v.startsWith("did:") ? "bluesky" : `@${handle}`,
+                href: `https://bsky.app/profile/${v}`,
+            };
         case "mastodon": {
             // `@user@host`, which is a handle on a host we are not told twice.
             const parts = v.replace(/^@/, "").split("@");

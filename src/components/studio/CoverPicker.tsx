@@ -75,9 +75,7 @@ export function CoverPicker({
     deps?: string[];
     /** The draft's seed, so the choices here match the grid the artist knows. */
     baseSeed: string;
-    onCaptured: (
-        cover: { uri: string; thumbUri: string; seed: string } | null,
-    ) => void;
+    onCaptured: (cover: { uri: string; thumbUri: string; seed: string } | null) => void;
 }) {
     const [seed, setSeed] = useState(() => seedAt(baseSeed, 0));
     const [image, setImage] = useState<string | null>(null);

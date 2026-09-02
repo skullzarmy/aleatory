@@ -1,6 +1,14 @@
 "use client";
 
-import { cloneElement, isValidElement, useEffect, useId, useMemo, useState, type ReactElement } from "react";
+import {
+    cloneElement,
+    isValidElement,
+    useEffect,
+    useId,
+    useMemo,
+    useState,
+    type ReactElement,
+} from "react";
 import { useWallet } from "@/context/WalletContext";
 import { addresses } from "@/lib/router";
 import { royaltyPreview, type RoyaltySplit } from "@provider/metadata";
@@ -12,11 +20,7 @@ import { getKind } from "@/lib/runtimes";
 import { detectParams } from "@/lib/detect";
 import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
-import {
-    publishCollection,
-    type PublishResult,
-    type PublishStage,
-} from "@/lib/publish";
+import { publishCollection, type PublishResult, type PublishStage } from "@/lib/publish";
 
 /**
  * Deploy a collection.
@@ -305,8 +309,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 </dl>
                 {done.codeBytes > 0 && (
                     <p className="text-xs text-muted-foreground">
-                        Your generator is stored in the contract itself, so the piece will
-                        always render.
+                        Your generator is stored in the contract itself, so the piece will always
+                        render.
                     </p>
                 )}
                 <a
@@ -360,10 +364,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             </Field>
 
             {draft && (
-                <Field
-                    label="Cover"
-                    hint="Shown wherever your collection is listed."
-                >
+                <Field label="Cover" hint="Shown wherever your collection is listed.">
                     <CoverPicker
                         html={draft.html}
                         params={declared}
@@ -374,16 +375,12 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             )}
 
             {draft ? (
-                <Field
-                    label="Generator"
-                    permanent
-                    hint="Stored in the contract when you publish."
-                >
+                <Field label="Generator" permanent hint="Stored in the contract when you publish.">
                     <div className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm">
                         <p className="font-medium">{getKind(draft.kindId).label}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                            {new TextEncoder().encode(draft.html).length.toLocaleString("en-US")} bytes
-                            from your draft
+                            {new TextEncoder().encode(draft.html).length.toLocaleString("en-US")}{" "}
+                            bytes from your draft
                             {declared.length > 0 &&
                                 `, ${declared.length} parameter${declared.length === 1 ? "" : "s"}: ${declared
                                     .map((p) => p.label || p.id)
@@ -403,7 +400,10 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Edition size" hint="0 for an open edition. It can shrink later, never grow.">
+                <Field
+                    label="Edition size"
+                    hint="0 for an open edition. It can shrink later, never grow."
+                >
                     <input
                         inputMode="numeric"
                         value={editionSize}
@@ -462,8 +462,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     <div>
                         <p className="text-sm font-medium">Let Aleatory publish images</p>
                         <p className="text-xs text-muted-foreground">
-                            We can publish images if your provider does not, so nothing gets
-                            stuck. You can turn this off at any time.
+                            We can publish images if your provider does not, so nothing gets stuck.
+                            You can turn this off at any time.
                         </p>
                     </div>
                     <button
@@ -481,8 +481,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     <div>
                         <p className="text-sm font-medium">Support the platform</p>
                         <p className="text-xs text-muted-foreground">
-                            Give Aleatory a cut of your royalty on resales. Your mint
-                            price is yours in full: the contract takes nothing from it.
+                            Give Aleatory a cut of your royalty on resales. Your mint price is yours
+                            in full: the contract takes nothing from it.
                         </p>
                     </div>
                     <button
@@ -572,8 +572,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     <div>
                         <p className="text-sm font-medium">Open for minting immediately</p>
                         <p className="text-xs text-muted-foreground">
-                            Off means it publishes paused, so you can check it over and
-                            announce it first.
+                            Off means it publishes paused, so you can check it over and announce it
+                            first.
                         </p>
                     </div>
                     <button
@@ -600,9 +600,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                             <li key={w}>{w}</li>
                         ))}
                     </ul>
-                    <p className="mt-2 text-xs">
-                        Change the address above, or deploy anyway.
-                    </p>
+                    <p className="mt-2 text-xs">Change the address above, or deploy anyway.</p>
                 </div>
             )}
 
@@ -636,15 +634,7 @@ const STAGE_LABEL: Record<PublishStage, string> = {
     signing: "Waiting for your signature…",
 };
 
-function Fact({
-    label,
-    value,
-    href,
-}: {
-    label: string;
-    value: string;
-    href?: string;
-}) {
+function Fact({ label, value, href }: { label: string; value: string; href?: string }) {
     return (
         <div className="flex gap-2">
             <dt className="shrink-0 text-muted-foreground">{label}</dt>
@@ -695,8 +685,7 @@ function Field({
         ? cloneElement(children as ReactElement<Record<string, unknown>>, {
               id: (children.props as { id?: string }).id ?? id,
               "aria-describedby":
-                  (children.props as { "aria-describedby"?: string })["aria-describedby"] ??
-                  hintId,
+                  (children.props as { "aria-describedby"?: string })["aria-describedby"] ?? hintId,
           })
         : children;
 

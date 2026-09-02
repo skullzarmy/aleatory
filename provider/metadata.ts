@@ -64,9 +64,7 @@ export function royaltiesToBps(split: RoyaltySplit): Record<string, number> {
 }
 
 /** What a recipient actually receives on a sale, for the deploy preview. */
-export function royaltyPreview(
-    split: RoyaltySplit,
-): { address: string; percentOfSale: number }[] {
+export function royaltyPreview(split: RoyaltySplit): { address: string; percentOfSale: number }[] {
     const { shares } = encodeRoyalties(split);
     return Object.entries(shares).map(([address, share]) => ({
         address,

@@ -15,13 +15,7 @@ import { shortAddress } from "@/lib/utils";
  * The full address stays in the title, because a name is a claim about an
  * address and the address is what settles it.
  */
-export function AccountName({
-    address,
-    className,
-}: {
-    address: string;
-    className?: string;
-}) {
+export function AccountName({ address, className }: { address: string; className?: string }) {
     const [name, setName] = useState<string | null>(null);
 
     useEffect(() => {

@@ -71,10 +71,12 @@ function auditHarnesses() {
     for (const h of HARNESSES) {
         const src = read(h.path);
 
-        const missing = SURFACE.filter(
-            (m) => !new RegExp(`\\b${m}\\s*:`).test(src),
+        const missing = SURFACE.filter((m) => !new RegExp(`\\b${m}\\s*:`).test(src));
+        check(
+            `${h.name}: installs the whole $alea surface`,
+            missing.length === 0,
+            `missing ${missing.join(", ")}`,
         );
-        check(`${h.name}: installs the whole $alea surface`, missing.length === 0, `missing ${missing.join(", ")}`);
 
         // The two substitutions §7 requires of anything that renders, and
         // that a dev harness needs for local work to mean anything.
@@ -86,10 +88,7 @@ function auditHarnesses() {
             `${h.name}: freezes Date`,
             /RealDate\s*=\s*Date/.test(src) && /static now\(\)/.test(src),
         );
-        check(
-            `${h.name}: freezes performance.now`,
-            /performance\.now\s*=\s*function/.test(src),
-        );
+        check(`${h.name}: freezes performance.now`, /performance\.now\s*=\s*function/.test(src));
 
         // The seed is a base58 operation hash. parseInt of it in base 16 is
         // NaN, NaN coerced by an unsigned shift is 0, and every piece then
@@ -144,22 +143,13 @@ function auditLibraries() {
     const renderer = read("provider/libraries.mts");
     const proxy = read("src/app/api/dep/route.ts");
 
-    check(
-        "the studio verifies before it uses a library",
-        /hash\s*!==\s*spec\.hash/.test(studio),
-    );
+    check("the studio verifies before it uses a library", /hash\s*!==\s*spec\.hash/.test(studio));
     check(
         "the renderer verifies before it uses a library",
         /blake2bHex/.test(renderer) && /hash/.test(renderer),
     );
-    check(
-        "the proxy verifies before it serves a library",
-        /got\s*!==\s*hash/.test(proxy),
-    );
-    check(
-        "the proxy refuses to serve without a hash",
-        /HASH\.test\(hash\)/.test(proxy),
-    );
+    check("the proxy verifies before it serves a library", /got\s*!==\s*hash/.test(proxy));
+    check("the proxy refuses to serve without a hash", /HASH\.test\(hash\)/.test(proxy));
 
     // Both sides reach the same mirrors, so a library that resolves for the
     // studio resolves for anyone rendering the piece later.
@@ -208,9 +198,7 @@ function auditDocs() {
             contract.indexOf("def register(self, provider)"),
             contract.indexOf("def deregister(self, provider)"),
         );
-        const required = [...register.matchAll(/sp\.view\(\s*\n?\s*"([a-z_]+)"/g)].map(
-            (m) => m[1],
-        );
+        const required = [...register.matchAll(/sp\.view\(\s*\n?\s*"([a-z_]+)"/g)].map((m) => m[1]);
 
         check("register asks for views at all", required.length > 0, "parser found none");
 

@@ -37,7 +37,9 @@ const MAX_INLINE_CODE_BYTES = 32_768 - 700;
 const COST_PER_BYTE = 250;
 
 function toHex(bytes: Uint8Array): string {
-    return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+    return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
 }
 
 /** Native everywhere this runs, so compression adds no dependency. */
@@ -212,9 +214,7 @@ export async function publishCollection(
             // Held under its own key so a mint UI built by someone else needs
             // one value rather than the whole record. docs/params.md §4.
             ...(schema ? { "aleatory:params": JSON.stringify(schema) } : {}),
-            ...(libraries.length > 0
-                ? { "aleatory:libraries": JSON.stringify(libraries) }
-                : {}),
+            ...(libraries.length > 0 ? { "aleatory:libraries": JSON.stringify(libraries) } : {}),
         },
     });
 

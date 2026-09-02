@@ -99,9 +99,7 @@ export function withLibraries(html: string, coordinates: string[]): string {
 
     if (coordinates.length === 0) return stripped;
 
-    const tags = coordinates
-        .map((c) => `  <meta name="alea:library" content="${c}">`)
-        .join("\n");
+    const tags = coordinates.map((c) => `  <meta name="alea:library" content="${c}">`).join("\n");
 
     if (/<head[^>]*>/i.test(stripped)) {
         return stripped.replace(/<head[^>]*>/i, (m) => `${m}\n${tags}`);

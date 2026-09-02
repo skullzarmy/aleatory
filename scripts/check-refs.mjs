@@ -16,14 +16,9 @@ import { execSync } from "node:child_process";
 const tracked = execSync("git ls-files", { encoding: "utf8" }).trim().split("\n");
 const scripts = new Map(Object.entries(JSON.parse(readFileSync("package.json", "utf8")).scripts));
 
+const docs = execSync("git ls-files '*.md'", { encoding: "utf8" }).trim().split("\n");
 
-const docs = execSync("git ls-files '*.md'", { encoding: "utf8" })
-    .trim()
-    .split("\n")
-    ;
-
-const isReal = (p) =>
-    existsSync(p) || tracked.some((t) => t === p || t.endsWith(`/${p}`));
+const isReal = (p) => existsSync(p) || tracked.some((t) => t === p || t.endsWith(`/${p}`));
 
 let bad = 0;
 
@@ -69,14 +64,14 @@ for (const doc of docs) {
 
         if (!readFileSync(file, "utf8").includes(flag)) {
             bad++;
-            console.log(`UNKNOWN FLAG    ${doc}: npm run ${name} -- ${flag}  (${file} never reads it)`);
+            console.log(
+                `UNKNOWN FLAG    ${doc}: npm run ${name} -- ${flag}  (${file} never reads it)`,
+            );
         }
     }
 }
 
 console.log(
-    bad === 0
-        ? "every file and script the docs name exists"
-        : `\n${bad} dead reference(s)`,
+    bad === 0 ? "every file and script the docs name exists" : `\n${bad} dead reference(s)`,
 );
 process.exit(bad === 0 ? 0 : 1);

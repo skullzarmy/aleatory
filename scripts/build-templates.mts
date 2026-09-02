@@ -29,19 +29,14 @@ const LABEL: Record<string, string> = {
     custom: "Custom runtime",
 };
 
-const missing = KINDS.filter(
-    (k) => !existsSync(join(root, "public/templates", k, "index.html")),
-);
+const missing = KINDS.filter((k) => !existsSync(join(root, "public/templates", k, "index.html")));
 if (missing.length > 0) {
     console.error(`No template for: ${missing.join(", ")}`);
     process.exit(1);
 }
 
 const html = Object.fromEntries(
-    KINDS.map((k) => [
-        k,
-        readFileSync(join(root, "public/templates", k, "index.html"), "utf8"),
-    ]),
+    KINDS.map((k) => [k, readFileSync(join(root, "public/templates", k, "index.html"), "utf8")]),
 ) as Record<(typeof KINDS)[number], string>;
 
 // --- the module the studio imports ----------------------------------------
@@ -72,13 +67,15 @@ if (before !== module) writeFileSync(target, module);
 
 const serve = readFileSync(join(root, "scripts/kit/serve.mjs"), "utf8");
 
-
 mkdirSync(join(root, "public/templates"), { recursive: true });
 
 for (const kind of KINDS) {
     const archive = zip([
         { name: "index.html", data: html[kind] },
-        { name: "README.md", data: readFileSync(join(root, "public/templates", kind, "README.md"), "utf8") },
+        {
+            name: "README.md",
+            data: readFileSync(join(root, "public/templates", kind, "README.md"), "utf8"),
+        },
         { name: "serve.mjs", data: serve },
     ]);
     writeFileSync(join(root, "public/templates", `${kind}.zip`), archive);

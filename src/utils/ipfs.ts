@@ -18,9 +18,10 @@
  * gateway immediately afterwards, so by the time a page asks, it is cached.
  * See `warmGateway` in provider/provider.mts.
  */
-const GATEWAY = (
-    process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz"
-).replace(/\/+$/, "");
+const GATEWAY = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz").replace(
+    /\/+$/,
+    "",
+);
 
 export function isIpfsUri(uri: string): boolean {
     return typeof uri === "string" && uri.startsWith("ipfs://");

@@ -106,7 +106,9 @@ async function simulate(address: string, source: string): Promise<{ ok: boolean;
 
     if (!res.ok) throw new Error(`the node refused the simulation (${res.status})`);
     const body = (await res.json()) as {
-        contents?: { metadata?: { operation_result?: { status?: string; errors?: { id?: string }[] } } }[];
+        contents?: {
+            metadata?: { operation_result?: { status?: string; errors?: { id?: string }[] } };
+        }[];
     };
     const result = body.contents?.[0]?.metadata?.operation_result;
     if (result?.status === "applied") return { ok: true, why: "" };
@@ -123,7 +125,11 @@ export async function GET(request: Request) {
     const source = params.get("source") ?? "";
 
     if (IMPLICIT.test(address)) {
-        return answer({ address, verdict: "payable", why: "an implicit account cannot refuse tez" });
+        return answer({
+            address,
+            verdict: "payable",
+            why: "an implicit account cannot refuse tez",
+        });
     }
     if (!ORIGINATED.test(address)) {
         return NextResponse.json({ error: "not a Tezos address" }, { status: 400 });

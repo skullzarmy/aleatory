@@ -199,7 +199,9 @@ async function encode(
     const c = await new TezosToolkit(rpcUrl()).contract.at(contractAddress);
     const methods = c.methodsObject as unknown as Record<
         string,
-        (a: unknown) => { toTransferParams: () => { parameter?: { entrypoint: string; value: unknown } } }
+        (a: unknown) => {
+            toTransferParams: () => { parameter?: { entrypoint: string; value: unknown } };
+        }
     >;
     const parameter = methods[entrypoint](args).toTransferParams().parameter;
     if (!parameter) throw new Error(`${entrypoint} encoded to nothing.`);
@@ -246,9 +248,19 @@ export async function listToken(
     ]);
 
     return sendBatch(client, [
-        { destination: collection, entrypoint: grant.entrypoint, value: grant.value, limits: TRANSFER },
+        {
+            destination: collection,
+            entrypoint: grant.entrypoint,
+            value: grant.value,
+            limits: TRANSFER,
+        },
         { destination: market, entrypoint: list.entrypoint, value: list.value, limits: LIST },
-        { destination: collection, entrypoint: revoke.entrypoint, value: revoke.value, limits: TRANSFER },
+        {
+            destination: collection,
+            entrypoint: revoke.entrypoint,
+            value: revoke.value,
+            limits: TRANSFER,
+        },
     ]);
 }
 
@@ -281,9 +293,19 @@ export async function acceptOfferFor(
     ]);
 
     return sendBatch(client, [
-        { destination: collection, entrypoint: grant.entrypoint, value: grant.value, limits: TRANSFER },
+        {
+            destination: collection,
+            entrypoint: grant.entrypoint,
+            value: grant.value,
+            limits: TRANSFER,
+        },
         { destination: market, entrypoint: accept.entrypoint, value: accept.value, limits: LIST },
-        { destination: collection, entrypoint: revoke.entrypoint, value: revoke.value, limits: TRANSFER },
+        {
+            destination: collection,
+            entrypoint: revoke.entrypoint,
+            value: revoke.value,
+            limits: TRANSFER,
+        },
     ]);
 }
 

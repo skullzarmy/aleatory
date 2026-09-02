@@ -160,7 +160,8 @@ export const RUNTIME_KINDS: RuntimeKind[] = [
         name: "vanilla",
         label: "Canvas 2D",
         kindVersion: "1",
-        entrySpec: "Script runs on load; draws to a <canvas>; calls $alea.ready() at the capture point.",
+        entrySpec:
+            "Script runs on load; draws to a <canvas>; calls $alea.ready() at the capture point.",
         deps: [],
         blurb: "No dependencies. Fully on-chain.",
     },

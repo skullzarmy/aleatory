@@ -59,7 +59,9 @@ export default function MintedPage({
     // The collection has everything needed to draw: the generator, and the
     // royalties and name the piece will inherit.
     useEffect(() => {
-        void fetchCollection(contract).then(setCollection).catch(() => {});
+        void fetchCollection(contract)
+            .then(setCollection)
+            .catch(() => {});
     }, [contract]);
 
     // The piece itself arrives when the indexer catches up, and its image when
@@ -100,8 +102,8 @@ export default function MintedPage({
                     {collection?.name || shortAddress(contract)} #{Number(tokenId) + 1}
                 </h1>
                 <p className="mt-2 max-w-prose text-sm text-muted-foreground">
-                    Nobody has seen this before. It is running below, drawn from the
-                    generator stored in the contract and the seed your signature just fixed.
+                    Nobody has seen this before. It is running below, drawn from the generator
+                    stored in the contract and the seed your signature just fixed.
                 </p>
             </header>
 
@@ -180,29 +182,28 @@ export default function MintedPage({
                         </Row>
                     </dl>
 
-                    {collection?.paramsSchema &&
-                        specsOf(collection.paramsSchema).length > 0 && (
-                            <div className="rounded-lg border border-border p-4">
-                                <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-                                    What you chose
-                                </p>
-                                <dl className="space-y-1 text-sm">
-                                    {specsOf(collection.paramsSchema).map((spec) => (
-                                        <div key={spec.id} className="flex justify-between gap-3">
-                                            <dt
-                                                className="min-w-0 truncate text-muted-foreground"
-                                                title={spec.label}
-                                            >
-                                                {spec.label}
-                                            </dt>
-                                            <dd className="min-w-0 break-words text-right font-medium">
-                                                {formatParamValue(spec, values[spec.id])}
-                                            </dd>
-                                        </div>
-                                    ))}
-                                </dl>
-                            </div>
-                        )}
+                    {collection?.paramsSchema && specsOf(collection.paramsSchema).length > 0 && (
+                        <div className="rounded-lg border border-border p-4">
+                            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+                                What you chose
+                            </p>
+                            <dl className="space-y-1 text-sm">
+                                {specsOf(collection.paramsSchema).map((spec) => (
+                                    <div key={spec.id} className="flex justify-between gap-3">
+                                        <dt
+                                            className="min-w-0 truncate text-muted-foreground"
+                                            title={spec.label}
+                                        >
+                                            {spec.label}
+                                        </dt>
+                                        <dd className="min-w-0 break-words text-right font-medium">
+                                            {formatParamValue(spec, values[spec.id])}
+                                        </dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </div>
+                    )}
 
                     <div className="grid gap-2">
                         {collection && !collection.soldOut && !collection.paused && (
@@ -251,9 +252,8 @@ export default function MintedPage({
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                        You own it now, and can sell or transfer it whether or not the image
-                        has landed. The piece is the code and the seed; the image is a
-                        picture of it.
+                        You own it now, and can sell or transfer it whether or not the image has
+                        landed. The piece is the code and the seed; the image is a picture of it.
                     </p>
                 </div>
             </div>

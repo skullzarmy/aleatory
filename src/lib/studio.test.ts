@@ -106,14 +106,25 @@ for (const kind of RUNTIME_KINDS) {
     }
 
     const params = templateParamsFor(kind.kindId);
-    check(`${kind.label}: declares a valid schema`, validateSchema(params).length === 0,
-        validateSchema(params).join("; "));
+    check(
+        `${kind.label}: declares a valid schema`,
+        validateSchema(params).length === 0,
+        validateSchema(params).join("; "),
+    );
 }
 
 console.log("\nParameter resolution");
 {
     const specs = [
-        { id: "density", label: "Density", type: "number" as const, min: 0, max: 1, step: 0.25, default: 0.5 },
+        {
+            id: "density",
+            label: "Density",
+            type: "number" as const,
+            min: 0,
+            max: 1,
+            step: 0.25,
+            default: 0.5,
+        },
         { id: "count", label: "Count", type: "int" as const, min: 1, max: 10, step: 1, default: 5 },
         { id: "mode", label: "Mode", type: "select" as const, options: ["a", "b"], default: "a" },
         { id: "on", label: "On", type: "bool" as const, default: false },
@@ -159,7 +170,11 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
 </script></body></html>`;
 
     const masa = detectParams(cosmicMasa);
-    check("reads all five params off a shipped generator", masa?.params.length === 5, String(masa?.params.length));
+    check(
+        "reads all five params off a shipped generator",
+        masa?.params.length === 5,
+        String(masa?.params.length),
+    );
     check(
         "keeps them in declaration order",
         masa?.params.map((p) => p.id).join(",") === "fold,blister,spice,zest,roast",
@@ -167,7 +182,11 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
     );
     check("keeps the artist's ranges", masa?.params[0].min === 0.5 && masa?.params[0].max === 1.4);
     check("keeps the artist's hints", masa?.params[0].hint?.startsWith("Hyperbolic") === true);
-    check("reads a select's options out of the code", masa?.params[4].options?.length === 5, String(masa?.params[4].options?.length));
+    check(
+        "reads a select's options out of the code",
+        masa?.params[4].options?.length === 5,
+        String(masa?.params[4].options?.length),
+    );
     check("reads a select's default", masa?.params[4].default === "Masa Dorada");
 
     // Reading is not running. The studio is the app's own origin, where the
@@ -176,13 +195,19 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
     // uploaded file on the wrong side of that line, so this is a standing check
     // rather than a note.
     const hostile = `<script>window.$alea.paramsSchema=[(globalThis.__alea_detect_ran__=true,{id:"fold",label:"Fold",type:"number",min:0,max:1,step:0.01,default:0.5})];</script>`;
-    check("declines a declaration it cannot read without running it", detectParams(hostile) === null);
+    check(
+        "declines a declaration it cannot read without running it",
+        detectParams(hostile) === null,
+    );
     check(
         "never executes an uploaded file",
         (globalThis as Record<string, unknown>).__alea_detect_ran__ === undefined,
         "detection evaluated code from the file",
     );
-    check("declines a schema built by a call", detectParams(`<script>$alea.paramsSchema=[makeParam("fold")];</script>`) === null);
+    check(
+        "declines a schema built by a call",
+        detectParams(`<script>$alea.paramsSchema=[makeParam("fold")];</script>`) === null,
+    );
 
     // Generators are written by hand, so the declaration is JavaScript rather
     // than JSON: single quotes, bare keys, trailing commas, a comment with a
@@ -195,8 +220,15 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
       ];
     </script>`;
     const hand = detectParams(awkward);
-    check("reads a declaration written as ordinary JavaScript", hand?.params.length === 2, String(hand?.params.length));
-    check("reads a number JSON would not accept", hand?.params[0].default === 0.9 && hand?.params[0].min === 0.5);
+    check(
+        "reads a declaration written as ordinary JavaScript",
+        hand?.params.length === 2,
+        String(hand?.params.length),
+    );
+    check(
+        "reads a number JSON would not accept",
+        hand?.params[0].default === 0.9 && hand?.params[0].min === 0.5,
+    );
     check("is not fooled by a bracket inside a comment", hand?.params[1].id === "dark");
 
     // Against the real starter kits, not a fixture. Every template carries
@@ -234,7 +266,11 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
             `window.$alea.paramsSchema = [{id:"grain",label:"Grain",type:"number",min:0,max:1,step:0.01,default:0.4}];`,
         );
         const read = detectParams(filled);
-        check("reads the harness line when the artist fills it in", read?.params[0].id === "grain", read ? read.params.map((p) => p.id).join(",") : "read nothing");
+        check(
+            "reads the harness line when the artist fills it in",
+            read?.params[0].id === "grain",
+            read ? read.params.map((p) => p.id).join(",") : "read nothing",
+        );
     }
 
     // Last assignment wins, the way it does at runtime. An artist who clears
@@ -259,43 +295,98 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
     // it. validateSchema answers about a whole set, so asking it about the lot
     // meant a typo in the fifth threw away the four above it.
     const beside = `{id:"a",label:"A",type:"number",min:0,max:1,step:0.01,default:0.5}`;
-    const spoiled = (bad: string) => detectParams(`<script>window.$alea.paramsSchema=[${beside},${bad}];</script>`);
+    const spoiled = (bad: string) =>
+        detectParams(`<script>window.$alea.paramsSchema=[${beside},${bad}];</script>`);
 
-    const longId = spoiled(`{id:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",label:"Long",type:"number",min:0,max:1,step:0.01,default:0.5}`);
-    check("keeps the good parameter beside an unusable name", longId?.params.map((p) => p.id).join(",") === "a", longId ? longId.params.map((p) => p.id).join(",") : "null");
-    check("says why the name was dropped", (longId?.notes ?? []).some((n) => /not a usable name/.test(n)), (longId?.notes ?? []).join(" | ") || "(nothing said)");
+    const longId = spoiled(
+        `{id:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",label:"Long",type:"number",min:0,max:1,step:0.01,default:0.5}`,
+    );
+    check(
+        "keeps the good parameter beside an unusable name",
+        longId?.params.map((p) => p.id).join(",") === "a",
+        longId ? longId.params.map((p) => p.id).join(",") : "null",
+    );
+    check(
+        "says why the name was dropped",
+        (longId?.notes ?? []).some((n) => /not a usable name/.test(n)),
+        (longId?.notes ?? []).join(" | ") || "(nothing said)",
+    );
 
     const wideStep = spoiled(`{id:"c",label:"C",type:"number",min:0,max:1,step:5,default:0.5}`);
-    check("keeps the good parameter beside an impossible step", wideStep?.params.map((p) => p.id).join(",") === "a", wideStep ? wideStep.params.map((p) => p.id).join(",") : "null");
+    check(
+        "keeps the good parameter beside an impossible step",
+        wideStep?.params.map((p) => p.id).join(",") === "a",
+        wideStep ? wideStep.params.map((p) => p.id).join(",") : "null",
+    );
 
-    const collide = spoiled(`{id:"my-fold",label:"X",type:"number",min:0,max:1,step:0.01,default:0.5},{id:"my_fold",label:"Y",type:"number",min:0,max:1,step:0.01,default:0.5}`);
-    check("keeps the first of two names that collide once cleaned", collide?.params.map((p) => p.id).join(",") === "a,my_fold", collide ? collide.params.map((p) => p.id).join(",") : "null");
-    check("says the second was dropped", (collide?.notes ?? []).some((n) => /declared twice/.test(n)), (collide?.notes ?? []).join(" | ") || "(nothing said)");
+    const collide = spoiled(
+        `{id:"my-fold",label:"X",type:"number",min:0,max:1,step:0.01,default:0.5},{id:"my_fold",label:"Y",type:"number",min:0,max:1,step:0.01,default:0.5}`,
+    );
+    check(
+        "keeps the first of two names that collide once cleaned",
+        collide?.params.map((p) => p.id).join(",") === "a,my_fold",
+        collide ? collide.params.map((p) => p.id).join(",") : "null",
+    );
+    check(
+        "says the second was dropped",
+        (collide?.notes ?? []).some((n) => /declared twice/.test(n)),
+        (collide?.notes ?? []).join(" | ") || "(nothing said)",
+    );
 
     // A default outside its own range is a typo, not a reason to lose the
     // parameter. Resolved the way every renderer resolves an out-of-range
     // value, and reported, because the schema is immutable after publishing.
     const wideDefault = spoiled(`{id:"b",label:"B",type:"number",min:0,max:1,step:0.01,default:9}`);
-    check("repairs a default outside its own range", wideDefault?.params.length === 2, String(wideDefault?.params.length));
-    check("clamps it onto the declared range", wideDefault?.params[1].default === 1, String(wideDefault?.params[1].default));
-    check("says the default moved", (wideDefault?.notes ?? []).some((n) => /outside 0…1\. It starts at 1/.test(n)), (wideDefault?.notes ?? []).join(" | ") || "(nothing said)");
+    check(
+        "repairs a default outside its own range",
+        wideDefault?.params.length === 2,
+        String(wideDefault?.params.length),
+    );
+    check(
+        "clamps it onto the declared range",
+        wideDefault?.params[1].default === 1,
+        String(wideDefault?.params[1].default),
+    );
+    check(
+        "says the default moved",
+        (wideDefault?.notes ?? []).some((n) => /outside 0…1\. It starts at 1/.test(n)),
+        (wideDefault?.notes ?? []).join(" | ") || "(nothing said)",
+    );
     // A snap onto the step grid moves a value by less than the control can
     // hold, so it is not worth a line.
     const snapped = spoiled(`{id:"d",label:"D",type:"number",min:0,max:1,step:0.01,default:0.503}`);
-    check("stays quiet about a snap onto the step grid", (snapped?.notes ?? []).length === 0, (snapped?.notes ?? []).join(" | "));
+    check(
+        "stays quiet about a snap onto the step grid",
+        (snapped?.notes ?? []).length === 0,
+        (snapped?.notes ?? []).join(" | "),
+    );
 
     // A type with no equivalent here used to be filtered out in silence.
     const unreadable = spoiled(`{id:"t",label:"T",type:"string",default:"x"}`);
-    check("keeps the readable parameter beside an unreadable one", unreadable?.params.length === 1, String(unreadable?.params.length));
-    check("says the unreadable one went", (unreadable?.notes ?? []).some((n) => /no equivalent here/.test(n)), (unreadable?.notes ?? []).join(" | ") || "(nothing said)");
+    check(
+        "keeps the readable parameter beside an unreadable one",
+        unreadable?.params.length === 1,
+        String(unreadable?.params.length),
+    );
+    check(
+        "says the unreadable one went",
+        (unreadable?.notes ?? []).some((n) => /no equivalent here/.test(n)),
+        (unreadable?.notes ?? []).join(" | ") || "(nothing said)",
+    );
 
     const aleaParamsHtml = `<script>const ALEA_PARAMS = [{ id: "blister", label: "Heat", type: "number", min: 0.2, max: 0.8, step: 0.01, default: 0.5 }];</script>`;
     const named = detectParams(aleaParamsHtml);
-    check("detects ALEA_PARAMS in code", named?.params.length === 1 && named?.params[0].id === "blister");
+    check(
+        "detects ALEA_PARAMS in code",
+        named?.params.length === 1 && named?.params[0].id === "blister",
+    );
 
     const metaHtml = `<meta name="alea:params" content='[{"id":"density","label":"Density","type":"int","min":1,"max":50,"step":1,"default":12}]'>`;
     const meta = detectParams(metaHtml);
-    check("detects a meta tag declaration", meta?.params.length === 1 && meta?.params[0].type === "int");
+    check(
+        "detects a meta tag declaration",
+        meta?.params.length === 1 && meta?.params[0].type === "int",
+    );
 
     const fxHtml = `<script>
         $fx.params([
@@ -305,7 +396,10 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
       </script>`;
     const fx = detectParams(fxHtml);
     check("detects and converts $fx.params", fx?.params.length === 2);
-    check("maps an fx boolean onto bool", fx?.params[1].type === "bool" && fx?.params[1].default === true);
+    check(
+        "maps an fx boolean onto bool",
+        fx?.params[1].type === "bool" && fx?.params[1].default === true,
+    );
 
     // validateSchema counts a sixth param as an error, so validating before
     // trimming would throw away five readable params over one extra.
@@ -314,8 +408,16 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         (_, i) => `{id:"p${i}",label:"P${i}",type:"number",min:0,max:1,step:0.01,default:0.5}`,
     ).join(",")}];</script>`;
     const capped = detectParams(tooMany);
-    check(`keeps the first ${MAX_PARAMS} when more are declared`, capped?.params.length === MAX_PARAMS, String(capped?.params.length));
-    check("says so rather than dropping them quietly", /Kept the first 5 of the 6/.test((capped?.notes ?? []).join(" ")), (capped?.notes ?? []).join(" "));
+    check(
+        `keeps the first ${MAX_PARAMS} when more are declared`,
+        capped?.params.length === MAX_PARAMS,
+        String(capped?.params.length),
+    );
+    check(
+        "says so rather than dropping them quietly",
+        /Kept the first 5 of the 6/.test((capped?.notes ?? []).join(" ")),
+        (capped?.notes ?? []).join(" "),
+    );
 
     // fromFxParams counts what it could not bring over. Losing that on the way
     // through here would drop the parameters silently, which is the one thing
@@ -330,9 +432,21 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         {id:"warp",name:"Warp",type:"number",options:{min:0,max:1},default:0.2}
       ]);</script>`;
     const converted = detectParams(lossy);
-    check("reports an fx param it could not bring over", (converted?.notes ?? []).some((n) => /string param/.test(n)), (converted?.notes ?? []).join(" | ") || "(nothing said)");
-    check("reports the ones past the ceiling", (converted?.notes ?? []).some((n) => /Kept the first 5/.test(n)), (converted?.notes ?? []).join(" | ") || "(nothing said)");
-    check("still keeps the five it could convert", converted?.params.length === MAX_PARAMS, String(converted?.params.length));
+    check(
+        "reports an fx param it could not bring over",
+        (converted?.notes ?? []).some((n) => /string param/.test(n)),
+        (converted?.notes ?? []).join(" | ") || "(nothing said)",
+    );
+    check(
+        "reports the ones past the ceiling",
+        (converted?.notes ?? []).some((n) => /Kept the first 5/.test(n)),
+        (converted?.notes ?? []).join(" | ") || "(nothing said)",
+    );
+    check(
+        "still keeps the five it could convert",
+        converted?.params.length === MAX_PARAMS,
+        String(converted?.params.length),
+    );
 
     // The same rule on the fxhash path: a default it had to move is said out
     // loud there too, rather than two code paths that agree only by accident.
@@ -340,26 +454,54 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         {id:"speed",name:"Speed",type:"number",options:{min:1,max:10,step:1},default:99},
         {id:"palette",name:"Palette",type:"select",options:{options:["A","B"]},default:"Z"}
       ]);</script>`);
-    check("reports an fx default outside its range", (fxMoved?.notes ?? []).some((n) => /outside 1…10/.test(n)), (fxMoved?.notes ?? []).join(" | ") || "(nothing said)");
-    check("reports an fx default that is not one of its options", (fxMoved?.notes ?? []).some((n) => /not one of its options/.test(n)), (fxMoved?.notes ?? []).join(" | ") || "(nothing said)");
+    check(
+        "reports an fx default outside its range",
+        (fxMoved?.notes ?? []).some((n) => /outside 1…10/.test(n)),
+        (fxMoved?.notes ?? []).join(" | ") || "(nothing said)",
+    );
+    check(
+        "reports an fx default that is not one of its options",
+        (fxMoved?.notes ?? []).some((n) => /not one of its options/.test(n)),
+        (fxMoved?.notes ?? []).join(" | ") || "(nothing said)",
+    );
 
-    check("returns null when no params are declared", detectParams(`<script>window.$alea.ready();</script>`) === null);
-    check("returns null rather than an empty declaration", detectParams(`<script>window.$alea.paramsSchema=[];</script>`) === null);
+    check(
+        "returns null when no params are declared",
+        detectParams(`<script>window.$alea.ready();</script>`) === null,
+    );
+    check(
+        "returns null rather than an empty declaration",
+        detectParams(`<script>window.$alea.paramsSchema=[];</script>`) === null,
+    );
 }
 
 console.log("\nPackaging a zip");
 {
     const zip = (files: Record<string, string>) =>
-        packageFromZip(zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)]))));
+        packageFromZip(
+            zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)]))),
+        );
 
     const flattened = zip({
         "index.html": `<html><head><link rel="stylesheet" href="style.css"></head><body><script src="sketch.js"></script></body></html>`,
         "style.css": `body{margin:0}`,
         "sketch.js": `$alea.ready();`,
     });
-    check("inlines a stylesheet and a script", /<style>body\{margin:0\}<\/style>/.test(flattened.html) && /\$alea\.ready\(\);<\/script>/.test(flattened.html));
-    check("counts what it actually inlined", flattened.notes.includes("Flattened 2 files into one document."), flattened.notes.join(" | "));
-    check("has nothing left unresolved", flattened.unresolved.length === 0, flattened.unresolved.join(", "));
+    check(
+        "inlines a stylesheet and a script",
+        /<style>body\{margin:0\}<\/style>/.test(flattened.html) &&
+            /\$alea\.ready\(\);<\/script>/.test(flattened.html),
+    );
+    check(
+        "counts what it actually inlined",
+        flattened.notes.includes("Flattened 2 files into one document."),
+        flattened.notes.join(" | "),
+    );
+    check(
+        "has nothing left unresolved",
+        flattened.unresolved.length === 0,
+        flattened.unresolved.join(", "),
+    );
 
     // An <img> pointing at a file the package does not carry is the whole
     // reason to report anything: it renders as a hole, and silently.
@@ -367,13 +509,21 @@ console.log("\nPackaging a zip");
         "index.html": `<html><head><link rel="stylesheet" href="style.css"></head><body><img src="textures/gone.png"></body></html>`,
         "style.css": `body{background:url("textures/gone.png")}`,
     });
-    check("reports a file the package does not carry", holed.unresolved.includes("textures/gone.png"), holed.unresolved.join(", "));
+    check(
+        "reports a file the package does not carry",
+        holed.unresolved.includes("textures/gone.png"),
+        holed.unresolved.join(", "),
+    );
     check(
         "names each missing file once, however many times it is referenced",
         holed.unresolved.length === 1,
         holed.unresolved.join(", "),
     );
-    check("still counts the stylesheet it did inline", holed.notes.includes("Flattened 1 file into one document."), holed.notes.join(" | "));
+    check(
+        "still counts the stylesheet it did inline",
+        holed.notes.includes("Flattened 1 file into one document."),
+        holed.notes.join(" | "),
+    );
 
     // Only an <img> refers to it, so nothing else can report it on its behalf.
     const imageOnly = zip({
@@ -391,15 +541,26 @@ console.log("\nPackaging a zip");
         "index.html": `<html><body><script src="https://cdn.example.com/p5.js"></script></body></html>`,
     });
     check("leaves a remote script in place", /cdn\.example\.com/.test(remote.html));
-    check("says so", remote.notes.some((n) => n.includes("remote script")), remote.notes.join(" | "));
-    check("does not call a remote script a missing file", remote.unresolved.length === 0, remote.unresolved.join(", "));
+    check(
+        "says so",
+        remote.notes.some((n) => n.includes("remote script")),
+        remote.notes.join(" | "),
+    );
+    check(
+        "does not call a remote script a missing file",
+        remote.unresolved.length === 0,
+        remote.unresolved.join(", "),
+    );
 
     // What every OS produces when you zip a folder.
     const wrapped = zip({
         "my-piece/index.html": `<html><body><script src="sketch.js"></script></body></html>`,
         "my-piece/sketch.js": `$alea.ready();`,
     });
-    check("finds index.html inside a wrapper folder", /\$alea\.ready\(\);<\/script>/.test(wrapped.html));
+    check(
+        "finds index.html inside a wrapper folder",
+        /\$alea\.ready\(\);<\/script>/.test(wrapped.html),
+    );
 }
 
 console.log("\nDrafts");
@@ -411,10 +572,7 @@ console.log("\nDrafts");
     // A grid is derived from one base, so pointing at tile 7 means something.
     const grid = Array.from({ length: 16 }, (_, i) => seedAt(draft.seed, i));
     check("grid seeds are distinct", new Set(grid).size === 16);
-    check(
-        "grid seeds are reproducible",
-        seedAt(draft.seed, 7) === seedAt(draft.seed, 7),
-    );
+    check("grid seeds are reproducible", seedAt(draft.seed, 7) === seedAt(draft.seed, 7));
 }
 
 console.log(

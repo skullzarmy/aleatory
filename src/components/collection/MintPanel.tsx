@@ -76,12 +76,7 @@ export function MintPanel({
             const params = schema
                 ? encodeParams(schema.params, resolveParams(schema.params, chosen))
                 : "";
-            const res = await ops.mint(
-                client,
-                collection.address,
-                params,
-                collection.totalMutez,
-            );
+            const res = await ops.mint(client, collection.address, params, collection.totalMutez);
             setHash(res.hash);
             // Tell the provider this collection pays to look now. It polls
             // regardless, so this only shortens the wait, and a provider that
@@ -132,8 +127,8 @@ export function MintPanel({
                 )}
                 <p className="text-sm font-medium">Yours. Here it is.</p>
                 <p className="text-xs text-muted-foreground">
-                    Drawn from the seed your signature made. The permanent image is being
-                    published now, and your piece appears on your wallet page in a moment.
+                    Drawn from the seed your signature made. The permanent image is being published
+                    now, and your piece appears on your wallet page in a moment.
                 </p>
                 <div className="flex flex-wrap gap-2 pt-1">
                     <Link
@@ -159,9 +154,7 @@ export function MintPanel({
         <div className="space-y-3 rounded-lg border border-border p-4">
             <div className="flex items-baseline justify-between">
                 <span className="text-sm text-muted-foreground">Price</span>
-                <span className="text-lg font-semibold">
-                    {formatTez(collection.priceMutez)} ꜩ
-                </span>
+                <span className="text-lg font-semibold">{formatTez(collection.priceMutez)} ꜩ</span>
             </div>
 
             <div className="flex items-baseline justify-between text-xs text-muted-foreground">
@@ -239,8 +232,8 @@ export function MintPanel({
             )}
 
             <p className="text-xs text-muted-foreground">
-                Your signature decides the seed. The piece is yours as soon as it lands, and
-                the image follows shortly after.
+                Your signature decides the seed. The piece is yours as soon as it lands, and the
+                image follows shortly after.
             </p>
 
             {error && <p className="text-xs text-destructive">{error}</p>}

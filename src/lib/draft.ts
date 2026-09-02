@@ -92,7 +92,10 @@ function open(): Promise<IDBDatabase> {
  *
  * Found by @webid in #1.
  */
-async function tx<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+async function tx<T>(
+    mode: IDBTransactionMode,
+    fn: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
     const db = await open();
     return new Promise<T>((resolve, reject) => {
         try {
@@ -130,7 +133,10 @@ export async function listDrafts(): Promise<Draft[]> {
 }
 
 export async function getDraft(id: string): Promise<Draft | null> {
-    const found = await tx<Draft | undefined>("readonly", (s) => s.get(id) as IDBRequest<Draft | undefined>);
+    const found = await tx<Draft | undefined>(
+        "readonly",
+        (s) => s.get(id) as IDBRequest<Draft | undefined>,
+    );
     return found ?? null;
 }
 

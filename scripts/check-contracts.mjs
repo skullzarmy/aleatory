@@ -15,11 +15,21 @@ const source = ["contract/aleatory.py", "contract/marketplace.py"]
     .join("\n");
 
 const classes = [...source.matchAll(/class Aleatory(\w+)\s*\(/g)].map((m) => m[1]);
-const entrypoints = new Set(
-    [...source.matchAll(/def\s+([a-z_]+)\s*\(self/g)].map((m) => m[1]),
-);
+const entrypoints = new Set([...source.matchAll(/def\s+([a-z_]+)\s*\(self/g)].map((m) => m[1]));
 
-const WORDS = ["zero","one","two","three","four","five","six","seven","eight","nine","ten"];
+const WORDS = [
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+];
 const docs = execSync("git ls-files '*.md'", { encoding: "utf8" }).trim().split("\n");
 
 let bad = 0;
@@ -41,7 +51,7 @@ for (const doc of docs) {
     // Entrypoints named in backticks that no contract defines.
     for (const m of text.matchAll(/`([a-z][a-z0-9_]{3,30})\(\)?`/g)) {
         const name = m[1];
-        if (!/_/.test(name)) continue;           // single words are usually prose
+        if (!/_/.test(name)) continue; // single words are usually prose
         if (entrypoints.has(name)) continue;
         if (/^(npm|node|npx)/.test(name)) continue;
         bad++;

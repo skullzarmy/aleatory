@@ -235,7 +235,9 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                     {depsLoading ? (
                                         <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
                                             Loading{" "}
-                                            {kind.deps.map((d) => d.label).join(", ") || "libraries"}…
+                                            {kind.deps.map((d) => d.label).join(", ") ||
+                                                "libraries"}
+                                            …
                                         </p>
                                     ) : (
                                         <Frame
@@ -264,8 +266,8 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
 
                             {tool === "preview" && (
                                 <p className="mt-4 text-xs text-muted-foreground">
-                                    Edit the code and this redraws. The seed stays put until
-                                    you change it.
+                                    Edit the code and this redraws. The seed stays put until you
+                                    change it.
                                 </p>
                             )}
 
@@ -288,7 +290,9 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                     <ParamsPanel
                                         specs={params}
                                         values={resolveParams(params, values)}
-                                        onSpecsChange={(next) => setHtml(withParams(draft.html, next))}
+                                        onSpecsChange={(next) =>
+                                            setHtml(withParams(draft.html, next))
+                                        }
                                         onValuesChange={setValues}
                                     />
                                 </div>

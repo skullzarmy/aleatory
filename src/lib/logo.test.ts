@@ -77,7 +77,5 @@ console.log("\nThe mark\n");
     check("the mark has bands at all", ids.length > 0);
 }
 
-console.log(
-    failures === 0 ? "\nThe mark holds together.\n" : `\n${failures} check(s) failed.\n`,
-);
+console.log(failures === 0 ? "\nThe mark holds together.\n" : `\n${failures} check(s) failed.\n`);
 process.exit(failures === 0 ? 0 : 1);

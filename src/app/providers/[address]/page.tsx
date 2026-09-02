@@ -31,25 +31,19 @@ export async function generateMetadata({
  * sitting unrendered. Every figure is measured, not claimed: a provider cannot
  * write anything on this page.
  */
-export default async function ProviderPage({
-    params,
-}: {
-    params: Promise<{ address: string }>;
-}) {
+export default async function ProviderPage({ params }: { params: Promise<{ address: string }> }) {
     const { address } = await params;
     if (!isAddress(address)) notFound();
 
-    const provider = (await fetchProviders().catch(() => [])).find(
-        (p) => p.address === address,
-    );
+    const provider = (await fetchProviders().catch(() => [])).find((p) => p.address === address);
 
     if (!provider) {
         return (
             <div className="mx-auto max-w-md px-4 py-16 text-center">
                 <h1 className="text-lg font-semibold">Not in the registry</h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                    {shortAddress(address)} has not listed itself as a provider on this
-                    network. Listing is free and open to anyone.
+                    {shortAddress(address)} has not listed itself as a provider on this network.
+                    Listing is free and open to anyone.
                 </p>
                 <Link
                     href="/providers"
@@ -134,11 +128,7 @@ export default async function ProviderPage({
                 <Row
                     label="Signing address"
                     value={
-                        provider.agent ? (
-                            <AccountLink address={provider.agent} />
-                        ) : (
-                            "not published"
-                        )
+                        provider.agent ? <AccountLink address={provider.agent} /> : "not published"
                     }
                 />
                 {provider.endpoint && <Row label="Push endpoint" value={provider.endpoint} />}
@@ -153,9 +143,8 @@ export default async function ProviderPage({
             </dl>
 
             <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
-                Anyone can run a provider and set their own price. If you use this one and
-                it stops working, you can switch at any time and nothing you have already
-                sold is affected.
+                Anyone can run a provider and set their own price. If you use this one and it stops
+                working, you can switch at any time and nothing you have already sold is affected.
             </p>
         </div>
     );

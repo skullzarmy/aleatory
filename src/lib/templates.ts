@@ -27,8 +27,26 @@ import { TEMPLATE_HTML } from "./templates.generated";
 
 const PARAMS_BY_KIND: Record<string, ParamSpec[]> = {
     vanilla: [
-        { id: "density", label: "Density", type: "int", min: 40, max: 320, step: 10, default: 140, hint: "How many marks are drawn." },
-        { id: "spread", label: "Spread", type: "number", min: 0.05, max: 0.5, step: 0.01, default: 0.35, hint: "How far marks wander from the ring." },
+        {
+            id: "density",
+            label: "Density",
+            type: "int",
+            min: 40,
+            max: 320,
+            step: 10,
+            default: 140,
+            hint: "How many marks are drawn.",
+        },
+        {
+            id: "spread",
+            label: "Spread",
+            type: "number",
+            min: 0.05,
+            max: 0.5,
+            step: 0.01,
+            default: 0.35,
+            hint: "How far marks wander from the ring.",
+        },
     ],
     svg: [
         {
@@ -39,15 +57,41 @@ const PARAMS_BY_KIND: Record<string, ParamSpec[]> = {
             default: "black",
             hint: "The single colour every line is drawn in.",
         },
-        { id: "grain", label: "Grain", type: "number", min: 0.03, max: 0.16, step: 0.005, default: 0.08, hint: "Smaller subdivides further." },
+        {
+            id: "grain",
+            label: "Grain",
+            type: "number",
+            min: 0.03,
+            max: 0.16,
+            step: 0.005,
+            default: 0.08,
+            hint: "Smaller subdivides further.",
+        },
     ],
     p5: [
         { id: "count", label: "Lines", type: "int", min: 200, max: 1600, step: 50, default: 800 },
-        { id: "flow", label: "Turbulence", type: "number", min: 0.001, max: 0.01, step: 0.0005, default: 0.004 },
+        {
+            id: "flow",
+            label: "Turbulence",
+            type: "number",
+            min: 0.001,
+            max: 0.01,
+            step: 0.0005,
+            default: 0.004,
+        },
     ],
     custom: [
         { id: "bars", label: "Bars", type: "int", min: 4, max: 48, step: 1, default: 18 },
-        { id: "chroma", label: "Chroma", type: "number", min: 0, max: 1, step: 0.01, default: 0.6, hint: "0 is grey, 1 is fully saturated." },
+        {
+            id: "chroma",
+            label: "Chroma",
+            type: "number",
+            min: 0,
+            max: 1,
+            step: 0.01,
+            default: 0.6,
+            hint: "0 is grey, 1 is fully saturated.",
+        },
     ],
 };
 
@@ -59,5 +103,8 @@ export function templateFor(kindId: number): string {
 export function templateParamsFor(kindId: number): ParamSpec[] {
     const kind = RUNTIME_KINDS.find((k) => k.kindId === kindId);
     // Copied, not shared: the panel edits these in place.
-    return (PARAMS_BY_KIND[kind?.name ?? "vanilla"] ?? []).map((p) => ({ ...p, options: p.options ? [...p.options] : undefined }));
+    return (PARAMS_BY_KIND[kind?.name ?? "vanilla"] ?? []).map((p) => ({
+        ...p,
+        options: p.options ? [...p.options] : undefined,
+    }));
 }

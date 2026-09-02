@@ -25,9 +25,7 @@ export default function DraftPage({ params }: { params: Promise<{ draft: string 
 
     if (draft === undefined) {
         return (
-            <p className="mx-auto max-w-6xl px-4 py-8 text-sm text-muted-foreground">
-                Opening…
-            </p>
+            <p className="mx-auto max-w-6xl px-4 py-8 text-sm text-muted-foreground">Opening…</p>
         );
     }
 
@@ -36,8 +34,8 @@ export default function DraftPage({ params }: { params: Promise<{ draft: string 
             <div className="mx-auto max-w-md px-4 py-16 text-center">
                 <h1 className="text-lg font-semibold">Not in this browser</h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                    Drafts are saved in your browser. This one was made somewhere else, or
-                    the browser data holding it was cleared.
+                    Drafts are saved in your browser. This one was made somewhere else, or the
+                    browser data holding it was cleared.
                 </p>
                 <Link
                     href="/studio"

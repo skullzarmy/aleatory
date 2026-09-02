@@ -43,9 +43,9 @@ export default function Error({
                     Something broke
                 </h1>
                 <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
-                    This page failed to read. The chain is untouched: every piece is stored
-                    on it, and nothing here can change what is there. The fracture behind
-                    this card was drawn from the fault itself.
+                    This page failed to read. The chain is untouched: every piece is stored on it,
+                    and nothing here can change what is there. The fracture behind this card was
+                    drawn from the fault itself.
                 </p>
 
                 {error.digest && (

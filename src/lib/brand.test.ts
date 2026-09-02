@@ -45,14 +45,21 @@ function hslToHex(h: number, s: number, l: number): string {
     const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
     const m = l - c / 2;
     const [r, g, b] =
-        h < 60 ? [c, x, 0]
-        : h < 120 ? [x, c, 0]
-        : h < 180 ? [0, c, x]
-        : h < 240 ? [0, x, c]
-        : h < 300 ? [x, 0, c]
-        : [c, 0, x];
+        h < 60
+            ? [c, x, 0]
+            : h < 120
+              ? [x, c, 0]
+              : h < 180
+                ? [0, c, x]
+                : h < 240
+                  ? [0, x, c]
+                  : h < 300
+                    ? [x, 0, c]
+                    : [c, 0, x];
     const to = (v: number) =>
-        Math.round((v + m) * 255).toString(16).padStart(2, "0");
+        Math.round((v + m) * 255)
+            .toString(16)
+            .padStart(2, "0");
     return `#${to(r)}${to(g)}${to(b)}`;
 }
 
@@ -66,8 +73,8 @@ function hslToHex(h: number, s: number, l: number): string {
  */
 function backgrounds(): { light: string; dark: string } {
     const css = readFileSync("src/app/globals.css", "utf8");
-    const found = [...css.matchAll(/--background:\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/g)].map(
-        (m) => hslToHex(Number(m[1]), Number(m[2]) / 100, Number(m[3]) / 100),
+    const found = [...css.matchAll(/--background:\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/g)].map((m) =>
+        hslToHex(Number(m[1]), Number(m[2]) / 100, Number(m[3]) / 100),
     );
     if (found.length < 2) throw new Error("could not read both --background values");
     // Declared light first, then dark, as the file is ordered.
@@ -107,9 +114,5 @@ console.log(`\n  page is ${page.light} light, ${page.dark} dark\n`);
 check(`alea-600 on the light page ${page.light}`, contrast(alea["600"], page.light), 3);
 check(`alea-600 on the dark page ${page.dark}`, contrast(alea["600"], page.dark), 3);
 
-console.log(
-    failures === 0
-        ? "\nEvery pair clears AA.\n"
-        : `\n${failures} pair(s) below AA.\n`,
-);
+console.log(failures === 0 ? "\nEvery pair clears AA.\n" : `\n${failures} pair(s) below AA.\n`);
 process.exit(failures === 0 ? 0 : 1);

@@ -22,18 +22,20 @@ function escape(s: string): string {
 
 /** Inline markup, applied to already-escaped text. */
 function inline(s: string): string {
-    return escape(s)
-        // An entrypoint name, a contract address or a storage key has no
-        // spaces in it, and a phone is narrower than most of them.
-        .replace(
-            /`([^`]+)`/g,
-            '<code class="break-words rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">$1</code>',
-        )
-        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-        .replace(
-            /\[([^\]]+)\]\(([^)\s]+)\)/g,
-            '<a href="$2" class="break-words underline underline-offset-2 hover:text-foreground">$1</a>',
-        );
+    return (
+        escape(s)
+            // An entrypoint name, a contract address or a storage key has no
+            // spaces in it, and a phone is narrower than most of them.
+            .replace(
+                /`([^`]+)`/g,
+                '<code class="break-words rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">$1</code>',
+            )
+            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+            .replace(
+                /\[([^\]]+)\]\(([^)\s]+)\)/g,
+                '<a href="$2" class="break-words underline underline-offset-2 hover:text-foreground">$1</a>',
+            )
+    );
 }
 
 export interface Heading {
@@ -99,7 +101,9 @@ export function renderMarkdown(source: string): RenderedDoc {
                     : depth === 2
                       ? "mt-10 text-lg font-semibold tracking-tight"
                       : "mt-8 text-sm font-semibold uppercase tracking-wide text-muted-foreground";
-            out.push(`<h${depth} id="${id}" class="${size} scroll-mt-24">${inline(text)}</h${depth}>`);
+            out.push(
+                `<h${depth} id="${id}" class="${size} scroll-mt-24">${inline(text)}</h${depth}>`,
+            );
             i++;
             continue;
         }
@@ -115,7 +119,10 @@ export function renderMarkdown(source: string): RenderedDoc {
         if (/^\|/.test(line) && i + 1 < lines.length && /^\|[\s:|-]+\|?\s*$/.test(lines[i + 1])) {
             flushParagraph();
             const cells = (row: string) =>
-                row.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+                row
+                    .replace(/^\||\|$/g, "")
+                    .split("|")
+                    .map((c) => c.trim());
             const head = cells(line);
             i += 2;
             const body: string[][] = [];
@@ -157,7 +164,11 @@ export function renderMarkdown(source: string): RenderedDoc {
                     items.push(m[1]);
                     i++;
                     // A wrapped list item continues on an indented line.
-                    while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !/^\s*([-*]|\d+\.)\s/.test(lines[i])) {
+                    while (
+                        i < lines.length &&
+                        /^\s{2,}\S/.test(lines[i]) &&
+                        !/^\s*([-*]|\d+\.)\s/.test(lines[i])
+                    ) {
                         items[items.length - 1] += ` ${lines[i].trim()}`;
                         i++;
                     }

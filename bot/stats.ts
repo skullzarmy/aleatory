@@ -188,9 +188,7 @@ export async function platformStats(): Promise<PlatformStats> {
             "render gas",
             async () =>
                 provider()
-                    ? await sumOf(
-                          `/v1/operations/transactions?target=${provider()}&status=applied`,
-                      )
+                    ? await sumOf(`/v1/operations/transactions?target=${provider()}&status=applied`)
                     : 0,
             0,
         ),

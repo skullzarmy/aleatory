@@ -12,15 +12,20 @@ import { execSync } from "node:child_process";
 const files = execSync("git ls-files '*.md'", { encoding: "utf8" }).trim().split("\n");
 let bad = 0;
 for (const f of files) {
-  const src = readFileSync(f, "utf8");
-  for (const m of src.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)) {
-    const target = m[2].split("#")[0];
-    if (!target || /^(https?:|mailto:)/.test(target)) continue;
-    const p = resolve(dirname(f), target);
-    if (!existsSync(p)) { bad++; console.log(`BROKEN  ${f}: ${m[2]}`); continue; }
-    if (statSync(p).isDirectory() && !existsSync(join(p, "README.md"))) {
-      bad++; console.log(`DIR     ${f}: ${m[2]}  (a directory with no README, reads as source)`);
+    const src = readFileSync(f, "utf8");
+    for (const m of src.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)) {
+        const target = m[2].split("#")[0];
+        if (!target || /^(https?:|mailto:)/.test(target)) continue;
+        const p = resolve(dirname(f), target);
+        if (!existsSync(p)) {
+            bad++;
+            console.log(`BROKEN  ${f}: ${m[2]}`);
+            continue;
+        }
+        if (statSync(p).isDirectory() && !existsSync(join(p, "README.md"))) {
+            bad++;
+            console.log(`DIR     ${f}: ${m[2]}  (a directory with no README, reads as source)`);
+        }
     }
-  }
 }
 console.log(bad === 0 ? "\nall relative links resolve" : `\n${bad} problem(s)`);

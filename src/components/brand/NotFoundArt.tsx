@@ -24,9 +24,7 @@ const BLUE = "#4770e1";
 const DURATION = 7000;
 
 function readVar(name: string, fallback: string) {
-    const v = getComputedStyle(document.documentElement)
-        .getPropertyValue(name)
-        .trim();
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     return v || fallback;
 }
 
@@ -49,8 +47,7 @@ function makeField(rand: () => number) {
 
     const fade = (t: number) => t * t * (3 - 2 * t);
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-    const hash = (xi: number, yi: number) =>
-        perm[(perm[xi & 255] + (yi & 255)) & 255];
+    const hash = (xi: number, yi: number) => perm[(perm[xi & 255] + (yi & 255)) & 255];
 
     const octave = (x: number, y: number) => {
         const xi = Math.floor(x);
@@ -66,8 +63,7 @@ function makeField(rand: () => number) {
         );
     };
 
-    return (x: number, y: number) =>
-        octave(x, y) * 0.65 + octave(x * 2.17, y * 2.17) * 0.35;
+    return (x: number, y: number) => octave(x, y) * 0.65 + octave(x * 2.17, y * 2.17) * 0.35;
 }
 
 type Particle = {
@@ -92,8 +88,7 @@ export function NotFoundArt() {
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
-        const seed =
-            window.location.pathname + window.location.search || "/404";
+        const seed = window.location.pathname + window.location.search || "/404";
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 
         let ink = readVar("--foreground", "0 0% 40%");
@@ -114,10 +109,7 @@ export function NotFoundArt() {
                 x: rand() * W,
                 y: rand() * H,
                 color,
-                alpha:
-                    color === "ink"
-                        ? 0.05 + rand() * 0.07
-                        : 0.09 + rand() * 0.09,
+                alpha: color === "ink" ? 0.05 + rand() * 0.07 : 0.09 + rand() * 0.09,
                 width: 0.7 + rand() * (color === "ink" ? 1.4 : 2.2),
                 life: 0,
                 max: 50 + Math.floor(rand() * 130),
@@ -145,10 +137,7 @@ export function NotFoundArt() {
             turns = 1.5 + rand() * 2.5;
             swirl = rand() * TAU;
 
-            const count = Math.max(
-                80,
-                Math.min(260, Math.floor((W * H) / 9000)),
-            );
+            const count = Math.max(80, Math.min(260, Math.floor((W * H) / 9000)));
             const unit = Math.min(W, H);
             particles = [];
             for (let i = 0; i < count; i++) {
@@ -156,8 +145,7 @@ export function NotFoundArt() {
             }
         };
 
-        const angleAt = (x: number, y: number) =>
-            field(x / scale, y / scale) * TAU * turns + swirl;
+        const angleAt = (x: number, y: number) => field(x / scale, y / scale) * TAU * turns + swirl;
 
         const step = (speedScale: number) => {
             const unit = Math.min(W, H);
@@ -175,13 +163,7 @@ export function NotFoundArt() {
                 p.x = nx;
                 p.y = ny;
                 p.life++;
-                if (
-                    p.life > p.max ||
-                    nx < -20 ||
-                    nx > W + 20 ||
-                    ny < -20 ||
-                    ny > H + 20
-                ) {
+                if (p.life > p.max || nx < -20 || nx > W + 20 || ny < -20 || ny > H + 20) {
                     Object.assign(p, seedParticle(spawn, unit));
                 }
             }

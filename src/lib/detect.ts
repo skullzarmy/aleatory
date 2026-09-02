@@ -334,7 +334,10 @@ const ESCAPES: Record<string, string> = {
  * never matches, so it does not shadow the literal it points at.
  */
 function declaredArray(html: string, pattern: RegExp): unknown[] | null {
-    const every = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+    const every = new RegExp(
+        pattern.source,
+        pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`,
+    );
     let last: unknown[] | null = null;
     for (const match of html.matchAll(every)) {
         const open = html.indexOf("[", match.index);
@@ -357,10 +360,15 @@ function normalizeRawParam(p: unknown, at: number): Reading {
     }
     const obj = p as Record<string, unknown>;
     const given = String(obj.id ?? "").trim();
-    const id = given.toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/^[^a-z]+/, "");
+    const id = given
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, "_")
+        .replace(/^[^a-z]+/, "");
     const label = String(obj.label ?? obj.id ?? id).trim();
     if (!id) {
-        return { dropped: `${where} has no usable name, so it was dropped. The name is how the code finds a value.` };
+        return {
+            dropped: `${where} has no usable name, so it was dropped. The name is how the code finds a value.`,
+        };
     }
 
     const hint = typeof obj.hint === "string" ? { hint: obj.hint } : {};
@@ -369,9 +377,20 @@ function normalizeRawParam(p: unknown, at: number): Reading {
     if (type === "int" || type === "number") {
         const isInt = type === "int";
         const min = typeof obj.min === "number" && Number.isFinite(obj.min) ? obj.min : 0;
-        const max = typeof obj.max === "number" && Number.isFinite(obj.max) ? obj.max : isInt ? 100 : 1;
-        const step = typeof obj.step === "number" && Number.isFinite(obj.step) ? obj.step : isInt ? 1 : 0.01;
-        const spec: ParamSpec = { id, label: label || id, type: isInt ? "int" : "number", min, max, step, default: min, ...hint };
+        const max =
+            typeof obj.max === "number" && Number.isFinite(obj.max) ? obj.max : isInt ? 100 : 1;
+        const step =
+            typeof obj.step === "number" && Number.isFinite(obj.step) ? obj.step : isInt ? 1 : 0.01;
+        const spec: ParamSpec = {
+            id,
+            label: label || id,
+            type: isInt ? "int" : "number",
+            min,
+            max,
+            step,
+            default: min,
+            ...hint,
+        };
         // Put the declared default through the same rule every renderer uses,
         // the way `fromFxParams` does, rather than trusting it raw. A default
         // outside its own range is a typo, and clamping it is what the rule
@@ -395,22 +414,41 @@ function normalizeRawParam(p: unknown, at: number): Reading {
         return { spec: { ...spec, default: resolved }, ...(note ? { note } : {}) };
     }
     if (type === "bool") {
-        return { spec: { id, label: label || id, type: "bool", default: obj.default === true, ...hint } };
+        return {
+            spec: { id, label: label || id, type: "bool", default: obj.default === true, ...hint },
+        };
     }
     if (type === "color") {
         const raw = String(obj.default ?? "#000000").trim();
         const hex = raw.startsWith("#") ? raw : `#${raw}`;
-        return { spec: { id, label: label || id, type: "color", default: /^#[0-9a-f]{6}$/i.test(hex) ? hex.toLowerCase() : "#000000", ...hint } };
+        return {
+            spec: {
+                id,
+                label: label || id,
+                type: "color",
+                default: /^#[0-9a-f]{6}$/i.test(hex) ? hex.toLowerCase() : "#000000",
+                ...hint,
+            },
+        };
     }
     if (type === "select") {
         const options = Array.isArray(obj.options) ? obj.options.map(String).filter(Boolean) : [];
         if (options.length < 2) {
-            return { dropped: `"${label || id}" is a choice with fewer than two options, so it was dropped.` };
+            return {
+                dropped: `"${label || id}" is a choice with fewer than two options, so it was dropped.`,
+            };
         }
-        const value = typeof obj.default === "string" && options.includes(obj.default) ? obj.default : options[0];
-        return { spec: { id, label: label || id, type: "select", options, default: value, ...hint } };
+        const value =
+            typeof obj.default === "string" && options.includes(obj.default)
+                ? obj.default
+                : options[0];
+        return {
+            spec: { id, label: label || id, type: "select", options, default: value, ...hint },
+        };
     }
-    return { dropped: `"${label || id}" is a ${type} parameter, which has no equivalent here, so it was dropped.` };
+    return {
+        dropped: `"${label || id}" is a ${type} parameter, which has no equivalent here, so it was dropped.`,
+    };
 }
 
 /**
@@ -428,7 +466,11 @@ function normalizeRawParam(p: unknown, at: number): Reading {
  *
  * Every loss is carried out in `notes`. They cannot see what we did not keep.
  */
-function detected(readings: Reading[], because: string, notes: string[] = []): ParamsDetection | null {
+function detected(
+    readings: Reading[],
+    because: string,
+    notes: string[] = [],
+): ParamsDetection | null {
     const params: ParamSpec[] = [];
     const lost = [...notes];
     const taken = new Set<string>();
@@ -441,7 +483,9 @@ function detected(readings: Reading[], because: string, notes: string[] = []): P
         }
         const { spec } = reading;
         if (taken.has(spec.id)) {
-            lost.push(`"${spec.id}" is declared twice, so the second was dropped. Names are how the code finds a value.`);
+            lost.push(
+                `"${spec.id}" is declared twice, so the second was dropped. Names are how the code finds a value.`,
+            );
             continue;
         }
         const wrong = validateSchema([spec]);
@@ -459,7 +503,9 @@ function detected(readings: Reading[], because: string, notes: string[] = []): P
     }
 
     if (over > 0) {
-        lost.push(`Kept the first ${MAX_PARAMS} of the ${MAX_PARAMS + over} readable, the rest were dropped.`);
+        lost.push(
+            `Kept the first ${MAX_PARAMS} of the ${MAX_PARAMS + over} readable, the rest were dropped.`,
+        );
     }
     if (params.length === 0) return null;
     return { params, because, notes: lost };
@@ -498,14 +544,23 @@ function unescapeAttribute(value: string): string {
  */
 export function detectParams(html: string): ParamsDetection | null {
     const meta =
-        html.match(/<meta\s+[^>]*name=["'](?:alea|aleatory):params["'][^>]*content=(["'])([\s\S]*?)\1/i) ??
-        html.match(/<meta\s+[^>]*content=(["'])([\s\S]*?)\1[^>]*name=["'](?:alea|aleatory):params["']/i);
+        html.match(
+            /<meta\s+[^>]*name=["'](?:alea|aleatory):params["'][^>]*content=(["'])([\s\S]*?)\1/i,
+        ) ??
+        html.match(
+            /<meta\s+[^>]*content=(["'])([\s\S]*?)\1[^>]*name=["'](?:alea|aleatory):params["']/i,
+        );
     if (meta) {
         try {
             const parsed: unknown = JSON.parse(unescapeAttribute(meta[2]));
-            const list = Array.isArray(parsed) ? parsed : (parsed as { params?: unknown[] })?.params;
+            const list = Array.isArray(parsed)
+                ? parsed
+                : (parsed as { params?: unknown[] })?.params;
             if (Array.isArray(list)) {
-                const found = detected(list.map(normalizeRawParam), "it declares params in a meta tag");
+                const found = detected(
+                    list.map(normalizeRawParam),
+                    "it declares params in a meta tag",
+                );
                 if (found) return found;
             }
         } catch {
@@ -515,7 +570,10 @@ export function detectParams(html: string): ParamsDetection | null {
 
     const schema = declaredArray(html, /(?:window\.)?\$alea\.paramsSchema\s*=\s*\[/);
     if (schema) {
-        const found = detected(schema.map(normalizeRawParam), "it declares $alea.paramsSchema in code");
+        const found = detected(
+            schema.map(normalizeRawParam),
+            "it declares $alea.paramsSchema in code",
+        );
         if (found) return found;
     }
 

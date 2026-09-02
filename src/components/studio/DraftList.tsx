@@ -20,7 +20,9 @@ export function DraftList() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        void listDrafts().then(setDrafts).catch(() => setDrafts([]));
+        void listDrafts()
+            .then(setDrafts)
+            .catch(() => setDrafts([]));
     }, []);
 
     async function remove(draft: Draft) {
@@ -28,7 +30,11 @@ export function DraftList() {
         // browser and nowhere else: no server, no trash, no undo. The button
         // that does it sits an inch from the link that opens the piece.
         const name = draft.name || "Untitled";
-        if (!window.confirm(`Delete "${name}"? It is only in this browser, so this cannot be undone.`)) {
+        if (
+            !window.confirm(
+                `Delete "${name}"? It is only in this browser, so this cannot be undone.`,
+            )
+        ) {
             return;
         }
         setError(null);
@@ -38,7 +44,9 @@ export function DraftList() {
         } catch {
             // A silent rejection leaves the row sitting there, which reads as
             // nothing having happened. Say the delete failed.
-            setError(`"${name}" could not be deleted. Another tab may be holding the draft store open.`);
+            setError(
+                `"${name}" could not be deleted. Another tab may be holding the draft store open.`,
+            );
         }
     }
 

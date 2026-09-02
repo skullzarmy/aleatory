@@ -70,9 +70,7 @@ async function fromChain(): Promise<Addresses> {
 
         return {
             factories: Array.isArray(s.factories) ? s.factories : [],
-            marketplaces: [current, ...previous.filter((m) => m !== current)].filter(
-                Boolean,
-            ),
+            marketplaces: [current, ...previous.filter((m) => m !== current)].filter(Boolean),
             registry: s.registry ?? "",
             resolver: s.resolver ?? "",
         };

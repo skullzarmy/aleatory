@@ -127,11 +127,7 @@ export async function GET(request: Request) {
  * carries the blake2b of the file, which is what gets recorded when the piece
  * is published, and every renderer afterwards checks against that instead.
  */
-async function fromRegistry(
-    id: string,
-    version: string,
-    requested: string,
-): Promise<Response> {
+async function fromRegistry(id: string, version: string, requested: string): Promise<Response> {
     const fail = (why: string, status = 502) =>
         new Response(`${why}\n`, {
             status,
@@ -147,9 +143,7 @@ async function fromRegistry(
 
     let listing: { default?: string; files?: Entry[] };
     try {
-        const res = await fetch(
-            `https://data.jsdelivr.com/v1/packages/npm/${id}@${version}`,
-        );
+        const res = await fetch(`https://data.jsdelivr.com/v1/packages/npm/${id}@${version}`);
         if (!res.ok) return fail(`No ${id}@${version} on npm (${res.status}).`, 404);
         listing = (await res.json()) as typeof listing;
     } catch {

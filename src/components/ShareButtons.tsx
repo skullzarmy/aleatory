@@ -43,7 +43,11 @@ export function ShareButtons({
 
     const networks = [
         { name: "X", href: `https://x.com/intent/post?text=${t}&url=${u}`, icon: <XMark /> },
-        { name: "Bluesky", href: `https://bsky.app/intent/compose?text=${both}`, icon: <Butterfly /> },
+        {
+            name: "Bluesky",
+            href: `https://bsky.app/intent/compose?text=${both}`,
+            icon: <Butterfly />,
+        },
         {
             name: "Farcaster",
             href: `https://farcaster.xyz/~/compose?text=${t}&embeds[]=${u}`,
@@ -115,9 +119,7 @@ export function ShareButtons({
                 <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">
                     {url.replace(/^https?:\/\//, "")}
                 </span>
-                <span className="shrink-0 text-muted-foreground">
-                    {copied ? "Copied" : "Copy"}
-                </span>
+                <span className="shrink-0 text-muted-foreground">{copied ? "Copied" : "Copy"}</span>
             </button>
         </div>
     );

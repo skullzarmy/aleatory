@@ -37,10 +37,7 @@ const TICK_MS = Math.max(MIN_TICK_MS, Number(process.env.ALEA_BOT_TICK_MS || MIN
  * there because the chain reads behind it are not free.
  */
 const MIN_ANNOUNCE_MS = 15_000;
-const ANNOUNCE_MS = Math.max(
-    MIN_ANNOUNCE_MS,
-    Number(process.env.ALEA_BOT_ANNOUNCE_MS || 60_000),
-);
+const ANNOUNCE_MS = Math.max(MIN_ANNOUNCE_MS, Number(process.env.ALEA_BOT_ANNOUNCE_MS || 60_000));
 
 const BACKOFF_MIN_MS = 30_000;
 const BACKOFF_MAX_MS = 10 * 60_000;

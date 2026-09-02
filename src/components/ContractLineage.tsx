@@ -55,8 +55,8 @@ export function ContractLineage() {
     if (failed) {
         return (
             <p className="mt-8 text-sm text-muted-foreground">
-                The chain could not be reached. Nothing here is cached, so there is
-                nothing to show until it can be.
+                The chain could not be reached. Nothing here is cached, so there is nothing to show
+                until it can be.
             </p>
         );
     }
@@ -78,9 +78,8 @@ export function ContractLineage() {
             <section>
                 <h2 className="text-base font-medium">Router</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    The one address this site is configured with. Everything below is
-                    read from it, so a redeploy cannot leave a page pointing at a
-                    contract that no longer exists.
+                    The one address this site is configured with. Everything below is read from it,
+                    so a redeploy cannot leave a page pointing at a contract that no longer exists.
                 </p>
                 <ul className="mt-3 rounded-lg border border-border">
                     <Row held={{ address: state.router, current: true, since: null, op: null }} />
@@ -110,8 +109,8 @@ export function ContractLineage() {
 
             {state.truncated && (
                 <p className="text-xs text-muted-foreground">
-                    The router has more history than this page reads, so the oldest
-                    entries are missing. All of it is on chain.
+                    The router has more history than this page reads, so the oldest entries are
+                    missing. All of it is on chain.
                 </p>
             )}
         </div>

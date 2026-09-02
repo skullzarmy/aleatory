@@ -78,9 +78,7 @@ export interface Piece {
 export async function decodeCode(hex: string, encoding: string): Promise<string> {
     const clean = hex.replace(/^0x/, "");
     if (clean.length === 0) return "";
-    const bytes = new Uint8Array(
-        (clean.match(/.{2}/g) ?? []).map((b) => parseInt(b, 16)),
-    );
+    const bytes = new Uint8Array((clean.match(/.{2}/g) ?? []).map((b) => parseInt(b, 16)));
     if (encoding !== "gzip") return new TextDecoder().decode(bytes);
     const stream = new Blob([bytes as unknown as BlobPart])
         .stream()
@@ -96,10 +94,7 @@ export function renderUrl(codeUri: string, seed?: string, params?: string): stri
     return u.toString();
 }
 
-export async function fetchPiece(
-    contract: string,
-    tokenId: string,
-): Promise<Piece | null> {
+export async function fetchPiece(contract: string, tokenId: string): Promise<Piece | null> {
     const token = await fetchToken(contract, tokenId);
     if (!token) return null;
 
@@ -155,8 +150,7 @@ export async function fetchPiece(
     // Not "has no image": the pending document carries the collection's cover
     // as its displayUri, so every unrendered piece looked rendered, showed the
     // cover as its own image, and took the collection's name for its own.
-    const pending =
-        pendingDoc.length > 0 && tokenUri ? tokenUri === pendingDoc : !display;
+    const pending = pendingDoc.length > 0 && tokenUri ? tokenUri === pendingDoc : !display;
     const edition = `#${Number(tokenId) + 1}`;
 
     // While a piece is unrendered it carries the collection's pending

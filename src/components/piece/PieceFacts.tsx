@@ -42,14 +42,15 @@ export function PieceFacts({ piece }: { piece: Piece }) {
                     <AccountLink address={piece.owner} />
                 </Row>
             )}
-            {piece.mintedAt && <Row label="Minted"><TimeAgo iso={piece.mintedAt} /></Row>}
+            {piece.mintedAt && (
+                <Row label="Minted">
+                    <TimeAgo iso={piece.mintedAt} />
+                </Row>
+            )}
 
             {piece.provider && (
                 <Row label="Rendered by">
-                    <Link
-                        href={`/providers/${piece.provider}`}
-                        className="hover:underline"
-                    >
+                    <Link href={`/providers/${piece.provider}`} className="hover:underline">
                         {shortAddress(piece.provider)}
                     </Link>
                 </Row>
