@@ -207,8 +207,16 @@ export function resolveParam(spec: ParamSpec, raw: unknown): ParamValue {
  * is corrected, never rejected, the alternative is a token that some viewers
  * can render and others cannot, which is the one outcome worth designing out.
  */
-export function resolveParams(specs: ParamSpec[], raw: unknown): ParamValues {
-    const source = (raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}) as Record<string, unknown>;
+export function resolveParams(
+    specs: ParamSpec[],
+    // Values, never the JSON they were written as. A string here used to
+    // compile, match none of the branches below, and return every declared
+    // default: a plausible-looking set of values that nobody chose. That is
+    // `decodeParams`, one door down, and this signature is what makes taking
+    // the wrong one a build error rather than a wrong picture.
+    raw: Record<string, unknown> | null | undefined,
+): ParamValues {
+    const source = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
     const out: ParamValues = {};
     // Declaration order, not input order: the encoding below is canonical, and
     // two encodings of the same values must be byte-identical.

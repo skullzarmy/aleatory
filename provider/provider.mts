@@ -88,7 +88,7 @@ export async function collectionsFactories(): Promise<string[]> {
     if (addresses.length > 0) factoryCache = { at: Date.now(), addresses };
     return addresses;
 }
-const IPFS_GATEWAY = process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz";
+const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs").replace(/\/+$/, "");
 
 /**
  * Collections this provider declines to render for.
@@ -512,7 +512,7 @@ async function pin(bytes: Uint8Array, name: string): Promise<string> {
 async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
     if (!cid) return;
-    const base = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz").replace(/\/+$/, "");
+    const base = IPFS_GATEWAY;
     await fetch(`${base}/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {});
 }
 

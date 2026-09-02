@@ -15,6 +15,7 @@
  */
 
 import { GET } from "@/app/api/img/[cid]/route";
+import { IPFS_GATEWAYS } from "@/utils/ipfs";
 
 let failures = 0;
 
@@ -49,9 +50,12 @@ async function run() {
         check(`${name} is refused`, res.status === 400, `got ${res.status}`);
     }
 
+    // The gateway the route actually reads from. Probing a host we no longer
+    // use meant this block skipped itself on the day that host went down, and
+    // reported a pass on the day the route could not serve a single image.
     let online = true;
     try {
-        await fetch("https://ipfs.fileship.xyz/", { method: "HEAD" });
+        await fetch(`${IPFS_GATEWAYS[0]}/`, { method: "HEAD" });
     } catch {
         online = false;
     }

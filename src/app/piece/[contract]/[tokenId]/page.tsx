@@ -75,9 +75,14 @@ export default async function PiecePage({ params }: { params: Params }) {
             />
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <div className="min-w-0">
+                    {/* The parameters go with the code and the seed. Without
+                        them the frame runs the generator on its own fallbacks,
+                        so the piece that appears while the image loads is a
+                        different piece from the one on the token. */}
                     <ArtifactFrame
                         code={piece.code}
                         seed={piece.seed}
+                        params={pieceParams(piece.params)}
                         imageUrl={piece.imageUrl}
                         name={piece.name}
                     />
@@ -125,4 +130,24 @@ export default async function PiecePage({ params }: { params: Params }) {
             </div>
         </div>
     );
+}
+
+/**
+ * The token's parameters, as the renderer will see them.
+ *
+ * Parsed and handed over as they were written, with no schema resolution on
+ * top. The provider that made the pinned image did exactly this, so anything
+ * done here that it did not do is a way for the live render and the permanent
+ * one to disagree about the same piece.
+ */
+function pieceParams(json?: string): Record<string, unknown> | undefined {
+    if (!json) return undefined;
+    try {
+        const parsed: unknown = JSON.parse(json);
+        return parsed && typeof parsed === "object"
+            ? (parsed as Record<string, unknown>)
+            : undefined;
+    } catch {
+        return undefined;
+    }
 }

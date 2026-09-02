@@ -55,8 +55,12 @@ export async function GET(
 
     for (const gateway of IPFS_GATEWAYS) {
         try {
+            // Short, because these are tried one after another inside a single
+            // request that the host will kill at its own limit. A generous
+            // timeout per gateway spends the whole budget on the first one and
+            // never reaches the rest.
             const res = await fetch(`${gateway}/${cid}`, {
-                signal: AbortSignal.timeout(12_000),
+                signal: AbortSignal.timeout(8_000),
             });
             if (!res.ok) continue;
 

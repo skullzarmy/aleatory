@@ -124,6 +124,33 @@ async function collectionMeta(address: string): Promise<Meta> {
     }
 }
 
+const IPFS_GATEWAY = (
+    process.env.ALEA_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs"
+).replace(/\/+$/, "");
+
+/**
+ * The document the render event points at.
+ *
+ * `set_token_metadata` carries the URI of the piece's own metadata, so the
+ * name and the picture can be read from the thing the contract just published.
+ * The indexer resolves the same document on its own schedule and is behind at
+ * the moment this fires, which is how a piece got announced as "#4" with no
+ * image while its metadata sat there already saying "Spiro #4".
+ */
+async function documentAt(uri: string): Promise<Meta> {
+    const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
+    if (!cid) return {};
+    try {
+        const res = await fetch(`${IPFS_GATEWAY}/${cid}`, {
+            signal: AbortSignal.timeout(15_000),
+        });
+        if (!res.ok) return {};
+        return (await res.json()) as Meta;
+    } catch {
+        return {};
+    }
+}
+
 /** A piece's own metadata. The events carry the sale and the render, not the picture. */
 async function tokenMeta(
     contract: string,
@@ -327,10 +354,21 @@ export async function newMints(
         const sale = waiting.get(key);
         waiting.delete(key);
 
-        const [meta, facts] = await Promise.all([
-            tokenMeta(contract, tokenId),
+        // The document first, since the event just named it. The indexer is
+        // the fallback for the restart case, where a render is seen whose
+        // event payload we never held.
+        const published = await documentAt(bytesToString(row.payload?.metadata_uri ?? ""));
+        // The indexer is still worth asking when the document did not answer,
+        // and when there is no buffered sale: the collector is on the token
+        // and in no document.
+        const needIndexer = !published.name || !sale;
+        const [indexed, facts] = await Promise.all([
+            needIndexer
+                ? tokenMeta(contract, tokenId)
+                : Promise.resolve({} as Meta & { firstMinter?: string }),
             collectionFacts(contract),
         ]);
+        const meta = { ...indexed, ...published };
 
         items.push({
             cursor: row.id,

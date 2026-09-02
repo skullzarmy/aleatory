@@ -8,7 +8,7 @@ import { tzktLink } from "@/lib/config";
 import { fetchPiece, type Piece } from "@/lib/piece";
 import { fetchCollection, type Collection } from "@/lib/collection";
 import { shortAddress } from "@/lib/utils";
-import { formatParamValue, specsOf, resolveParams } from "@/lib/params";
+import { formatParamValue, specsOf, decodeParams } from "@/lib/params";
 import { useWallet } from "@/context/WalletContext";
 import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
@@ -84,8 +84,12 @@ export default function MintedPage({
     }, [contract, tokenId]);
 
     const seed = piece?.seed ?? "";
+    // `piece.params` is the JSON string off the token, so it goes through the
+    // reader that parses one. `resolveParams` takes an object and answers a
+    // string with every declared default, which is a set of values that looks
+    // entirely plausible and is not what anybody chose.
     const values = collection?.paramsSchema
-        ? resolveParams(specsOf(collection.paramsSchema), piece?.params ?? {})
+        ? decodeParams(specsOf(collection.paramsSchema), piece?.params)
         : {};
 
     return (
@@ -126,8 +130,12 @@ export default function MintedPage({
                         )}
                     </div>
 
+                    {/* Keyed to what is on screen, not to whether a published
+                        image exists somewhere. Those come apart for the whole
+                        time the image is loading, and this said "published"
+                        over a live render that was drawing something else. */}
                     <p className="mt-3 text-xs text-muted-foreground">
-                        {piece?.imageUrl
+                        {piece?.imageUrl && imageOk
                             ? "The final image is published and stored on chain."
                             : seed
                               ? "Live from your browser. A render provider is making the permanent image now, which usually takes under a minute."
