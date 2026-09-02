@@ -14,9 +14,13 @@ import {
     type CollectionMeta,
     fetchTokensHeldBy,
     fetchTokenUris,
+    fetchEditionSizes,
     type TzktToken,
 } from "./tzkt";
 import { isBlockedCollection } from "./blocklist";
+// Type only, so the cycle with collection.ts (which imports coversFor from
+// here) is erased at compile time and never exists at runtime.
+import type { CollectionSummary } from "./collection";
 import { bytesToString, convertIpfsToGatewayUrl, ipfsImageUrl } from "@/utils/ipfs";
 
 interface TokenDoc {
@@ -351,8 +355,8 @@ export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
 export interface WalletView {
     /** Pieces this account holds now. */
     held: FeedPiece[];
-    /** Collections this account deployed. */
-    made: { address: string; name?: string; minted: number }[];
+    /** Collections this account deployed, as the collections wall shows them. */
+    made: CollectionSummary[];
     unconfigured: boolean;
 }
 
@@ -382,18 +386,40 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
     ]);
 
     const madeSet = new Set(deployed);
-    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
+    const mine = collections.filter((c) => madeSet.has(c.address));
+    const madeAddresses = mine.map((c) => c.address);
+
+    // The made side is a handful of collections, not the whole chain, so the
+    // cover, the edition size and the artist's own name are worth fetching:
+    // this is the page their work is presented on.
+    const [docs, state, metas, covers, editions] = await Promise.all([
+        docsFor(tokens),
+        pendingState(tokens),
+        Promise.all(
+            madeAddresses.map(
+                (a): Promise<CollectionMeta> => fetchCollectionMeta(a).catch(() => ({})),
+            ),
+        ),
+        coversFor(madeAddresses).catch(() => new Map<string, string>()),
+        fetchEditionSizes(factories, madeAddresses).catch(() => new Map<string, number>()),
+    ]);
+
     return {
         held: tokens.map((t) =>
             toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
         ),
-        made: collections
-            .filter((c) => madeSet.has(c.address))
-            .map((c) => ({
+        made: mine.map((c, i) => {
+            const own = metas[i].displayUri ?? metas[i].thumbnailUri;
+            return {
                 address: c.address,
-                name: aliasByAddress.get(c.address) ?? c.alias,
+                name: metas[i].name || aliasByAddress.get(c.address) || c.alias,
+                description: metas[i].description,
+                coverUrl: own ? ipfsImageUrl(own) : covers.get(c.address),
                 minted: c.tokensCount ?? 0,
-            })),
+                editionSize: editions.get(c.address) ?? 0,
+                firstActivity: c.firstActivityTime,
+            };
+        }),
         unconfigured: false,
     };
 }

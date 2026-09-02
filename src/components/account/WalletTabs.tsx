@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { FeedGrid } from "@/components/feed/FeedGrid";
+import { CollectionGrid } from "@/components/collection/CollectionCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { shortAddress } from "@/lib/utils";
 import type { FeedPiece } from "@/lib/feed";
+import type { CollectionSummary } from "@/lib/collection";
 
 /**
  * The two things an address is: someone who made work, and someone who holds it.
@@ -16,13 +16,7 @@ import type { FeedPiece } from "@/lib/feed";
  * It only leads when there is something there, though. Defaulting to an empty
  * panel to honour an ordering rule is the ordering rule beating the reader.
  */
-export function WalletTabs({
-    made,
-    held,
-}: {
-    made: { address: string; name?: string; minted: number }[];
-    held: FeedPiece[];
-}) {
+export function WalletTabs({ made, held }: { made: CollectionSummary[]; held: FeedPiece[] }) {
     const first = made.length > 0 ? "created" : "collected";
 
     return (
@@ -44,23 +38,7 @@ export function WalletTabs({
                         No collections published from this address.
                     </p>
                 ) : (
-                    <ul className="divide-y divide-border rounded-lg border border-border">
-                        {made.map((c) => (
-                            <li key={c.address}>
-                                <Link
-                                    href={`/collection/${c.address}`}
-                                    className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-accent"
-                                >
-                                    <span className="min-w-0 truncate text-sm font-medium">
-                                        {c.name || shortAddress(c.address)}
-                                    </span>
-                                    <span className="shrink-0 text-xs text-muted-foreground">
-                                        {c.minted} minted
-                                    </span>
-                                </Link>
-                            </li>
-                        ))}
-                    </ul>
+                    <CollectionGrid collections={made} />
                 )}
             </TabsContent>
 
