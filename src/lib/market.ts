@@ -203,14 +203,15 @@ async function fetchAllOffers(limit = 200): Promise<Offer[]> {
 /** An offer somebody made on a piece this account is holding or selling. */
 export interface IncomingOffer extends Offer {
     /**
-     * The piece is escrowed in a listing.
+     * The listing escrowing this piece, when it is for sale.
      *
      * `accept_offer` transfers from the sender, and listing moves the token
-     * into the marketplace, so an offer on a listed piece cannot be accepted
-     * until it is delisted. Carried here so the row says that rather than
-     * offering a button the wallet would reject.
+     * into the marketplace, so the listing has to come down first. Both ids
+     * are carried so the two go in one operation, and both marketplaces,
+     * because a listing and an offer on the same piece can live in different
+     * contracts.
      */
-    listed: boolean;
+    listing: { id: number; marketplace: string } | null;
 }
 
 export interface AccountOffers {
@@ -250,12 +251,18 @@ export async function fetchAccountOffers(account: string): Promise<AccountOffers
         fetchHeldAmong(account, candidates).catch(() => new Set<string>()),
         fetchListingsBy(account).catch(() => [] as Listing[]),
     ]);
-    const listed = new Set(listings.map((l) => `${l.collection}:${l.tokenId}`));
+    const listed = new Map(listings.map((l) => [`${l.collection}:${l.tokenId}`, l]));
 
-    const incoming = candidates.flatMap((o) => {
+    const incoming = candidates.flatMap((o): IncomingOffer[] => {
         const key = `${o.collection}:${o.tokenId}`;
-        if (!held.has(key) && !listed.has(key)) return [];
-        return [{ ...o, listed: listed.has(key) }];
+        const listing = listed.get(key);
+        if (!held.has(key) && !listing) return [];
+        return [
+            {
+                ...o,
+                listing: listing ? { id: listing.id, marketplace: listing.marketplace } : null,
+            },
+        ];
     });
 
     return {

@@ -309,6 +309,68 @@ export async function acceptOfferFor(
     ]);
 }
 
+/**
+ * Take a listing down and sell into an offer, in one operation.
+ *
+ * Listing escrows the token into the marketplace, and `accept_offer` transfers
+ * from the sender, so a listed piece has nothing to move until the listing
+ * comes down. As two signatures the seller is exposed in between: the buyer can
+ * cancel once the piece is back, leaving somebody who delisted for a sale that
+ * no longer exists.
+ *
+ * A batch is applied atomically, and each call's internal operations run before
+ * the next call begins, so the token is back in the seller's hands by the time
+ * the accept reaches for it. An offer cancelled in the same block reverts all
+ * four and the listing still stands.
+ *
+ * The listing and the offer can live in different marketplaces. Each call goes
+ * to the contract holding the thing it acts on, and the operator grant names
+ * the one doing the transfer.
+ */
+export async function delistAndAcceptOffer(
+    client: DAppClient,
+    collection: string,
+    owner: string,
+    tokenId: string,
+    listingId: number,
+    /** The marketplace holding the listing, from the listing. */
+    listingMarket: string,
+    offerId: number,
+    /** The marketplace holding the offer, from the offer. */
+    offerMarket: string,
+): Promise<OpResult> {
+    const [grant, revoke] = await Promise.all([
+        encode(collection, "update_operators", [
+            { add_operator: { owner, operator: offerMarket, token_id: tokenId } },
+        ]),
+        encode(collection, "update_operators", [
+            { remove_operator: { owner, operator: offerMarket, token_id: tokenId } },
+        ]),
+    ]);
+
+    return sendBatch(client, [
+        { destination: listingMarket, entrypoint: "delist", value: int(listingId), limits: LIST },
+        {
+            destination: collection,
+            entrypoint: grant.entrypoint,
+            value: grant.value,
+            limits: TRANSFER,
+        },
+        {
+            destination: offerMarket,
+            entrypoint: "accept_offer",
+            value: int(offerId),
+            limits: LIST,
+        },
+        {
+            destination: collection,
+            entrypoint: revoke.entrypoint,
+            value: revoke.value,
+            limits: TRANSFER,
+        },
+    ]);
+}
+
 export async function delist(
     client: DAppClient,
     listingId: number,

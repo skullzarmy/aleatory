@@ -317,13 +317,31 @@ export function PieceMarket({
                                             >
                                                 Cancel
                                             </button>
-                                        ) : isOwner ? (
+                                        ) : yours ? (
                                             <button
                                                 type="button"
                                                 disabled={busy !== null || settling}
                                                 onClick={() =>
                                                     run(`accept-${o.id}`, async () => {
                                                         const client = await getClient();
+                                                        // Listing escrows the
+                                                        // token, so a seller
+                                                        // takes the listing down
+                                                        // and accepts in one
+                                                        // operation.
+                                                        if (isSeller && listing) {
+                                                            await ops.delistAndAcceptOffer(
+                                                                client,
+                                                                contract,
+                                                                address as string,
+                                                                tokenId,
+                                                                listing.id,
+                                                                listing.marketplace,
+                                                                o.id,
+                                                                o.marketplace,
+                                                            );
+                                                            return;
+                                                        }
                                                         await ops.acceptOfferFor(
                                                             client,
                                                             contract,
@@ -336,7 +354,9 @@ export function PieceMarket({
                                                 }
                                                 className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
                                             >
-                                                Accept
+                                                {isSeller && listing
+                                                    ? "Delist and accept"
+                                                    : "Accept"}
                                             </button>
                                         ) : null}
                                     </span>

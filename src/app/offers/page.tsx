@@ -218,16 +218,31 @@ export default function OffersPage() {
                             busy={busy === `accept-${keyOf(o)}`}
                             disabled={disabled}
                             onAccept={() =>
-                                run(`accept-${keyOf(o)}`, async () =>
-                                    ops.acceptOfferFor(
-                                        await getClient(),
-                                        o.collection,
-                                        address,
-                                        o.tokenId,
-                                        o.id,
-                                        o.marketplace,
-                                    ),
-                                )
+                                run(`accept-${keyOf(o)}`, async () => {
+                                    const client = await getClient();
+                                    // A listed piece is escrowed in the
+                                    // marketplace, so the listing comes down in
+                                    // the same operation as the accept.
+                                    return o.listing
+                                        ? ops.delistAndAcceptOffer(
+                                              client,
+                                              o.collection,
+                                              address,
+                                              o.tokenId,
+                                              o.listing.id,
+                                              o.listing.marketplace,
+                                              o.id,
+                                              o.marketplace,
+                                          )
+                                        : ops.acceptOfferFor(
+                                              client,
+                                              o.collection,
+                                              address,
+                                              o.tokenId,
+                                              o.id,
+                                              o.marketplace,
+                                          );
+                                })
                             }
                         />
                     ))}
@@ -287,30 +302,23 @@ function IncomingRow({
             <p className="text-xs text-muted-foreground">
                 from <AccountLink address={offer.buyer} />
             </p>
+            {offer.listing && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    Listed. It comes down in the same operation, on one signature.
+                </p>
+            )}
             <div className="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 sm:justify-start">
                 <span className="text-xs text-muted-foreground">
                     You receive {formatTez(split.seller)} ꜩ
                 </span>
-                {/* `accept_offer` transfers the token from the sender, and
-                    listing escrows it into the marketplace, so a listed piece
-                    cannot be accepted against until it is delisted. */}
-                {offer.listed ? (
-                    <Link
-                        href={`/piece/${offer.collection}/${offer.tokenId}`}
-                        className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
-                    >
-                        Listed, remove it to accept
-                    </Link>
-                ) : (
-                    <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={onAccept}
-                        className="rounded-md bg-alea-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-alea-700 disabled:opacity-60"
-                    >
-                        {busy ? "Accepting" : "Accept"}
-                    </button>
-                )}
+                <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={onAccept}
+                    className="rounded-md bg-alea-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-alea-700 disabled:opacity-60"
+                >
+                    {busy ? "Accepting" : offer.listing ? "Delist and accept" : "Accept"}
+                </button>
             </div>
         </Row>
     );
