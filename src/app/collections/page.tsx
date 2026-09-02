@@ -45,7 +45,12 @@ export default async function CollectionsPage() {
                             href={`/collection/${c.address}`}
                             className="group block overflow-hidden rounded-lg border border-border transition-colors hover:border-foreground/30"
                         >
-                            <div className="aspect-square overflow-hidden bg-muted">
+                            <div className="relative aspect-square overflow-hidden bg-muted">
+                                {c.editionSize > 0 && c.minted >= c.editionSize && (
+                                    <span className="absolute right-2 top-2 z-10 rounded-md bg-background/90 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide backdrop-blur">
+                                        Sold out
+                                    </span>
+                                )}
                                 {c.coverUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
@@ -67,8 +72,18 @@ export default async function CollectionsPage() {
                                 <p className="truncate text-sm font-medium">
                                     {c.name || shortAddress(c.address)}
                                 </p>
+                                {/* How many are left is the thing a buyer is
+                                    deciding on, and "12 minted" answers it only
+                                    for somebody who already knows the size. An
+                                    open edition has no answer, so it says so. */}
                                 <p className="mt-0.5 flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                                    <span>{c.minted} minted</span>
+                                    <span className="truncate">
+                                        {c.editionSize === 0
+                                            ? `${c.minted} minted, open edition`
+                                            : c.minted >= c.editionSize
+                                              ? `${c.editionSize} minted`
+                                              : `${c.editionSize - c.minted} of ${c.editionSize} left`}
+                                    </span>
                                     <span className="shrink-0">
                                         {c.firstActivity ? timeAgo(c.firstActivity) : ""}
                                     </span>

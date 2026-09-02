@@ -84,6 +84,65 @@ export async function fetchCollections(factory: string): Promise<TzktContract[]>
 }
 
 /**
+ * How large each collection's edition is. Zero is an open edition.
+ *
+ * Off the events, in two small reads, because the alternative is storage and
+ * storage carries the generator: `includeStorage=true` over thirteen
+ * collections is 266kB against 2kB, and it grows with how big the artists'
+ * code is rather than with how many of them there are.
+ *
+ * `deploy` states the size the collection was published with, and
+ * `set_edition_size` states every reduction after it. The size can only ever
+ * go down, so the last word wins.
+ *
+ * Only the payload fields that are wanted. A bare `select=payload` pulls the
+ * whole generator back with it, which is the same 250kB by another route.
+ */
+export async function fetchEditionSizes(
+    factories: string[],
+    collections: string[],
+): Promise<Map<string, number>> {
+    const sizes = new Map<string, number>();
+    if (factories.length === 0) return sizes;
+
+    const [deployed, reduced] = await Promise.all([
+        get<{ "payload.address"?: string; "payload.edition_size"?: string }[]>(
+            "/v1/contracts/events",
+            {
+                "contract.in": factories.join(","),
+                tag: "deploy",
+                "sort.asc": "id",
+                limit: 1000,
+                select: "payload.address,payload.edition_size",
+            },
+        ).catch(() => []),
+        collections.length === 0
+            ? Promise.resolve([])
+            : get<{ contract?: { address?: string }; "payload.edition_size"?: string }[]>(
+                  "/v1/contracts/events",
+                  {
+                      "contract.in": collections.join(","),
+                      tag: "set_edition_size",
+                      "sort.asc": "id",
+                      limit: 1000,
+                      select: "contract,payload.edition_size",
+                  },
+              ).catch(() => []),
+    ]);
+
+    for (const row of deployed) {
+        const address = row["payload.address"];
+        if (address) sizes.set(address, Number(row["payload.edition_size"] ?? 0));
+    }
+    // Ascending, so a later reduction overwrites an earlier one.
+    for (const row of reduced) {
+        const address = row.contract?.address;
+        if (address) sizes.set(address, Number(row["payload.edition_size"] ?? 0));
+    }
+    return sizes;
+}
+
+/**
  * Every collection one artist deployed.
  *
  * A collection is originated by the factory, so its `creator` is the factory

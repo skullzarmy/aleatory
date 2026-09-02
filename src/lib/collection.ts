@@ -8,7 +8,12 @@ import {
     type TokenMetadata,
     type TzktToken,
 } from "./tzkt";
-import { fetchCollections, fetchCollectionMeta, type CollectionMeta } from "./tzkt";
+import {
+    fetchCollections,
+    fetchCollectionMeta,
+    fetchEditionSizes,
+    type CollectionMeta,
+} from "./tzkt";
 
 export { fetchCollectionMeta, type CollectionMeta };
 import { tzktApi } from "./config";
@@ -193,6 +198,8 @@ export interface CollectionSummary {
      */
     coverUrl?: string;
     minted: number;
+    /** The cap. Zero is an open edition, which is what the contract means by it. */
+    editionSize: number;
     firstActivity?: string;
 }
 
@@ -209,11 +216,12 @@ export async function fetchAllCollections(): Promise<CollectionSummary[]> {
         .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
         .filter((c) => !isBlockedCollection(c.address));
     const addresses = rows.map((c) => c.address);
-    const [metas, covers] = await Promise.all([
+    const [metas, covers, editions] = await Promise.all([
         Promise.all(
             addresses.map((a): Promise<CollectionMeta> => fetchCollectionMeta(a).catch(() => ({}))),
         ),
         coversFor(addresses).catch(() => new Map<string, string>()),
+        fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
     ]);
 
     return rows.map((c, i) => ({
@@ -231,6 +239,7 @@ export async function fetchAllCollections(): Promise<CollectionSummary[]> {
                 return own ? ipfsImageUrl(own) : covers.get(c.address);
             })(),
         minted: c.tokensCount ?? 0,
+        editionSize: editions.get(c.address) ?? 0,
         firstActivity: c.firstActivityTime,
     }));
 }
