@@ -116,13 +116,16 @@ function CollapseArt({ seed }: { seed: string }) {
     );
 }
 
-export default function GlobalError({
-    error,
-    reset,
-}: {
-    error: Error & { digest?: string };
-    reset: () => void;
-}) {
+/**
+ * `reset` is not offered here.
+ *
+ * It clears the boundary and re-renders without asking the server for anything,
+ * so a layout that threw returns having thrown, and the button reads as broken
+ * because it is. Recovering properly wants the router, and importing it would
+ * break the rule this file is built on. A reload asks for the document again,
+ * which is the whole of what retrying means when the layout is what failed.
+ */
+export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
     return (
         <html lang="en">
             <body
@@ -171,7 +174,7 @@ export default function GlobalError({
                     </p>
                     <button
                         type="button"
-                        onClick={reset}
+                        onClick={() => window.location.reload()}
                         style={{
                             marginTop: "2rem",
                             minHeight: 44,

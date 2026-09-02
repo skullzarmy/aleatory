@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ErrorArt } from "@/components/brand/ErrorArt";
 import { BRAND } from "@/lib/config";
 
@@ -28,11 +29,30 @@ export default function Error({
     error: Error & { digest?: string };
     reset: () => void;
 }) {
+    const router = useRouter();
+    const [retrying, startRetry] = useTransition();
+
     useEffect(() => {
         // The digest is the only handle on a minified stack, and the host keeps
         // the matching trace. Without it a report is "a page broke".
         console.error("[aleatory]", error.digest ?? "", error);
     }, [error]);
+
+    /**
+     * Ask the server again, then clear the fallback.
+     *
+     * `reset` on its own re-renders this boundary over the payload that already
+     * failed, so a page that threw while reading the chain comes straight back
+     * having thrown, and the only visible effect is this drawing starting over.
+     * `router.refresh` is what re-requests the server components. Both go in one
+     * transition so the button can say it is working.
+     */
+    function retry() {
+        startRetry(() => {
+            router.refresh();
+            reset();
+        });
+    }
 
     return (
         <section className="relative flex min-h-[70vh] items-center justify-center overflow-hidden px-4 py-20">
@@ -60,10 +80,11 @@ export default function Error({
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                     <button
                         type="button"
-                        onClick={reset}
-                        className="inline-flex min-h-[44px] items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        onClick={retry}
+                        disabled={retrying}
+                        className="inline-flex min-h-[44px] items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
                     >
-                        Try again
+                        {retrying ? "Retrying" : "Try again"}
                     </button>
                     <Link
                         href="/"
