@@ -53,7 +53,7 @@ export function PieceCard({ piece }: { piece: FeedPiece }) {
                     </span>
                     {piece.mintedAt ? (
                         <span className="shrink-0">
-                            <TimeAgo iso={piece.mintedAt} />
+                            <TimeAgo iso={piece.mintedAt} prefix="minted" short />
                         </span>
                     ) : (
                         <span />

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchAllCollections } from "@/lib/collection";
 import { EmptyFeed } from "@/components/feed/EmptyFeed";
-import { shortAddress, timeAgo } from "@/lib/utils";
+import { shortAddress, timeAgoShort } from "@/lib/utils";
 import { LiveRefresh } from "@/components/LiveRefresh";
 
 export const metadata: Metadata = {
@@ -85,7 +85,7 @@ export default async function CollectionsPage() {
                                               : `${c.editionSize - c.minted} of ${c.editionSize} remaining`}
                                     </span>
                                     <span className="shrink-0">
-                                        {c.firstActivity ? timeAgo(c.firstActivity) : ""}
+                                        {c.firstActivity ? `created ${timeAgoShort(c.firstActivity)}` : ""}
                                     </span>
                                 </p>
                             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { timeAgo } from "@/lib/utils";
+import { timeAgo, timeAgoShort } from "@/lib/utils";
 
 /**
  * A relative time that keeps moving.
@@ -22,14 +22,29 @@ import { timeAgo } from "@/lib/utils";
  * which says the same thing everywhere, and the locale-aware title is set
  * once the browser is the one rendering.
  */
-export function TimeAgo({ iso, className }: { iso: string; className?: string }) {
+export function TimeAgo({
+    iso,
+    className,
+    /**
+     * What the time refers to, since "4 hours ago" on its own answers a
+     * question nobody asked. A card carries no label to lean on.
+     */
+    prefix,
+    /** Abbreviated units, for a line this has to share. */
+    short = false,
+}: {
+    iso: string;
+    className?: string;
+    prefix?: string;
+    short?: boolean;
+}) {
     const [text, setText] = useState<string | null>(null);
     const [title, setTitle] = useState<string | undefined>(undefined);
 
     useEffect(() => {
         setTitle(new Date(iso).toLocaleString());
         function tick() {
-            setText(timeAgo(iso));
+            setText(short ? timeAgoShort(iso) : timeAgo(iso));
         }
         tick();
 
@@ -37,10 +52,11 @@ export function TimeAgo({ iso, className }: { iso: string; className?: string })
         const every = age < 60_000 ? 1_000 : 60_000;
         const id = window.setInterval(tick, every);
         return () => window.clearInterval(id);
-    }, [iso]);
+    }, [iso, short]);
 
     return (
         <time dateTime={iso} title={title} className={className}>
+            {prefix ? `${prefix} ` : ""}
             {text ?? iso.slice(0, 10)}
         </time>
     );

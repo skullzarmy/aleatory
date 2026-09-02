@@ -30,35 +30,52 @@ export function shortAddress(a: string, lead = 5, tail = 4): string {
     return `${a.slice(0, lead)}…${a.slice(-tail)}`;
 }
 
-/** "3 minutes ago", for feed rows. */
-export function timeAgo(iso: string): string {
+// Each entry is a unit, its abbreviation, and how many of it make the next one
+// up. The unit is the one you land *in*, not the one you divided by: naming it
+// after the divisor reported twenty-five minutes as "25 seconds ago".
+const UNITS: [name: string, short: string, per: number][] = [
+    ["second", "s", 60],
+    ["minute", "m", 60],
+    ["hour", "h", 24],
+    ["day", "d", 7],
+    ["week", "w", 4.345],
+    ["month", "mo", 12],
+    ["year", "y", Infinity],
+];
+
+function age(iso: string): { value: number; unit: number } | null {
     const then = new Date(iso).getTime();
-    if (Number.isNaN(then)) return "";
-    const secs = Math.max(0, (Date.now() - then) / 1000);
-
-    // Each entry is a unit and how many of it make the next one up. The unit
-    // is the one you land *in*, not the one you divided by: naming it after
-    // the divisor reported twenty-five minutes as "25 seconds ago".
-    const units: [string, number][] = [
-        ["second", 60],
-        ["minute", 60],
-        ["hour", 24],
-        ["day", 7],
-        ["week", 4.345],
-        ["month", 12],
-        ["year", Infinity],
-    ];
-
-    let value = secs;
+    if (Number.isNaN(then)) return null;
+    let value = Math.max(0, (Date.now() - then) / 1000);
     let i = 0;
-    while (i < units.length - 1 && value >= units[i][1]) {
-        value /= units[i][1];
+    while (i < UNITS.length - 1 && value >= UNITS[i][2]) {
+        value /= UNITS[i][2];
         i++;
     }
-    const unit = units[i][0];
-    const rounded = Math.floor(value);
-    if (unit === "second" && rounded < 10) return "just now";
-    return `${rounded} ${unit}${rounded === 1 ? "" : "s"} ago`;
+    return { value: Math.floor(value), unit: i };
+}
+
+/** "3 minutes ago", for feed rows. */
+export function timeAgo(iso: string): string {
+    const a = age(iso);
+    if (!a) return "";
+    if (a.unit === 0 && a.value < 10) return "just now";
+    const unit = UNITS[a.unit][0];
+    return `${a.value} ${unit}${a.value === 1 ? "" : "s"} ago`;
+}
+
+/**
+ * "3m ago". The same measurement, for somewhere it has to share a line.
+ *
+ * A card puts this next to a name that is already truncating, so every word
+ * spent here is taken off the name. Saying what the time refers to is worth
+ * more than spelling out the unit.
+ */
+export function timeAgoShort(iso: string): string {
+    const a = age(iso);
+    if (!a) return "";
+    if (a.unit === 0 && a.value < 10) return "just now";
+    return `${a.value}${UNITS[a.unit][1]} ago`;
 }
 
 /**
