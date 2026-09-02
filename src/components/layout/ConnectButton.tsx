@@ -66,13 +66,8 @@ export function ConnectButton() {
                     <AccountName address={address} className="truncate" />
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 
-                    {/* On the corner rather than beside the green one, which
-                        says the wallet is connected. Two dots in a row read as
-                        two states of the same thing.
-
-                        The ring is what keeps it legible where it overlaps the
-                        border, and it has to match the header's own background
-                        rather than the page's. */}
+                    {/* The ring keeps it legible where it overlaps the border,
+                        and matches the header's own background. */}
                     {unseen > 0 && (
                         <span
                             aria-hidden
@@ -106,20 +101,17 @@ export function ConnectButton() {
                         </Link>
                     </DropdownMenuItem>
 
-                    {/* Only when there is something there. An offers row
-                        reading zero is a menu grown one line longer to say
-                        nothing, and the page is still reachable at /offers. */}
-                    {incoming.length > 0 && (
-                        <DropdownMenuItem asChild>
-                            <Link href="/offers">
-                                <Tag />
-                                Offers
+                    <DropdownMenuItem asChild>
+                        <Link href="/offers">
+                            <Tag />
+                            Offers
+                            {incoming.length > 0 && (
                                 <span className="ml-auto rounded-full bg-muted px-1.5 text-xs font-normal tabular-nums text-muted-foreground">
                                     {incoming.length}
                                 </span>
-                            </Link>
-                        </DropdownMenuItem>
-                    )}
+                            )}
+                        </Link>
+                    </DropdownMenuItem>
 
                     {/* Not another view of the same public data: the levers
                         only this wallet can pull, because the contract names

@@ -293,8 +293,7 @@ function IncomingRow({
                 </span>
                 {/* `accept_offer` transfers the token from the sender, and
                     listing escrows it into the marketplace, so a listed piece
-                    cannot be accepted against until it is delisted. Saying so
-                    beats a button the wallet would reject. */}
+                    cannot be accepted against until it is delisted. */}
                 {offer.listed ? (
                     <Link
                         href={`/piece/${offer.collection}/${offer.tokenId}`}

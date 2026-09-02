@@ -20,10 +20,10 @@ import {
 /**
  * Standing offers, for whoever is connected.
  *
- * One provider rather than a hook called in two places, because the header and
- * the offers page have to agree. Accepting an offer has to clear the count in
- * the menu at the same moment it leaves the list, and the mark that says an
- * offer has been looked at is written by the page and read by the header.
+ * One provider, because the header and the offers page have to agree.
+ * Accepting an offer clears the count in the menu at the same moment it leaves
+ * the list, and the mark that says an offer has been looked at is written by
+ * the page and read by the header.
  *
  * Read state lives in `localStorage`, keyed by address. Nothing about a person
  * is stored on this site, so there is no account to hang it on and nowhere
