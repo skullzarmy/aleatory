@@ -82,7 +82,7 @@ export default async function CollectionsPage() {
                                             ? `${c.minted} minted, open edition`
                                             : c.minted >= c.editionSize
                                               ? `${c.editionSize} minted`
-                                              : `${c.editionSize - c.minted} of ${c.editionSize} left`}
+                                              : `${c.editionSize - c.minted} of ${c.editionSize} remaining`}
                                     </span>
                                     <span className="shrink-0">
                                         {c.firstActivity ? timeAgo(c.firstActivity) : ""}

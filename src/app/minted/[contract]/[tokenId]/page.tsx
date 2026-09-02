@@ -213,7 +213,7 @@ export default function MintedPage({
                                 Mint another
                                 {collection.editionSize > 0 && (
                                     <span className="ml-1 font-normal opacity-80">
-                                        ({collection.editionSize - collection.minted} left)
+                                        ({collection.editionSize - collection.minted} remaining)
                                     </span>
                                 )}
                             </Link>

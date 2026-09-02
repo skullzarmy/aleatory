@@ -176,7 +176,7 @@ export function MintPanel({
             <p className="text-xs text-muted-foreground">
                 {remaining === null
                     ? `${collection.minted} minted, open edition`
-                    : `${remaining} of ${collection.editionSize} left`}
+                    : `${remaining} of ${collection.editionSize} remaining`}
             </p>
 
             <div className="space-y-3 border-t border-border pt-3">
