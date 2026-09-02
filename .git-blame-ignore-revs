@@ -1,0 +1,15 @@
+# Commits that changed formatting and nothing else.
+#
+# `git blame --ignore-revs-file .git-blame-ignore-revs` skips them, so a line
+# still points at whoever wrote it rather than at the pass that reindented it.
+# GitHub reads this file by name and does the same in its blame view.
+#
+# Set it once, locally:
+#
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Only add a commit here that a formatter produced on its own. A commit with
+# one real change hidden in it is a commit blame should keep pointing at.
+
+# style: biome pass, whitespace only
+9b237bafe438ddd57dcd8b5d715a832295c74004
