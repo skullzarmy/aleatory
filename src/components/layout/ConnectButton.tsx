@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
+import { useOffers } from "@/context/OffersContext";
 import { AccountName } from "@/components/account/AccountName";
 import { shortAddress } from "@/lib/utils";
-import { Check, ChevronDown, Copy, LogOut, Settings2, User, Wallet } from "lucide-react";
+import { Check, ChevronDown, Copy, LogOut, Settings2, Tag, User, Wallet } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -50,16 +51,43 @@ function AddressLine({ address }: { address: string }) {
 
 export function ConnectButton() {
     const { address, connecting, restoring, connect, disconnect } = useWallet();
+    // Above the early returns below. Hooks run in the same order every render
+    // or React loses track of which state belongs to which call, and a
+    // component that returns before one has changed its shape.
+    const { incoming, unseen } = useOffers();
 
     if (restoring) return <div className="h-9 w-24 sm:w-28" aria-hidden />;
 
     if (address) {
         return (
             <DropdownMenu>
-                <DropdownMenuTrigger className="inline-flex h-9 min-w-0 max-w-[8.5rem] items-center gap-2 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-accent data-[state=open]:bg-accent sm:max-w-[13rem]">
+                <DropdownMenuTrigger className="relative inline-flex h-9 min-w-0 max-w-[8.5rem] items-center gap-2 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-accent data-[state=open]:bg-accent sm:max-w-[13rem]">
                     <span className="h-2 w-2 shrink-0 rounded-full bg-success" />
                     <AccountName address={address} className="truncate" />
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+
+                    {/* On the corner rather than beside the green one, which
+                        says the wallet is connected. Two dots in a row read as
+                        two states of the same thing.
+
+                        The ring is what keeps it legible where it overlaps the
+                        border, and it has to match the header's own background
+                        rather than the page's. */}
+                    {unseen > 0 && (
+                        <span
+                            aria-hidden
+                            className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-alea-600 ring-2 ring-background"
+                        />
+                    )}
+                    {/* A coloured dot is nothing to a screen reader, and the
+                        trigger otherwise announces only a name. */}
+                    {incoming.length > 0 && (
+                        <span className="sr-only">
+                            {`, ${incoming.length} ${incoming.length === 1 ? "offer" : "offers"} on your pieces${
+                                unseen > 0 ? `, ${unseen} new` : ""
+                            }`}
+                        </span>
+                    )}
                 </DropdownMenuTrigger>
 
                 <DropdownMenuContent align="end" className="w-60">
@@ -77,6 +105,21 @@ export function ConnectButton() {
                             Your page
                         </Link>
                     </DropdownMenuItem>
+
+                    {/* Only when there is something there. An offers row
+                        reading zero is a menu grown one line longer to say
+                        nothing, and the page is still reachable at /offers. */}
+                    {incoming.length > 0 && (
+                        <DropdownMenuItem asChild>
+                            <Link href="/offers">
+                                <Tag />
+                                Offers
+                                <span className="ml-auto rounded-full bg-muted px-1.5 text-xs font-normal tabular-nums text-muted-foreground">
+                                    {incoming.length}
+                                </span>
+                            </Link>
+                        </DropdownMenuItem>
+                    )}
 
                     {/* Not another view of the same public data: the levers
                         only this wallet can pull, because the contract names

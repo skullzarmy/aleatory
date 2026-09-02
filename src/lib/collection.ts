@@ -118,6 +118,29 @@ export async function fetchCollection(address: string): Promise<Collection | nul
 }
 
 /**
+ * A collection's total royalty, and nothing else.
+ *
+ * `fetchCollection` carries this already, but reading it that way pulls the
+ * whole storage record, and `art.code` is the generator itself: around fifty
+ * kilobytes for a number that fits in a word. TzKT's `path` selector returns
+ * the one field, so a page showing what a seller receives can ask about several
+ * collections without downloading several generators.
+ *
+ * Clamped nowhere here. `proceeds` applies the contract's 25% cap, so the
+ * caller gets the declared figure and one place decides what it means.
+ */
+export async function fetchRoyaltyBps(address: string): Promise<number> {
+    const shares = await fetch(`${tzktApi()}/v1/contracts/${address}/storage?path=art.royalties`, {
+        next: { revalidate: 300 },
+    })
+        .then((r) => (r.ok ? (r.json() as Promise<Record<string, string>>) : null))
+        .catch(() => null);
+
+    if (!shares) return 0;
+    return Object.values(shares).reduce((n, bps) => n + (parseInt(String(bps), 10) || 0), 0);
+}
+
+/**
  * The parameter declaration, from the collection's own metadata.
  *
  * Held under its own key so a mint UI needs one value rather than a whole

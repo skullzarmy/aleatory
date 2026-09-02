@@ -228,6 +228,45 @@ export async function fetchTokensHeldBy(
     return rows.map((r) => r.token).filter(Boolean);
 }
 
+/**
+ * Which of a specific set of tokens an account holds.
+ *
+ * `fetchTokensHeldBy` cannot answer this: it filters by collection alone and
+ * caps at a page, so a piece somebody offered on can sit outside the window and
+ * read as not held. Here the pairs are known, so both sides are filtered and
+ * the answer is exact.
+ *
+ * `token.contract.in` and `token.tokenId.in` filter independently rather than
+ * as a set of pairs, the same way `fetchTokensIn` does, so the caller's set is
+ * what decides. Returned as `collection:tokenId` keys, which is what every
+ * caller compares against.
+ */
+export async function fetchHeldAmong(
+    account: string,
+    pairs: { collection: string; tokenId: string }[],
+): Promise<Set<string>> {
+    if (pairs.length === 0 || !isAddress(account)) return new Set();
+
+    const wanted = new Set(pairs.map((p) => `${p.collection}:${p.tokenId}`));
+    const collections = [...new Set(pairs.map((p) => p.collection))];
+    const tokenIds = [...new Set(pairs.map((p) => p.tokenId))];
+
+    const rows = await get<{ token: TzktToken }[]>("/v1/tokens/balances", {
+        account: requireAddress(account),
+        "token.contract.in": collections.join(","),
+        "token.tokenId.in": tokenIds.join(","),
+        "balance.gt": 0,
+        limit: Math.min(collections.length * tokenIds.length, 1000),
+    });
+
+    const held = new Set<string>();
+    for (const r of rows) {
+        const key = `${r.token?.contract?.address}:${r.token?.tokenId}`;
+        if (wanted.has(key)) held.add(key);
+    }
+    return held;
+}
+
 export async function fetchToken(contract: string, tokenId: string): Promise<TzktToken | null> {
     const rows = await get<TzktToken[]>("/v1/tokens", {
         contract: requireAddress(contract),

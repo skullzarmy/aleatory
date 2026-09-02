@@ -4,6 +4,7 @@
 import { CONTRACTS, tzktApi } from "./config";
 import { isBlockedCollection } from "./blocklist";
 import { addresses } from "./router";
+import { fetchHeldAmong } from "./tzkt";
 
 export interface Listing {
     id: number;
@@ -32,6 +33,15 @@ export interface Offer {
     collection: string;
     tokenId: string;
     amountMutez: bigint;
+    /**
+     * The platform fee this offer was made under.
+     *
+     * Snapshotted onto the record when the offer was placed, the way a
+     * listing's is. `set_fee` is never retroactive, so what a seller receives
+     * for accepting is worked out from this rather than from whatever the
+     * marketplace charges today.
+     */
+    feeBps: number;
 }
 
 interface BigMapRow<V> {
@@ -87,6 +97,7 @@ function toOffer(r: BigMapRow<RawOffer>, marketplace: string): Offer {
         collection: r.value.collection,
         tokenId: r.value.token_id,
         amountMutez: BigInt(r.value.amount),
+        feeBps: parseInt(r.value.fee_bps, 10),
     };
 }
 
@@ -157,6 +168,100 @@ export async function fetchOffersFor(collection: string, tokenId: string): Promi
         return rows.map((r) => toOffer(r, m));
     });
     return all.sort((a, b) => Number(b.amountMutez - a.amountMutez));
+}
+
+/** Active listings made by one seller, wherever they live. */
+export async function fetchListingsBy(seller: string): Promise<Listing[]> {
+    const all = await acrossMarketplaces(async (m) => {
+        const rows = await bigmap<RawListing>(bigmapPath(m, "listings"), {
+            active: "true",
+            "value.seller": seller,
+            "sort.desc": "id",
+            limit: 200,
+        });
+        return rows.map((r) => toListing(r, m));
+    });
+    return all.filter((l) => !isBlockedCollection(l.collection)).sort((a, b) => b.id - a.id);
+}
+
+/** Every standing offer, newest first. Capped: see fetchAccountOffers. */
+async function fetchAllOffers(limit = 200): Promise<Offer[]> {
+    const all = await acrossMarketplaces(async (m) => {
+        const rows = await bigmap<RawOffer>(bigmapPath(m, "offers"), {
+            active: "true",
+            "sort.desc": "id",
+            limit,
+        });
+        return rows.map((r) => toOffer(r, m));
+    });
+    return all
+        .filter((o) => !isBlockedCollection(o.collection))
+        .sort((a, b) => b.id - a.id)
+        .slice(0, limit);
+}
+
+/** An offer somebody made on a piece this account is holding or selling. */
+export interface IncomingOffer extends Offer {
+    /**
+     * The piece is escrowed in a listing.
+     *
+     * `accept_offer` transfers from the sender, and listing moves the token
+     * into the marketplace, so an offer on a listed piece cannot be accepted
+     * until it is delisted. Carried here so the row says that rather than
+     * offering a button the wallet would reject.
+     */
+    listed: boolean;
+}
+
+export interface AccountOffers {
+    /** Offers on pieces this account holds or has listed, best first. */
+    incoming: IncomingOffer[];
+    /** Offers this account made, and the tez each one is escrowing. */
+    outgoing: Offer[];
+}
+
+/**
+ * Both sides of the offer book, for one account.
+ *
+ * Ownership is not in the offers big map, so there is no query that asks for
+ * "offers on pieces I hold" directly. The book is read first and narrowed
+ * against the account second, which is two requests when nothing is standing
+ * and four when something is. That budget is what lets this run in the header
+ * on every page.
+ *
+ * Pieces this account has *listed* count as theirs. Listing escrows the token
+ * into the marketplace, so a seller stops holding a piece the moment they list
+ * it, and reading holdings alone would hide every offer on everything for sale
+ * from the person selling it.
+ *
+ * The cap is on the whole book rather than per account. At the point where
+ * there are more than two hundred standing offers this reads the newest of them
+ * and the oldest offer on somebody's piece stops being counted, which is the
+ * signal to page this properly.
+ */
+export async function fetchAccountOffers(account: string): Promise<AccountOffers> {
+    const offers = await fetchAllOffers();
+
+    const outgoing = offers.filter((o) => o.buyer === account);
+    const candidates = offers.filter((o) => o.buyer !== account);
+    if (candidates.length === 0) return { incoming: [], outgoing };
+
+    const [held, listings] = await Promise.all([
+        fetchHeldAmong(account, candidates).catch(() => new Set<string>()),
+        fetchListingsBy(account).catch(() => [] as Listing[]),
+    ]);
+    const listed = new Set(listings.map((l) => `${l.collection}:${l.tokenId}`));
+
+    const incoming = candidates.flatMap((o) => {
+        const key = `${o.collection}:${o.tokenId}`;
+        if (!held.has(key) && !listed.has(key)) return [];
+        return [{ ...o, listed: listed.has(key) }];
+    });
+
+    return {
+        incoming: incoming.sort((a, b) => Number(b.amountMutez - a.amountMutez)),
+        outgoing,
+    };
 }
 
 /**
