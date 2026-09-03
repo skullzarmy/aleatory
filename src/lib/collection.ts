@@ -39,6 +39,7 @@ interface RawStorage {
     render: {
         provider: string;
         render_gas: string;
+        max_render_gas?: string;
         provider_agent: string;
         resolver: string;
         trust_resolver: boolean;
@@ -57,7 +58,11 @@ export interface Collection {
     codeUri: string;
     codeHash: string;
     priceMutez: bigint;
+    /** What the provider quoted when the artist chose them. The floor a mint
+     *  falls back to when the provider cannot be asked. */
     renderGasMutez: bigint;
+    /** The most a mint can charge, agreed by the artist when they chose. */
+    maxRenderGasMutez: bigint;
     /** Price plus render gas: what a collector signs for. */
     totalMutez: bigint;
     editionSize: number;
@@ -75,6 +80,23 @@ export interface Collection {
     paramsSchema: ParamsSchema | null;
 }
 
+/**
+ * A provider's price, right now, from its own storage.
+ *
+ * The chain reads this through the `get_render_gas` view at mint. Storage says
+ * the same thing and costs one request, and a provider that cannot be read
+ * yields null, which is the same fallback the contract makes.
+ */
+async function fetchProviderGas(provider: string): Promise<bigint | null> {
+    if (!provider) return null;
+    try {
+        const raw = await fetchStorage<{ render_gas?: string }>(provider);
+        return raw?.render_gas === undefined ? null : BigInt(raw.render_gas);
+    } catch {
+        return null;
+    }
+}
+
 export async function fetchCollection(address: string): Promise<Collection | null> {
     const s = await fetchStorage<RawStorage>(address).catch(() => null);
     if (!s || !s.art) return null;
@@ -82,7 +104,21 @@ export async function fetchCollection(address: string): Promise<Collection | nul
     const editionSize = parseInt(s.sale.edition_size, 10);
     const minted = parseInt(s.next_token_id, 10);
     const price = BigInt(s.sale.price);
-    const gas = BigInt(s.render.render_gas);
+    const recorded = BigInt(s.render.render_gas);
+
+    // A collection from before render gas was asked for at mint has no
+    // ceiling in its storage, and its own code charges the recorded price
+    // whatever the provider says today. Quoting anything else would send an
+    // amount it refuses. The field's absence is the only thing that tells
+    // the two apart, and it is what the contract itself would go by.
+    const asks = s.render.max_render_gas !== undefined;
+    const ceiling = asks ? BigInt(s.render.max_render_gas as string) : recorded;
+
+    // What this mint will be charged, worked out the way the contract works
+    // it out: the provider's price now, capped at what the artist agreed to,
+    // and the recorded price when the provider cannot be asked.
+    const quoted = asks ? await fetchProviderGas(s.render.provider) : null;
+    const gas = quoted === null ? recorded : quoted < ceiling ? quoted : ceiling;
     const royalties = Object.entries(s.art.royalties).map(([a, bps]) => ({
         address: a,
         bps: parseInt(String(bps), 10),
@@ -105,6 +141,7 @@ export async function fetchCollection(address: string): Promise<Collection | nul
         codeHash: s.art.code_hash,
         priceMutez: price,
         renderGasMutez: gas,
+        maxRenderGasMutez: ceiling,
         totalMutez: price + gas,
         editionSize,
         minted,

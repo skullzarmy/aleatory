@@ -208,9 +208,9 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
 
                 <Control
                     title="Render provider"
-                    detail={`${shortAddress(collection.provider)}, ${formatTez(
-                        Number(collection.renderGasMutez),
-                    )} ꜩ per piece. You can switch at any time.`}
+                    detail={`${shortAddress(collection.provider)}, up to ${formatTez(
+                        Number(collection.maxRenderGasMutez),
+                    )} ꜩ per piece. A mint pays what they charge at the time, never more than the ceiling you agreed to when you chose them. Switching sets a new one.`}
                 >
                     <select
                         defaultValue=""

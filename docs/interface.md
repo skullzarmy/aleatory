@@ -193,10 +193,21 @@ Emitted when a collection chooses or changes its render provider.
 |---|---|---|
 | `provider` | address | the provider contract |
 | `agent` | address | the key that will publish metadata |
-| `render_gas` | mutez | agreed price per piece |
+| `render_gas` | mutez | the provider's price when they were chosen |
 
 A provider watches for its own address here to learn which collections it
 serves.
+
+**Render gas is asked for, not remembered.** A mint reads the provider's
+`get_render_gas` view and pays what it answers, so a provider changing their
+price reaches every collection at once. Two bounds on that:
+
+- The artist names a ceiling when they choose a provider, and a mint pays
+  whichever is lower. A provider cannot raise the cost of a mint above what the
+  artist agreed to.
+- If the view cannot be read, because the provider is broken or gone, the price
+  in this event stands. An unreachable provider costs a collection its renders
+  and never its sales.
 
 ---
 
