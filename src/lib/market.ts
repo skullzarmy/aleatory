@@ -4,7 +4,7 @@
 import { CONTRACTS, tzktApi } from "./config";
 import { isBlockedCollection } from "./blocklist";
 import { addresses } from "./router";
-import { fetchHeldAmong } from "./tzkt";
+import { fetchHeldAmong, indexerFetch } from "./tzkt";
 
 export interface Listing {
     id: number;
@@ -56,7 +56,7 @@ async function bigmap<V>(
 ): Promise<BigMapRow<V>[]> {
     const url = new URL(`${tzktApi()}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-    const res = await fetch(url.toString(), { next: { revalidate: 15 } });
+    const res = await indexerFetch(url.toString(), { next: { revalidate: 15 } } as RequestInit);
     if (!res.ok) return [];
     return (await res.json()) as BigMapRow<V>[];
 }

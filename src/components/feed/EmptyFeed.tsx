@@ -1,11 +1,21 @@
 import { BRAND, NETWORK } from "@/lib/config";
 
 /**
- * Three kinds of nothing, each told apart: nothing deployed, no collections,
- * no pieces. Each is a distinct fact and the copy states which one it is.
+ * Four kinds of nothing, each told apart: the indexer did not answer, nothing
+ * deployed, no collections, no pieces. Each is a distinct fact and the copy
+ * states which one it is. The first is the only one that is our problem rather
+ * than a description of the chain, so it says so and says it will retry.
  */
-export function EmptyFeed({ reason }: { reason: "unconfigured" | "no-collections" | "no-pieces" }) {
+export function EmptyFeed({
+    reason,
+}: {
+    reason: "unreachable" | "unconfigured" | "no-collections" | "no-pieces";
+}) {
     const copy = {
+        unreachable: {
+            title: "Could not reach the indexer",
+            body: `Every piece is on chain and untouched by this. ${BRAND.name} reads them through an indexer, and it did not answer. This page retries on its own.`,
+        },
         unconfigured: {
             title: "Nothing deployed yet",
             body: `${BRAND.name}'s contracts are waiting to be originated on ${NETWORK}. The feed turns on once they are.`,

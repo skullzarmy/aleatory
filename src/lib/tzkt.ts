@@ -57,10 +57,69 @@ function requireAddress(a: string): string {
     return a;
 }
 
+/**
+ * How long one attempt at the indexer gets, and how many attempts it gets.
+ *
+ * Every gateway read on this site already carries a deadline, because a public
+ * IPFS gateway is obviously somebody else's machine. The indexer is somebody
+ * else's machine too, and a read of it had no deadline at all: a slow response
+ * held the socket until the platform gave up on the whole render, which is a
+ * page that 500s rather than a page that is briefly missing a number.
+ *
+ * The budget is sized for the runtime and not for the build. A serverless
+ * invocation is measured in seconds, so two attempts at three seconds plus the
+ * pause between them comes to about six, and a build that needs longer gets its
+ * own retries from the framework. A healthy answer here arrives in well under a
+ * second, so three is already generous.
+ *
+ * This bounds one read. A page that makes several in sequence can still spend
+ * more than an invocation has while the indexer is down, and the thing standing
+ * between that and a broken page is the caller: the reads that matter are
+ * behind `Promise.all` or a `catch` that degrades to empty.
+ */
+const INDEXER_TIMEOUT_MS = 3_000;
+const INDEXER_ATTEMPTS = 2;
+
+/** Answers worth asking again about. Anything else is the indexer's real answer. */
+const TRANSIENT = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+/**
+ * One read from the indexer, with a deadline and a second try.
+ *
+ * Retried on a timeout, a dropped connection, and the handful of statuses that
+ * mean "not now" rather than "no". A 404 is an answer and comes straight back.
+ *
+ * The pause before the retry is jittered, because the failures worth retrying
+ * are the ones everything hits at once, and a fixed pause turns one outage into
+ * a second one made of our own reconnecting pages.
+ */
+export async function indexerFetch(url: string, init: RequestInit = {}): Promise<Response> {
+    let last: unknown;
+
+    for (let attempt = 1; attempt <= INDEXER_ATTEMPTS; attempt++) {
+        if (attempt > 1) {
+            const base = 150 * 2 ** (attempt - 2);
+            await new Promise((r) => setTimeout(r, base + Math.random() * base));
+        }
+        try {
+            const res = await fetch(url, {
+                ...init,
+                signal: AbortSignal.timeout(INDEXER_TIMEOUT_MS),
+            });
+            if (!TRANSIENT.has(res.status)) return res;
+            last = new Error(`TzKT ${res.status}`);
+        } catch (e) {
+            last = e;
+        }
+    }
+
+    throw last instanceof Error ? last : new Error("TzKT did not answer");
+}
+
 async function get<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
     const url = new URL(`${tzktApi()}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-    const res = await fetch(url.toString(), { next: { revalidate: 30 } });
+    const res = await indexerFetch(url.toString(), { next: { revalidate: 30 } } as RequestInit);
     if (!res.ok) {
         throw new Error(`TzKT ${res.status} on ${path}`);
     }

@@ -25,7 +25,12 @@ export const metadata: Metadata = {
 };
 
 async function Recent() {
-    const feed = await fetchRecentFeed();
+    // An indexer that did not answer is a quiet front page, the way it is a
+    // quiet market page. This is the first thing anybody sees, and throwing
+    // here takes the whole route to the error screen over a read that will
+    // work again in fifteen seconds.
+    const feed = await fetchRecentFeed().catch(() => null);
+    if (!feed) return <EmptyFeed reason="unreachable" />;
 
     if (feed.unconfigured) return <EmptyFeed reason="unconfigured" />;
     if (feed.collectionCount === 0) return <EmptyFeed reason="no-collections" />;

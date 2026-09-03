@@ -1,4 +1,5 @@
 import { CONTRACTS, tzktApi } from "./config";
+import { indexerFetch } from "./tzkt";
 
 /**
  * Where everything is, according to the chain.
@@ -55,9 +56,9 @@ const TTL_MS = 60_000;
 async function fromChain(): Promise<Addresses> {
     if (!CONTRACTS.router) return EMPTY;
     try {
-        const res = await fetch(`${tzktApi()}/v1/contracts/${CONTRACTS.router}/storage`, {
+        const res = await indexerFetch(`${tzktApi()}/v1/contracts/${CONTRACTS.router}/storage`, {
             next: { revalidate: 60 },
-        });
+        } as RequestInit);
         if (!res.ok) return EMPTY;
         const s = (await res.json()) as {
             factories?: string[];
@@ -93,9 +94,9 @@ async function fromChain(): Promise<Addresses> {
  */
 async function marketplaceHistory(): Promise<string[]> {
     try {
-        const res = await fetch(
+        const res = await indexerFetch(
             `${tzktApi()}/v1/contracts/${CONTRACTS.router}/storage/history?limit=200`,
-            { next: { revalidate: 300 } },
+            { next: { revalidate: 300 } } as RequestInit,
         );
         if (!res.ok) return [];
         const rows = (await res.json()) as { value?: { marketplace?: string } }[];
@@ -219,7 +220,7 @@ export async function lineage(): Promise<Lineage> {
     const rows: HistoryRow[] = [];
     let truncated = false;
     for (let offset = 0; ; offset += PAGE) {
-        const res = await fetch(
+        const res = await indexerFetch(
             `${tzktApi()}/v1/contracts/${router}/storage/history?limit=${PAGE}&offset=${offset}`,
         );
         if (!res.ok) return offset === 0 ? empty : finish(rows, router, true);

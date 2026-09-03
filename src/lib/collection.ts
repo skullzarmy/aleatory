@@ -13,6 +13,7 @@ import {
     fetchCollectionMeta,
     fetchEditionSizes,
     type CollectionMeta,
+    indexerFetch,
 } from "./tzkt";
 
 export { fetchCollectionMeta, type CollectionMeta };
@@ -130,9 +131,10 @@ export async function fetchCollection(address: string): Promise<Collection | nul
  * caller gets the declared figure and one place decides what it means.
  */
 export async function fetchRoyaltyBps(address: string): Promise<number> {
-    const shares = await fetch(`${tzktApi()}/v1/contracts/${address}/storage?path=art.royalties`, {
-        next: { revalidate: 300 },
-    })
+    const shares = await indexerFetch(
+        `${tzktApi()}/v1/contracts/${address}/storage?path=art.royalties`,
+        { next: { revalidate: 300 } } as RequestInit,
+    )
         .then((r) => (r.ok ? (r.json() as Promise<Record<string, string>>) : null))
         .catch(() => null);
 
@@ -148,9 +150,9 @@ export async function fetchRoyaltyBps(address: string): Promise<number> {
  * builds and one they skip. See docs/params.md §4.
  */
 async function fetchParamsSchema(address: string): Promise<ParamsSchema | null> {
-    const rows = await fetch(
+    const rows = await indexerFetch(
         `${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/aleatory%3Aparams`,
-        { next: { revalidate: 300 } },
+        { next: { revalidate: 300 } } as RequestInit,
     )
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null);
