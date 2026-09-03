@@ -60,11 +60,23 @@ for (const doc of docs) {
 }
 
 // Runtime kinds, from the catalog that defines them.
+//
+// src/lib/kinds.ts, which is the catalog on its own: data, no imports, nothing
+// that fetches. It was the top half of runtimes.ts until reading a kind's label
+// from the browser meant pulling the library resolver and blake2b in behind it.
 {
-    const runtimes = readFileSync("src/lib/runtimes.ts", "utf8");
-    const kinds = [...runtimes.matchAll(/kindId:\s*(\d+),\s*\n\s*name:\s*"([a-z]+)"/g)].map(
-        (m) => ({ id: m[1], name: m[2] }),
-    );
+    const catalog = readFileSync("src/lib/kinds.ts", "utf8");
+    const kinds = [...catalog.matchAll(/kindId:\s*(\d+),\s*\n\s*name:\s*"([a-z]+)"/g)].map((m) => ({
+        id: m[1],
+        name: m[2],
+    }));
+
+    // The regex above is the only link between this check and the catalog, so a
+    // catalog it cannot read is a broken check, not a passing one.
+    if (kinds.length === 0) {
+        console.log("KIND    src/lib/kinds.ts: no runtime kinds could be read");
+        bad++;
+    }
 
     const arch = readFileSync("docs/architecture.md", "utf8");
     for (const k of kinds) {

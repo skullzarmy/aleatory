@@ -1,5 +1,5 @@
 import { declaredIn } from "./libraries";
-import { RUNTIME_KINDS } from "./runtimes";
+import { RUNTIME_KINDS } from "./kinds";
 import { fromFxParams, MAX_PARAMS, type ParamSpec, resolveParam, validateSchema } from "./params";
 
 /**

@@ -11,7 +11,7 @@
  * One tag per library, so a piece wanting two says so twice, and the order they
  * appear in is the order they load in.
  */
-import { type DepSpec } from "./runtimes";
+import { type DepSpec } from "./kinds";
 
 const TAG = /<meta\s+[^>]*name\s*=\s*["']alea:library["'][^>]*>/gi;
 const CONTENT = /content\s*=\s*["']([^"']+)["']/i;

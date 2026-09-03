@@ -8,7 +8,7 @@
  * (?seed=…), and it means nothing about working locally depends on us.
  */
 import type { ParamSpec } from "./params";
-import { RUNTIME_KINDS } from "./runtimes";
+import { RUNTIME_KINDS } from "./kinds";
 
 /** The dev-harness guard prepended to every template. */
 /**
