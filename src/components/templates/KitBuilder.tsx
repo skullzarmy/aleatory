@@ -141,9 +141,7 @@ export function KitBuilder() {
                 `/api/npm/inspect?id=${encodeURIComponent(id)}&version=${encodeURIComponent(version)}`,
             );
             if (!res.ok) {
-                // Running out of time is not a verdict on the package. The
-                // second try is usually fast, because the miss warmed the CDN.
-                const why = await res.text();
+                const why = await reasonFrom(res);
                 settle({ key, id, version, s: res.status === 504 ? "slow" : "refused", why });
                 return;
             }
@@ -332,6 +330,25 @@ export function KitBuilder() {
             {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
         </section>
     );
+}
+
+/**
+ * Why a request failed, in words fit to put on screen.
+ *
+ * Only this route's own plain-text bodies are shown. A proxy that times out
+ * ahead of it answers with a full HTML error page, and rendering that verbatim
+ * puts a stranger's markup in the middle of the panel.
+ */
+async function reasonFrom(res: Response): Promise<string> {
+    const generic =
+        res.status === 504
+            ? "That package took too long to check."
+            : "That package could not be read just now.";
+
+    if (!(res.headers.get("content-type") ?? "").startsWith("text/plain")) return generic;
+
+    const body = (await res.text().catch(() => "")).trim();
+    return body && body.length <= 300 && !body.includes("<") ? body : generic;
 }
 
 /** Every state the search can be in, each said out loud. */

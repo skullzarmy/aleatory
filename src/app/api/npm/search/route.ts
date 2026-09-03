@@ -25,7 +25,10 @@ export async function GET(request: Request) {
         return Response.json({ hits: [] });
     }
     if (text.length > 100) {
-        return new Response("Query too long.", { status: 400 });
+        return new Response("Query too long.", {
+            status: 400,
+            headers: { "content-type": "text/plain; charset=utf-8" },
+        });
     }
 
     try {
@@ -39,6 +42,9 @@ export async function GET(request: Request) {
             },
         );
     } catch {
-        return new Response("npm did not answer.", { status: 502 });
+        return new Response("npm did not answer.", {
+            status: 502,
+            headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+        });
     }
 }

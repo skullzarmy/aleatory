@@ -21,8 +21,12 @@ export async function GET(request: Request) {
     const id = q.get("id") ?? "";
     const version = q.get("version") ?? "";
 
+    // Labelled, so the client can tell this route's own words from an error
+    // page written by whatever sits in front of it.
+    const plain = { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" };
+
     const bad = (!ID.test(id) && "id") || (!VERSION.test(version) && "version");
-    if (bad) return new Response(`Bad ${bad}.`, { status: 400 });
+    if (bad) return new Response(`Bad ${bad}.`, { status: 400, headers: plain });
 
     try {
         return Response.json(await resolve(id, version), {
@@ -34,12 +38,12 @@ export async function GET(request: Request) {
         if (e instanceof OutOfTime) {
             return new Response(
                 `Checking ${id}@${version} took too long. It may answer on a second try.`,
-                { status: 504, headers: { "cache-control": "no-store" } },
+                { status: 504, headers: plain },
             );
         }
         return new Response(e instanceof Error ? e.message : "Could not read that package.", {
             status: 502,
-            headers: { "cache-control": "no-store" },
+            headers: plain,
         });
     }
 }

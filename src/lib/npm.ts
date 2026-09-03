@@ -45,7 +45,10 @@ export const VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/;
 export const DEP_PATH = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/;
 
 /** The whole resolution's budget, under the ten seconds an invocation gets. */
-export const BUDGET_MS = 7_000;
+export const BUDGET_MS = 5_000;
+
+/** What searching older versions may take of it. The verdict comes first. */
+const WALK_MS = 2_500;
 
 /**
  * The wrapper, wherever in the file it is and whichever branches it has.
@@ -396,7 +399,7 @@ export async function newestLoadable(
 ): Promise<{ version: string; inspection: Inspection } | null> {
     // Newest first, and only the recent past. Nobody wants a five year old
     // release, and the boundary is never that far back in practice.
-    const window = versions.slice(0, 80);
+    const window = versions.slice(0, 40);
     if (window.length === 0) return null;
 
     let low = 0;
@@ -482,10 +485,22 @@ export async function resolve(
         };
     }
 
-    const older = await newestLoadable(id, await versionsOf(id, budget), budget).catch((e) => {
-        if (e instanceof OutOfTime) throw e;
-        return null;
-    });
+    // A bonus, not the answer. The verdict on the version asked for is already
+    // in hand, so failing to find a better one returns that rather than a
+    // timeout: `remotion` is CommonJS in 323ms and has 1,256 versions, none of
+    // which ship a browser build.
+    //
+    // On its own slice of the budget, so a package that will never load does
+    // not spend the whole of it proving that. The catch wraps the version list
+    // too: awaited as an argument, its own failure would pass straight by.
+    const older = await (async () => {
+        const walk = new Budget(Math.min(WALK_MS, budget.left));
+        try {
+            return await newestLoadable(id, await versionsOf(id, walk), walk);
+        } catch {
+            return null;
+        }
+    })();
     if (older) {
         return {
             coordinate: `${id}@${older.version}`,
@@ -501,9 +516,9 @@ export async function resolve(
         inspection,
         global: null,
         bytes: 0,
-        note:
-            inspection.why ??
-            `No build of ${id} can be loaded from a script tag. Bundle it into your file instead.`,
+        note: `${inspection.why ?? `No build of ${id} can be loaded from a script tag.`}${
+            budget.spent ? " No older version was found in time." : ""
+        } Bundle it into your file instead.`,
     };
 }
 
