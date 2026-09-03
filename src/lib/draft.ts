@@ -81,14 +81,11 @@ function open(): Promise<IDBDatabase> {
 /**
  * One transaction, resolved when it has actually happened.
  *
- * A write used to resolve on `request.onsuccess`, which fires when the request
- * succeeded and *not* when the transaction committed. A save could resolve,
- * the transaction could abort a moment later, and the draft was gone while the
- * studio said "Saved in this browser". A write resolves on `oncomplete` now,
- * which is the only event that means it is on disk.
+ * A write resolves on `oncomplete`, the only event that means it is on disk.
+ * `request.onsuccess` fires when the request succeeded and not when the
+ * transaction committed, so a save can resolve and then abort.
  *
- * Reads still resolve on the request, because there is nothing to commit and
- * waiting for the transaction would only add a tick.
+ * Reads resolve on the request: there is nothing to commit.
  *
  * Found by @webid in #1.
  */

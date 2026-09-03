@@ -42,10 +42,9 @@ export function ArtifactFrame({
     /** What the viewer asked for, once they have asked. */
     const [prefer, setPrefer] = useState<"image" | "live" | null>(null);
 
-    // Bumping this remounts the element, which is what re-requests the image.
-    // A failure used to be terminal: the element came down, nothing asked
-    // again, and the toggle it gates was gone for the life of the page. One
-    // dropped request should not cost somebody the published image.
+    // Bumping this remounts the element, which re-requests the image. One
+    // dropped request should not cost somebody the published image for the
+    // life of the page.
     const [attempt, setAttempt] = useState(0);
     const timer = useRef(0);
     useEffect(() => {

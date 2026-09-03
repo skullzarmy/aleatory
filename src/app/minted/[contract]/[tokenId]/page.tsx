@@ -17,8 +17,7 @@ import { AccountLink } from "@/components/account/AccountLink";
 /**
  * The moment after a mint.
  *
- * A collector has just signed for something nobody has ever seen, and the page
- * they landed on used to hand them an operation hash and stop. This is the
+ * A collector has just signed for something nobody has ever seen. This is the
  * piece: running, live, from the generator in the collection's own storage and
  * the seed their signature just fixed.
  *

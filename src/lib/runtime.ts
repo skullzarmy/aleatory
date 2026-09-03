@@ -105,11 +105,9 @@ export interface ParamDeclaration {
 /**
  * The harness itself lives in `isolate/index.html`, not here.
  *
- * The app used to ship a third copy of it, and that copy drifted: it seeded
- * its PRNG by parsing a base58 operation hash as hex, so the studio drew a
- * different picture from the one that went on chain. There are two
- * implementations now, the isolate and `provider/render.mts`, and they agree by
- * conforming to ALEATORY-001 §7 rather than by sharing a file.
+ * Two implementations, the isolate and `provider/render.mts`, agreeing by
+ * conforming to ALEATORY-001 §7 and not by sharing a file. A third copy here
+ * would be a third thing to drift.
  *
  * What stays here are the message shapes both sides speak.
  */

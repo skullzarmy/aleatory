@@ -58,11 +58,9 @@ let factoryCache: { at: number; addresses: string[] } | null = null;
  * factory and every retired one, so a collection deployed by an old factory
  * keeps being served rather than quietly going unrendered forever.
  *
- * This used to be an environment variable with no fallback. An operator who
- * set one factory served that factory's collections and silently ignored the
- * rest, which is exactly what happened here: three collections sat unrendered
- * because the list was written before the other factories existed and nobody
- * updates a list they cannot see is wrong.
+ * Not an environment list: one written before the other factories existed
+ * serves that factory alone and silently ignores the rest, and nobody updates
+ * a list they cannot see is wrong.
  *
  * Storage is still the authority afterwards. This only decides where to look,
  * and a collection is served because its own storage names this provider.
@@ -442,10 +440,9 @@ async function fetchGenerator(codeUri: string): Promise<string> {
 /**
  * Draw one piece.
  *
- * Goes to Browser Run's REST endpoint, which takes the document directly. The
- * Worker this used to call is gone: Browser Rendering became Browser Run and
- * moved off the `env.BROWSER` binding, and a REST call from here needs no
- * deploy, no `workers.dev` URL, and no secret guarding one.
+ * Goes to Browser Run's REST endpoint, which takes the document directly. A
+ * REST call from here needs no deploy, no `workers.dev` URL, and no secret
+ * guarding one.
  */
 async function render(piece: PendingPiece): Promise<Uint8Array> {
     const config = renderConfigFromEnv();
@@ -677,10 +674,9 @@ export async function handle(piece: PendingPiece): Promise<string> {
     const imageUri = await pin(image, `${piece.collection}-${piece.tokenId}.png`);
 
     const params = safeParse(piece.params);
-    // The one builder, shared with the studio and covered by the golden tests.
-    // This used to be assembled inline here and had drifted: a bare "#4" for a
-    // name, no description, no code hash, and no royalties at all, which meant
-    // no royalty was paid on any secondary sale of any piece.
+    // The one builder, shared with the studio and covered by the golden
+    // tests. Assembling a document here instead is how a provider ships
+    // pieces with no royalties and nothing notices.
     const doc = buildPieceDocument({
         collectionName: piece.collectionName,
         description: piece.description,

@@ -51,13 +51,11 @@ export function PieceMarket({
     const [price, setPrice] = useState("");
     const [offer, setOffer] = useState("");
 
-    // Above the early return below, because hooks have to run in the same
-    // order every render and a component that returns before one has changed
-    // its shape. React catches this; it caught this.
+    // Above the early return below: hooks run in the same order every render
+    // or React loses track of which state belongs to which call.
     //
-    // Refresh until the server's answer changes, then stop. Capped, because a
-    // page that polls forever after a stalled indexer is worse than one that
-    // gives up and lets the reader reload.
+    // Refresh until the server's answer changes, then stop. Capped, so a
+    // stalled indexer does not leave the page polling forever.
     const settled = useRef<string>("");
     useEffect(() => {
         const now = `${listing?.id ?? "none"}:${listing?.priceMutez ?? 0}:${offers.length}`;

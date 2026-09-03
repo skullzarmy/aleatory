@@ -14,11 +14,10 @@ import { RUNTIME_KINDS } from "./kinds";
 /**
  * The templates themselves live in `public/templates/<kind>/index.html`.
  *
- * They used to be backtick literals in this file, where nobody could find
- * them and where one stray backtick inside somebody's template ended the
- * string and broke the module. As files they are readable on GitHub,
- * downloadable, and openable straight from disk: each carries the dev harness
- * inline, so opening one in a browser draws it with a random seed.
+ * Files rather than literals in this module: readable on GitHub, downloadable,
+ * openable straight from disk, and a stray backtick in one cannot break the
+ * module. Each carries the dev harness inline, so opening one in a browser
+ * draws it with a random seed.
  *
  * `npm run templates:build` regenerates the import below from those files and
  * runs before every build, so the two cannot drift.

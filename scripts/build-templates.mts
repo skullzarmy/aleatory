@@ -2,9 +2,8 @@
  * Turn the template files into the module the studio imports, and into a
  * starter kit somebody can download and work in.
  *
- * The templates used to be backtick literals inside templates.ts, where nobody
- * could find them and where a single backtick ended the literal and broke the
- * module. The files under public/templates are the source now.
+ * The files under public/templates are the source. Keeping them as files
+ * rather than literals means a backtick in one cannot break the module.
  *
  *   npm run templates:build
  *

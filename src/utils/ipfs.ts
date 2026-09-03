@@ -54,10 +54,9 @@ export function bytesToString(hex: string): string {
     if (clean.length === 0) return "";
 
     // Reject rather than mangle. `parseInt("ip", 16)` is NaN and `Uint8Array`
-    // turns NaN into 0 without complaining, so decoding a plain string like
-    // "ipfs://Qm..." used to return zero-filled garbage. Garbage is truthy, so
-    // every `bytesToString(x) || x` fallback in the codebase silently kept the
-    // garbage and the real value never surfaced.
+    // turns NaN into 0 silently, so a plain string decodes to zero-filled
+    // garbage, and garbage is truthy: every `bytesToString(x) || x` fallback
+    // would keep it and never surface the real value.
     if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(clean)) return "";
 
     const bytes = clean.match(/.{2}/g) ?? [];

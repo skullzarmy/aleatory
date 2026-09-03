@@ -133,10 +133,8 @@ const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xy
  * The document the render event points at.
  *
  * `set_token_metadata` carries the URI of the piece's own metadata, so the
- * name and the picture can be read from the thing the contract just published.
- * The indexer resolves the same document on its own schedule and is behind at
- * the moment this fires, which is how a piece got announced as "#4" with no
- * image while its metadata sat there already saying "Spiro #4".
+ * name and the picture come from what the contract just published. The indexer
+ * resolves the same document on its own schedule and is behind when this fires.
  */
 async function documentAt(uri: string): Promise<Meta> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];

@@ -10,10 +10,8 @@ import { packageFromFile } from "@/lib/project";
 /**
  * The generator, open, on the left.
  *
- * The studio used to hide it: a preview, five tabs, and an Export button, so
- * changing a line meant downloading a file, editing it somewhere else, and
- * importing it back. Nobody iterates like that. The document is the work, so
- * the document is on screen and typing in it redraws the piece.
+ * The document is the work, so the document is on screen and typing in it
+ * redraws the piece.
  *
  * Edits are debounced rather than applied per keystroke. A generator is a whole
  * document and half-typed HTML is not valid HTML, so redrawing on every

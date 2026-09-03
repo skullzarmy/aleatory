@@ -3,13 +3,10 @@
  *
  * A hook after an early return, or inside a branch, runs on some renders and
  * not others, so React loses track of which state belongs to which call. It
- * reports that at runtime, in a browser, and only on the path that takes the
- * branch: PieceMarket rendered correctly until the marketplace address had not
- * loaded yet, and then blew up with a hook order mismatch.
+ * reports that at runtime, in a browser, and only on the path that branches.
  *
- * Parsed with TypeScript's own parser rather than matched with a regex,
- * because indentation says nothing about scope and a nested component has its
- * own hook order.
+ * Parsed with TypeScript's own parser: indentation says nothing about scope,
+ * and a nested component has its own hook order.
  *
  * Run: npx tsx src/lib/hooks.test.ts
  */

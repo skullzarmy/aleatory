@@ -16,11 +16,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 /**
- * The address, short, with the only reason anyone wanted it in full.
+ * The address, short, with the only reason anyone wants it in full.
  *
- * It used to print all thirty six characters and wrap onto two lines. Nobody
- * reads an address; they compare the ends of it or they copy it, and both work
- * better truncated with a button beside it.
+ * Nobody reads an address: they compare its ends or they copy it, and both
+ * work better truncated with a button beside it.
  */
 function AddressLine({ address }: { address: string }) {
     const [copied, setCopied] = useState(false);

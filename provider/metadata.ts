@@ -118,9 +118,8 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
 /**
  * The document a provider publishes for one piece.
  *
- * The only builder. A provider used to assemble its own inline, which drifted:
- * it published a bare "#4" for a name, and no royalties at all, so nothing was
- * paid on any secondary sale. There is one of these now and it is tested.
+ * The only builder, so a provider cannot assemble its own and drift from the
+ * name and royalties every other piece is published with.
  */
 export function buildPieceDocument(input: PieceDocInput) {
     return {

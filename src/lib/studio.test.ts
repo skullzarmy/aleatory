@@ -361,7 +361,7 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         (snapped?.notes ?? []).join(" | "),
     );
 
-    // A type with no equivalent here used to be filtered out in silence.
+    // A type with no equivalent here must not take the whole set down with it.
     const unreadable = spoiled(`{id:"t",label:"T",type:"string",default:"x"}`);
     check(
         "keeps the readable parameter beside an unreadable one",

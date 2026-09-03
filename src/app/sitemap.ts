@@ -25,9 +25,9 @@ export const dynamic = "force-static";
  * come from the chain, because a hand-written list would be stale the moment
  * somebody mints.
  *
- * Bounded on purpose. A sitemap that grows without limit eventually becomes
- * the slowest route on the site, and the pieces beyond the cap are reachable
- * from their collection anyway, which is how a crawler finds them.
+ * Bounded on purpose. A sitemap that grows without limit becomes the slowest
+ * route on the site, and pieces past the cap are reachable from their
+ * collection, which is where a crawler finds them.
  */
 const MAX_PIECES = 5_000;
 

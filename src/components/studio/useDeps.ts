@@ -25,14 +25,10 @@ export function useDeps(html: string): {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Keyed on what the document *declares*, never on the document.
-    //
-    // The effect used to depend on `html`, so every debounced keystroke
-    // re-resolved the libraries and flipped `loading` back on. A consumer that
-    // swaps the frame out while loading then tore the iframe down and rebuilt
-    // it every time the artist paused typing, which is a p5 sketch blinking
-    // away mid-sentence. Editing the drawing code changes no declaration, so
-    // it should reach none of this.
+    // Keyed on what the document *declares*, never on the document. Editing
+    // drawing code changes no declaration, and depending on `html` re-resolves
+    // the libraries on every debounced keystroke, tearing down the frame of
+    // any consumer that swaps it out while loading.
     const key = useMemo(() => {
         const { specs } = librariesIn(html);
         return specs.map((s) => `${s.id}@${s.version}#${s.hash ?? ""}`).join(",");

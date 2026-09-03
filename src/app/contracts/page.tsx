@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * What this platform is made of, and what it used to be made of.
+ * Every contract this platform runs on, current and retired.
  *
  * The claim the whole project rests on is that a piece survives us, which is
  * only checkable if the addresses are public. So they are all here, retired

@@ -660,10 +660,9 @@ function Fact({ label, value, href }: { label: string; value: string; href?: str
 /**
  * A labelled field.
  *
- * The label used to sit beside the input with no `htmlFor`, which looks like a
- * label and is not one: nothing announces it, and clicking it does not focus
- * the field. The id is generated here and handed to the child, so every input
- * this wraps is labelled without each call site remembering to.
+ * The id is generated here and handed to the child, so every input this wraps
+ * is labelled without each call site remembering to. A label beside an input
+ * with no `htmlFor` announces nothing and does not focus the field.
  */
 function Field({
     label,

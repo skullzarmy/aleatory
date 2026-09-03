@@ -7,13 +7,10 @@ import { Avatar } from "./Avatar";
 /**
  * The way to show an account. Every account, everywhere.
  *
- * It goes to `/wallet/{address}`, which is the page about that person: what
- * they made and what they hold, with their profile on top. Sending a reader to
- * a block explorer instead was the old behaviour, and a block explorer is where
- * you go to check an operation, not to find out who made something.
- *
- * The chain explorer link still exists. It lives once, on the account's own
- * page, next to the address it verifies.
+ * It goes to `/wallet/{address}`, the page about that person: what they made
+ * and what they hold, with their profile on top. A block explorer is where you
+ * check an operation, so that link lives once, on the account's own page, next
+ * to the address it verifies.
  */
 export function AccountLink({
     address,

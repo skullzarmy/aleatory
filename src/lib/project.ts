@@ -183,10 +183,8 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
     html = html.replace(/\bsrc\s*=\s*["']([^"']+)["']/gi, (match: string, src: string) => {
         const file = lookup(src);
         if (!file) {
-            // An <img> pointing at a file the zip does not carry used to go by
-            // in silence: no inline, no note, and a piece with a hole in it
-            // that nothing anywhere explained. Remote and already-inlined
-            // references are not missing, they are simply not ours to inline.
+            // Recorded so a piece with a hole in it says so. Remote and
+            // already-inlined references are not missing, just not ours.
             if (!/^(https?:|data:|blob:)/i.test(src)) missing.add(normalize(src));
             return match;
         }

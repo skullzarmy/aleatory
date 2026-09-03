@@ -21,11 +21,9 @@ export const revalidate = 15;
 /**
  * Everything for sale.
  *
- * A listing carries a collection, a token id and a price, and nothing else, so
- * this page used to be rows of numbers: it asked people to decide whether they
- * wanted an artwork without showing it to them. The images and names are a
- * second read, done here in two queries for the whole page rather than one per
- * row.
+ * A listing carries a collection, a token id and a price and nothing else, so
+ * the images and names are a second read. Two queries for the whole page, not
+ * one per row.
  */
 export default async function MarketPage() {
     const [marketplace, listings] = await Promise.all([

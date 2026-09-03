@@ -20,15 +20,10 @@ import { Dice5 } from "lucide-react";
 /**
  * Where an artist works. Code on the left, the piece on the right.
  *
- * Generative work is a loop: change a number, look, change it back. The studio
- * used to break that loop in half. The document was hidden behind an Export
- * button, so editing meant downloading a file, opening another editor, and
- * importing the result, and the preview only ever showed what you had already
- * finished deciding.
- *
- * So both halves are on screen at once and typing redraws. The seed is held
- * still while you type, because a piece that rerolls on every edit tells you
- * nothing about the edit.
+ * Generative work is a loop: change a number, look, change it back. So both
+ * halves are on screen at once and typing redraws. The seed is held still
+ * while you type, because a piece that rerolls on every edit tells you nothing
+ * about the edit.
  *
  * Everything below the preview is the rest of the job: the space rather than
  * one draw, what a collector may change, proof it behaves, and what it costs.

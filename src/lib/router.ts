@@ -4,11 +4,8 @@ import { indexerFetch } from "./tzkt";
 /**
  * Where everything is, according to the chain.
  *
- * One address in the environment, the router, and the rest read from it. The
- * addresses used to live in `.env`, which meant every reader had to be told
- * them out of band and a redeploy pointed a running site at a contract that no
- * longer existed. That happened three times in one day here, and each time the
- * site quietly showed nothing rather than saying anything.
+ * One address in the environment, the router, and the rest read from it, so a
+ * redeploy cannot leave a running site pointing at a contract that is gone.
  *
  * **`factories` is every factory there has ever been, newest first.** A
  * redeploy adds one, it does not replace the list, because collections a
