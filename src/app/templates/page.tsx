@@ -9,38 +9,74 @@ export const metadata: Metadata = {
     alternates: { canonical: "/templates" },
     title: "Starter kits",
     description:
-        "Download a working generator, run it locally with one command, and publish the same file. Four need no build step; the fifth bundles any package on npm into it.",
+        "Pick a kit, run it with one command, publish the same file. Four need no build step; the fifth bundles any package on npm into it.",
     openGraph: { type: "website", title: "Starter kits" },
 };
 
 /** Permanent, and not tied to a tag: the kit is the current starting point. */
 const RELEASE = `${BRAND.repo}/releases/latest/download`;
 
-const KITS: Record<string, { for: string; declares: string; note: string }> = {
+/**
+ * How each kit is offered, keyed by kind.
+ *
+ * `want` is the reader's half of the sentence, so the list reads down the left
+ * as a question about their own work rather than across as a catalogue of ours.
+ */
+const COPY: Record<string, { want: string; note: string; tag: string }> = {
     vanilla: {
-        for: "Drawing to a canvas yourself, with no library in the way.",
-        declares: "Nothing.",
+        want: "draw to a canvas myself",
         note: "The smallest thing that can be a piece, and the cheapest to publish.",
-    },
-    svg: {
-        for: "Vector work that should stay vector.",
-        declares: "Nothing.",
-        note: "Builds an <svg> in the document rather than rasterising, so the output stays resolution independent.",
+        tag: "No dependencies",
     },
     p5: {
-        for: "Anyone who already thinks in p5.",
-        declares: "p5.js 1.5.0.",
-        note: "p5 is loaded for you and costs you none of your generator's size, so your bytes go to your art.",
+        want: "write a p5 sketch",
+        note: "p5 is loaded for you and costs none of your generator's size, so your bytes go to your art.",
+        tag: "Declares p5 1.5.0",
+    },
+    svg: {
+        want: "make vector work that stays vector",
+        note: "Builds an <svg> in the document, so the output stays resolution independent.",
+        tag: "No dependencies",
     },
     custom: {
-        for: "Bringing your own engine, three.js or anything else.",
-        declares: "Whatever you name in a meta tag.",
+        want: "bring my own engine",
         note: "You implement the lifecycle: boot, render, and a call saying when the drawing is finished.",
+        tag: "Declares what you name",
     },
 };
 
-function H({ children }: { children: React.ReactNode }) {
-    return <h2 className="mt-12 text-lg font-semibold tracking-tight">{children}</h2>;
+/**
+ * Choosing order, which is not catalog order: `RUNTIME_KINDS` is append-only
+ * and ordered by when a kind was added, a fact about us rather than about the
+ * work somebody is starting.
+ */
+const ORDER = ["vanilla", "p5", "svg", "custom"];
+const at = (name: string) => (ORDER.indexOf(name) + 1 || ORDER.length + 1) - 1;
+
+/**
+ * Built from the catalog, so a kind added later appears here rather than
+ * quietly not being offered. One without copy falls back to its own blurb.
+ */
+const KITS = [...RUNTIME_KINDS]
+    .sort((a, b) => at(a.name) - at(b.name))
+    .map((k) => ({
+        name: k.name,
+        label: k.label,
+        ...(COPY[k.name] ?? { want: k.label.toLowerCase(), note: k.blurb, tag: "" }),
+    }));
+
+const STEPS = [
+    { href: "#pick", n: "1", label: "Pick a kit" },
+    { href: "#run", n: "2", label: "Run it locally" },
+    { href: "#publish", n: "3", label: "Publish it" },
+];
+
+function H({ id, children }: { id?: string; children: React.ReactNode }) {
+    return (
+        <h2 id={id} className="mt-14 scroll-mt-24 text-lg font-semibold tracking-tight">
+            {children}
+        </h2>
+    );
 }
 
 function P({ children }: { children: React.ReactNode }) {
@@ -64,14 +100,8 @@ function Code({ children }: { children: React.ReactNode }) {
 /**
  * A reference table: a thing you can write, and what it does.
  *
- * A real two column layout rather than a code block with the second column
- * pushed into place by spaces. Padding to a column makes the left one as wide
- * as its longest entry and no wider, so the descriptions all began a third of
- * the way across a block that then ran out of anything to put on the right.
- *
  * `max-content` sizes the left column to the longest name; the right takes
- * everything left over, so it uses the width instead of trailing off. Nothing
- * here is shell, so nothing is lost by not being one string.
+ * everything left over, so it uses the width instead of trailing off.
  */
 function Reference({ rows }: { rows: [string, string][] }) {
     return (
@@ -86,13 +116,24 @@ function Reference({ rows }: { rows: [string, string][] }) {
     );
 }
 
+function Download({ file, children }: { file: string; children: React.ReactNode }) {
+    return (
+        <a
+            href={`${RELEASE}/${file}`}
+            className="shrink-0 rounded-md border border-border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
+        >
+            {children}
+        </a>
+    );
+}
+
 /**
  * The starting point for working outside the studio.
  *
- * This replaces a download button that changed with whatever kind happened to
- * be selected, which meant the same control produced four different files and
- * never said which. A page can say what each one is, which is the difference
- * between a download and a kit somebody can actually use.
+ * Ordered as the job is done: choose, run, publish. The downloads lead, because
+ * they are what almost everybody came for, and the kit builder sits under
+ * libraries where the need for it arises. A page that opens with the tool for
+ * the rarest case spends its best position on the fewest readers.
  */
 export default function TemplatesPage() {
     return (
@@ -102,130 +143,70 @@ export default function TemplatesPage() {
                 A working generator, a local server, and a readme. Download one, run it, edit it,
                 publish it. Node 18 or newer is the only requirement.
             </P>
-            <P>
-                Four of them have nothing to install and no build step: one HTML file you edit and
-                reload. The fifth bundles packages from npm into that file, so it has both.
-            </P>
 
-            <div className="mt-8">
-                <KitBuilder />
-            </div>
-
-            <H>The loop</H>
-            {/* Three lines of shell and nothing else in the box, so it can be
-                taken whole. The comment that used to sit out to the right of
-                the second line is the sentence below. */}
-            <Code>{`unzip p5.zip && cd p5
-node serve.mjs`}</Code>
-            <P>
-                Then open <code className="font-mono">http://localhost:4321</code>. Reload for a new
-                seed. Edit <code className="font-mono">index.html</code> and reload again. That is
-                the whole cycle: no build, no watcher, no bundler.
-            </P>
-            <Reference
-                rows={[
-                    ["?seed=<hex>", "draw one particular piece, every time"],
-                    ["?p.<name>=<value>", "set a declared parameter, e.g. ?p.density=220"],
-                ]}
-            />
-
-            <H>What is in a kit</H>
-            <dl className="mt-4 space-y-3 text-sm">
-                <div>
-                    <dt className="font-mono">index.html</dt>
-                    <dd className="mt-1 text-muted-foreground">
-                        The piece. This is the only file that gets published and the only one that
-                        ends up on chain.
-                    </dd>
-                </div>
-                <div>
-                    <dt className="font-mono">serve.mjs</dt>
-                    <dd className="mt-1 text-muted-foreground">
-                        A local preview. It reads the libraries your file declares and loads them
-                        while you work.
-                    </dd>
-                </div>
-                <div>
-                    <dt className="font-mono">README.md</dt>
-                    <dd className="mt-1 text-muted-foreground">
-                        The same instructions, next to the code, for when this page is not open.
-                    </dd>
-                </div>
-            </dl>
-
-            <H>Never write a CDN script tag</H>
-            <P>
-                A piece asks for a library with a meta tag, and something else supplies it: the
-                local server while you work, a renderer once you publish, reading the record from
-                the chain and verifying it.
-            </P>
-            <Code>{`<meta name="alea:library" content="p5@1.5.0">`}</Code>
-            <P>
-                So your generator never contains a script tag pointing at a CDN, and it should not.
-                A piece is refused the network while it renders, so one that fetches is captured as
-                a blank frame, and you find out after minting, when the piece can no longer be
-                changed.
-            </P>
-            <P>
-                Any package on npm can be declared. What it has to be is loadable from a script tag,
-                which most modern releases are not, so the builder above reads each one and says so
-                before you download anything. When one cannot be declared, the bundler kit writes it
-                into your file instead.{" "}
-                <Link href="/docs/libraries" className="underline hover:text-foreground">
-                    Libraries
-                </Link>{" "}
-                covers what happens at each stage, and why the record is a hash rather than a URL.
-            </P>
-
-            <H>The kits</H>
-            <div className="mt-4 space-y-4">
-                {RUNTIME_KINDS.map((k) => {
-                    const kit = KITS[k.name];
-                    if (!kit) return null;
-                    return (
-                        <section key={k.kindId} className="rounded-lg border border-border p-4">
-                            <div className="flex flex-wrap items-baseline justify-between gap-3">
-                                <h3 className="font-medium">{k.label}</h3>
-                                <a
-                                    href={`${RELEASE}/${k.name}.zip`}
-                                    className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
-                                >
-                                    Download {k.name}.zip
-                                </a>
-                            </div>
-                            <p className="mt-2 text-sm text-muted-foreground">{kit.for}</p>
-                            <p className="mt-2 text-sm text-muted-foreground">{kit.note}</p>
-                            <p className="mt-2 text-xs text-muted-foreground">
-                                Declares: {kit.declares}
-                            </p>
-                        </section>
-                    );
-                })}
-            </div>
-            <section id="bundler" className="mt-4 scroll-mt-24 rounded-lg border border-border p-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-3">
-                    <h3 className="font-medium">Bundler</h3>
+            {/* The three steps, and the page's contents, as one thing. Somebody
+                who reads it learns the shape of the job; somebody who does not
+                still gets a way to jump. */}
+            <nav aria-label="On this page" className="mt-6 flex flex-wrap gap-2">
+                {STEPS.map((s) => (
                     <a
-                        href={`${RELEASE}/bundler.zip`}
-                        className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+                        key={s.href}
+                        href={s.href}
+                        className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent"
                     >
-                        Download bundler.zip
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-xs tabular-nums text-muted-foreground">
+                            {s.n}
+                        </span>
+                        {s.label}
                     </a>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                    Packages that cannot be declared, because they ship as ES modules or CommonJS
-                    and a script tag cannot load them. Which is most of npm.
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                    You import them, esbuild writes them into your file, and the parts you did not
-                    use are dropped. Small once bundled: simplex-noise is 709 bytes, d3-scale and
-                    d3-shape together about 10 kB, against 279 kB to declare all of d3. Every build
-                    prints its size against what one operation can carry.
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                    Declares: whatever you name, and bundles the rest. Needs an install and a build.
-                </p>
-            </section>
+                ))}
+            </nav>
+
+            <H id="pick">Pick a kit</H>
+            <P>Read down the left until one of them is what you are doing.</P>
+
+            <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
+                {KITS.map((kit) => (
+                    <li key={kit.name} className="p-4">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                            <h3 className="text-sm">
+                                <span className="text-muted-foreground">I want to </span>
+                                <span className="font-medium text-foreground">{kit.want}</span>
+                            </h3>
+                            <Download file={`${kit.name}.zip`}>{kit.name}.zip</Download>
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">{kit.note}</p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                            {kit.label} · {kit.tag}
+                        </p>
+                    </li>
+                ))}
+
+                {/* The fifth route is a decision rather than a download, so it
+                    points at the section that makes it instead of pretending
+                    to be another zip. */}
+                <li className="p-4">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                        <h3 className="text-sm">
+                            <span className="text-muted-foreground">I want to </span>
+                            <span className="font-medium text-foreground">
+                                use packages from npm
+                            </span>
+                        </h3>
+                        <a
+                            href="#libraries"
+                            className="shrink-0 rounded-md bg-alea-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-alea-700"
+                        >
+                            Start here
+                        </a>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                        Two ways, and which one depends on the package. Build a kit with it
+                        declared, or bundle it into your file.
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">Libraries, below</p>
+                </li>
+            </ul>
 
             <P>
                 Built from{" "}
@@ -240,15 +221,41 @@ node serve.mjs`}</Code>
                 every time they change, so what you download is what is running here.
             </P>
 
-            <H>What has to be true of your piece</H>
+            <H id="run">Run it locally</H>
+            <Code>{`unzip p5.zip && cd p5
+node serve.mjs`}</Code>
             <P>
-                Three things, all mechanical. Nothing about technique, medium, or how you wrote it.
+                Then open <code className="font-mono">http://localhost:4321</code>. Reload for a new
+                seed. Edit <code className="font-mono">index.html</code> and reload again. That is
+                the whole cycle: no build, no watcher, no bundler.
             </P>
-            <ol className="mt-3 space-y-2 text-sm text-muted-foreground">
+            <Reference
+                rows={[
+                    ["?seed=<hex>", "draw one particular piece, every time"],
+                    ["?p.<name>=<value>", "set a declared parameter, e.g. ?p.density=220"],
+                ]}
+            />
+
+            <h3 className="mt-8 text-sm font-medium">What is in the zip</h3>
+            <Reference
+                rows={[
+                    ["index.html", "the piece, and the only file that gets published"],
+                    ["serve.mjs", "the local preview, which loads the libraries you declare"],
+                    ["README.md", "the same instructions, for when this page is not open"],
+                ]}
+            />
+
+            <H id="rules">Three things have to be true</H>
+            <P>
+                All mechanical. Nothing about technique, medium, or how you wrote it. Each one is
+                found after minting if it is wrong, when the piece can no longer be changed.
+            </P>
+            <ol className="mt-4 space-y-3 rounded-lg border border-border p-4 text-sm text-muted-foreground">
                 <li>
                     <strong className="text-foreground">1. Self-contained.</strong> Nothing fetched
-                    while rendering. Declared libraries do not count: the renderer supplies them
-                    before your code runs.
+                    while rendering. A piece is refused the network, so one that tries is captured
+                    as a blank frame. Never write a script tag pointing at a CDN. Declared libraries
+                    do not count: the renderer supplies them before your code runs.
                 </li>
                 <li>
                     <strong className="text-foreground">2. Deterministic.</strong> One seed, one
@@ -265,7 +272,66 @@ node serve.mjs`}</Code>
                 </li>
             </ol>
 
-            <H>Ready to mint?</H>
+            <H id="libraries">Libraries</H>
+            <P>
+                A piece asks for a library with a meta tag, and something else supplies it: the
+                local server while you work, a renderer once you publish, reading the record from
+                the chain and verifying it.
+            </P>
+            <Code>{`<meta name="alea:library" content="p5@1.5.0">`}</Code>
+            <P>
+                Any package on npm can be declared that way. What it has to be is loadable from a
+                plain script tag, and most modern releases are not: they ship as ES modules or
+                CommonJS. That decides which of the two routes below you take.{" "}
+                <Link href="/docs/libraries" className="underline hover:text-foreground">
+                    Libraries
+                </Link>{" "}
+                covers what happens at each stage, and why the record is a hash rather than a URL.
+            </P>
+
+            <h3 className="mt-8 text-sm font-medium">If it loads from a script tag: build a kit</h3>
+            <P>
+                Declared libraries cost your generator none of its size. Search for what you want
+                and each one is checked before you download anything, including finding an older
+                version when the newest will not load.
+            </P>
+            <div className="mt-4">
+                <KitBuilder />
+            </div>
+
+            <h3 className="mt-10 text-sm font-medium">If it does not: the bundler kit</h3>
+            <section id="bundler" className="mt-3 scroll-mt-24 rounded-lg border border-border p-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                    <h4 className="text-sm font-medium">Bundler</h4>
+                    <Download file="bundler.zip">bundler.zip</Download>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                    You import the package, esbuild writes it into your file, and the parts you did
+                    not use are dropped. Most things are small once bundled.
+                </p>
+                <div className="mt-3">
+                    <Reference
+                        rows={[
+                            ["simplex-noise", "709 bytes"],
+                            ["@tweenjs/tween.js", "3.7 kB"],
+                            ["d3-scale + d3-shape", "10 kB, against 279 kB to declare all of d3"],
+                            [
+                                "three",
+                                "132 kB, and does not shrink. Declare three@0.160.1 instead.",
+                            ],
+                        ]}
+                    />
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">
+                    Every build prints its size against what one operation can carry, so you know
+                    whether the piece is still going on chain.
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                    Needs an install and a build step. The other four need neither.
+                </p>
+            </section>
+
+            <H id="publish">Publish it</H>
             <P>
                 Drag your file into{" "}
                 <Link href="/studio/new" className="underline hover:text-foreground">
