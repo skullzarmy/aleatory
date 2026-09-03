@@ -44,6 +44,15 @@ const readme = Object.fromEntries(
 
 const serve = readFileSync(join(root, "scripts/kit/serve.mjs"), "utf8");
 
+/**
+ * A container definition, so a kit opens ready to run.
+ *
+ * An open specification rather than one host's format: the same file is what
+ * Codespaces, Gitpod and the Dev Containers extension all read, so no kit is
+ * tied to any of them. The bundler kit carries its own, which installs first.
+ */
+const devcontainer = readFileSync(join(root, "scripts/kit/devcontainer.json"), "utf8");
+
 // --- the module the studio imports ----------------------------------------
 
 // JSON.stringify, not a template literal. That is the whole point: a backtick
@@ -85,6 +94,7 @@ for (const kind of KINDS) {
         { name: "index.html", data: html[kind] },
         { name: "README.md", data: readme[kind] },
         { name: "serve.mjs", data: serve },
+        { name: ".devcontainer/devcontainer.json", data: devcontainer },
     ]);
     writeFileSync(join(root, "public/templates", `${kind}.zip`), archive);
 }
@@ -127,6 +137,10 @@ writeFileSync(
         { name: "serve.mjs", data: readFileSync(join(bundlerDir, "serve.mjs"), "utf8") },
         { name: "package.json", data: readFileSync(join(bundlerDir, "package.json"), "utf8") },
         { name: "README.md", data: readFileSync(join(bundlerDir, "README.md"), "utf8") },
+        {
+            name: ".devcontainer/devcontainer.json",
+            data: readFileSync(join(bundlerDir, ".devcontainer/devcontainer.json"), "utf8"),
+        },
     ]),
 );
 

@@ -1,0 +1,20 @@
+{
+    "name": "Aleatory starter kit",
+    "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+    "forwardPorts": [4321],
+    "portsAttributes": {
+        "4321": {
+            "label": "Your piece",
+            "onAutoForward": "openPreview"
+        }
+    },
+    "postAttachCommand": "node serve.mjs",
+    "customizations": {
+        "vscode": {
+            "extensions": ["esbenp.prettier-vscode"],
+            "settings": {
+                "files.eol": "\n"
+            }
+        }
+    }
+}

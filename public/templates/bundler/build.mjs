@@ -10,11 +10,24 @@
  * `d3-shape` together come to about 10 kB, against 279 kB for the whole d3.
  */
 
-import { build } from "esbuild";
 import { gzipSync } from "node:zlib";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+/**
+ * esbuild ships a native binary, and a browser based Node runtime cannot run
+ * one: native addons are disabled there. `esbuild-wasm` is the same bundler
+ * compiled to WebAssembly, works everywhere, and is several times slower, so
+ * it is the fallback rather than the default.
+ */
+async function loadEsbuild() {
+    try {
+        return (await import("esbuild")).build;
+    } catch {
+        return (await import("esbuild-wasm")).build;
+    }
+}
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -29,6 +42,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const ON_CHAIN_CAP = 32_768 - 700;
 
 export async function buildHtml() {
+    const build = await loadEsbuild();
     const result = await build({
         entryPoints: [join(here, "src/sketch.js")],
         bundle: true,

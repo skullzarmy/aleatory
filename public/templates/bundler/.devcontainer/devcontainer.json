@@ -1,0 +1,21 @@
+{
+    "name": "Aleatory bundler kit",
+    "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+    "forwardPorts": [4321],
+    "portsAttributes": {
+        "4321": {
+            "label": "Your piece",
+            "onAutoForward": "openPreview"
+        }
+    },
+    "postCreateCommand": "npm install",
+    "postAttachCommand": "node serve.mjs",
+    "customizations": {
+        "vscode": {
+            "extensions": ["esbenp.prettier-vscode"],
+            "settings": {
+                "files.eol": "\n"
+            }
+        }
+    }
+}

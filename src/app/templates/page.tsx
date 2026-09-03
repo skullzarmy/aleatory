@@ -242,8 +242,40 @@ node serve.mjs`}</Code>
                     ["index.html", "the piece, and the only file that gets published"],
                     ["serve.mjs", "the local preview, which loads the libraries you declare"],
                     ["README.md", "the same instructions, for when this page is not open"],
+                    [".devcontainer/", "a ready environment, for editors that read one"],
                 ]}
             />
+
+            <h3 className="mt-8 text-sm font-medium">Without installing Node</h3>
+            <P>
+                Every kit carries a{" "}
+                <a
+                    href="https://containers.dev"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:text-foreground"
+                >
+                    dev container
+                </a>
+                , which is an open specification rather than one host&apos;s format. Wherever you
+                open it you get Node, port 4321 forwarded, and the preview already running.
+            </P>
+            <Reference
+                rows={[
+                    ["VS Code", "open the folder, then Reopen in Container"],
+                    [
+                        "Codespaces, Gitpod",
+                        "push the kit to a repository of your own, open it there",
+                    ],
+                    ["github.dev", "edits the files, but has no terminal, so nothing runs"],
+                ]}
+            />
+            <P>
+                The four simple kits need none of that to be looked at:{" "}
+                <code className="font-mono">index.html</code> draws when you open it from disk, with
+                a random seed each time. The local server exists to load the libraries you declare,
+                and the bundler kit needs it to build.
+            </P>
 
             <H id="rules">Three things have to be true</H>
             <P>

@@ -9,6 +9,9 @@
     "devDependencies": {
         "esbuild": "^0.25.0"
     },
+    "optionalDependencies": {
+        "esbuild-wasm": "^0.25.0"
+    },
     "dependencies": {
         "simplex-noise": "^4.0.3"
     }
