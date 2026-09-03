@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     alternates: { canonical: "/templates" },
     title: "Starter kits",
     description:
-        "Download a working generator, run it locally with one command, and publish the same file. No install, no build step.",
+        "Download a working generator, run it locally with one command, and publish the same file. Four need no build step; the fifth bundles any package on npm into it.",
     openGraph: { type: "website", title: "Starter kits" },
 };
 
@@ -100,8 +100,11 @@ export default function TemplatesPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Starter kits</h1>
             <P>
                 A working generator, a local server, and a readme. Download one, run it, edit it,
-                publish it. Node 18 or newer is the only requirement and there is nothing to
-                install.
+                publish it. Node 18 or newer is the only requirement.
+            </P>
+            <P>
+                Four of them have nothing to install and no build step: one HTML file you edit and
+                reload. The fifth bundles packages from npm into that file, so it has both.
             </P>
 
             <div className="mt-8">
@@ -166,7 +169,8 @@ node serve.mjs`}</Code>
             <P>
                 Any package on npm can be declared. What it has to be is loadable from a script tag,
                 which most modern releases are not, so the builder above reads each one and says so
-                before you download anything.{" "}
+                before you download anything. When one cannot be declared, the bundler kit writes it
+                into your file instead.{" "}
                 <Link href="/docs/libraries" className="underline hover:text-foreground">
                     Libraries
                 </Link>{" "}
@@ -198,6 +202,31 @@ node serve.mjs`}</Code>
                     );
                 })}
             </div>
+            <section id="bundler" className="mt-4 scroll-mt-24 rounded-lg border border-border p-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <h3 className="font-medium">Bundler</h3>
+                    <a
+                        href={`${RELEASE}/bundler.zip`}
+                        className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+                    >
+                        Download bundler.zip
+                    </a>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                    Packages that cannot be declared, because they ship as ES modules or CommonJS
+                    and a script tag cannot load them. Which is most of npm.
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                    You import them, esbuild writes them into your file, and the parts you did not
+                    use are dropped. Small once bundled: simplex-noise is 709 bytes, d3-scale and
+                    d3-shape together about 10 kB, against 279 kB to declare all of d3. Every build
+                    prints its size against what one operation can carry.
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                    Declares: whatever you name, and bundles the rest. Needs an install and a build.
+                </p>
+            </section>
+
             <P>
                 Built from{" "}
                 <a

@@ -504,7 +504,18 @@ function PickRow({
             )}
 
             {pick.s === "refused" && (
-                <p className="mt-1 text-xs text-muted-foreground">{pick.why}</p>
+                <div className="mt-1 space-y-1.5">
+                    <p className="text-xs text-muted-foreground">{pick.why}</p>
+                    {/* The end of the road for declaring is the start of the
+                        other kit, so say so here rather than leave it. */}
+                    <p className="text-xs text-muted-foreground">
+                        The{" "}
+                        <a href="#bundler" className="underline hover:text-foreground">
+                            bundler kit
+                        </a>{" "}
+                        imports it into your file instead.
+                    </p>
+                </div>
             )}
 
             {pick.s === "slow" && (

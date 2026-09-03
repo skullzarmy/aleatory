@@ -89,6 +89,47 @@ for (const kind of KINDS) {
     writeFileSync(join(root, "public/templates", `${kind}.zip`), archive);
 }
 
+// --- the bundler kit --------------------------------------------------------
+//
+// Not a runtime kind. It produces the same single document the other four do
+// and is a different way of arriving at one, so it stays out of the catalog
+// and out of the module the studio imports.
+
+const bundlerDir = join(root, "public/templates/bundler");
+
+/**
+ * The dev harness, taken from the vanilla template.
+ *
+ * Copied in here rather than written twice. The shell in the repository
+ * carries a `// alea:harness` line and is not runnable on its own, which costs
+ * nothing: this kit is built before it is opened either way.
+ */
+const HARNESS = /\/\/ alea:harness:start\n([\s\S]*?)\n\s*\/\/ alea:harness:end/;
+const harness = html.vanilla.match(HARNESS)?.[1];
+if (!harness) {
+    console.error("No harness markers in public/templates/vanilla/index.html");
+    process.exit(1);
+}
+
+const shell = readFileSync(join(bundlerDir, "src/index.html"), "utf8");
+const filled = shell.replace(/^\s*\/\/ alea:harness\s*$/m, () => harness);
+if (filled === shell) {
+    console.error("No `// alea:harness` line in the bundler shell");
+    process.exit(1);
+}
+
+writeFileSync(
+    join(root, "public/templates", "bundler.zip"),
+    zip([
+        { name: "src/index.html", data: filled },
+        { name: "src/sketch.js", data: readFileSync(join(bundlerDir, "src/sketch.js"), "utf8") },
+        { name: "build.mjs", data: readFileSync(join(bundlerDir, "build.mjs"), "utf8") },
+        { name: "serve.mjs", data: readFileSync(join(bundlerDir, "serve.mjs"), "utf8") },
+        { name: "package.json", data: readFileSync(join(bundlerDir, "package.json"), "utf8") },
+        { name: "README.md", data: readFileSync(join(bundlerDir, "README.md"), "utf8") },
+    ]),
+);
+
 console.log(
-    `templates: ${KINDS.length} kinds, module ${before === module ? "current" : "written"}, kits zipped`,
+    `templates: ${KINDS.length} kinds, module ${before === module ? "current" : "written"}, ${KINDS.length + 1} kits zipped`,
 );

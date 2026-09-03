@@ -49,7 +49,8 @@ const CONTENT = /content\s*=\s*["']([^"']+)["']/i;
 
 function declaredIn(html) {
     const out = [];
-    for (const tag of html.match(TAG) ?? []) {
+    // A tag inside <!-- --> is an example of one, not a declaration.
+    for (const tag of html.replace(/<!--[\s\S]*?-->/g, "").match(TAG) ?? []) {
         const value = tag.match(CONTENT)?.[1]?.trim();
         if (value && !out.includes(value)) out.push(value);
     }

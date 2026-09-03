@@ -17,6 +17,16 @@ const TAG = /<meta\s+[^>]*name\s*=\s*["']alea:library["'][^>]*>/gi;
 const CONTENT = /content\s*=\s*["']([^"']+)["']/i;
 
 /**
+ * A commented tag is an example, not a declaration.
+ *
+ * Templates and readmes show the tag inside `<!-- -->` to say what one looks
+ * like. Read without this, a shell whose comment mentions `three@0.160.1` asks
+ * every renderer for three.js, and the studio reads the piece as a kind it is
+ * not.
+ */
+const stripComments = (html: string) => html.replace(/<!--[\s\S]*?-->/g, "");
+
+/**
  * Two names the picker offers, so nobody types coordinates from memory.
  *
  * Not a list of what may be declared. Any package on npm may be.
@@ -56,7 +66,7 @@ export function specFor(coordinate: string): DepSpec | null {
 /** The coordinates a document declares, in order, deduplicated. */
 export function declaredIn(html: string): string[] {
     const out: string[] = [];
-    for (const tag of html.match(TAG) ?? []) {
+    for (const tag of stripComments(html).match(TAG) ?? []) {
         const value = tag.match(CONTENT)?.[1]?.trim();
         if (value && !out.includes(value)) out.push(value);
     }

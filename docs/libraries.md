@@ -80,7 +80,12 @@ later ones are modules only.
 with your piece and has to mean one thing forever.
 
 If a package has nothing loadable, bundle it into your file instead. It costs
-you the bytes and it always works.
+you the bytes and it always works. The bundler kit on
+[starter kits](../src/app/templates/page.tsx) does that with esbuild, dropping
+the parts you did not use: `simplex-noise` comes to 709 bytes bundled,
+`d3-scale` and `d3-shape` together to about 10 kB, against 279 kB to declare
+all of d3. It prints the size against what one operation can carry, so you know
+whether the piece is still going on chain.
 
 ### Having it checked for you
 
@@ -160,9 +165,13 @@ Some packages have no build that works from a `<script>` tag. Modern three.js
 is the clearest case: after `0.160.1` it ships ES modules only.
 
 Two ways through. Pin the last version that has a classic build, which is what
-`three@0.160.1` is. Or bundle: paste the minified source into a `<script>`
-block in your file. Bundling costs you the bytes and always works, which for
-anything unusual is the right trade.
+`three@0.160.1` is. Or bundle it, with the bundler kit: you import the package
+and esbuild writes it into your file, dropping the parts you did not use.
+
+Which one depends on the package. three.js does not shrink, because its core is
+interconnected, so even six named imports come to 132 kB and it has to be
+declared. Most other things do shrink, and bundling them is both smaller and
+one less thing your piece depends on at render time.
 
 The three rules do not change either way: self-contained, deterministic, and
 call `$alea.ready()` when the drawing is done.

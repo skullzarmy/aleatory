@@ -1,0 +1,15 @@
+{
+    "name": "aleatory-bundler-kit",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "node serve.mjs",
+        "build": "node build.mjs"
+    },
+    "devDependencies": {
+        "esbuild": "^0.25.0"
+    },
+    "dependencies": {
+        "simplex-noise": "^4.0.3"
+    }
+}

@@ -11,6 +11,7 @@
     // Dev harness, only used when this file is opened outside the sandbox.
     // Reload for a new seed, pin one with ?seed=<hex>, and set any declared
     // parameter with ?p.<name>=<value>, e.g. ?p.density=220.
+    // alea:harness:start
     if (!window.$alea) {
       var query = new URLSearchParams(location.search);
       var q = query.get("seed");
@@ -106,6 +107,7 @@
       if (document.readyState === "complete") devBootWhenLaidOut();
       else window.addEventListener("load", devBootWhenLaidOut);
     }
+    // alea:harness:end
 
   var alea = window.$alea;
 
