@@ -57,8 +57,7 @@ export function KitBuilder() {
     const [search, setSearch] = useState<Search>({ s: "idle" });
     const [building, setBuilding] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    // Retrying has to change something, or React bails on the identical state
-    // and the button does nothing.
+    // Bumped to re-run the search effect on an explicit retry.
     const [attempt, setAttempt] = useState(0);
 
     // Only the newest search may write. Without this a slow answer for "th"
@@ -99,8 +98,8 @@ export function KitBuilder() {
         setPicks((was) => [...base, ...was.filter((p) => p.s !== "pinned" && !pinned.has(p.id))]);
     }, [kindId]);
 
-    // Debounced. The spinner is set inside the timer rather than on the way in,
-    // so typing does not start and stop an animation on every keystroke.
+    // Results are cleared when the query changes, so a list never sits under a
+    // word it does not answer. Only the request is debounced.
     useEffect(() => {
         const text = query.trim();
         if (text.length < 2) {
@@ -108,8 +107,8 @@ export function KitBuilder() {
             return;
         }
         const mine = ++latest.current;
+        setSearch({ s: "searching" });
         const timer = window.setTimeout(() => {
-            setSearch({ s: "searching" });
             void fetch(`/api/npm/search?q=${encodeURIComponent(text)}`)
                 .then(async (r) => {
                     if (!r.ok) throw new Error(String(r.status));
