@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import Link from "next/link";
 import { RUNTIME_KINDS } from "@/lib/runtimes";
 import { KitBuilder } from "@/components/templates/KitBuilder";
@@ -47,17 +48,41 @@ function P({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * A block of commands.
+ * A block of commands, meant to be copied.
  *
  * `leading-relaxed` because these are read a line at a time and the default
- * sets them too close for that. The inset is horizontal on purpose: a command
- * wants the width, not a wide quiet margin beside it.
+ * sets them too close for that.
  */
 function Code({ children }: { children: React.ReactNode }) {
     return (
         <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs leading-relaxed">
             <code>{children}</code>
         </pre>
+    );
+}
+
+/**
+ * A reference table: a thing you can write, and what it does.
+ *
+ * A real two column layout rather than a code block with the second column
+ * pushed into place by spaces. Padding to a column makes the left one as wide
+ * as its longest entry and no wider, so the descriptions all began a third of
+ * the way across a block that then ran out of anything to put on the right.
+ *
+ * `max-content` sizes the left column to the longest name; the right takes
+ * everything left over, so it uses the width instead of trailing off. Nothing
+ * here is shell, so nothing is lost by not being one string.
+ */
+function Reference({ rows }: { rows: [string, string][] }) {
+    return (
+        <dl className="mt-3 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 overflow-x-auto rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs">
+            {rows.map(([name, means]) => (
+                <Fragment key={name}>
+                    <dt className="font-mono">{name}</dt>
+                    <dd className="text-muted-foreground">{means}</dd>
+                </Fragment>
+            ))}
+        </dl>
     );
 }
 
@@ -84,14 +109,22 @@ export default function TemplatesPage() {
             </div>
 
             <H>The loop</H>
+            {/* Three lines of shell and nothing else in the box, so it can be
+                taken whole. The comment that used to sit out to the right of
+                the second line is the sentence below. */}
             <Code>{`unzip p5.zip && cd p5
-node serve.mjs     # then open http://localhost:4321`}</Code>
+node serve.mjs`}</Code>
             <P>
-                Reload for a new seed. Edit <code className="font-mono">index.html</code> and reload
-                again. That is the whole cycle: no build, no watcher, no bundler.
+                Then open <code className="font-mono">http://localhost:4321</code>. Reload for a new
+                seed. Edit <code className="font-mono">index.html</code> and reload again. That is
+                the whole cycle: no build, no watcher, no bundler.
             </P>
-            <Code>{`?seed=<hex>          draw one particular piece, every time
-?p.<name>=<value>    set a declared parameter, e.g. ?p.density=220`}</Code>
+            <Reference
+                rows={[
+                    ["?seed=<hex>", "draw one particular piece, every time"],
+                    ["?p.<name>=<value>", "set a declared parameter, e.g. ?p.density=220"],
+                ]}
+            />
 
             <H>What is in a kit</H>
             <dl className="mt-4 space-y-3 text-sm">
