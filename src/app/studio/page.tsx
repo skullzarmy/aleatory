@@ -42,6 +42,19 @@ export default function StudioPage() {
             </section>
 
             <section className="mt-10 border-t border-border pt-6">
+                <h2 className="text-sm font-medium">Prefer your own editor</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                    A{" "}
+                    <Link href="/templates" className="underline hover:text-foreground">
+                        starter kit
+                    </Link>{" "}
+                    is a working generator and a local server, in one command. Write it wherever you
+                    like and bring the file back here to publish. The file says what it needs, so
+                    nothing is remembered in between.
+                </p>
+            </section>
+
+            <section className="mt-10 border-t border-border pt-6">
                 <h2 className="text-sm font-medium">Already published</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
                     Change the price, pause sales, or shrink an edition on{" "}

@@ -261,10 +261,8 @@ export default function NewGeneratorPage() {
                         >
                             Start from a template
                         </button>
-                        {/* A link, not a download. The button here used to hand
-                            over whichever file the radio above happened to be
-                            on, so one control produced four different things
-                            and named none of them. */}
+                        {/* A link, not a download: the kits page names each one
+                            and says what it is for. */}
                         <Link
                             href="/templates"
                             className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
