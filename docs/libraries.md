@@ -72,15 +72,27 @@ a package has several builds and you want a particular one, name the file:
 Two things to watch, both about the file rather than the package:
 
 **It has to work from a plain `<script>` tag.** A build that only exists as an
-ES module cannot be loaded this way. three.js is the common case: `0.160.1` is
-the last release shipping the classic global build, and later ones are modules
-only.
+ES module or a CommonJS file cannot be loaded this way. three.js is the common
+case: `0.160.1` is the last release shipping the classic global build, and
+later ones are modules only.
 
 **Pin an exact version.** Not a range, not `latest`. The version is recorded
 with your piece and has to mean one thing forever.
 
 If a package has nothing loadable, bundle it into your file instead. It costs
 you the bytes and it always works.
+
+### Having it checked for you
+
+The kit builder on [starter kits](../src/app/templates/page.tsx) does both of
+those checks before you download anything. It reads the package's default build
+off jsDelivr, says whether a script tag can load it and what name it puts on
+`window`, and when the default is a module it looks through the package for one
+that is not: `@tweenjs/tween.js` ships `dist/tween.cjs` by default and
+`dist/tween.umd.js` beside it, so the coordinate it hands you names the file.
+
+Nothing is executed to work that out. A build says which of the three it is in
+its first few lines, and the name it exports is in the wrapper.
 
 ---
 

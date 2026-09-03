@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RUNTIME_KINDS } from "@/lib/runtimes";
+import { KitBuilder } from "@/components/templates/KitBuilder";
 import { BRAND } from "@/lib/config";
 
 export const metadata: Metadata = {
@@ -45,9 +46,16 @@ function P({ children }: { children: React.ReactNode }) {
     return <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{children}</p>;
 }
 
+/**
+ * A block of commands.
+ *
+ * `leading-relaxed` because these are read a line at a time and the default
+ * sets them too close for that. The inset is horizontal on purpose: a command
+ * wants the width, not a wide quiet margin beside it.
+ */
 function Code({ children }: { children: React.ReactNode }) {
     return (
-        <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-xs">
+        <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs leading-relaxed">
             <code>{children}</code>
         </pre>
     );
@@ -71,15 +79,19 @@ export default function TemplatesPage() {
                 install.
             </P>
 
+            <div className="mt-8">
+                <KitBuilder />
+            </div>
+
             <H>The loop</H>
             <Code>{`unzip p5.zip && cd p5
-node serve.mjs        # then open http://localhost:4321`}</Code>
+node serve.mjs     # then open http://localhost:4321`}</Code>
             <P>
                 Reload for a new seed. Edit <code className="font-mono">index.html</code> and reload
                 again. That is the whole cycle: no build, no watcher, no bundler.
             </P>
-            <Code>{`?seed=<hex>            draw one particular piece, every time
-?p.<name>=<value>      set a declared parameter, e.g. ?p.density=220`}</Code>
+            <Code>{`?seed=<hex>          draw one particular piece, every time
+?p.<name>=<value>    set a declared parameter, e.g. ?p.density=220`}</Code>
 
             <H>What is in a kit</H>
             <dl className="mt-4 space-y-3 text-sm">
@@ -119,12 +131,13 @@ node serve.mjs        # then open http://localhost:4321`}</Code>
                 changed.
             </P>
             <P>
-                You can declare p5 and three.js today, and anything else has to be bundled into your
-                file.{" "}
+                Any package on npm can be declared. What it has to be is loadable from a script tag,
+                which most modern releases are not, so the builder above reads each one and says so
+                before you download anything.{" "}
                 <Link href="/docs/libraries" className="underline hover:text-foreground">
                     Libraries
                 </Link>{" "}
-                covers what is available, what happens at each stage, and how a library gets added.
+                covers what happens at each stage, and why the record is a hash rather than a URL.
             </P>
 
             <H>The kits</H>
@@ -190,7 +203,7 @@ node serve.mjs        # then open http://localhost:4321`}</Code>
                 </li>
             </ol>
 
-            <H>Coming back</H>
+            <H>Ready to mint?</H>
             <P>
                 Drag your file into{" "}
                 <Link href="/studio/new" className="underline hover:text-foreground">

@@ -23,7 +23,7 @@
         "test:studio": "npx tsx src/lib/studio.test.ts",
         "test:hooks": "npx tsx src/lib/hooks.test.ts",
         "test:format": "biome check .",
-        "test": "npm run test:format && npm run test:metadata && npm run test:studio && npm run test:hooks && npm run test:dep && npm run test:payable && npm run test:ping && npm run test:img && npm run test:stats && npm run test:conformance && npm run test:links && npm run test:logo && npm run test:refs && npm run test:brand && npm run test:contracts:docs",
+        "test": "npm run test:format && npm run test:metadata && npm run test:studio && npm run test:hooks && npm run test:dep && npm run test:npm && npm run test:payable && npm run test:ping && npm run test:img && npm run test:stats && npm run test:conformance && npm run test:links && npm run test:logo && npm run test:refs && npm run test:brand && npm run test:contracts:docs",
         "provider:run": "npx tsx provider/run.mts",
         "provider:setup": "npx tsx provider/setup.mts",
         "provider:check": "npx tsx provider/run.mts --dry-run",
@@ -46,7 +46,8 @@
         "bot:check": "npx tsx bot/run.ts --dry-run",
         "bot:doctor": "npx tsx bot/doctor.ts",
         "test:ping": "npx tsx src/lib/ping.test.ts",
-        "test:img": "npx tsx src/lib/img.test.ts"
+        "test:img": "npx tsx src/lib/img.test.ts",
+        "test:npm": "npx tsx src/lib/npm.test.ts"
     },
     "dependencies": {
         "@codemirror/lang-html": "^6.4.12",
