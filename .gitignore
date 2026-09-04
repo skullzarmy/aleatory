@@ -33,6 +33,15 @@ contract/output/
 .env
 contract/build/
 
+# npm is the package manager. A lock file from another one is written by
+# running its command once, is never read again, and makes Next guess at the
+# workspace root because it counts them.
+bun.lock
+bun.lockb
+deno.lock
+pnpm-lock.yaml
+yarn.lock
+
 # next
 .next/
 next-env.d.ts
