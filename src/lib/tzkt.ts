@@ -361,7 +361,7 @@ export async function fetchOwner(contract: string, tokenId: string): Promise<str
 export async function fetchMintOperation(
     contract: string,
     tokenId: string,
-): Promise<{ hash: string; level: number; timestamp: string } | null> {
+): Promise<{ hash: string; level: number; timestamp: string; params: string } | null> {
     const rows = await get<{ hash: string; level: number; timestamp: string }[]>(
         "/v1/tokens/transfers",
         {
@@ -375,19 +375,30 @@ export async function fetchMintOperation(
     const row = rows[0];
     if (!row) return null;
     // `transactionId` identifies the operation; resolve it to a hash.
-    const ops = await get<{ hash: string }[]>("/v1/operations/transactions", {
-        id: (row as unknown as { transactionId: number }).transactionId,
-        limit: 1,
-        select: "hash",
-    });
-    const hash = (ops[0] as unknown as string | { hash: string }) ?? null;
-    return hash
-        ? {
-              hash: typeof hash === "string" ? hash : hash.hash,
-              level: row.level,
-              timestamp: row.timestamp,
-          }
-        : null;
+    //
+    // The parameter comes back on the same row, which is where the collector's
+    // chosen values are: `mint` takes them as bytes and this is the operation
+    // they signed. Reading them here rather than from the piece's metadata is
+    // the difference between knowing them now and knowing them once a provider
+    // has rendered and published, which is minutes later.
+    const ops = await get<{ hash: string; parameter?: { value?: string } }[]>(
+        "/v1/operations/transactions",
+        {
+            id: (row as unknown as { transactionId: number }).transactionId,
+            limit: 1,
+            select: "hash,parameter",
+        },
+    );
+    const op = ops[0];
+    if (!op) return null;
+
+    return {
+        hash: op.hash,
+        level: row.level,
+        timestamp: row.timestamp,
+        // Hex bytes on chain. Empty when the generator declares no parameters.
+        params: bytesToString(op.parameter?.value ?? ""),
+    };
 }
 
 /**

@@ -179,7 +179,12 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         owner: owner ?? undefined,
         seed: mint?.hash,
         mintedAt: mint?.timestamp ?? token.firstTime,
-        params: m?.aleaParams,
+        // The operation the collector signed, ahead of the document a provider
+        // writes about it later. Both say the same thing, and only one of them
+        // exists in the minutes after a mint. The metadata is the fallback for
+        // a piece whose mint the indexer has forgotten but whose document it
+        // still holds.
+        params: mint?.params || m?.aleaParams,
         code,
         codeUri,
         codeHash: storage?.art.code_hash ?? "",
@@ -187,7 +192,9 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         minted: storage ? parseInt(storage.next_token_id, 10) : 0,
         imageUrl: display ? ipfsImageUrl(display) : undefined,
         provider: m?.aleaProvider,
-        renderUrl: codeUri ? renderUrl(codeUri, mint?.hash, m?.aleaParams) : undefined,
+        renderUrl: codeUri
+            ? renderUrl(codeUri, mint?.hash, mint?.params || m?.aleaParams)
+            : undefined,
         pending,
         royalties,
         metadata: m,
