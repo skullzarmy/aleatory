@@ -94,7 +94,7 @@ Each directory has its own README explaining what it holds and why.
 ## Working on it
 
 ```
-npm install
+npm ci
 cp .env.example .env
 npm run dev:all
 npm test

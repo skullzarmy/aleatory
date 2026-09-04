@@ -33,13 +33,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      # `npm install`, not `npm ci`. The committed lock records the optional
-      # platform binaries for one platform only, so `npm ci` cannot resolve
-      # `@esbuild/linux-x64` here and refuses to install anything. Installing
-      # resolves them for whatever this is running on. The lock still decides
-      # the versions; only the missing platform entries are filled in, and the
-      # lock this writes is thrown away with the runner.
-      - run: npm install --no-audit --no-fund
+      - run: npm ci
 
       - name: Formatting
         run: npm run lint

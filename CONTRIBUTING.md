@@ -13,7 +13,7 @@ want your change in this repository, this is how.
 ```
 git clone https://github.com/skullzarmy/aleatory
 cd aleatory
-npm install
+npm ci
 cp .env.example .env
 npm run dev
 ```
@@ -34,7 +34,7 @@ npm run dev:all
 ```
 
 **The admin console is a separate app** with its own dependencies and its own
-Netlify site. `cd admin && npm install` if you are working on it.
+Netlify site. `cd admin && npm ci` if you are working on it.
 
 **The contracts need Python 3 with SmartPy.** Nothing else does, so skip this
 unless you are changing them.
