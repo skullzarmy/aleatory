@@ -200,14 +200,8 @@ serves.
 
 **Render gas is asked for, not remembered.** A mint reads the provider's
 `get_render_gas` view and pays what it answers, so a provider changing their
-price reaches every collection at once. Two bounds on that:
-
-- The artist names a ceiling when they choose a provider, and a mint pays
-  whichever is lower. A provider cannot raise the cost of a mint above what the
-  artist agreed to.
-- If the view cannot be read, because the provider is broken or gone, the price
-  in this event stands. An unreachable provider costs a collection its renders
-  and never its sales.
+price reaches every collection at once. The price in this event is what they
+charged when they were chosen, not what the next mint will cost.
 
 ---
 

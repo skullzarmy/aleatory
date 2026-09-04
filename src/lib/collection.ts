@@ -20,7 +20,12 @@ export { fetchCollectionMeta, type CollectionMeta };
 import { tzktApi } from "./config";
 import { allFactories } from "./router";
 import { isBlockedCollection } from "./blocklist";
-import { bytesToString, convertIpfsToGatewayUrl, ipfsImageUrl } from "@/utils/ipfs";
+import {
+    bytesToString,
+    convertIpfsToGatewayUrl,
+    GATEWAY_TIMEOUT_MS,
+    ipfsImageUrl,
+} from "@/utils/ipfs";
 import { coversFor, type FeedPiece } from "./feed";
 import type { ParamsSchema } from "./params";
 import { decodeCode } from "./piece";
@@ -39,7 +44,6 @@ interface RawStorage {
     render: {
         provider: string;
         render_gas: string;
-        max_render_gas?: string;
         provider_agent: string;
         resolver: string;
         trust_resolver: boolean;
@@ -58,11 +62,7 @@ export interface Collection {
     codeUri: string;
     codeHash: string;
     priceMutez: bigint;
-    /** What the provider quoted when the artist chose them. The floor a mint
-     *  falls back to when the provider cannot be asked. */
     renderGasMutez: bigint;
-    /** The most a mint can charge, agreed by the artist when they chose. */
-    maxRenderGasMutez: bigint;
     /** Price plus render gas: what a collector signs for. */
     totalMutez: bigint;
     editionSize: number;
@@ -70,6 +70,15 @@ export interface Collection {
     paused: boolean;
     soldOut: boolean;
     provider: string;
+    /**
+     * Whether the provider still answers.
+     *
+     * A mint asks them what they charge and fails if they cannot say, so a
+     * provider that has gone takes the collection's sales with it until the
+     * artist picks another. Nobody is paid for work that will not be done,
+     * which is the point, but somebody has to be told.
+     */
+    providerReachable: boolean;
     /** Where writer authorisation is resolved from. Fixed at origination. */
     resolver: string;
     /** Whether the resolver's writers may publish metadata here. Artist's call. */
@@ -80,13 +89,7 @@ export interface Collection {
     paramsSchema: ParamsSchema | null;
 }
 
-/**
- * A provider's price, right now, from its own storage.
- *
- * The chain reads this through the `get_render_gas` view at mint. Storage says
- * the same thing and costs one request, and a provider that cannot be read
- * yields null, which is the same fallback the contract makes.
- */
+/** A provider's price, now. The same number `get_render_gas` returns. */
 async function fetchProviderGas(provider: string): Promise<bigint | null> {
     if (!provider) return null;
     try {
@@ -104,21 +107,12 @@ export async function fetchCollection(address: string): Promise<Collection | nul
     const editionSize = parseInt(s.sale.edition_size, 10);
     const minted = parseInt(s.next_token_id, 10);
     const price = BigInt(s.sale.price);
-    const recorded = BigInt(s.render.render_gas);
 
-    // A collection from before render gas was asked for at mint has no
-    // ceiling in its storage, and its own code charges the recorded price
-    // whatever the provider says today. Quoting anything else would send an
-    // amount it refuses. The field's absence is the only thing that tells
-    // the two apart, and it is what the contract itself would go by.
-    const asks = s.render.max_render_gas !== undefined;
-    const ceiling = asks ? BigInt(s.render.max_render_gas as string) : recorded;
-
-    // What this mint will be charged, worked out the way the contract works
-    // it out: the provider's price now, capped at what the artist agreed to,
-    // and the recorded price when the provider cannot be asked.
-    const quoted = asks ? await fetchProviderGas(s.render.provider) : null;
-    const gas = quoted === null ? recorded : quoted < ceiling ? quoted : ceiling;
+    // What a mint will be charged: the provider's price now, which is what
+    // the contract asks them for. The recorded price is only what they
+    // charged when they were chosen, and shown if they cannot be reached.
+    const quoted = await fetchProviderGas(s.render.provider);
+    const gas = quoted ?? BigInt(s.render.render_gas);
     const royalties = Object.entries(s.art.royalties).map(([a, bps]) => ({
         address: a,
         bps: parseInt(String(bps), 10),
@@ -141,13 +135,13 @@ export async function fetchCollection(address: string): Promise<Collection | nul
         codeHash: s.art.code_hash,
         priceMutez: price,
         renderGasMutez: gas,
-        maxRenderGasMutez: ceiling,
         totalMutez: price + gas,
         editionSize,
         minted,
         paused: s.sale.paused,
         soldOut: editionSize > 0 && minted >= editionSize,
         provider: s.render.provider,
+        providerReachable: quoted !== null,
         resolver: s.render.resolver,
         trustResolver: Boolean(s.render.trust_resolver),
         royalties,
@@ -221,7 +215,7 @@ export async function fetchCollectionPieces(address: string, limit = 48): Promis
                 const doc = await fetch(convertIpfsToGatewayUrl(uri), {
                     next: { revalidate: 300 },
                     // A gateway that is slow must not hold the page open.
-                    signal: AbortSignal.timeout(12_000),
+                    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
                 })
                     .then((r) => (r.ok ? (r.json() as Promise<TokenMetadata>) : null))
                     .catch(() => null);

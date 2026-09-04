@@ -43,8 +43,7 @@ _TOTAL = _PRICE + _GAS
 
 def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
                      price=_PRICE, edition_size=10, start_paused=False,
-                     agent=None, royalties=None, trust_resolver=True,
-                     max_render_gas=None):
+                     agent=None, royalties=None, trust_resolver=True):
     royalties = (
         sp.cast({}, sp.map[sp.address, sp.nat])
         if royalties is None
@@ -56,11 +55,6 @@ def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
         provider=provider.address,
         provider_agent=(minter if agent is None else agent).address,
         render_gas=sp.mutez(render_gas),
-        # Defaults to what the provider quotes, which is the artist agreeing
-        # to exactly today's price and no more.
-        max_render_gas=sp.mutez(
-            render_gas if max_render_gas is None else max_render_gas
-        ),
         code=_CODE,
         code_encoding="identity",
         code_hash=sp.bytes("0xaa"),
@@ -1117,61 +1111,40 @@ def test_router_keeps_every_factory():
 
 
 @sp.add_test()
-def test_render_gas_is_live_under_the_artists_ceiling():
-    """A provider's price reaches every collection at once, and never rises
-    above what the artist agreed to."""
+def test_render_gas_is_what_the_provider_charges_now():
+    """The provider sets their price. A mint pays it, whatever it is that
+    day, and an artist who does not like it picks somebody else."""
     scenario = sp.test_scenario("Live render gas", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
     treasury = sp.test_account("Treasury")
     artist = sp.test_account("Artist")
     alice = sp.test_account("Alice")
+    rival_op = sp.test_account("RivalOperator")
+    rival_key = sp.test_account("RivalKey")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    c = _collection(scenario, artist, resolver, provider, minter)
 
-    # The artist agrees to today's price and a little headroom.
-    c = _collection(scenario, artist, resolver, provider, minter,
-                    max_render_gas=_GAS * 2)
-
-    # Lowering reaches the collection with nothing else happening.
-    provider.set_render_gas(sp.mutez(_GAS // 2), _sender=minter, _valid=False)
+    # A cut reaches the collection with nothing else happening.
     provider.set_render_gas(sp.mutez(_GAS // 2), _sender=admin)
     c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
     c.mint(_NONE, _sender=alice, _amount=sp.mutez(_PRICE + _GAS // 2))
     scenario.verify(provider.balance == sp.mutez(_GAS // 2))
 
-    # So does raising, while it stays under the ceiling.
-    provider.set_render_gas(sp.mutez(_GAS * 2), _sender=admin)
-    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_PRICE + _GAS * 2))
-    scenario.verify(provider.balance == sp.mutez(_GAS // 2 + _GAS * 2))
-
-    # Past the ceiling the artist agreed to, the ceiling is what is charged.
-    provider.set_render_gas(sp.mutez(_GAS * 10), _sender=admin)
-    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_PRICE + _GAS * 10),
+    # So does a rise. The artist's own price is untouched by either.
+    provider.set_render_gas(sp.mutez(_GAS * 3), _sender=admin)
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_PRICE + _GAS // 2),
            _valid=False)
-    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_PRICE + _GAS * 2))
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_PRICE + _GAS * 3))
+    scenario.verify(provider.balance == sp.mutez(_GAS // 2 + _GAS * 3))
+    # Nothing held back: both legs left the contract in the same operation.
+    scenario.verify(c.balance == sp.mutez(0))
 
-    # The recorded price is what was agreed at the time of choosing, and is
-    # not moved by any of this.
-    scenario.verify(c.data.render.render_gas == sp.mutez(_GAS))
-    scenario.verify(c.data.render.max_render_gas == sp.mutez(_GAS * 2))
-
-
-@sp.add_test()
-def test_a_provider_that_cannot_be_asked_does_not_stop_sales():
-    """A gone or broken provider costs a collection its renders. It must
-    never cost it a mint."""
-    scenario = sp.test_scenario("Unaskable provider", aleatory)
-    admin = sp.test_account("Admin")
-    minter = sp.test_account("Minter")
-    treasury = sp.test_account("Treasury")
-    artist = sp.test_account("Artist")
-    alice = sp.test_account("Alice")
-    nowhere = sp.test_account("Nowhere")
-    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
-
-    # An address with no `get_render_gas` to ask.
-    c = _collection(scenario, artist, resolver, nowhere, minter)
-
-    # The price recorded when the artist chose stands, and the sale works.
-    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
-    scenario.verify(c.data.ledger[0] == alice.address)
+    # An artist who does not like the new price picks somebody else.
+    rival = _provider(scenario, rival_op, rival_key, render_gas=_GAS)
+    c.set_provider(
+        sp.record(provider=rival.address, max_price=sp.mutez(_GAS)),
+        _sender=artist,
+    )
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_PRICE + _GAS))
+    scenario.verify(rival.balance == sp.mutez(_GAS))

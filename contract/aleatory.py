@@ -70,7 +70,6 @@ def aleatory():
         provider=sp.address,
         provider_agent=sp.address,
         render_gas=sp.mutez,
-        max_render_gas=sp.mutez,
         # The generator itself, on chain. This is what "fully on-chain"
         # has to mean: the art is in storage, not behind a pointer to a
         # host whose content policy can change. ~$0.50 of storage burn for
@@ -165,15 +164,7 @@ def aleatory():
         local_writers=sp.set[sp.address],
         provider=sp.address,
         provider_agent=sp.address,
-        # The provider's price as it stood when the artist chose them. Used
-        # when the provider cannot be asked, so a provider that is gone or
-        # broken costs a collection its renders and never its sales.
         render_gas=sp.mutez,
-        # The most the artist agreed to. The provider moves their price
-        # freely under it and a mint pays whichever is lower, so a change
-        # reaches every collection at once without any of them being able to
-        # be charged more than was agreed.
-        max_render_gas=sp.mutez,
     )
 
     t_collection_storage: type = sp.record(
@@ -320,7 +311,6 @@ def aleatory():
                 provider=init.provider,
                 provider_agent=init.provider_agent,
                 render_gas=init.render_gas,
-                max_render_gas=init.max_render_gas,
             )
 
             # Fails to compile if this shape ever drifts from what the
@@ -441,10 +431,6 @@ def aleatory():
             self.data.render.provider = provider
             self.data.render.provider_agent = agent
             self.data.render.render_gas = quoted
-            # The ceiling travels with the choice. Picking a provider is the
-            # artist saying what they will let a mint cost, and it is the
-            # only moment they say it.
-            self.data.render.max_render_gas = max_price
             sp.emit(
                 sp.record(
                     provider=provider, agent=agent, render_gas=quoted
@@ -541,25 +527,14 @@ def aleatory():
             sp.cast(params, sp.bytes)
             assert not self.data.sale.paused, "PAUSED"
 
-            # The provider's price as it stands right now, so a change
-            # reaches every collection immediately and nobody has to be
-            # re-picked to benefit from it. Capped at the artist's ceiling,
-            # because the alternative hands a third party the power to raise
-            # the cost of a mint they are not party to, or to stop one.
-            #
-            # The view may fail: a provider can be broken, gone, or never
-            # have answered. Then the price recorded when the artist chose
-            # them stands, so a dead provider costs this collection its
-            # renders and never its sales.
-            gas = self.data.render.render_gas
-            quoted = sp.view(
+            # What the provider charges right now, asked of them at the
+            # moment of the sale. The collector pays the artist's price and
+            # the provider's price in this one operation, so a provider
+            # repricing reaches every collection at once and an artist who
+            # does not like the new price picks a different provider.
+            gas = sp.view(
                 "get_render_gas", self.data.render.provider, (), sp.mutez
-            )
-            if quoted.is_some():
-                asked = quoted.unwrap_some()
-                gas = asked
-                if asked > self.data.render.max_render_gas:
-                    gas = self.data.render.max_render_gas
+            ).unwrap_some(error="NO_PROVIDER_VIEW")
 
             assert sp.amount == self.data.sale.price + gas, "WRONG_PRICE"
             # edition_size 0 is an open edition.
@@ -740,7 +715,6 @@ def aleatory():
                 minted=self.data.next_token_id,
                 price=self.data.sale.price,
                 render_gas=self.data.render.render_gas,
-                max_render_gas=self.data.render.max_render_gas,
                 provider=self.data.render.provider,
                 provider_agent=self.data.render.provider_agent,
                 trust_resolver=self.data.render.trust_resolver,
@@ -1243,7 +1217,6 @@ def aleatory():
                         provider=params.provider,
                         provider_agent=agent,
                         render_gas=quoted,
-                        max_render_gas=params.max_render_gas,
                     ),
                     ledger=sp.big_map(),
                     operators=sp.big_map(),

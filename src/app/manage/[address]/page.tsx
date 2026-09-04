@@ -206,11 +206,19 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                     }}
                 />
 
+                {!collection.providerReachable && (
+                    <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                        Your render provider is not answering. A mint asks them what they charge, so
+                        nobody can buy from this collection until you switch to one that does. Your
+                        price and everything else are untouched.
+                    </p>
+                )}
+
                 <Control
                     title="Render provider"
-                    detail={`${shortAddress(collection.provider)}, up to ${formatTez(
-                        Number(collection.maxRenderGasMutez),
-                    )} ꜩ per piece. A mint pays what they charge at the time, never more than the ceiling you agreed to when you chose them. Switching sets a new one.`}
+                    detail={`${shortAddress(collection.provider)}, ${formatTez(
+                        Number(collection.renderGasMutez),
+                    )} ꜩ per piece, which is what they charge today. A mint pays their price at the time. Switch at any time.`}
                 >
                     <select
                         defaultValue=""

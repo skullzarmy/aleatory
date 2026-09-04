@@ -11,9 +11,9 @@ required: conform to [ALEATORY-001](interface.md) §5 and the rest is yours.
 
 ## Why anyone would
 
-You charge render gas, once, per mint. The artist sets one thing, a ceiling,
-when they pick you. Your contract holds the price, every mint asks for it, and
-pays your contract in the same operation that pays the artist.
+You charge render gas, once, per mint. The artist sets nothing: your contract
+holds the price, every mint asks you for it, and pays your contract in the same
+operation that pays the artist.
 
 Against that, a publish costs roughly 0.0015 ꜩ in chain fees, plus whatever
 your rendering and pinning cost you off chain. The provider this site runs
@@ -77,18 +77,12 @@ moves it, and only your operator key can call it, to any destination you name.
 This is the one call in the system that a signature can misdirect, so it is
 worth being deliberate about where it goes.
 
-`set_render_gas` changes your price everywhere at once. A mint asks your
-contract what you charge and pays that, so lowering your price reaches every
-collection immediately and nobody has to re-pick you to benefit.
+`set_render_gas` changes your price everywhere at once. A mint asks what you
+charge and pays that, so a cut reaches every collection immediately and nobody
+has to re-pick you to get it.
 
-Raising it is bounded. When an artist chooses you they name a ceiling, and a
-mint pays whichever is lower, your price or that ceiling. So you can follow
-your costs upward without an artist waking up to a collection that costs more
-to mint than they agreed to.
-
-If your contract stops answering, a mint falls back to the price recorded when
-the artist chose you. Being unreachable costs you the renders, never the
-collection its sales.
+The artist picks you and can pick somebody else. That is the whole of their
+say in what you charge, and the reason you should not surprise them.
 
 ---
 

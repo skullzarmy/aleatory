@@ -214,6 +214,16 @@ export function MintPanel({
                 <p className="rounded-md bg-muted px-3 py-2 text-sm">Sold out</p>
             ) : collection.paused ? (
                 <p className="rounded-md bg-muted px-3 py-2 text-sm">Sales are paused</p>
+            ) : !collection.providerReachable ? (
+                /* A mint asks the render provider what they charge, so one
+                   that has stopped answering fails the sale rather than
+                   letting somebody pay for work nobody will do. Said here
+                   because the wallet would otherwise report it as a price
+                   that is simply wrong. */
+                <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                    This collection&apos;s render provider is not answering, so minting is stopped
+                    until its artist picks another.
+                </p>
             ) : (
                 <button
                     type="button"
