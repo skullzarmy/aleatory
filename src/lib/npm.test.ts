@@ -15,7 +15,7 @@
  * Run: npm test
  */
 
-import { browserCandidates, classify, globalNameIn, inspect, resolve, search } from "./npm";
+import { browserCandidates, Budget, classify, globalNameIn, inspect, resolve, search } from "./npm";
 
 let failures = 0;
 
@@ -194,6 +194,18 @@ async function run() {
             "dist/x.min.js",
     );
 
+    /**
+     * A budget these cases are not about.
+     *
+     * `resolve` runs on the clock a serverless invocation gives it, and the
+     * walk back through three's versions is seven probes and a few reads. On a
+     * cold runner with nothing cached that legitimately runs out and answers
+     * "no version loads", which is correct behaviour and a failed assertion
+     * about the walk itself. The cases below are about where the walk arrives,
+     * so they are given room to arrive.
+     */
+    const unhurried = () => new Budget(60_000);
+
     // --- the network half -----------------------------------------------
 
     const online = await fetch("https://data.jsdelivr.com/v1/packages/npm/d3@7.9.0", {
@@ -238,14 +250,14 @@ async function run() {
             // release, and for three that is an ES module thirty four releases past
             // the last one a piece can declare. Resolving has to cross that gap on
             // its own or the common path through the feature ends in a refusal.
-            const latest = await resolve("three", "0.185.1");
+            const latest = await resolve("three", "0.185.1", unhurried());
             check(
                 "the newest three resolves back to one that loads",
                 latest.coordinate === "three@0.160.1" && latest.global === "THREE",
                 JSON.stringify({ coordinate: latest.coordinate, global: latest.global }),
             );
 
-            const named = await resolve("@tweenjs/tween.js", "23.1.3");
+            const named = await resolve("@tweenjs/tween.js", "23.1.3", unhurried());
             check(
                 "a package with a usable sibling names the file rather than moving version",
                 named.coordinate === "@tweenjs/tween.js@23.1.3/dist/tween.umd.js" &&
@@ -255,14 +267,14 @@ async function run() {
 
             // Was accepted as a global build before the export list at its end was
             // read properly, which would have declared a partial three.js.
-            const partial = await resolve("three", "0.185.1");
+            const partial = await resolve("three", "0.185.1", unhurried());
             check(
                 "the newest three does not settle for a partial core build",
                 partial.coordinate === "three@0.160.1",
                 String(partial.coordinate),
             );
 
-            const fine = await resolve("d3", "7.9.0");
+            const fine = await resolve("d3", "7.9.0", unhurried());
             check(
                 "a version that already loads is left alone",
                 fine.coordinate === "d3@7.9.0" && fine.note === null,
