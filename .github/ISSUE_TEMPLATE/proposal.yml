@@ -1,0 +1,61 @@
+name: A change worth agreeing first
+description: Something large, or anything touching the contracts
+labels: [proposal]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              For a change big enough that finding out it is unwanted after
+              writing it would waste your time. A contract change is always
+              one of these.
+
+    - type: textarea
+      id: what
+      attributes:
+          label: What you want to change
+      validations:
+          required: true
+
+    - type: textarea
+      id: why
+      attributes:
+          label: What is wrong now
+          description: |
+              The problem, not the solution. A change is easier to agree with
+              when the thing it fixes is stated on its own.
+      validations:
+          required: true
+
+    - type: dropdown
+      id: area
+      attributes:
+          label: Where
+          options:
+              - The site
+              - The studio
+              - The contracts
+              - The render provider
+              - The stats bot
+              - The isolate
+              - Docs or starter kits
+              - Something else
+      validations:
+          required: true
+
+    - type: textarea
+      id: contracts
+      attributes:
+          label: If it touches the contracts
+          description: |
+              A collection's code is frozen at origination, so a change reaches
+              nothing already deployed and means originating a new factory. Say
+              what that costs here and whether anything already on chain is
+              left behind by it.
+
+    - type: textarea
+      id: alternatives
+      attributes:
+          label: What else would work
+          description: |
+              Including doing nothing. If the answer is that nothing else
+              would, that is worth stating too.

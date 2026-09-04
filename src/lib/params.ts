@@ -19,7 +19,7 @@
  * anywhere must land on the same values, or the same token renders differently
  * in two places and the whole determinism guarantee is theatre.
  *
- * `resolveParams` below IS that rule, and docs/aleatory/params.md is its spec.
+ * `resolveParams` below IS that rule, and docs/params.md is its spec.
  */
 
 /** Ceiling on declared params. Five is the most a collector will actually

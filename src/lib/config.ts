@@ -1,6 +1,6 @@
 /**
  * Every brand string and every chain address, in one module, so a fork, a
- * rename, or a redeploy is a one-file change (roadmap.md §4). Nothing else in
+ * rename, or a redeploy is a one-file change. Nothing else in
  * the app hardcodes a name, a domain, or a KT1.
  */
 

@@ -169,9 +169,13 @@ parentheses. American spelling. Four habits to keep out: em dashes, "not an X,
 a Y" constructions, accounts of decisions since replaced, and justification by
 contrast ("rather than", "instead of").
 
-**Git:** work on `main` and `git push origin main`. Pushing one branch onto a
+**Git:** a maintainer works on `main` and pushes it. Pushing one branch onto a
 differently named one (`git push origin work:main`) updates the ref and leaves
 Netlify without a build.
+
+Everybody else forks and opens a pull request, which is what
+[CONTRIBUTING.md](CONTRIBUTING.md) describes. This file is the working document
+for the platform; that one is where somebody arriving starts.
 
 **`.env` holds secret keys** and is gitignored. Key material stays out of the
 repository.

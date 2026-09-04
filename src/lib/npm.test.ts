@@ -205,78 +205,92 @@ async function run() {
     if (!online) {
         console.log("\n  (offline: the jsDelivr half is skipped)\n");
     } else {
-        const three = await inspect("three", "0.160.1");
-        check(
-            "three@0.160.1 resolves to its global build",
-            three.loadable && three.path === "build/three.min.js" && three.global === "THREE",
-            JSON.stringify({ path: three.path, global: three.global }),
-        );
+        try {
+            const three = await inspect("three", "0.160.1");
+            check(
+                "three@0.160.1 resolves to its global build",
+                three.loadable && three.path === "build/three.min.js" && three.global === "THREE",
+                JSON.stringify({ path: three.path, global: three.global }),
+            );
 
-        const modern = await inspect("three", "0.169.0");
-        check(
-            "three@0.169.0 is refused",
-            !modern.loadable && modern.flavor === "cjs",
-            `${modern.flavor}`,
-        );
+            const modern = await inspect("three", "0.169.0");
+            check(
+                "three@0.169.0 is refused",
+                !modern.loadable && modern.flavor === "cjs",
+                `${modern.flavor}`,
+            );
 
-        const tween = await inspect("@tweenjs/tween.js", "23.1.3");
-        check(
-            "a scoped package whose default fails is offered its umd build",
-            !tween.loadable && tween.alternate?.path === "dist/tween.umd.js",
-            JSON.stringify({ flavor: tween.flavor, alternate: tween.alternate }),
-        );
+            const tween = await inspect("@tweenjs/tween.js", "23.1.3");
+            check(
+                "a scoped package whose default fails is offered its umd build",
+                !tween.loadable && tween.alternate?.path === "dist/tween.umd.js",
+                JSON.stringify({ flavor: tween.flavor, alternate: tween.alternate }),
+            );
 
-        const p5 = await inspect("p5", "1.5.0");
-        check(
-            "p5@1.5.0 matches what the p5 template declares",
-            p5.loadable && p5.global === "p5",
-            JSON.stringify({ path: p5.path, global: p5.global }),
-        );
+            const p5 = await inspect("p5", "1.5.0");
+            check(
+                "p5@1.5.0 matches what the p5 template declares",
+                p5.loadable && p5.global === "p5",
+                JSON.stringify({ path: p5.path, global: p5.global }),
+            );
 
-        // What the picker actually does. npm's search hands back the newest
-        // release, and for three that is an ES module thirty four releases past
-        // the last one a piece can declare. Resolving has to cross that gap on
-        // its own or the common path through the feature ends in a refusal.
-        const latest = await resolve("three", "0.185.1");
-        check(
-            "the newest three resolves back to one that loads",
-            latest.coordinate === "three@0.160.1" && latest.global === "THREE",
-            JSON.stringify({ coordinate: latest.coordinate, global: latest.global }),
-        );
+            // What the picker actually does. npm's search hands back the newest
+            // release, and for three that is an ES module thirty four releases past
+            // the last one a piece can declare. Resolving has to cross that gap on
+            // its own or the common path through the feature ends in a refusal.
+            const latest = await resolve("three", "0.185.1");
+            check(
+                "the newest three resolves back to one that loads",
+                latest.coordinate === "three@0.160.1" && latest.global === "THREE",
+                JSON.stringify({ coordinate: latest.coordinate, global: latest.global }),
+            );
 
-        const named = await resolve("@tweenjs/tween.js", "23.1.3");
-        check(
-            "a package with a usable sibling names the file rather than moving version",
-            named.coordinate === "@tweenjs/tween.js@23.1.3/dist/tween.umd.js" &&
-                named.global === "TWEEN",
-            JSON.stringify({ coordinate: named.coordinate, global: named.global }),
-        );
+            const named = await resolve("@tweenjs/tween.js", "23.1.3");
+            check(
+                "a package with a usable sibling names the file rather than moving version",
+                named.coordinate === "@tweenjs/tween.js@23.1.3/dist/tween.umd.js" &&
+                    named.global === "TWEEN",
+                JSON.stringify({ coordinate: named.coordinate, global: named.global }),
+            );
 
-        // Was accepted as a global build before the export list at its end was
-        // read properly, which would have declared a partial three.js.
-        const partial = await resolve("three", "0.185.1");
-        check(
-            "the newest three does not settle for a partial core build",
-            partial.coordinate === "three@0.160.1",
-            String(partial.coordinate),
-        );
+            // Was accepted as a global build before the export list at its end was
+            // read properly, which would have declared a partial three.js.
+            const partial = await resolve("three", "0.185.1");
+            check(
+                "the newest three does not settle for a partial core build",
+                partial.coordinate === "three@0.160.1",
+                String(partial.coordinate),
+            );
 
-        const fine = await resolve("d3", "7.9.0");
-        check(
-            "a version that already loads is left alone",
-            fine.coordinate === "d3@7.9.0" && fine.note === null,
-            JSON.stringify({ coordinate: fine.coordinate, note: fine.note }),
-        );
+            const fine = await resolve("d3", "7.9.0");
+            check(
+                "a version that already loads is left alone",
+                fine.coordinate === "d3@7.9.0" && fine.note === null,
+                JSON.stringify({ coordinate: fine.coordinate, note: fine.note }),
+            );
 
-        const hits = await search("p5");
-        check(
-            "search finds p5",
-            hits.some((h) => h.id === "p5"),
-        );
-        check(
-            "search results are well formed",
-            hits.every((h) => h.id && h.version),
-        );
+            const hits = await search("p5");
+            check(
+                "search finds p5",
+                hits.some((h) => h.id === "p5"),
+            );
+            check(
+                "search results are well formed",
+                hits.every((h) => h.id && h.version),
+            );
+        } catch (e) {
+            // Reachable when the half started and not while it ran. npm and a
+            // CDN are somebody else's machines, and this half is about our
+            // reading of what they serve, not their uptime: failing here would
+            // put a red mark on a contributor's branch for an outage they have
+            // no part in. The offline cases above still hold the parsing to
+            // the bytes those packages really ship.
+            console.log(
+                `\n  (jsDelivr or npm went away mid-run, rest skipped: ${
+                    e instanceof Error ? e.message : String(e)
+                })\n`,
+            );
+        }
     }
 
     console.log(

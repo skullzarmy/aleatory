@@ -8,7 +8,7 @@
  *
  * Data only. Nothing here fetches, and nothing here has a dependency.
  * This is the v0 mirror of what becomes the on-chain **Runtimes** contract
- * (docs/aleatory/architecture.md §3). Kinds live in an append-only catalog
+ * (docs/architecture.md §3). Kinds live in an append-only catalog
  * rather than an enum precisely so that adding a runtime in 2029 is one append
  * operation instead of a registry migration, and the v0 shape is deliberately
  * identical to the on-chain record so the swap is a data-source change.

@@ -18,7 +18,7 @@
  *   ALEA_TREASURY_ADDRESS     where marketplace fees sweep to
  *   ALEA_AGENT_ADDRESS        our render daemon's signing key
  *   ALEA_MARKET_FEE_BPS       secondary fee, basis points (default 250 = 2.5%)
- *   ALEA_DEPLOY_PRICE_MUTEZ   factory deploy fee (default 0, see decisions.md §2)
+ *   ALEA_DEPLOY_PRICE_MUTEZ   factory deploy fee (default 0)
  *
  * The factory embeds its own collection template, so its code is the largest
  * thing here, and a Tezos operation is capped at 32,768 bytes. If the factory

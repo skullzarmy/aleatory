@@ -94,11 +94,15 @@ Each directory has its own README explaining what it holds and why.
 ## Working on it
 
 ```
-npm install
+npm ci
 cp .env.example .env
-npm run dev
+npm run dev:all
 npm test
 ```
+
+`dev:all` runs the isolate beside the site, which anything that frames a
+generator needs. [CONTRIBUTING.md](CONTRIBUTING.md) covers the rest: the
+contracts, the admin console, what CI checks, and how to send a change.
 
 Released into the public domain under [the Unlicense](LICENSE). Copy it, change
 it, sell it, compete with us. No attribution, no permission, no warranty.

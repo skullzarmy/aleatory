@@ -2,8 +2,7 @@
  * TzKT client.
  *
  * Everything the site shows comes through here, from public chain data, so
- * anyone can rebuild the same views against the same API. See
- * docs/decisions.md §8.
+ * anyone can rebuild the same views against the same API.
  */
 import { tzktApi } from "./config";
 import { bytesToString } from "@/utils/ipfs";
@@ -130,7 +129,7 @@ async function get<T>(path: string, params: Record<string, string | number> = {}
  * Every collection a factory has originated.
  *
  * TzKT attributes an internal origination to the contract that made it, so
- * this one query returns the whole set. docs/decisions.md §8.
+ * this one query returns the whole set.
  */
 export async function fetchCollections(factory: string): Promise<TzktContract[]> {
     if (!factory) return [];
@@ -354,9 +353,8 @@ export async function fetchOwner(contract: string, tokenId: string): Promise<str
 /**
  * The operation that created a token, which is also its seed.
  *
- * A piece's seed is the hash of the `buy` operation that minted it
- * (docs/decisions.md §3). A renderer and anyone checking its work both read
- * it from here.
+ * A piece's seed is the hash of the operation that minted it. A renderer and
+ * anyone checking its work both read it from here.
  */
 export async function fetchMintOperation(
     contract: string,

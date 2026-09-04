@@ -26,7 +26,7 @@ import {
  * kind, no code: feed it a schema fetched from contract storage and it renders
  * the right controls. That is deliberate, it is the reference implementation of
  * the mint UI another platform has to be able to build for our generators
- * without our source (docs/aleatory/params.md), and keeping it honest is easier
+ * without our source (docs/params.md), and keeping it honest is easier
  * when our own mint form is that same component.
  *
  * <ParamsPanel> is the studio's view of the pair: declare on the left, turn the

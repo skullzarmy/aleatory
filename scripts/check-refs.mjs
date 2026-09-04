@@ -71,6 +71,59 @@ for (const doc of docs) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Documents named by the source, against what a checkout actually contains
+// ---------------------------------------------------------------------------
+
+/**
+ * Some documents here are working notes and gitignored: the decision log, the
+ * roadmap, the audit and its response. A comment citing one of them reads
+ * perfectly to whoever wrote it and points everybody else at a file their
+ * checkout does not have, which is worse than saying nothing, because they go
+ * looking for it.
+ *
+ * The loop above reads markdown, so it never saw these. Seven had accumulated
+ * in tracked source by the time anybody noticed.
+ */
+const source = execSync("git ls-files '*.ts' '*.tsx' '*.mts' '*.mjs' '*.js' '*.py' '*.html'", {
+    encoding: "utf8",
+})
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+
+/**
+ * Tracked, not merely present.
+ *
+ * `isReal` above accepts a file on disk, which is the right test for a path in
+ * prose and the wrong one here: the documents this catches are gitignored, so
+ * they sit in the working copy of whoever wrote the comment and in nobody
+ * else's checkout. Asking git is the only way to see what a contributor gets.
+ */
+const isTracked = (p) => tracked.some((t) => t === p || t.endsWith(`/${p}`));
+
+for (const file of source) {
+    for (const line of readFileSync(file, "utf8").split("\n")) {
+        // Whole-line and trailing comments both. A citation is as likely to be
+        // at the end of a line of code as on its own.
+        //
+        // Whitespace before the slashes, or `https://` is read as the start of
+        // one and every URL in the repository names a file that is not here.
+        const comment = /^\s*(?:\*|\/\/|#)/.test(line)
+            ? line
+            : (line.match(/(?:^|\s)\/\/(.*)$/) ?? [])[1];
+        if (!comment) continue;
+
+        for (const m of comment.matchAll(/([a-zA-Z0-9_./-]*[a-zA-Z0-9_-]\.md)\b/g)) {
+            const named = m[1];
+            if (/^(https?|www)/.test(named)) continue;
+            if (isTracked(named)) continue;
+            bad++;
+            console.log(`UNTRACKED DOC   ${file}: ${named}  (not in a checkout)`);
+        }
+    }
+}
+
 console.log(
     bad === 0 ? "every file and script the docs name exists" : `\n${bad} dead reference(s)`,
 );

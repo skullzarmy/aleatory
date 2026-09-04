@@ -227,7 +227,7 @@ export interface FeedPiece {
     /**
      * True while the piece still carries its collection's "not revealed yet"
      * document. The piece itself comes from chain state, and the metadata
-     * describes it. See docs/decisions.md §4.
+     * describes it.
      */
     pending: boolean;
 }
