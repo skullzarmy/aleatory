@@ -18,7 +18,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Node 22, which is what `.nvmrc` names and what CI runs. `package.json` allows
+Node 24, which is what `.nvmrc` names and what CI runs. `package.json` allows
 18.18 and up, so an older one will work for most things.
 
 `.env` needs nothing filled in to browse the site. The addresses come from a
@@ -36,8 +36,16 @@ npm run dev:all
 **The admin console is a separate app** with its own dependencies and its own
 Netlify site. `cd admin && npm ci` if you are working on it.
 
-**The contracts need Python 3 with `smartpy`.** Nothing else does, so skip this
+**The contracts need Python 3 with SmartPy.** Nothing else does, so skip this
 unless you are changing them.
+
+```
+pip install smartpy-tezos
+```
+
+The package is `smartpy-tezos`. The bare name `smartpy` on PyPI is an unrelated
+hydrology model that installs without complaint and then has none of the
+functions the scenarios call.
 
 ---
 

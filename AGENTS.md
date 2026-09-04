@@ -27,7 +27,7 @@ npm test
 package registry. Each skips its network half when there is no connection, so
 the suite passes offline with fewer assertions.
 
-SmartPy work needs Python 3 with `smartpy` installed, which
+SmartPy work needs Python 3 with `smartpy-tezos` installed, which
 `npm run build:contracts` and `npm run test:contracts` call.
 
 ---

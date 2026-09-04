@@ -82,9 +82,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      # `smartpy-tezos`, not `smartpy`. The bare name on PyPI belongs to an
+      # unrelated hydrology model, which installs happily and then has no
+      # `sp.entrypoint` for the scenarios to call.
       - name: Install SmartPy
         if: steps.changed.outputs.run == 'true'
-        run: pip install smartpy
+        run: pip install smartpy-tezos
 
       - name: Scenarios
         if: steps.changed.outputs.run == 'true'
