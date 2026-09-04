@@ -91,7 +91,7 @@ export function MintPanel({
             // rather than on a page for a token that does not resolve yet.
             const tokenId = await waitForToken(collection.address, address!, res.hash);
             if (tokenId !== null) {
-                router.push(`/minted/${collection.address}/${tokenId}`);
+                router.push(`/piece/${collection.address}/${tokenId}?minted`);
                 return;
             }
         } catch (e) {

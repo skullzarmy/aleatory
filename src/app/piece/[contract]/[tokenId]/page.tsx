@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { fetchPiece } from "@/lib/piece";
+import { Suspense } from "react";
 import { ArtifactFrame } from "@/components/piece/ArtifactFrame";
+import { PieceArriving } from "@/components/piece/PieceArriving";
+import { JustMinted } from "@/components/piece/JustMinted";
+import { fetchCollection } from "@/lib/collection";
 import { PieceFacts } from "@/components/piece/PieceFacts";
 import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
@@ -53,13 +57,26 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export default async function PiecePage({ params }: { params: Params }) {
     const { contract, tokenId } = await params;
     const piece = await fetchPiece(contract, tokenId);
-    if (!piece) return notFound();
+
+    // The chain decides whether a piece exists, not the indexer. A token minted
+    // a second ago is real and unread, and 404ing it would tell somebody who
+    // has just paid that their piece is not there. `next_token_id` is the count
+    // the contract has issued, so anything below it has been minted.
+    if (!piece?.seed) {
+        const collection = await fetchCollection(contract).catch(() => null);
+        const minted = collection ? Number(tokenId) < collection.minted : false;
+        if (!minted) return notFound();
+        return <PieceArriving contract={contract} tokenId={tokenId} />;
+    }
 
     const [listing, offers] = await Promise.all([
         fetchListingFor(contract, tokenId).catch(() => null),
         fetchOffersFor(contract, tokenId).catch(() => []),
     ]);
     const royaltyTotal = piece.royalties.reduce((n, r) => n + r.bps, 0);
+
+    // Null for an open edition, which has nothing to count down.
+    const remaining = piece.editionSize > 0 ? Math.max(0, piece.editionSize - piece.minted) : null;
 
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
@@ -73,6 +90,12 @@ export default async function PiecePage({ params }: { params: Params }) {
                 collectionName={piece.collectionName}
                 url={`${BRAND.url}/piece/${contract}/${tokenId}`}
             />
+            {/* Only for whoever arrived here from the mint. A shared link is
+                the plain page. */}
+            <Suspense fallback={null}>
+                <JustMinted contract={contract} remaining={remaining} />
+            </Suspense>
+
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <div className="min-w-0">
                     {/* The parameters go with the code and the seed. Without
