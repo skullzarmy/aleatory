@@ -38,7 +38,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - run: npm ci
+      # See the note in pr.yml: the committed lock carries one platform's
+      # optional binaries, so `npm ci` cannot resolve them on a Linux runner.
+      - run: npm install --no-audit --no-fund
 
       - name: Build the kits
         run: npx tsx scripts/build-templates.mts
