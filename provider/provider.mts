@@ -508,8 +508,30 @@ async function pin(bytes: Uint8Array, name: string): Promise<string> {
 async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
     if (!cid) return;
-    const base = IPFS_GATEWAY;
-    await fetch(`${base}/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {});
+    await Promise.all([
+        fetch(`${IPFS_GATEWAY}/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {}),
+        warmSite(cid),
+    ]);
+}
+
+/**
+ * Ask the site for it too, not only the gateway.
+ *
+ * Everything that shows a picture points at `/api/img/{cid}`, which reads a
+ * gateway once and is then cached for a year. Warming the gateway alone leaves
+ * that route cold, so the first request for a piece pays a fetch against a
+ * gateway that may still be pulling the content, and gets nothing.
+ *
+ * That first request is usually not a person. The stats bot announces a mint
+ * within seconds of the publish, Discord fetches the image once to build the
+ * embed, and a miss there is permanent: it caches the absence against the URL
+ * and does not ask again. So the site is asked here, while nobody is waiting,
+ * and by the time anything else looks it is answering from cache.
+ */
+async function warmSite(cid: string): Promise<void> {
+    const site = (process.env.ALEA_SITE_URL || "").replace(/\/+$/, "");
+    if (!site) return;
+    await fetch(`${site}/api/img/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {});
 }
 
 async function pinJson(doc: unknown, name: string): Promise<string> {

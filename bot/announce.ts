@@ -160,6 +160,43 @@ export interface Pass {
 }
 
 /**
+ * Wait for a picture to be servable before saying anything about it.
+ *
+ * Discord fetches an embed's image once, when the message is posted, and
+ * caches what it got against that URL. A piece pinned a second ago has often
+ * not reached a gateway yet, so that one fetch finds nothing and the
+ * announcement carries no picture, permanently: editing the message later does
+ * not help, because the miss is cached against the URL rather than the message.
+ *
+ * So the site is asked first, and asked again for a while. Each attempt is also
+ * what warms it, since `/api/img` caches for a year once it has the bytes, and
+ * by the time Discord asks it is answering from cache.
+ *
+ * Bounded. A picture that has not appeared in a minute is not worth holding an
+ * announcement for, and a mint is worth announcing without one.
+ */
+const READY_TIMEOUT_MS = 60_000;
+const READY_INTERVAL_MS = 5_000;
+
+async function servable(url: string): Promise<boolean> {
+    try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
+async function waitForImage(url: string | undefined): Promise<void> {
+    if (!url) return;
+    const until = Date.now() + READY_TIMEOUT_MS;
+    while (Date.now() < until) {
+        if (await servable(url)) return;
+        await new Promise((r) => setTimeout(r, READY_INTERVAL_MS));
+    }
+}
+
+/**
  * One announcement pass, from the marks in, to the marks out.
  *
  * Never throws. Each half is caught on its own, so a chain read that fails
@@ -178,7 +215,9 @@ export async function announce(token: string, marks: Marks): Promise<Pass> {
     if (generators) {
         try {
             for (const g of await newGenerators(next.generators)) {
-                const result = await post(token, generators, generatorEmbed(g));
+                const embed = generatorEmbed(g);
+                await waitForImage(embed.image?.url);
+                const result = await post(token, generators, embed);
                 results.push(result);
                 if (result.outcome !== "wrote") break;
                 next.generators = g.cursor;
@@ -195,7 +234,9 @@ export async function announce(token: string, marks: Marks): Promise<Pass> {
             const { items, consumed } = await newMints(next.mints);
             let complete = true;
             for (const m of items) {
-                const result = await post(token, mints, mintEmbed(m));
+                const embed = mintEmbed(m);
+                await waitForImage(embed.image?.url);
+                const result = await post(token, mints, embed);
                 results.push(result);
                 if (result.outcome !== "wrote") {
                     complete = false;
