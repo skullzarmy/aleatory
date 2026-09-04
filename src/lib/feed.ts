@@ -21,7 +21,12 @@ import { isBlockedCollection } from "./blocklist";
 // Type only, so the cycle with collection.ts (which imports coversFor from
 // here) is erased at compile time and never exists at runtime.
 import type { CollectionSummary } from "./collection";
-import { bytesToString, convertIpfsToGatewayUrl, ipfsImageUrl } from "@/utils/ipfs";
+import {
+    bytesToString,
+    convertIpfsToGatewayUrl,
+    GATEWAY_TIMEOUT_MS,
+    ipfsImageUrl,
+} from "@/utils/ipfs";
 
 interface TokenDoc {
     name?: string;
@@ -113,7 +118,7 @@ async function resolveDocs(collection: string, tokenIds: string[]): Promise<Map<
     // clear the slow end, not the fast one; concurrency keeps the page quick
     // regardless.
     const CONCURRENCY = 8;
-    const TIMEOUT_MS = 12_000;
+    const TIMEOUT_MS = GATEWAY_TIMEOUT_MS;
 
     const queue = [...tokenIds];
     async function worker() {

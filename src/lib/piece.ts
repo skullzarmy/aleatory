@@ -14,7 +14,12 @@ import {
     fetchStorage,
     type TokenMetadata,
 } from "./tzkt";
-import { bytesToString, convertIpfsToGatewayUrl, ipfsImageUrl } from "@/utils/ipfs";
+import {
+    bytesToString,
+    convertIpfsToGatewayUrl,
+    GATEWAY_TIMEOUT_MS,
+    ipfsImageUrl,
+} from "@/utils/ipfs";
 
 /** The shape of a collection's storage that this page reads. */
 interface CollectionStorage {
@@ -123,7 +128,7 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
             m =
                 (await fetch(convertIpfsToGatewayUrl(uri), {
                     next: { revalidate: 300 },
-                    signal: AbortSignal.timeout(12_000),
+                    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
                 })
                     .then((r) => (r.ok ? (r.json() as Promise<typeof m>) : null))
                     .catch(() => null)) ?? m;

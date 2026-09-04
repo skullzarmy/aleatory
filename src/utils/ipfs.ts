@@ -18,6 +18,20 @@
  * gateway immediately afterwards, so by the time a page asks, it is cached.
  * See `warmGateway` in provider/provider.mts.
  */
+/**
+ * How long one gateway read gets, server side.
+ *
+ * Under the invocation a page is rendered in, with room for the chain reads
+ * beside it. A page that fetches several documents and gives each of them
+ * longer than the whole render is allowed cannot finish: the function is
+ * killed with the response half sent, and a reader gets a page that stops in
+ * the middle rather than one missing a picture.
+ *
+ * A gateway that has not answered in four seconds is not going to save the
+ * page. The piece it describes is on chain and the next render asks again.
+ */
+export const GATEWAY_TIMEOUT_MS = 4_000;
+
 const GATEWAY = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.fileship.xyz").replace(
     /\/+$/,
     "",
