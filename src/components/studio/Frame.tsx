@@ -6,16 +6,12 @@ import type { ParamSpec } from "@/lib/params";
 import { resolveParams } from "@/lib/params";
 
 /**
- * One rendered piece, from a draft on the artist's own disk.
+ * One rendered piece, from a draft on the artist's own disk. The draft never
+ * leaves this browser: it goes to the isolate over postMessage, and the isolate
+ * is a separate origin that executes and fetches nothing.
  *
- * The draft never leaves this browser: it goes straight to the isolate over
- * postMessage, and the isolate is a separate origin that executes and fetches
- * nothing. Nothing here reaches the network and nothing here can reach this
- * page.
- *
- * There is no document builder and no harness on this side any more. The
- * isolate owns both, so the studio preview and a minted piece run through
- * exactly the same code, which is what stops them drifting.
+ * The isolate owns the document builder and the harness, so the studio preview
+ * and a minted piece run through the same code.
  */
 export function Frame({
     html,

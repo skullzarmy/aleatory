@@ -4,17 +4,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 /**
- * The moment after a mint, on the piece's own page.
- *
- * A collector has just signed for something nobody has seen. That is worth
- * saying, and it was worth a whole second page until this one could hold a
- * piece the indexer had not caught up with. Two pages meant the celebration and
- * the permanent record drifted apart: one of them showed the collector's chosen
- * parameters and the other showed a plausible set of defaults.
- *
- * Marked by `?minted` on the way in from the mint, so a link somebody shares
- * later is the plain page and nobody else is congratulated for a purchase that
- * was not theirs.
+ * The moment after a mint, on the piece's own page. Marked by `?minted` on the
+ * way in, so a link shared later is the plain page and nobody else is
+ * congratulated for a purchase that was not theirs.
  */
 export function JustMinted({
     contract,

@@ -6,15 +6,10 @@ import type { FeedPiece } from "@/lib/feed";
 import type { Listing } from "@/lib/market";
 
 /**
- * One piece for sale.
+ * One piece for sale: the same card as a feed piece, with the price on it.
  *
- * The market was a list of token numbers and prices, which asks somebody to
- * decide whether they want an artwork without showing it to them. It is the
- * same card as a feed piece with the price on it, because the thing being sold
- * is the picture.
- *
- * The seller is a name rather than a link: the whole card is already a link to
- * the piece, and an anchor inside an anchor is invalid HTML.
+ * The seller is a name and not a link, because the whole card is already a link
+ * and an anchor inside an anchor is invalid HTML.
  */
 export function ListingCard({
     listing,

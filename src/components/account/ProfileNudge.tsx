@@ -4,15 +4,11 @@ import { useWallet } from "@/context/WalletContext";
 import { PROFILE_HOME, type Profile } from "@/lib/identity";
 
 /**
- * Where the profile on this page comes from, and how to change it.
+ * Where the profile on this page comes from, and how to change it. Only the
+ * person whose page it is sees this.
  *
- * Only the person whose page it is sees this. Telling a visitor that the artist
- * they are looking at has not filled in a form is neither their business nor
- * useful to them, and a site that nags strangers about someone else's profile
- * is a site nobody trusts with a byline.
- *
- * Two states worth saying something about: nothing at all, and something we
- * inherited from objkt that they may not know is being shown.
+ * Two states worth saying something about: no profile at all, and one inherited
+ * from objkt that they may not know is being shown.
  */
 export function ProfileNudge({ address, profile }: { address: string; profile: Profile | null }) {
     const { address: viewer } = useWallet();
