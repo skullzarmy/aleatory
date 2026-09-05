@@ -15,7 +15,7 @@ import { saveDraft, randomSeed, type Draft } from "@/lib/draft";
 import { downloadText } from "@/lib/project";
 import { resolveParams } from "@/lib/params";
 import { detectParams, withParams } from "@/lib/detect";
-import { Dice5, Download } from "lucide-react";
+import { ArrowRight, Dice5, Download } from "lucide-react";
 
 /**
  * Where an artist works. Code on the left, the piece on the right.
@@ -141,11 +141,18 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                         Export
                     </button>
 
+                    {/* An arrow, and trailing, because this button does not
+                        publish anything — it opens the flow that does. Upload
+                        would have been the pair to Export's download, but the
+                        code pane already spends it on opening a file, and two
+                        meanings for one glyph in one workspace is worse than
+                        no glyph at all. */}
                     <Link
                         href={`/studio/${draft.id}/publish`}
-                        className="rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700"
+                        className="inline-flex items-center gap-1.5 rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700"
                     >
                         Publish
+                        <ArrowRight size={14} aria-hidden />
                     </Link>
                 </div>
             </header>
