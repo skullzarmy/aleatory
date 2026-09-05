@@ -1,8 +1,5 @@
 /**
- * What the studio promises, checked without a browser.
- *
- * Everything here runs the code it is about. A template is parsed, a zip is
- * packaged, a schema is resolved, a draft is built. The determinism and
+ * What the studio promises, checked without a browser. The determinism and
  * no-network checks need a DOM and run in real frames in `Checks.tsx`.
  *
  * Run: npx tsx src/lib/studio.test.ts
@@ -37,11 +34,10 @@ for (const kind of RUNTIME_KINDS) {
     const bytes = new TextEncoder().encode(html).length;
 
     check(`${kind.label}: is a document`, /<html[\s>]|<!doctype/i.test(html));
-    // Templates reach the harness three ways: `$alea.ready()` directly, a
+    // Templates reach the harness three ways: `$alea.ready()`, a
     // `var alea = window.$alea` binding, or an `alea` handed to a lifecycle
-    // method. All three are fine. What has to be true is that the piece calls
-    // ready() and that the object it calls it on came from $alea, or a
-    // template could pass by calling ready() on something unrelated.
+    // method. What has to hold is that ready() is called on something that came
+    // from $alea, or a template passes by calling it on anything at all.
     const signals = /\balea\.ready\(|\bctx\.ready\(/.test(html);
     check(
         `${kind.label}: signals its capture point`,
@@ -55,18 +51,15 @@ for (const kind of RUNTIME_KINDS) {
     );
     // The seed is a base58 operation hash. parseInt of one in base 16 is NaN,
     // and every consumer coerces NaN to 0, so a template that parses its seed
-    // as hex hands the same number to every piece. The p5 template did exactly
-    // that, and shipped: twelve seeds, one drawing, three palettes. Anything
-    // that needs a number out of the seed takes it from alea.rand(), which is
-    // already seeded from the string.
+    // as hex hands the same number to every piece. A number out of the seed
+    // comes from alea.rand(), which is already seeded from the string.
     check(
         `${kind.label}: does not parse the seed as hex`,
         !/parseInt\s*\([^)]*seed/i.test(html),
         "base 16 of a base58 hash is NaN, and NaN coerces to zero",
     );
-    // Second generators are the other half of that: p5 keeps its own PRNG, and
-    // a piece that draws from it without seeding it is a piece the chain does
-    // not determine.
+    // p5 keeps its own PRNG, and a piece drawing from an unseeded one is a
+    // piece the chain does not determine.
     for (const [call, source] of [
         ["randomSeed", /randomSeed\s*\(\s*alea\./],
         ["noiseSeed", /noiseSeed\s*\(\s*alea\./],
@@ -84,13 +77,9 @@ for (const kind of RUNTIME_KINDS) {
         bytes <= MAX_OPERATION_BYTES,
     );
 
-    // Every inline script actually parses.
-    //
-    // A template is a string in a TypeScript file, so nothing compiles it and
-    // a syntax error rides all the way to a collector's browser. One did: a
-    // careless edit left a stray `},` in the shared dev shim, every template
-    // built from it was broken JavaScript, and the only symptom was a piece
-    // that rendered as a blank square with no error anywhere anyone would look.
+    // A template is a string in a TypeScript file, so nothing compiles it and a
+    // syntax error rides all the way to a collector's browser, where it shows
+    // as a blank square.
     const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
     check(`${kind.label}: has inline script`, scripts.length > 0);
     for (const [i, body] of scripts.entries()) {
@@ -148,11 +137,9 @@ console.log("\nParameter resolution");
 
 console.log("\nParameter detection in code");
 {
-    // The shape a real generator actually ships in: minified, unquoted keys,
-    // hints, a select with five options, and the schema assigned again further
-    // down under another name. Written out here rather than read from
-    // experiments/, which is not in the repository, so this runs everywhere
-    // instead of quietly skipping itself.
+    // The shape a real generator ships in: minified, unquoted keys, hints, a
+    // select with five options, and the schema assigned again further down
+    // under another name.
     const cosmicMasa = `<!doctype html><html><head><title>Cosmic Masa</title></head><body><script>
 (function(){
 if(!window.$alea){
@@ -191,9 +178,7 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
 
     // Reading is not running. The studio is the app's own origin, where the
     // artist's wallet session and their drafts live, and generator code only
-    // ever runs in the isolate. A detector built on eval would put a stranger's
-    // uploaded file on the wrong side of that line, so this is a standing check
-    // rather than a note.
+    // ever runs in the isolate.
     const hostile = `<script>window.$alea.paramsSchema=[(globalThis.__alea_detect_ran__=true,{id:"fold",label:"Fold",type:"number",min:0,max:1,step:0.01,default:0.5})];</script>`;
     check(
         "declines a declaration it cannot read without running it",
@@ -209,9 +194,9 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         detectParams(`<script>$alea.paramsSchema=[makeParam("fold")];</script>`) === null,
     );
 
-    // Generators are written by hand, so the declaration is JavaScript rather
-    // than JSON: single quotes, bare keys, trailing commas, a comment with a
-    // bracket in it, numbers that JSON would reject.
+    // A hand-written declaration is JavaScript and not JSON: single quotes,
+    // bare keys, trailing commas, a comment with a bracket in it, numbers JSON
+    // would reject.
     const awkward = `<script>
       window.$alea.paramsSchema = [
         // the saddle [curvature] of the fold
@@ -232,11 +217,8 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
     check("is not fooled by a bracket inside a comment", hand?.params[1].id === "dark");
 
     // Against the real starter kits, not a fixture. Every template carries
-    // `window.$alea.paramsSchema = []` as part of its dev harness, so a file
-    // that began life as one has the harness's empty array above whatever the
-    // artist wrote. Reading the first assignment found nothing on the path
-    // almost every uploaded file takes, and no hand-written fixture would
-    // ever have shown it.
+    // `window.$alea.paramsSchema = []` in its dev harness, so a file that began
+    // life as one has that empty array above whatever the artist wrote.
     for (const kind of RUNTIME_KINDS) {
         const template = templateFor(kind.kindId);
         check(
@@ -258,8 +240,7 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
     }
 
     // The other way an artist uses the kit: they fill in the harness line
-    // itself rather than adding one below it. Then there is only one
-    // assignment and it is theirs.
+    // itself, so there is one assignment and it is theirs.
     {
         const filled = templateFor(RUNTIME_KINDS[0].kindId).replace(
             "window.$alea.paramsSchema = [];",
@@ -291,9 +272,8 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         )?.params.length === 1,
     );
 
-    // One unusable declaration costs that declaration, never the ones beside
-    // it. validateSchema answers about a whole set, so asking it about the lot
-    // meant a typo in the fifth threw away the four above it.
+    // One unusable declaration costs that declaration and not the ones beside
+    // it.
     const beside = `{id:"a",label:"A",type:"number",min:0,max:1,step:0.01,default:0.5}`;
     const spoiled = (bad: string) =>
         detectParams(`<script>window.$alea.paramsSchema=[${beside},${bad}];</script>`);
@@ -333,9 +313,9 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         (collide?.notes ?? []).join(" | ") || "(nothing said)",
     );
 
-    // A default outside its own range is a typo, not a reason to lose the
-    // parameter. Resolved the way every renderer resolves an out-of-range
-    // value, and reported, because the schema is immutable after publishing.
+    // A default outside its own range is resolved the way every renderer
+    // resolves an out-of-range value, and reported, because the schema is
+    // immutable after publishing.
     const wideDefault = spoiled(`{id:"b",label:"B",type:"number",min:0,max:1,step:0.01,default:9}`);
     check(
         "repairs a default outside its own range",
@@ -352,8 +332,7 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         (wideDefault?.notes ?? []).some((n) => /outside 0…1\. It starts at 1/.test(n)),
         (wideDefault?.notes ?? []).join(" | ") || "(nothing said)",
     );
-    // A snap onto the step grid moves a value by less than the control can
-    // hold, so it is not worth a line.
+    // A snap onto the step grid moves a value by less than the control holds.
     const snapped = spoiled(`{id:"d",label:"D",type:"number",min:0,max:1,step:0.01,default:0.503}`);
     check(
         "stays quiet about a snap onto the step grid",
@@ -401,8 +380,7 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         fx?.params[1].type === "bool" && fx?.params[1].default === true,
     );
 
-    // validateSchema counts a sixth param as an error, so validating before
-    // trimming would throw away five readable params over one extra.
+    // validateSchema counts a sixth param as an error, so trimming comes first.
     const tooMany = `<script>window.$alea.paramsSchema=[${Array.from(
         { length: 6 },
         (_, i) => `{id:"p${i}",label:"P${i}",type:"number",min:0,max:1,step:0.01,default:0.5}`,
@@ -419,9 +397,8 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         (capped?.notes ?? []).join(" "),
     );
 
-    // fromFxParams counts what it could not bring over. Losing that on the way
-    // through here would drop the parameters silently, which is the one thing
-    // its own documentation says it does not do.
+    // fromFxParams counts what it could not bring over, and those notes have to
+    // survive the trip through detectParams.
     const lossy = `<script>$fx.params([
         {id:"speed",name:"Speed",type:"number",options:{min:1,max:10,step:1},default:5},
         {id:"title",name:"Title",type:"string",default:"untitled"},
@@ -448,8 +425,7 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
         String(converted?.params.length),
     );
 
-    // The same rule on the fxhash path: a default it had to move is said out
-    // loud there too, rather than two code paths that agree only by accident.
+    // The same rule on the fxhash path.
     const fxMoved = detectParams(`<script>$fx.params([
         {id:"speed",name:"Speed",type:"number",options:{min:1,max:10,step:1},default:99},
         {id:"palette",name:"Palette",type:"select",options:{options:["A","B"]},default:"Z"}
@@ -503,8 +479,8 @@ console.log("\nPackaging a zip");
         flattened.unresolved.join(", "),
     );
 
-    // An <img> pointing at a file the package does not carry is the whole
-    // reason to report anything: it renders as a hole, and silently.
+    // An <img> pointing at a file the package does not carry renders as a hole,
+    // silently.
     const holed = zip({
         "index.html": `<html><head><link rel="stylesheet" href="style.css"></head><body><img src="textures/gone.png"></body></html>`,
         "style.css": `body{background:url("textures/gone.png")}`,
@@ -536,7 +512,7 @@ console.log("\nPackaging a zip");
     );
 
     // A remote script cannot be inlined and is not missing from the package.
-    // It is reported as what it is: something the sandbox will refuse later.
+    // The sandbox refuses it later.
     const remote = zip({
         "index.html": `<html><body><script src="https://cdn.example.com/p5.js"></script></body></html>`,
     });
