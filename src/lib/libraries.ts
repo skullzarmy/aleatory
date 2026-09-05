@@ -3,13 +3,9 @@
  *
  *   <meta name="alea:library" content="p5@1.5.0">
  *
- * The document is the source of truth, not a field beside it. An artist can
- * download a template, work on it in their own editor for a week, and upload it
- * again, and the file still says what it needs. Anything held only in our
- * database would be lost on the first round trip.
- *
- * One tag per library, so a piece wanting two says so twice, and the order they
- * appear in is the order they load in.
+ * The document is the source of truth, so a file that leaves here and comes
+ * back still says what it needs. One tag per library, and they load in the
+ * order they appear.
  */
 import { type DepSpec } from "./kinds";
 
@@ -17,19 +13,14 @@ const TAG = /<meta\s+[^>]*name\s*=\s*["']alea:library["'][^>]*>/gi;
 const CONTENT = /content\s*=\s*["']([^"']+)["']/i;
 
 /**
- * A commented tag is an example, not a declaration.
- *
- * Templates and readmes show the tag inside `<!-- -->` to say what one looks
- * like. Read without this, a shell whose comment mentions `three@0.160.1` asks
- * every renderer for three.js, and the studio reads the piece as a kind it is
- * not.
+ * A commented tag is an example, not a declaration. Templates and readmes show
+ * the tag inside `<!-- -->` to say what one looks like.
  */
 const stripComments = (html: string) => html.replace(/<!--[\s\S]*?-->/g, "");
 
 /**
- * Two names the picker offers, so nobody types coordinates from memory.
- *
- * Not a list of what may be declared. Any package on npm may be.
+ * What the picker offers, so nobody types coordinates from memory. Not a list
+ * of what may be declared: any package on npm may be.
  */
 export const SUGGESTED = ["p5@1.5.0", "three@0.160.1"] as const;
 
@@ -38,14 +29,12 @@ const COORDINATE =
     /^(@[a-z0-9][a-z0-9._-]*\/)?([a-z0-9][a-z0-9._-]*)@([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?:\/(.+))?$/;
 
 /**
- * A declaration, read into something resolvable.
+ * A declaration, read into something resolvable. The proxy fetches any npm
+ * package from jsDelivr, checks it against the digest published for that exact
+ * file, and answers with the blake2b recorded at publish, so nothing has to
+ * know a library in advance.
  *
- * Any package on npm works. The proxy fetches it from jsDelivr, checks it
- * against the digest published for that exact file, and answers with the
- * blake2b recorded when the piece is published. Nothing needs to know a
- * library in advance, which is why there is no list of them.
- *
- * The file is optional: without one the package's own default browser build is
+ * The file is optional: without one the package's default browser build is
  * used, which is what `p5@1.5.0` means.
  */
 export function specFor(coordinate: string): DepSpec | null {
@@ -74,11 +63,9 @@ export function declaredIn(html: string): string[] {
 }
 
 /**
- * A document's declarations, resolved.
- *
- * `unknown` is what is malformed: something that is not `name@version`. A
+ * A document's declarations, resolved. `unknown` is what is malformed. A
  * well-formed coordinate npm does not have fails when it is fetched, with the
- * registry saying so, rather than being guessed at here.
+ * registry saying so.
  */
 export function librariesIn(html: string): { specs: DepSpec[]; unknown: string[] } {
     const specs: DepSpec[] = [];
@@ -92,16 +79,13 @@ export function librariesIn(html: string): { specs: DepSpec[]; unknown: string[]
 }
 
 /**
- * Rewrite a document's declarations to exactly this set.
- *
- * Existing tags are removed and the new ones inserted at the top of `<head>`,
- * so switching library in the studio edits the artist's file rather than
- * keeping a preference somewhere they cannot see. What they export is what
- * we run.
+ * Rewrite a document's declarations to exactly this set. Existing tags are
+ * removed and the new ones inserted at the top of `<head>`, so switching
+ * library in the studio edits the artist's file and what they export is what we
+ * run.
  */
 export function withLibraries(html: string, coordinates: string[]): string {
-    // The tag and the line it sat on, so removing one does not leave a gap
-    // behind in the artist's file.
+    // The tag and the line it sat on, so removing one leaves no gap behind.
     const stripped = html.replace(
         /^[ \t]*<meta\s+[^>]*name\s*=\s*["']alea:library["'][^>]*>[ \t]*\r?\n?/gim,
         "",
