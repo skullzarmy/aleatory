@@ -1,18 +1,13 @@
 import { render, type PlatformStats } from "./stats";
 
 /**
- * Writing figures into Discord channel names.
+ * Writing figures into Discord channel names: a category of locked voice
+ * channels whose names carry a number. A bot token and `PATCH /channels/{id}`
+ * is the whole interface, so none of this needs a gateway connection.
  *
- * The pattern is a category of locked voice channels whose names carry a
- * number, so the sidebar shows the platform's state with nobody running
- * anything. Renaming is one REST call, so none of this needs a gateway
- * connection: a bot token and `PATCH /channels/{id}` is the whole interface.
- *
- * **Discord limits a channel rename to roughly two per ten minutes, per
- * channel.** That ceiling is why stat channels everywhere update on a slow
- * tick, and it is the reason `rename` reads before it writes: a name that has
- * not changed costs nothing from that budget, so a quiet week leaves the whole
- * allowance for the hour something actually happens.
+ * Discord limits a rename to roughly two per ten minutes, per channel, which is
+ * why `rename` reads before it writes: an unchanged name costs nothing from
+ * that budget.
  */
 
 const API = "https://discord.com/api/v10";
@@ -31,11 +26,9 @@ export interface Result {
 }
 
 /**
- * Channels to write, from the environment.
- *
- * Config rather than code so the wording of a channel changes without a
- * deploy. Anything malformed names no channels, and the caller says so, so a
- * broken edit is visible instead of half-applied.
+ * Channels to write, from the environment, so the wording of a channel changes
+ * without a deploy. Anything malformed names no channels, and the caller says
+ * so, rather than half-applying a broken edit.
  */
 export function channelsFromEnv(raw = process.env.DISCORD_STAT_CHANNELS): StatChannel[] {
     try {
@@ -65,12 +58,8 @@ function api(token: string, path: string, init?: RequestInit): Promise<Response>
 }
 
 /**
- * Discord's own words for a refusal.
- *
- * Every failure here arrives as a 403 or a 404, and guessing at which
- * permission is behind one sends whoever reads the log to the wrong screen.
- * The body carries a numeric code that says exactly which, so it is quoted
- * rather than interpreted.
+ * Discord's own words for a refusal. Every failure here is a 403 or a 404, and
+ * the body carries a numeric code saying which permission is behind it.
  */
 async function refusal(res: Response): Promise<string> {
     const body = (await res.json().catch(() => ({}))) as { message?: string; code?: number };
@@ -79,9 +68,7 @@ async function refusal(res: Response): Promise<string> {
         : `HTTP ${res.status}`;
 
     const meaning: Record<number, string> = {
-        // Not in the server at all, or cannot see this channel.
         50001: "the bot is not in that server, or has no View Channel here",
-        // In the channel, but not allowed to change it.
         50013: "it can see the channel but cannot rename it, so Manage Channel is missing",
         10003: "no channel with that id",
     };
@@ -93,8 +80,7 @@ async function refusal(res: Response): Promise<string> {
 export async function rename(token: string, channel: StatChannel, name: string): Promise<Result> {
     const current = await api(token, `/channels/${channel.id}`);
     if (!current.ok) {
-        // A read needs View Channel and nothing more, so a refusal here is
-        // never about Manage Channel however much it looks like it.
+        // A read needs View Channel only, so this is never about Manage Channel.
         return { id: channel.id, outcome: "failed", detail: `read: ${await refusal(current)}` };
     }
 
@@ -109,8 +95,7 @@ export async function rename(token: string, channel: StatChannel, name: string):
     });
 
     if (res.status === 429) {
-        // Expected under a burst. The next tick writes it, and reporting the
-        // wait Discord asked for is what makes a recurring one legible.
+        // Expected under a burst; the next tick writes it.
         const { retry_after } = (await res.json().catch(() => ({}))) as {
             retry_after?: number;
         };
@@ -140,14 +125,9 @@ export interface Embed {
 }
 
 /**
- * Say something in a channel.
- *
- * Still no gateway. A gateway is for hearing, and this bot only ever speaks,
- * so posting is `POST /channels/{id}/messages` and nothing is held open.
- *
- * Needs Send Messages and Embed Links on the channel, which is more than the
- * rename job ever asked for: a token that has been renaming names happily for
- * weeks can still fail the first time it tries to say something.
+ * Say something in a channel. Needs Send Messages and Embed Links, which is
+ * more than the rename job asks for, so a token that has been renaming for
+ * weeks can still fail the first time it speaks.
  */
 export async function post(token: string, channelId: string, embed: Embed): Promise<Result> {
     const res = await api(token, `/channels/${channelId}/messages`, {
@@ -172,10 +152,8 @@ export async function post(token: string, channelId: string, embed: Embed): Prom
 }
 
 /**
- * One pass over every configured channel.
- *
- * Sequential, because Discord's limits are per channel and a burst of parallel
- * writes is how one bot token gets limited across all of them at once.
+ * One pass over every configured channel. Sequential, because a burst of
+ * parallel writes gets one token limited across all of them at once.
  */
 export async function writeAll(
     token: string,
