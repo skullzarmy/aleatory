@@ -1,9 +1,4 @@
-/**
- * TzKT client.
- *
- * Everything the site shows comes through here, from public chain data, so
- * anyone can rebuild the same views against the same API.
- */
+/** TzKT client. Everything the site shows comes through here. */
 import { tzktApi } from "./config";
 import { bytesToString } from "@/utils/ipfs";
 
@@ -57,24 +52,14 @@ function requireAddress(a: string): string {
 }
 
 /**
- * How long one attempt at the indexer gets, and how many attempts it gets.
+ * Sized for a serverless invocation: two attempts at three seconds, plus the
+ * pause between them, is about six. A healthy answer arrives well under a
+ * second. Without a deadline a slow indexer holds the socket until the platform
+ * gives up on the whole render, which is a 500 instead of a missing number.
  *
- * Every gateway read on this site already carries a deadline, because a public
- * IPFS gateway is obviously somebody else's machine. The indexer is somebody
- * else's machine too, and a read of it had no deadline at all: a slow response
- * held the socket until the platform gave up on the whole render, which is a
- * page that 500s rather than a page that is briefly missing a number.
- *
- * The budget is sized for the runtime and not for the build. A serverless
- * invocation is measured in seconds, so two attempts at three seconds plus the
- * pause between them comes to about six, and a build that needs longer gets its
- * own retries from the framework. A healthy answer here arrives in well under a
- * second, so three is already generous.
- *
- * This bounds one read. A page that makes several in sequence can still spend
- * more than an invocation has while the indexer is down, and the thing standing
- * between that and a broken page is the caller: the reads that matter are
- * behind `Promise.all` or a `catch` that degrades to empty.
+ * This bounds one read. Several in sequence can still outlast an invocation, so
+ * the reads that matter sit behind `Promise.all` or a `catch` that degrades to
+ * empty.
  */
 const INDEXER_TIMEOUT_MS = 3_000;
 const INDEXER_ATTEMPTS = 2;
@@ -83,14 +68,12 @@ const INDEXER_ATTEMPTS = 2;
 const TRANSIENT = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 /**
- * One read from the indexer, with a deadline and a second try.
+ * One read from the indexer, with a deadline and a second try. A 404 is an
+ * answer and comes straight back.
  *
- * Retried on a timeout, a dropped connection, and the handful of statuses that
- * mean "not now" rather than "no". A 404 is an answer and comes straight back.
- *
- * The pause before the retry is jittered, because the failures worth retrying
- * are the ones everything hits at once, and a fixed pause turns one outage into
- * a second one made of our own reconnecting pages.
+ * The pause is jittered, because the failures worth retrying are the ones every
+ * page hits at once, and a fixed pause turns one outage into a second one made
+ * of our own reconnecting pages.
  */
 export async function indexerFetch(url: string, init: RequestInit = {}): Promise<Response> {
     let last: unknown;
@@ -126,10 +109,8 @@ async function get<T>(path: string, params: Record<string, string | number> = {}
 }
 
 /**
- * Every collection a factory has originated.
- *
- * TzKT attributes an internal origination to the contract that made it, so
- * this one query returns the whole set.
+ * Every collection a factory has originated. TzKT attributes an internal
+ * origination to the contract that made it, so one query returns the set.
  */
 export async function fetchCollections(factory: string): Promise<TzktContract[]> {
     if (!factory) return [];
@@ -144,17 +125,13 @@ export async function fetchCollections(factory: string): Promise<TzktContract[]>
 /**
  * How large each collection's edition is. Zero is an open edition.
  *
- * Off the events, in two small reads, because the alternative is storage and
- * storage carries the generator: `includeStorage=true` over thirteen
- * collections is 266kB against 2kB, and it grows with how big the artists'
- * code is rather than with how many of them there are.
+ * Off the events, because storage carries the generator: `includeStorage=true`
+ * over thirteen collections is 266kB against 2kB, and it grows with the size of
+ * the artists' code. A bare `select=payload` pulls the generator back the same
+ * way, so the payload fields are named.
  *
- * `deploy` states the size the collection was published with, and
- * `set_edition_size` states every reduction after it. The size can only ever
- * go down, so the last word wins.
- *
- * Only the payload fields that are wanted. A bare `select=payload` pulls the
- * whole generator back with it, which is the same 250kB by another route.
+ * `deploy` states the size published with, `set_edition_size` states every
+ * reduction after it, and the size only goes down, so the last word wins.
  */
 export async function fetchEditionSizes(
     factories: string[],
@@ -203,16 +180,13 @@ export async function fetchEditionSizes(
 /**
  * Every collection one artist deployed.
  *
- * A collection is originated by the factory, so its `creator` is the factory
- * and not the artist. What identifies the artist is `initiator`: the account
- * whose operation caused the internal origination. Filtering on storage would
- * be the obvious approach and TzKT does not support it, it ignores unknown
- * query parameters and answers with an unfiltered page, which reads as success.
+ * The factory originates a collection, so `creator` is the factory. The artist
+ * is `initiator`, the account whose operation caused the internal origination.
+ * TzKT cannot filter on storage and ignores unknown query parameters, answering
+ * with an unfiltered page that reads as success.
  *
- * A single-field `select` is flattened: TzKT answers with the field's own value
- * per row, not with a row containing that field. Reading `row.originatedContract`
- * therefore found `undefined` on every row and the filter below dropped the lot,
- * so every artist's page said they had published nothing.
+ * A single-field `select` is flattened: the answer is the field's own value per
+ * row, not a row containing that field.
  */
 export async function fetchCollectionsDeployedBy(
     artist: string,
@@ -287,17 +261,13 @@ export async function fetchTokensHeldBy(
 }
 
 /**
- * Which of a specific set of tokens an account holds.
+ * Which of a specific set of tokens an account holds, as `collection:tokenId`
+ * keys.
  *
- * `fetchTokensHeldBy` cannot answer this: it filters by collection alone and
- * caps at a page, so a piece somebody offered on can sit outside the window and
- * read as not held. Here the pairs are known, so both sides are filtered and
- * the answer is exact.
- *
- * `token.contract.in` and `token.tokenId.in` filter independently rather than
- * as a set of pairs, the same way `fetchTokensIn` does, so the caller's set is
- * what decides. Returned as `collection:tokenId` keys, which is what every
- * caller compares against.
+ * `fetchTokensHeldBy` filters by collection alone and caps at a page, so a
+ * piece somebody offered on can sit outside the window and read as not held.
+ * Both sides are filtered here, independently and not as pairs, so the caller's
+ * set decides.
  */
 export async function fetchHeldAmong(
     account: string,
@@ -350,12 +320,7 @@ export async function fetchOwner(contract: string, tokenId: string): Promise<str
     return rows[0]?.account?.address ?? null;
 }
 
-/**
- * The operation that created a token, which is also its seed.
- *
- * A piece's seed is the hash of the operation that minted it. A renderer and
- * anyone checking its work both read it from here.
- */
+/** The operation that created a token. Its hash is the piece's seed. */
 export async function fetchMintOperation(
     contract: string,
     tokenId: string,
@@ -372,13 +337,9 @@ export async function fetchMintOperation(
     );
     const row = rows[0];
     if (!row) return null;
-    // `transactionId` identifies the operation; resolve it to a hash.
-    //
-    // The parameter comes back on the same row, which is where the collector's
-    // chosen values are: `mint` takes them as bytes and this is the operation
-    // they signed. Reading them here rather than from the piece's metadata is
-    // the difference between knowing them now and knowing them once a provider
-    // has rendered and published, which is minutes later.
+    // The parameter comes back with the hash, and it holds the collector's
+    // chosen values. The piece's metadata holds them too, minutes later, once a
+    // provider has rendered and published.
     const ops = await get<{ hash: string; parameter?: { value?: string } }[]>(
         "/v1/operations/transactions",
         {
@@ -400,24 +361,18 @@ export async function fetchMintOperation(
 }
 
 /**
- * A collection's own name and description.
+ * A collection's own name and description, from the `content` key of its
+ * metadata big_map.
  *
- * From the `content` key of its metadata big_map, decoded here. TzKT does
- * resolve TZIP-16 documents into a `metadata` field, but on its own schedule,
+ * TzKT resolves TZIP-16 documents into a `metadata` field on its own schedule,
  * it is null on this network today, and it cannot be asked for in a `select`,
- * so waiting for it means every collection is a KT1 address until it catches
- * up. Reading the big_map is the same request count and never lags.
+ * so waiting for it leaves every collection showing as a KT1 address. The
+ * big_map is the same request count and never lags.
  */
 export interface CollectionMeta {
     name?: string;
     description?: string;
-    /**
-     * The cover the artist picked at deploy, pinned then and on chain since.
-     *
-     * The deploy form calls it "what your collection looks like everywhere it
-     * is listed", so anywhere a collection is shown before a piece of it has
-     * been rendered, this is the picture to show.
-     */
+    /** The cover the artist picked at deploy. What to show before any piece renders. */
     displayUri?: string;
     thumbnailUri?: string;
 }
@@ -445,18 +400,14 @@ export async function fetchCollectionMeta(address: string): Promise<CollectionMe
 }
 
 /**
- * Which token an operation minted.
+ * Which token an operation minted. A collector signs and gets a hash back; the
+ * contract decides the token id.
  *
- * A collector signs and gets a hash back; the token id is decided by the
- * contract and only knowable afterwards. This closes that gap so the mint flow
- * can land them on their piece rather than on a receipt.
- *
- * Not `?hash=`: this TzKT instance ignores that filter on transactions and
- * answers with an unfiltered page of whatever is recent, which reads as
- * success and hands back somebody else's operation. So the query is by
- * recipient, and the hash is checked afterwards against the operations the
- * transfers actually belong to. Anything unmatched means the operation has not
- * been indexed yet, which is the normal case for the first second or two.
+ * This TzKT instance ignores `?hash=` on transactions and answers with an
+ * unfiltered page of whatever is recent, which reads as success and hands back
+ * somebody else's operation. So the query is by recipient and the hash is
+ * checked afterwards. No match means the operation is not indexed yet, which is
+ * normal for the first second or two.
  */
 export async function fetchMintedTokenId(
     contract: string,
@@ -490,16 +441,12 @@ export async function fetchMintedTokenId(
 }
 
 /**
- * A token's metadata document, read from the chain rather than from an index.
+ * A token's metadata document, from `token_info[""]` in the collection's own
+ * big_map. One call covers a whole collection.
  *
- * TzKT resolves `ipfs://` metadata into its `metadata` field, eventually and
- * on its own schedule, and on some networks not at all. Waiting for it means a
- * piece that is finished on chain still shows as unrendered, which is both
- * wrong and a strange thing for a project whose claim is that everything comes
- * from chain state.
- *
- * So this reads `token_info[""]` out of the collection's own big_map and
- * fetches the document itself. One call covers a whole collection.
+ * TzKT resolves `ipfs://` metadata into its `metadata` field on its own
+ * schedule, and on some networks not at all, so waiting for it shows a piece
+ * that is finished on chain as unrendered.
  */
 export async function fetchTokenUris(collection: string): Promise<Map<string, string>> {
     const rows = await get<{ key: string; value: { token_info: Record<string, string> } }[]>(

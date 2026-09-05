@@ -1,10 +1,4 @@
-/**
- * Every write this app makes, in one file.
- *
- * Each function builds a single operation and hands it to the wallet. Reading
- * this file tells you the complete set of things the site can ask a visitor
- * to sign.
- */
+/** Every write this app makes, and so every signature it can ask for. */
 import type { DAppClient, TezosOperationType } from "@tezos-x/octez.connect-sdk";
 import { rpcUrl } from "./config";
 import { addresses, currentFactory } from "./router";
@@ -17,32 +11,21 @@ interface OpResult {
  * What an operation declares, so nothing has to estimate it.
  *
  * Estimation does not work on this chain. `hard_gas_limit_per_operation`
- * equals the per-*block* limit, so a simulation submitted at the operation
- * maximum, which is what every estimator does, is refused by the node before
- * it ever reaches the contract. The error it comes back with is whatever the
- * simulator hit first and is usually misleading: `non_existing_contract`, for
- * a contract that plainly exists.
+ * equals the per-block limit, so a simulation submitted at the operation
+ * maximum, which is what every estimator does, is refused by the node before it
+ * reaches the contract, under whatever error the simulator hit first.
+ * `non_existing_contract`, for a contract that plainly exists, is the usual
+ * one.
  *
- * Declaring limits skips the simulation entirely. The fee has to be derived
- * from the gas limit rather than guessed, because a baker's minimum is roughly
- * 100 + 0.1 per gas unit + 1 per byte, in mutez, charged against the limit
- * *declared* and not the gas consumed. Paying under it does not fail loudly:
- * the operation injects, returns a hash, and sits in the mempool until it
- * expires.
- *
- * Unused gas is not charged, so these are generous rather than tight.
+ * A baker's fee floor is roughly 100 + 0.1 per gas unit + 1 per byte, in mutez,
+ * charged against the limits declared here and not the gas consumed. Paying
+ * under it is silent: the operation injects, returns a hash, and sits in the
+ * mempool until it expires. Unused gas is not charged, so these are generous.
  */
 interface Limits {
     gas: number;
     storage: number;
-    /**
-     * Payload size, for the fee floor's per-byte term.
-     *
-     * Defaulted, because almost every operation here carries a few hundred
-     * bytes of parameters. A deploy carrying a generator does not, and
-     * assuming it did left the fee thousands of mutez short: the operation
-     * injected, returned a hash, and sat in the mempool until it expired.
-     */
+    /** Payload size, for the fee floor's per-byte term. */
     bytes?: number;
 }
 
@@ -62,16 +45,14 @@ const LIST: Limits = { gas: 120_000, storage: 1_000 };
 /**
  * Storage a collection origination needs, beyond the generator itself.
  *
- * Measured, not guessed: a deploy carrying a 12,378-byte generator consumed
- * 27,297 bytes, so the contract's own code, its metadata and its initial
- * storage account for roughly 15,000. The default of 400 was not close, and
- * the failure is a wallet error rather than anything this app can catch.
+ * Measured: a deploy carrying a 12,378-byte generator consumed 27,297 bytes, so
+ * the contract's own code, its metadata and its initial storage account for
+ * roughly 15,000. Getting it wrong surfaces as a wallet error, which this app
+ * cannot catch.
  */
 const ORIGINATION_OVERHEAD_BYTES = 20_000;
 
 function feeFor(limits: Limits): number {
-    // A baker's floor is about 100 + 0.1 per gas unit + 1 per byte, in mutez,
-    // charged against what is *declared*. Underpaying does not fail loudly.
     return 100 + Math.ceil(limits.gas * 0.1) + (limits.bytes ?? 500);
 }
 
@@ -97,12 +78,9 @@ const detail = (c: Call) => {
 };
 
 /**
- * Several calls, one signature, all or nothing.
- *
- * Tezos applies a batch atomically: if the last one fails, the earlier ones are
- * reverted too. That is what makes granting an operator and using the grant
- * safe to do together. Sent separately, a wallet asks twice and the second can
- * fail on its own, which leaves the grant standing with nothing done.
+ * Several calls, one signature, all or nothing. Tezos applies a batch
+ * atomically, so a failure in the last call reverts the earlier ones, which is
+ * what makes granting an operator and using the grant safe to send together.
  */
 async function sendBatch(client: DAppClient, calls: Call[]): Promise<OpResult> {
     const result = await client.requestOperation({ operationDetails: calls.map(detail) });
@@ -125,12 +103,9 @@ const int = (v: number | string | bigint) => ({ int: String(v) });
 const bytes = (hex: string) => ({ bytes: hex.replace(/^0x/, "") });
 
 /**
- * Where a *new* listing or offer goes: the current marketplace.
- *
- * Acting on something that already exists takes the address off the listing
- * or the offer instead, because it lives in whichever contract it was made
- * on. Delisting against the wrong marketplace fails, and buying against the
- * wrong one fails after the wallet has already asked for a signature.
+ * Where a new listing or offer goes. Anything that already exists carries the
+ * address of the marketplace it was made on, and acting on it takes that
+ * address, because the wrong one fails after the wallet has asked to sign.
  */
 async function marketplace(): Promise<string> {
     const a = (await addresses()).marketplaces[0];
@@ -145,13 +120,8 @@ export function utf8ToHex(s: string): string {
 }
 
 /**
- * Mint one edition. The collector's single signature.
- *
- * The amount covers the price and the render gas together, and this
- * operation's hash becomes the piece's seed.
- *
- * `mint` on a collection creates a token. `buyListing` below buys one that
- * already exists. Those are different things and they no longer share a name.
+ * Mint one edition. The amount covers the price and the render gas together,
+ * and this operation's hash becomes the piece's seed.
  */
 export function mint(
     client: DAppClient,
@@ -179,15 +149,11 @@ export async function addOperator(
 /**
  * Encode an entrypoint against the contract's own type, by field name.
  *
- * Hand-built Michelson pairs are positional, and SmartPy lays a record out in
- * alphabetical order rather than declaration order. `list_token(collection,
- * token_id, price)` is `(collection, price, token_id)` on chain, so a
- * positional encoding silently passed the price as the token id: listing at
- * 1 tez asked to transfer token 1,000,000, and the collection rightly answered
- * FA2_TOKEN_UNDEFINED.
- *
- * Nothing here builds a pair by hand any more. Taquito reads the type off the
- * chain and matches on names, so a field reordering cannot go unnoticed.
+ * Michelson pairs are positional and SmartPy lays a record out alphabetically,
+ * so `list_token(collection, token_id, price)` is `(collection, price,
+ * token_id)` on chain. Taquito reads the type off the chain and matches on
+ * names, which is what keeps a field reordering from passing a price as a
+ * token id.
  */
 async function encode(
     contractAddress: string,
@@ -211,19 +177,11 @@ async function encode(
 /**
  * Grant, list, revoke. One signature, one operation.
  *
- * The marketplace escrows the token, which it can only do as an operator, so
- * three calls are needed and they belong together. Sent separately a wallet
- * asks twice, the second can fail on its own balance, and the grant is left
- * standing with nothing listed.
- *
- * The revoke is in the batch on purpose. `list_token` transfers the token
- * inside this same operation, so the grant is needed for the length of one
- * call and not a moment longer. Left behind, it is a standing permission for
- * the marketplace to move that token again without asking, on a token it no
- * longer holds once the listing is filled or cancelled.
- *
- * Tezos applies a batch atomically, so a failure anywhere reverts the grant
- * with it.
+ * The marketplace escrows the token, which it can only do as an operator.
+ * `list_token` transfers inside this same operation, so the grant is needed for
+ * the length of one call: left standing it is open permission to move that
+ * token again, on a token the marketplace no longer holds once the listing is
+ * filled or cancelled.
  */
 export async function listToken(
     client: DAppClient,
@@ -264,22 +222,14 @@ export async function listToken(
     ]);
 }
 
-/**
- * Accept an offer, in one operation, for the same reasons as listing.
- */
+/** Accept an offer, in one operation, for the same reasons as listing. */
 export async function acceptOfferFor(
     client: DAppClient,
     collection: string,
     owner: string,
     tokenId: string,
     offerId: number,
-    /**
-     * The marketplace holding the offer, from the offer.
-     *
-     * The operator grant and the accept both have to name it. Granting the
-     * current marketplace and accepting there would fail on a contract that
-     * never held the offer, after the wallet had already asked.
-     */
+    /** The marketplace holding the offer. The grant and the accept both name it. */
     market: string,
 ): Promise<OpResult> {
     const [grant, accept, revoke] = await Promise.all([
@@ -312,20 +262,16 @@ export async function acceptOfferFor(
 /**
  * Take a listing down and sell into an offer, in one operation.
  *
- * Listing escrows the token into the marketplace, and `accept_offer` transfers
- * from the sender, so a listed piece has nothing to move until the listing
- * comes down. As two signatures the seller is exposed in between: the buyer can
- * cancel once the piece is back, leaving somebody who delisted for a sale that
- * no longer exists.
- *
- * A batch is applied atomically, and each call's internal operations run before
- * the next call begins, so the token is back in the seller's hands by the time
- * the accept reaches for it. An offer cancelled in the same block reverts all
- * four and the listing still stands.
+ * Listing escrows the token, and `accept_offer` transfers from the sender, so a
+ * listed piece has nothing to move until the listing comes down. Split across
+ * two signatures the seller is exposed between them, and the buyer can cancel
+ * once the piece is back. Each call's internal operations run before the next
+ * call begins, so the token is in the seller's hands by the time the accept
+ * reaches for it, and a cancelled offer reverts all four.
  *
  * The listing and the offer can live in different marketplaces. Each call goes
- * to the contract holding the thing it acts on, and the operator grant names
- * the one doing the transfer.
+ * to the contract holding the thing it acts on, and the grant names the one
+ * doing the transfer.
  */
 export async function delistAndAcceptOffer(
     client: DAppClient,
@@ -476,15 +422,8 @@ export function setTrustResolver(
     });
 }
 
-// ---------------------------------------------------------------------------
-// Deploying a collection
-// ---------------------------------------------------------------------------
-
 export interface DeployParams {
-    /**
-     * The generator itself, hex, no prefix. This is the normal case: the art
-     * goes into contract storage and depends on nobody's gateway.
-     */
+    /** The generator itself, hex, no prefix. The art lives in contract storage. */
     codeHex: string;
     /** How `codeHex` is encoded. `identity` unless it needed compressing. */
     codeEncoding: "identity" | "gzip";
@@ -511,17 +450,15 @@ export interface DeployParams {
 /**
  * Originate a collection through the factory. The artist's one signature.
  *
- * The parameter is encoded by Taquito against the factory's own type read from
- * the chain, rather than assembled by hand here. A record's Michelson layout
- * sorts its fields, and a map's keys have to be in the protocol's order for
- * their type, which for addresses is their binary form and not their text. Both
- * are easy to get wrong in a way that is invisible until an artist's signature
- * is rejected, and neither has to be guessed when the type is public.
+ * Taquito encodes the parameter against the factory's own type, read from the
+ * chain. A record's Michelson layout sorts its fields, and a map's keys go in
+ * the protocol's order for their type, which for addresses is their binary form
+ * and not their text. Both are invisible until an artist's signature is
+ * rejected.
  *
  * The caller is written in as administrator in the collection's initial
- * storage, so nothing passes through us, and the storage burn is charged to the
- * artist's own wallet. The wallet estimates the storage limit: anything
- * hardcoded breaks the day the template grows.
+ * storage, so nothing passes through us and the storage burn is charged to the
+ * artist's own wallet.
  */
 export async function deployCollection(
     client: DAppClient,
@@ -565,9 +502,7 @@ export async function deployCollection(
     if (!parameter) throw new Error("The factory's deploy entrypoint encoded to nothing.");
 
     // The generator travels inside this operation and lands in the originated
-    // contract's storage, so both the storage limit and the fee have to scale
-    // with it. Neither is knowable by simulation on a chain whose per-operation
-    // gas cap equals the per-block one.
+    // contract's storage, so the storage limit and the fee both scale with it.
     const codeBytes = Math.ceil(params.codeHex.replace(/^0x/, "").length / 2);
     const limits: Limits = {
         gas: 60_000,
