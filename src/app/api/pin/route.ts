@@ -1,33 +1,28 @@
 import { NextResponse } from "next/server";
 
 /**
- * Pin an artist's generator, and the documents that go with it.
+ * Pin an artist's generator, and the documents that go with it. Publishing
+ * needs an `ipfs://` pointer before the deploy operation is built, and pinning
+ * needs a credential that cannot be in a browser.
  *
- * This exists because publishing needs an `ipfs://` pointer before the deploy
- * operation is built, and pinning needs a credential that cannot be in a
- * browser. It is deliberately the narrowest thing that works: three known
- * shapes, a hard size ceiling, and no ability to name or overwrite anything.
+ * Unauthenticated, because requiring an account to publish would undo what the
+ * studio is for, which makes this an open pinning endpoint on our account. The
+ * limits are the whole defence:
  *
- * It is unauthenticated, because requiring an account to publish would undo
- * the thing the studio is for. That makes it an open pinning endpoint on our
- * account, so the limits below are the whole defence and they are set to what
- * a real generator needs rather than to what is comfortable:
+ *   - one operation's worth of bytes, since a larger generator cannot be
+ *     deployed anyway
+ *   - JSON documents capped far below that
+ *   - `content-type` fixed here, so nothing decides its own media type
  *
- *   - one operation's worth of bytes, since a generator larger than the
- *     protocol's operation limit cannot be deployed anyway
- *   - JSON documents capped far below that, they are a few hundred bytes
- *   - `content-type` fixed by us, so nothing decides its own media type
- *
- * An artist who would rather not use it can pin anywhere and publish through
- * the plain `ipfs://` field on the deploy form.
+ * An artist can pin anywhere else and publish through the `ipfs://` field on
+ * the deploy form.
  */
 
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
 /**
- * The protocol's operation ceiling. A generator above this cannot be carried
- * by the deploy operation, so pinning it would only produce a pointer that
- * fails at signature.
+ * The protocol's operation ceiling. A generator above it cannot be carried by
+ * the deploy, so pinning one produces a pointer that fails at signature.
  */
 const MAX_GENERATOR_BYTES = 32_768;
 const MAX_DOCUMENT_BYTES = 8_192;
@@ -72,9 +67,7 @@ export async function POST(request: Request) {
         }
 
         if (body.kind === "image") {
-            // A collection cover, captured in the artist's own browser. It is
-            // marketing rather than a token's image, so nothing depends on it
-            // having come from a provider.
+            // A collection cover, captured in the artist's own browser.
             const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(body.content ?? "");
             if (!match) {
                 return NextResponse.json(
@@ -144,12 +137,9 @@ async function pinJson(doc: unknown, name?: string): Promise<string> {
 }
 
 /**
- * Ask the public gateway for what was just pinned.
- *
- * The site reads through a gateway that is not the pinning service, because it
- * is far faster. It has to fetch content across the network before it can
- * serve it though, and until something asks, it never goes looking. One
- * request is what makes it go look.
+ * Ask the public gateway for what was just pinned. The site reads through a
+ * gateway that is not the pinning service, and one has to fetch content across
+ * the network before it can serve it. Until something asks, it never looks.
  */
 async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];

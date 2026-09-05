@@ -4,26 +4,18 @@ import { rpcUrl, tzktApi } from "@/lib/config";
 /**
  * Can this address be paid a royalty?
  *
- * The marketplace pays each share inside the sale, and it asks first:
- * `sp.contract(sp.unit, recipient)` is Some for every implicit account and for
- * a contract with a `default` entrypoint of type unit. A share it cannot
- * deliver goes to the seller. `royalties` has no setter, so an address that
- * cannot be paid is never paid, on any sale, for the life of the collection,
- * and the artist cannot correct it afterwards. This page is the last moment
- * it is still editable, which is the whole reason to ask.
+ * The marketplace asks `sp.contract(sp.unit, recipient)` before it pays, which
+ * is Some for every implicit account and for a contract with a `default`
+ * entrypoint of type unit. A share it cannot deliver goes to the seller, and
+ * `royalties` has no setter, so an address that cannot be paid never is.
  *
- * Two questions, because they have different answers.
+ * Two questions. Whether a `default` of the right type exists comes from the
+ * contract's entrypoints, which is what the marketplace asks. Whether that
+ * entrypoint then runs comes from simulating the transfer, and only a
+ * simulation sees it: an internal operation that fails reverts the whole sale,
+ * so a recipient that takes the money and throws breaks every sale permanently.
  *
- * Whether a `default` of the right type exists is answered by reading the
- * contract's entrypoints, and that is the same question the marketplace asks.
- * Whether that entrypoint then runs is answered by simulating the transfer,
- * and nothing on chain can answer it: an internal operation that fails reverts
- * the whole sale, so a recipient that takes the money and then throws makes
- * every sale of the collection fail permanently. Only a simulation sees that
- * one coming.
- *
- * Server side, so no visitor's address reaches the RPC from their own browser,
- * the same reason `api/dep` exists.
+ * Server side, so no visitor's address reaches the RPC.
  */
 
 const IMPLICIT = /^tz[1234][0-9A-Za-z]{33}$/;
@@ -59,12 +51,10 @@ async function defaultParameter(address: string): Promise<string | null> {
 }
 
 /**
- * One mutez to the address, run against the node and never signed.
- *
- * The source is the artist's own account, so it is funded (they are about to
- * pay for an origination) and nothing here depends on an address of ours
- * holding a balance. The storage allowance covers allocating an implicit
- * account, which is charged even on a simulation.
+ * One mutez to the address, run against the node and never signed. The source
+ * is the artist's own account, which is funded, so nothing here depends on an
+ * address of ours holding a balance. The storage allowance covers allocating an
+ * implicit account, which is charged even on a simulation.
  */
 async function simulate(address: string, source: string): Promise<{ ok: boolean; why: string }> {
     const rpc = rpcUrl();
