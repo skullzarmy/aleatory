@@ -5,15 +5,12 @@
  *   npx tsx contract/deploy-collection.ts [--dry-run] [--network shadownet]
  *                                         [--buy] [--price 1000000]
  *
- * This is the artist path and the collector path, run once, to answer the
- * three numbers that no amount of local compilation can:
+ * The artist path and the collector path, run once through the real factory, to
+ * answer three numbers local compilation cannot:
  *
  *   1. what a collection costs an artist to deploy
  *   2. what a mint costs a collector on top of price + render gas
  *   3. whether any of it fits inside a single operation
- *
- * It goes through the real factory, because the one-signature deploy is the
- * thing being measured.
  *
  * Env: as contract/deploy.ts, plus
  *   ALEA_CODE_URI          ipfs:// pointer to the generator (required)
@@ -53,8 +50,6 @@ function deployments(): Record<string, string> {
 function requireEnv(name: string): string {
     const v = process.env[name];
     if (!v) {
-        // Immutable once the collection exists, so a missing value has to stop
-        // the run.
         throw new Error(`${name} is not set, and it can never be changed after deploy.`);
     }
     return v;
@@ -127,8 +122,8 @@ async function main() {
         royalties,
         pending_metadata: hex(pending),
         start_paused: true, // deploy, check, announce, then open
-        // Opt in explicitly. This extends metadata-write authority to whoever the
-        // resolver vouches for, so it is a choice rather than a default.
+        // Extends metadata-write authority to whoever the resolver vouches for,
+        // so it is opted into.
         trust_resolver: process.env.ALEA_TRUST_RESOLVER === "true",
         provider: d.provider,
         max_render_gas: Number(renderGas),
