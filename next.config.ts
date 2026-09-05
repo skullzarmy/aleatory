@@ -1,15 +1,10 @@
 import type { NextConfig } from "next";
 
 /**
- * Security headers, built from the same configuration the app reads.
- *
- * These used to live in `netlify.toml` as a static string naming
- * `isolate.aleatory.art`. That host is an environment variable everywhere
- * else, so locally the app framed `localhost:4321` while the header still
- * insisted on the production host, and every preview was blocked. A policy
- * that only holds in production is a policy nobody tests.
- *
- * One definition, here, derived from `NEXT_PUBLIC_ISOLATE_ORIGIN`.
+ * Security headers, derived from `NEXT_PUBLIC_ISOLATE_ORIGIN`, the same
+ * configuration the app reads. A static policy naming the production host would
+ * block every local preview, and a policy that only holds in production is one
+ * nobody tests.
  */
 const ISOLATE_ORIGIN =
     process.env.NEXT_PUBLIC_ISOLATE_ORIGIN || "https://isolate.aleatory.art";

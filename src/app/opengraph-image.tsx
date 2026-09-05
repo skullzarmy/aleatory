@@ -2,15 +2,11 @@ import { ImageResponse } from "next/og";
 import { BRAND } from "@/lib/config";
 
 /**
- * The card any page falls back to.
+ * The card any page falls back to: the pages that are not a picture, and a
+ * piece whose render has not landed. Everything else has a PNG pinned already.
  *
- * Almost nothing here needs a generated image: every rendered piece already
- * has a PNG pinned, a collection uses its newest one, a wallet uses its
- * avatar. This is for the pages that are not a picture, and for a piece whose
- * render has not landed yet, so a link is never a blank rectangle.
- *
- * Drawn rather than served from a file so it stays in step with the brand
- * without anyone re-exporting a PNG.
+ * Drawn rather than served from a file, so it follows the brand without anyone
+ * re-exporting a PNG.
  */
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
