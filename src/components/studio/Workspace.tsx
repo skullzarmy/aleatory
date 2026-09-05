@@ -124,9 +124,6 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                     </p>
                 </div>
 
-                {/* Export sits beside Publish because it is the other way a
-                    draft leaves this browser, and the one that matters when
-                    publishing is not what you want yet. */}
                 <div className="flex shrink-0 items-center gap-2">
                     <button
                         type="button"
@@ -139,10 +136,6 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                         Export
                     </button>
 
-                    {/* A trailing arrow, because this button does not publish
-                        anything — it opens the flow that does. Not Upload:
-                        CodePane spends that glyph on opening a file, and one
-                        glyph cannot mean two things in one workspace. */}
                     <Link
                         href={`/studio/${draft.id}/publish`}
                         className="inline-flex items-center gap-1.5 rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700"
