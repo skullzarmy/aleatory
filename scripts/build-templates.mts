@@ -2,15 +2,11 @@
  * Turn the template files into the module the studio imports, and into a
  * starter kit somebody can download and work in.
  *
- * The files under public/templates are the source. Keeping them as files
- * rather than literals means a backtick in one cannot break the module.
- *
  *   npm run templates:build
  *
- * Runs before dev and before build, so neither the generated module nor the
- * kits can be stale.
- *
- * Written as TypeScript and run under tsx, alongside the rest of the source.
+ * The files under public/templates are the source, so a backtick in one cannot
+ * break the module. Runs before dev and before build, so neither the generated
+ * module nor the kits can be stale.
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
@@ -45,18 +41,16 @@ const readme = Object.fromEntries(
 const serve = readFileSync(join(root, "scripts/kit/serve.mjs"), "utf8");
 
 /**
- * A container definition, so a kit opens ready to run.
- *
- * An open specification rather than one host's format: the same file is what
- * Codespaces, Gitpod and the Dev Containers extension all read, so no kit is
- * tied to any of them. The bundler kit carries its own, which installs first.
+ * A container definition, so a kit opens ready to run. Codespaces, Gitpod and
+ * the Dev Containers extension all read this same file. The bundler kit carries
+ * its own, which installs first.
  */
 const devcontainer = readFileSync(join(root, "scripts/kit/devcontainer.json"), "utf8");
 
 // --- the module the studio imports ----------------------------------------
 
-// JSON.stringify, not a template literal. That is the whole point: a backtick
-// or a ${ in someone's template can no longer end the string.
+// JSON.stringify, not a template literal, so a backtick or a ${ in someone's
+// template cannot end the string.
 const record = (byKind: Record<string, string>) =>
     KINDS.map((kind) => `    ${JSON.stringify(kind)}: ${JSON.stringify(byKind[kind])},`).join("\n");
 
@@ -101,18 +95,15 @@ for (const kind of KINDS) {
 
 // --- the bundler kit --------------------------------------------------------
 //
-// Not a runtime kind. It produces the same single document the other four do
-// and is a different way of arriving at one, so it stays out of the catalog
-// and out of the module the studio imports.
+// Not a runtime kind: it is another way of arriving at the same single
+// document, so it stays out of the catalog and out of the generated module.
 
 const bundlerDir = join(root, "public/templates/bundler");
 
 /**
- * The dev harness, taken from the vanilla template.
- *
- * Copied in here rather than written twice. The shell in the repository
- * carries a `// alea:harness` line and is not runnable on its own, which costs
- * nothing: this kit is built before it is opened either way.
+ * The dev harness, taken from the vanilla template so it is not written twice.
+ * The shell in the repository carries a `// alea:harness` line and is not
+ * runnable until this fills it in.
  */
 const HARNESS = /\/\/ alea:harness:start\n([\s\S]*?)\n\s*\/\/ alea:harness:end/;
 const harness = html.vanilla.match(HARNESS)?.[1];
