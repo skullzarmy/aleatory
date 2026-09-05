@@ -1,14 +1,9 @@
 /**
- * Where the contracts are, and how to read them.
- *
- * The bot's own copy. Nothing here imports from `src/`, because this runs on a
- * machine that has no site on it and has to keep working if the site is
- * deleted. The site's `lib/router.ts` answers the same question with Next's
- * caching wrapped around every fetch, which is the wrong shape for a process
- * that polls on its own clock.
+ * Where the contracts are, and how to read them. The bot's own copy: nothing
+ * here imports from `src/`, because this runs on a machine with no site on it,
+ * and `lib/router.ts` wraps Next's caching around every fetch.
  *
  * One address is configured, the router, and everything else is read from it.
- * That is what makes mainnet a change of two environment variables.
  */
 
 export type Network = "shadownet" | "mainnet";
@@ -19,13 +14,9 @@ const TZKT: Record<Network, string> = {
 };
 
 /**
- * Read when called, never at import.
- *
- * A module constant is evaluated the moment the module is first imported, and
- * an import is hoisted above every statement in the file that wrote it. So a
- * constant here would be filled from the environment before `dotenv.config()`
- * had run, and the process would start up reporting itself unconfigured while
- * `.env` sat there correctly filled in.
+ * Read when called, never at import. Imports are hoisted above the
+ * `dotenv.config()` that fills the environment, so a module constant here reads
+ * an empty `.env` and the process starts up reporting itself unconfigured.
  */
 export const network = (): Network =>
     (process.env.ALEA_NETWORK as Network) ||
@@ -56,11 +47,9 @@ export interface Addresses {
 }
 
 /**
- * Read the router.
- *
- * `marketplaces` comes from storage history rather than from `set_marketplace`
- * events: the first marketplace is written at origination and emits nothing,
- * so an event scan silently loses it along with every fee it still holds.
+ * Read the router. `marketplaces` comes from storage history, because the first
+ * marketplace is written at origination and emits nothing, so an event scan
+ * loses it along with every fee it still holds.
  */
 export async function addresses(): Promise<Addresses> {
     const ROUTER = router();
@@ -84,8 +73,8 @@ export async function addresses(): Promise<Addresses> {
             if (address && !history.includes(address)) history.push(address);
         }
     } catch {
-        // The present still came from storage, so a failure here costs the
-        // retired contracts and their unswept fees, not the whole reading.
+        // The present came from storage, so this costs the retired contracts
+        // and their unswept fees, not the whole reading.
         history = [];
     }
 
