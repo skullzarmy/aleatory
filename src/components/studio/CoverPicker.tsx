@@ -7,38 +7,26 @@ import type { ParamSpec } from "@/lib/params";
 import { resolveParams } from "@/lib/params";
 
 /**
- * The collection's cover.
+ * The collection's cover: captured in the artist's browser, from the same
+ * isolate that renders everything else, and pinned as a flat PNG. No provider
+ * is involved, because a cover is marketing and not a token's image.
  *
- * Captured in the artist's own browser, from the same isolate that renders
- * everything else, and pinned as a flat PNG. No provider is involved: a cover
- * is marketing, not a token's image, and nobody's property depends on it. What
- * pieces need the provider for is an image produced deterministically and
- * written on chain by an authorised writer, and none of that applies here.
- *
- * A flat image rather than a stored seed because the surfaces that matter most
- * are the ones we do not control. objkt will not run our isolate, and a list of
- * collections cannot afford a live render per row.
- *
- * The artist picks the seed, which is the right person and the right moment:
- * they have been reading the seed grid all week and know which draw represents
- * the space. `set_metadata` lets them replace it later, so a hasty choice is
- * not permanent.
+ * Flat, and not a stored seed, because objkt will not run our isolate and a
+ * list of collections cannot afford a live render per row. `set_metadata`
+ * replaces it later, so the choice is not permanent.
  */
+
 /** Long edge of the full cover, and of the thumbnail. */
 const DISPLAY_PX = 1200;
 const THUMB_PX = 400;
 
 /**
- * Redraw at a bounded size.
+ * Redraw at a bounded size, never upscaling.
  *
- * Never upscales: a generator that drew at 600px stays at 600px rather than
- * being blown up to look worse.
- *
- * Filled opaque first. A canvas is transparent where nothing was drawn, and a
- * transparent PNG composites against whatever a marketplace card happens to
- * use, so the cover would look one way here and another on objkt. Black,
- * because that is what the isolate puts behind a piece, so the capture matches
- * what the artist was looking at when they chose it.
+ * Filled opaque first, because a canvas is transparent where nothing was drawn
+ * and a transparent PNG composites against whatever a marketplace card uses.
+ * Black, which is what the isolate puts behind a piece, so the capture matches
+ * what the artist chose from.
  */
 async function downscale(dataUrl: string, maxPx: number): Promise<string> {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -109,9 +97,8 @@ export function CoverPicker({
         setBusy(true);
         setError(null);
         try {
-            // Two sizes, because they are read in different places. A grid row
-            // or a marketplace card pulls the thumbnail, and pulling a full
-            // capture for a 200px tile is how a listing page gets slow.
+            // Two sizes: a grid row or a marketplace card pulls the thumbnail
+            // rather than a full capture for a 200px tile.
             const [full, thumb] = await Promise.all([
                 downscale(image, DISPLAY_PX),
                 downscale(image, THUMB_PX),

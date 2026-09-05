@@ -12,16 +12,12 @@ import { formatTez, shortAddress } from "@/lib/utils";
 import * as ops from "@/lib/ops";
 
 /**
- * Both sides of the offer book, for the connected wallet.
+ * Both sides of the offer book, for the connected wallet. An offer escrows tez
+ * the moment it is signed, so both the holder being offered to and the buyer
+ * whose money is sitting in a marketplace need one place that lists them.
  *
- * An offer escrows real tez the moment it is signed, and until this page the
- * only place either side of one appeared was the piece it was made on. An owner
- * had to visit every piece they hold to find out somebody had offered, and a
- * buyer who offered and moved on had tez sitting in a marketplace contract with
- * nothing that listed it back to them.
- *
- * Nothing here is private. Every row is public chain state read through TzKT,
- * filtered to one address, which is why it needs no server and no account.
+ * Every row is public chain state read through TzKT, filtered to one address,
+ * so this needs no server and no account.
  */
 const keyOf = (o: Offer) => `${o.marketplace}:${o.id}`;
 const pairOf = (o: Offer) => `${o.collection}:${o.tokenId}`;
@@ -35,21 +31,17 @@ export default function OffersPage() {
     const [busy, setBusy] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     // An operation has landed and the indexer has not caught up. Controls stay
-    // disabled through this, or the page still shows an offer that has been
-    // accepted and happily offers to accept it again.
+    // disabled, or the page offers to accept an offer that is already accepted.
     const [settling, setSettling] = useState(false);
 
-    // Looked at, for as long as this page is open. Runs again whenever the set
-    // changes, so an offer that arrives while it is on screen is not left
-    // lighting the dot behind the reader's back. `markSeen` changes identity
-    // with the set, which is what re-runs this.
+    // `markSeen` changes identity with the set, so an offer arriving while this
+    // is on screen is marked too.
     useEffect(() => {
         markSeen();
     }, [markSeen]);
 
-    // Only changes when the set of pieces does. The poll returns fresh objects
-    // every minute, and keying the reads below on the offers themselves would
-    // re-fetch every image and every royalty on each of them.
+    // The poll returns fresh objects every minute, so keying the reads below on
+    // the offers themselves would re-fetch every image on each of them.
     const pairsKey = useMemo(
         () =>
             [...new Set([...incoming, ...outgoing].map(pairOf))]
@@ -58,9 +50,8 @@ export default function OffersPage() {
         [incoming, outgoing],
     );
 
-    // The images and names. A listing carries a collection, a token id and a
-    // price and nothing else, and so does an offer, so what somebody is being
-    // asked to sell is a second read. One query for the whole page.
+    // An offer carries a collection, a token id and a price, so what somebody
+    // is being asked to sell is a second read. One query for the whole page.
     useEffect(() => {
         const pairs = pairsKey
             .split(",")
@@ -86,9 +77,8 @@ export default function OffersPage() {
         };
     }, [pairsKey]);
 
-    // What each collection takes, so a row can say what accepting actually
-    // pays. One small read per collection: `fetchRoyaltyBps` asks for the one
-    // field rather than the whole storage record, which carries the generator.
+    // What each collection takes, so a row can say what accepting pays.
+    // `fetchRoyaltyBps` asks for the one field, not the whole storage record.
     const collectionsKey = useMemo(
         () =>
             [...new Set(incoming.map((o) => o.collection))]
@@ -110,9 +100,7 @@ export default function OffersPage() {
         };
     }, [collectionsKey]);
 
-    // Refresh until the answer changes, then stop. Capped, because a page that
-    // polls forever after a stalled indexer is worse than one that gives up and
-    // lets the reader reload. Same shape as PieceMarket, for the same reason: a
+    // Refresh until the answer changes, capped. Same shape as PieceMarket: a
     // signature returns when the operation is injected, seconds before it is in
     // a block and longer before an indexer has it.
     const stamp = `${incoming.map(keyOf).join(",")}|${outgoing.map(keyOf).join(",")}`;
@@ -220,9 +208,8 @@ export default function OffersPage() {
                             onAccept={() =>
                                 run(`accept-${keyOf(o)}`, async () => {
                                     const client = await getClient();
-                                    // A listed piece is escrowed in the
-                                    // marketplace, so the listing comes down in
-                                    // the same operation as the accept.
+                                    // A listed piece is escrowed, so the listing
+                                    // comes down in the same operation.
                                     return o.listing
                                         ? ops.delistAndAcceptOffer(
                                               client,
@@ -293,8 +280,8 @@ function IncomingRow({
     disabled: boolean;
     onAccept: () => void;
 }) {
-    // The fee on the offer itself, not the marketplace's current one. `set_fee`
-    // is never retroactive, so this is what accepting actually pays.
+    // The fee on the offer, not the marketplace's current one: `set_fee` is
+    // never retroactive.
     const split = proceeds(offer.amountMutez, offer.feeBps, royaltyBps);
 
     return (
@@ -369,10 +356,9 @@ function Row({
     return (
         <li className="flex gap-3 p-3 sm:gap-4 sm:p-4">
             <Link href={href} className="shrink-0">
-                {/* The plate matters: an image that fails to load collapses to
-                    it instead of painting the browser's broken glyph into the
-                    row. `alt=""` is what makes it collapse, and the name beside
-                    it already names the link. */}
+                {/* `alt=""` collapses a failed image onto the plate instead of
+                    painting the browser's broken glyph. The name beside it
+                    already names the link. */}
                 <span className="block h-14 w-14 overflow-hidden rounded-md bg-muted sm:h-16 sm:w-16">
                     {piece?.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
