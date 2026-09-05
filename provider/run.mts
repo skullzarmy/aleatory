@@ -1,28 +1,21 @@
 /**
- * Run the provider once, locally.
- *
- * The deployed daemon is a Netlify function on a cron, which needs Netlify to
- * invoke it and Netlify Blobs to hold its claims. Neither exists on a laptop,
- * so there was no way to watch the loop work short of deploying it. This is
- * that way.
+ * Run the provider once, locally, without Netlify to invoke it or Blobs to hold
+ * its claims.
  *
  *   npm run provider:check   scan and report, change nothing
  *   npm run provider:run     render, pin and publish
  *
- * A run spends render budget, pinning quota and the agent's gas.
- * `set_token_metadata` is rewritable by an authorised writer, deliberately, so
- * a publish that landed without its confirmation being seen can be corrected.
- * The spending is the part a dry run saves.
+ * A run spends render budget, pinning quota and the agent's gas, which is what
+ * a dry run saves. `set_token_metadata` is rewritable by an authorised writer,
+ * so a publish whose confirmation was missed can be corrected.
  *
- * No claim store here. That exists to stop two concurrent invocations
- * rendering the same piece; one process cannot race itself.
+ * No claim store: that stops two concurrent invocations rendering the same
+ * piece, and one process cannot race itself.
  */
 import dotenv from "dotenv";
 
-// Loaded before the modules below, and they are imported dynamically for that
-// reason. A static import is hoisted above every statement in this file, so
-// the daemon would read process.env before dotenv had filled it and come up
-// with no configuration at all while this script reported everything fine.
+// The modules below are imported dynamically because a static import is hoisted
+// above this call, and the daemon would read an unfilled process.env.
 dotenv.config();
 
 const { collectionsServed, collectionsFactories, pendingIn, handle } = await import(
@@ -30,11 +23,7 @@ const { collectionsServed, collectionsFactories, pendingIn, handle } = await imp
 );
 const { renderConfigFromEnv } = await import("./render.mts");
 
-/**
- * Same flag as every other script here, and as `contract/deploy.ts`. It used
- * to be an environment variable, which meant the way to preview this was
- * different from the way to preview everything else.
- */
+/** Same flag as every other script here, and as `contract/deploy.ts`. */
 const DRY = process.argv.includes("--dry-run");
 
 function check(name: string, ok: boolean, detail = ""): boolean {
@@ -60,8 +49,7 @@ const ready = [
     check("pinning", Boolean(process.env.PINATA_JWT)),
     check("rendering", Boolean(renderConfigFromEnv())),
     // Where the daemon looks for work. Unset, it scans nothing and reports
-    // serving no collections, which reads exactly like "nobody has named you
-    // as their provider" while every check above passes.
+    // serving no collections, which reads like nobody having named it.
     check("router", Boolean(router || override), override ? `overridden: ${override}` : router),
 ].every(Boolean);
 
