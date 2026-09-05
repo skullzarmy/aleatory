@@ -13,10 +13,8 @@ import type { DAppClient } from "@tezos-x/octez.connect-sdk";
 import { BRAND, NETWORK } from "@/lib/config";
 
 /**
- * Wallet connection, on Tezos X Connect.
- *
- * The SDK is around two megabytes, so it loads on first use. A visitor
- * browsing the feed never downloads it.
+ * Wallet connection, on Tezos X Connect. The SDK is around two megabytes, so it
+ * loads on first use and a visitor browsing the feed never downloads it.
  */
 type SDKModule = typeof import("@tezos-x/octez.connect-sdk");
 
@@ -43,10 +41,8 @@ function buildNetwork(sdk: SDKModule) {
 let client: DAppClient | null = null;
 
 /**
- * Where an account change is delivered, set by the provider on mount.
- *
- * Module level, like the client itself, because the subscription belongs to
- * the client and has to outlive any one render.
+ * Where an account change is delivered, set by the provider on mount. Module
+ * level, because the subscription belongs to the client and outlives a render.
  */
 let onActiveAccount: ((address: string | null) => void) | null = null;
 
@@ -55,11 +51,8 @@ async function getClient(): Promise<DAppClient> {
     const sdk = await loadSDK();
     client = new sdk.DAppClient({ name: BRAND.name, network: buildNetwork(sdk) });
 
-    // The wallet decides which account is active, and it can change it without
-    // us asking: the holder switches account in the extension and every
-    // address on screen now belongs to somebody else, including the one we
-    // would put in a mint. Nothing here polls for that, so without this the
-    // page keeps showing the old account until it is reloaded.
+    // The wallet can change the active account without being asked, and nothing
+    // here polls, so without this the page shows the old account until reload.
     await client.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
         const next = account && matchesNetwork(account) ? account.address : null;
         onActiveAccount?.(next);
@@ -69,12 +62,10 @@ async function getClient(): Promise<DAppClient> {
 }
 
 /**
- * Drop a session and start over with a clean client.
- *
- * Clearing the active account alone is not enough: the client keeps its
- * transport and peer, so the next request talks to a link that is no longer
- * there and falls back to the P2P relay, which answers "no server responded"
- * instead of opening the extension. The instance has to go too.
+ * Drop a session and start over with a clean client. Clearing the active
+ * account leaves the transport and peer behind, so the next request talks to a
+ * dead link and falls back to the P2P relay, which answers "no server
+ * responded" instead of opening the extension.
  */
 async function resetClient(c: DAppClient): Promise<void> {
     try {
@@ -103,16 +94,13 @@ interface WalletState {
 }
 
 /**
- * Does this session belong to the network this site is configured for?
+ * Does this session belong to the network this site is configured for? A
+ * session whose network does not match is treated as no session.
  *
- * Beacon stores permissions per *origin*, and in development every app on the
- * machine is `localhost`. So a session granted to a different dApp is found
- * and reused here, network and all: the site says shadownet, the wallet signs
- * against mainnet, and the node rejects the operation with
- * `non_existing_contract` for a contract that exists perfectly well somewhere
- * else. The wallet even shows the other dApp's name on the confirm screen.
- *
- * A session whose network does not match is treated as no session.
+ * Beacon stores permissions per origin, and in development every app on the
+ * machine is `localhost`, so another dApp's session is found and reused here,
+ * network and all. The symptom is `non_existing_contract` for a contract that
+ * exists on the other chain, and the other dApp's name on the confirm screen.
  */
 function matchesNetwork(account: { network?: { type?: string; rpcUrl?: string } } | null): boolean {
     if (!account?.network) return false;
@@ -135,8 +123,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [restoring, setRestoring] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Receive account changes from whichever client is current. Registered
-    // before the restore below, so the event that restore itself triggers has
+    // Registered before the restore below, so the event restore triggers has
     // somewhere to land.
     useEffect(() => {
         onActiveAccount = setAddress;
@@ -170,8 +157,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 const c = await getClient();
                 const account = await c.getActiveAccount();
                 if (account && !matchesNetwork(account)) {
-                    // Someone else's session, or one from before a network
-                    // change. Drop it rather than sign against the wrong chain.
+                    // Someone else's session, or one from before a network change.
                     await resetClient(c);
                     if (!cancelled) setAddress(null);
                     return;
@@ -201,8 +187,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             }
             let active = c;
             if (existing) {
-                // Connected, to the wrong chain. Ask again rather than let a
-                // signature go out against a network this site does not use.
+                // Connected to the wrong chain, so ask again.
                 await resetClient(c);
                 active = await getClient();
             }
