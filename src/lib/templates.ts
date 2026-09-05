@@ -1,27 +1,16 @@
 /**
- * Aleatory, starter templates.
+ * Starter templates, one per runtime kind. Each is a complete single-file
+ * index.html that also runs when opened from disk: the `$alea` guard at the top
+ * is a local dev harness with a random seed, so reload draws a new one and
+ * `?seed=…` pins one.
  *
- * One per runtime kind. Each is a complete, single-file index.html that also
- * runs by being opened directly from disk: the `$alea` guard at the top provides
- * a local dev harness with a random seed when the real one isn't there. That
- * is the loop artists actually live in, reload for a new seed, pin one by URL
- * (?seed=…), and it means nothing about working locally depends on us.
+ * The files live in `public/templates/<kind>/index.html`, so they are readable
+ * on GitHub and a stray backtick cannot break this module. `npm run
+ * templates:build` regenerates the import below from them and runs before every
+ * build, so the two cannot drift.
  */
 import type { ParamSpec } from "./params";
 import { RUNTIME_KINDS } from "./kinds";
-
-/** The dev-harness guard prepended to every template. */
-/**
- * The templates themselves live in `public/templates/<kind>/index.html`.
- *
- * Files rather than literals in this module: readable on GitHub, downloadable,
- * openable straight from disk, and a stray backtick in one cannot break the
- * module. Each carries the dev harness inline, so opening one in a browser
- * draws it with a random seed.
- *
- * `npm run templates:build` regenerates the import below from those files and
- * runs before every build, so the two cannot drift.
- */
 import { TEMPLATE_HTML } from "./templates.generated";
 
 const PARAMS_BY_KIND: Record<string, ParamSpec[]> = {
