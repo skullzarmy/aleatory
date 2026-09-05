@@ -19,11 +19,9 @@ import * as ops from "@/lib/ops";
 import { IsolateFrame } from "@/components/IsolateFrame";
 
 /**
- * Buy one piece.
- *
- * One signature covers the price and the render gas together. The operation
- * hash becomes the seed, so the outcome is fixed by the collector's own
- * signature and known to nobody beforehand.
+ * Buy one piece. One signature covers the price and the render gas, and the
+ * operation hash becomes the seed, so the outcome is fixed by the collector's
+ * own signature and known to nobody beforehand.
  */
 export function MintPanel({
     collection,
@@ -34,9 +32,8 @@ export function MintPanel({
     /** The generator's declared parameters, when it has any. */
     schema?: ParamsSchema | null;
     /**
-     * Show the collector what a set of values looks like before they sign.
-     * The seed here is a stand-in: theirs does not exist until their operation
-     * lands, and the panel says so rather than implying they are choosing it.
+     * Show the collector what a set of values looks like before they sign. The
+     * seed is a stand-in: theirs does not exist until their operation lands.
      */
     onPreview?: (values: Record<string, unknown>, previewSeed: string) => void;
 }) {
@@ -48,13 +45,10 @@ export function MintPanel({
     const [chosen, setChosen] = useState<Record<string, unknown>>({});
 
     /**
-     * Reroll the parameters, and the seed the preview is drawn from.
-     *
-     * Two different things, deliberately. The parameters are the collector's
-     * to choose and are committed by their signature. The seed is not: it is
-     * the hash of the operation they are about to send, so what this rerolls
-     * is only the draw being *shown*, to give a sense of the space they are
-     * buying into.
+     * Reroll the parameters, and the seed the preview is drawn from. The
+     * parameters are the collector's to choose and their signature commits
+     * them; the seed is the hash of the operation they have yet to send, so
+     * rerolling it changes only what is shown.
      */
     function randomize() {
         const values = schema?.params.length ? randomValues(schema.params) : {};
@@ -70,25 +64,21 @@ export function MintPanel({
         setError(null);
         try {
             const client = await getClient();
-            // Resolved through the one rule every reader shares, so the values
-            // recorded in the operation are the values the piece will run
-            // with. See docs/params.md §3.
+            // Resolved through the rule every reader shares, so the operation
+            // records the values the piece will run with. docs/params.md §3.
             const params = schema
                 ? encodeParams(schema.params, resolveParams(schema.params, chosen))
                 : "";
             const res = await ops.mint(client, collection.address, params, collection.totalMutez);
             setHash(res.hash);
-            // Tell the provider this collection pays to look now. It polls
-            // regardless, so this only shortens the wait, and a provider that
-            // advertises no push endpoint is left to its own clock.
+            // The provider polls regardless, so this only shortens the wait.
             void fetch("/api/render-ping", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify({ provider: collection.provider }),
             }).catch(() => {});
-            // The contract decides the token id, so it is only knowable once
-            // the operation is indexed. Until then the collector waits here
-            // rather than on a page for a token that does not resolve yet.
+            // The contract decides the token id, so it is knowable only once
+            // the operation is indexed.
             const tokenId = await waitForToken(collection.address, address!, res.hash);
             if (tokenId !== null) {
                 router.push(`/piece/${collection.address}/${tokenId}?minted`);
@@ -101,14 +91,10 @@ export function MintPanel({
         }
     }
 
-    // Reached when the operation landed and the indexer has not caught up
-    // within the window.
-    //
-    // Nothing here waits on anybody. The seed is the hash of the operation
-    // they just signed, the generator came out of contract storage before they
-    // signed it, and a piece is a pure function of the two, so their piece can
-    // be on screen the moment it exists. The indexer, the render provider and
-    // the pin are all downstream of a picture we can already draw.
+    // Reached when the operation landed and the indexer has not caught up. The
+    // seed is the hash they just signed and the generator came out of storage
+    // before they signed it, so the piece can be drawn here without waiting for
+    // the indexer, the provider or the pin.
     if (hash) {
         return (
             <div className="space-y-3 rounded-lg border border-border p-4">
@@ -215,11 +201,9 @@ export function MintPanel({
             ) : collection.paused ? (
                 <p className="rounded-md bg-muted px-3 py-2 text-sm">Sales are paused</p>
             ) : !collection.providerReachable ? (
-                /* A mint asks the render provider what they charge, so one
-                   that has stopped answering fails the sale rather than
-                   letting somebody pay for work nobody will do. Said here
-                   because the wallet would otherwise report it as a price
-                   that is simply wrong. */
+                /* A mint asks the provider what they charge, so one that has
+                   stopped answering fails the sale. Said here, because the
+                   wallet reports it as a wrong price. */
                 <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
                     This collection&apos;s render provider is not answering, so minting is stopped
                     until its artist picks another.
@@ -252,10 +236,8 @@ export function MintPanel({
 }
 
 /**
- * One control, per the type in the declaration.
- *
- * Values are held loosely here and resolved once, at mint, through the rule
- * every reader shares. A control that clamps as you type would be a second
+ * One control, per the type in the declaration. Values are held loosely and
+ * resolved once, at mint: a control that clamps as you type would be a second
  * implementation of that rule.
  */
 function ParamControl({
@@ -271,8 +253,7 @@ function ParamControl({
 
     return (
         <label className="block space-y-1">
-            {/* Both sides are the artist's: they named the parameter and they
-                set its range. Neither length is ours to assume. */}
+            {/* Both sides are the artist's, so neither length is ours to assume. */}
             <span className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0 truncate">{spec.label}</span>
                 <span className="min-w-0 truncate text-xs text-muted-foreground">
@@ -324,11 +305,8 @@ function ParamControl({
 
 /**
  * Wait for the indexer to place the operation, then say which token it made.
- *
- * A block is a few seconds and indexing follows it, so this asks for about
- * half a minute and then gives up rather than holding a spinner over something
- * that has already succeeded. Giving up is not a failure: the operation landed,
- * the piece is theirs, and the panel says where to find it.
+ * Bounded: giving up is not a failure, since the operation landed and the panel
+ * says where to find the piece.
  */
 async function waitForToken(
     collection: string,
@@ -345,11 +323,8 @@ async function waitForToken(
 }
 
 /**
- * A stand-in seed for the preview.
- *
- * Shaped like an operation hash so what a collector sees is the same kind of
- * value a real mint produces. It is not their seed and cannot be: that one is
- * the hash of an operation that does not exist yet.
+ * A stand-in seed for the preview, shaped like an operation hash. Not the
+ * collector's seed, which is the hash of an operation that does not exist yet.
  */
 function randomPreviewSeed(): string {
     const bytes = crypto.getRandomValues(new Uint8Array(32));
