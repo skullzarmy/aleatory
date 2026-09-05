@@ -3,17 +3,12 @@
 import { useEffect, useRef } from "react";
 
 /**
- * When the layout itself throws.
+ * When the layout itself throws. `error.tsx` sits inside the layout, so a
+ * failure there takes that boundary down with it. This replaces the whole
+ * document, so it renders its own `<html>` and `<body>` and imports nothing:
+ * no theme, no fonts, no stylesheet, nothing that could be what just broke.
  *
- * `error.tsx` sits inside the layout, so a failure in the layout takes that
- * boundary down with it. This one replaces the whole document, which is why it
- * renders its own `<html>` and `<body>` and imports nothing: no theme, no
- * fonts, no components, no stylesheet, nothing that could be the thing that
- * just broke. Its own random number generator, its own colours, inline.
- *
- * The piece is a collapse. Points fall inward toward a centre that no longer
- * holds them, tracing where they were on the way. Seeded by the digest, so
- * this failure has one picture. It should never be seen.
+ * The piece is a collapse, seeded by the digest.
  */
 
 /** Same generator as the rest of the site, inlined because nothing is imported. */
