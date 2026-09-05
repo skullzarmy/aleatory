@@ -1,10 +1,8 @@
 /**
- * Where a mint's push is allowed to go.
- *
- * The destination is read from a contract a stranger originated, and this
- * route is unauthenticated, so it is a server that fetches what it is told to
- * unless it refuses first. These are the refusals, run against the real route
- * with no network reached: every case below is rejected before any fetch.
+ * Where a mint's push is allowed to go. The destination is read from a contract
+ * a stranger originated and the route is unauthenticated, so these are the
+ * refusals, run against the real route: every case is rejected before any
+ * fetch.
  *
  * Run: npm test
  */

@@ -1,22 +1,15 @@
 /**
- * Does an operation encode to what the contract actually expects?
+ * Does an operation encode to what the contract expects?
  *
- * The failure this exists to catch has already happened once on this project.
- * SmartPy lays a record's fields out alphabetically rather than in the order
- * they are declared, so an encoder that goes by position can put the price
- * where the token id belongs and produce a perfectly valid operation that does
- * the wrong thing. It cost a live `list_token` that reverted with
- * FA2_TOKEN_UNDEFINED, and it was invisible in every unit test that did not
- * compare against the deployed contract's own types.
+ * SmartPy lays a record's fields out alphabetically and not in declaration
+ * order, so a positional encoder can put the price where the token id belongs
+ * and produce a valid operation that does the wrong thing. Nothing short of the
+ * deployed contract's own types catches it, so these read the real parameter
+ * schemas and the suite needs a network and a configured environment.
  *
- * So these read the deployed contracts' real parameter schemas, which means
- * the suite needs a network and a configured environment. That is the price of
- * it testing the thing that actually broke.
- *
- * Every address is resolved the way the console resolves it, from the router.
- * Writing them down here would pin the suite to whichever deployment was live
- * on the day it was written, and on a platform that redeploys its factory that
- * is a test which passes against contracts nobody uses any more.
+ * Every address is resolved from the router, the way the console resolves it,
+ * or the suite would pin itself to whichever deployment was live the day it was
+ * written.
  *
  * Run: npm test
  */

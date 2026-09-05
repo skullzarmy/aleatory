@@ -1,20 +1,16 @@
 /**
  * The dependency proxy, and the things it must refuse.
  *
- * A missing hash is not one of them. Without a recorded digest the proxy
- * resolves the package against jsDelivr's own per-file digest and answers with
- * the blake2b to record, which is what lets any package on npm be declared
- * without us keeping a list. What it still refuses is bytes that match
- * nothing.
+ * A missing hash is not one of them: without a recorded digest the proxy
+ * resolves against jsDelivr's own per-file digest and answers with the blake2b
+ * to record. What it refuses is bytes that match nothing.
  *
- * This route fetches a URL built from a query string and serves the result
- * from our own origin, which is the shape of an open proxy if the pieces are
- * not constrained. The validation cases below are the constraint, and they run
- * without a network.
+ * The route fetches a URL built from a query string and serves the result from
+ * our own origin, which is the shape of an open proxy unless it is constrained.
+ * The validation cases are that constraint and need no network.
  *
- * The one case that needs a network is the one that matters most: that a real
- * library arrives and its bytes hash to what was recorded. It is skipped
- * offline rather than failing, so a flight does not turn into a red suite.
+ * The one case that does need a network is that a real library arrives and its
+ * bytes hash to what was recorded. Skipped offline rather than failing.
  *
  * Run: npm test
  */

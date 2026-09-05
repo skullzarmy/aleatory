@@ -1,15 +1,10 @@
 /**
- * Whether a royalty recipient can actually be paid.
+ * Whether a royalty recipient can be paid. The marketplace asks
+ * `sp.contract(sp.unit, recipient)` before it sends, and a recipient it cannot
+ * reach is skipped with no setter to correct it, so what this route must never
+ * do is answer "payable" for something the contract will skip.
  *
- * The marketplace asks `sp.contract(sp.unit, recipient)` before it sends, so a
- * recipient it cannot reach is skipped and its share goes to the seller. The
- * collection stays sellable and that address is never paid again, on any sale,
- * with no setter to correct it. This route is what tells the artist while the
- * address is still editable, so what it must never do is answer "payable" for
- * something the contract will skip.
- *
- * The address checks run without a network. The rest needs a chain, and is
- * skipped offline rather than failing.
+ * The address checks need no network. The rest is skipped offline.
  *
  * Run: npm test
  */

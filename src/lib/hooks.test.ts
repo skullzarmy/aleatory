@@ -1,9 +1,7 @@
 /**
- * No hook runs conditionally, in any client component.
- *
- * A hook after an early return, or inside a branch, runs on some renders and
- * not others, so React loses track of which state belongs to which call. It
- * reports that at runtime, in a browser, and only on the path that branches.
+ * No hook runs conditionally, in any client component. A hook after an early
+ * return, or inside a branch, runs on some renders and not others, and React
+ * reports it at runtime, in a browser, only on the path that branches.
  *
  * Parsed with TypeScript's own parser: indentation says nothing about scope,
  * and a nested component has its own hook order.
