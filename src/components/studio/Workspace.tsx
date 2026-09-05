@@ -15,7 +15,7 @@ import { saveDraft, randomSeed, type Draft } from "@/lib/draft";
 import { downloadText } from "@/lib/project";
 import { resolveParams } from "@/lib/params";
 import { detectParams, withParams } from "@/lib/detect";
-import { Dice5 } from "lucide-react";
+import { Dice5, Download } from "lucide-react";
 
 /**
  * Where an artist works. Code on the left, the piece on the right.
@@ -121,25 +121,33 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                         {kind.label}
                         {" · "}
                         {saved ? "Saved in this browser" : "Saving…"}
-                        {" · "}
-                        <button
-                            type="button"
-                            className="underline hover:text-foreground"
-                            onClick={() =>
-                                downloadText(`${draft.name || "generator"}.html`, draft.html)
-                            }
-                        >
-                            Export
-                        </button>
                     </p>
                 </div>
 
-                <Link
-                    href={`/studio/${draft.id}/publish`}
-                    className="rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700"
-                >
-                    Publish
-                </Link>
+                {/* Export sits beside publish because it is the other way a
+                    draft leaves this browser, and the one that matters when
+                    publishing is not what you want yet. It spent a while as a
+                    text link inside the subtitle, which read as a footnote
+                    rather than as the thing we tell people to do. */}
+                <div className="flex shrink-0 items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() =>
+                            downloadText(`${draft.name || "generator"}.html`, draft.html)
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-accent"
+                    >
+                        <Download size={14} aria-hidden />
+                        Export
+                    </button>
+
+                    <Link
+                        href={`/studio/${draft.id}/publish`}
+                        className="rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700"
+                    >
+                        Publish
+                    </Link>
+                </div>
             </header>
 
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
