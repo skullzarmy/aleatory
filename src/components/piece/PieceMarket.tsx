@@ -32,9 +32,8 @@ export function PieceMarket({
     royaltyBps: number;
 }) {
     const { address, connect, getClient } = useWallet();
-    // The current marketplace, where a new listing or offer goes. Acting on
-    // one that already exists uses the address on it instead, since a listing
-    // lives in whichever contract it was made on.
+    // Where a new listing or offer goes. Acting on one that already exists uses
+    // the address carried on it.
     const [marketplace, setMarketplace] = useState("");
     useEffect(() => {
         void addresses()
@@ -43,19 +42,16 @@ export function PieceMarket({
     }, []);
     const [busy, setBusy] = useState<string | null>(null);
     // An operation has landed and the indexer has not caught up. The controls
-    // stay disabled through this, because otherwise the page still shows "not
-    // listed" and happily lists the same token again.
+    // stay disabled, or the page shows "not listed" and lists the token again.
     const [settling, setSettling] = useState(false);
     const router = useRouter();
     const [error, setError] = useState<string | null>(null);
     const [price, setPrice] = useState("");
     const [offer, setOffer] = useState("");
 
-    // Above the early return below: hooks run in the same order every render
-    // or React loses track of which state belongs to which call.
-    //
-    // Refresh until the server's answer changes, then stop. Capped, so a
-    // stalled indexer does not leave the page polling forever.
+    // Above the early return below, because hooks run in the same order every
+    // render. Refreshes until the server's answer changes, capped so a stalled
+    // indexer does not leave the page polling forever.
     const settled = useRef<string>("");
     useEffect(() => {
         const now = `${listing?.id ?? "none"}:${listing?.priceMutez ?? 0}:${offers.length}`;
@@ -80,17 +76,15 @@ export function PieceMarket({
         return () => window.clearInterval(id);
     }, [settling, listing, offers.length, router]);
 
-    // Parsed once. The preview and the operation read the same number, so
-    // what a person is shown is what they sign for.
+    // Parsed once, so the preview and the operation read the same number.
     const priceMutez = parseTez(price);
     const offerMutez = parseTez(offer);
 
     const isOwner = Boolean(address && owner && address === owner);
     const isSeller = Boolean(address && listing && address === listing.seller);
 
-    // Listing escrows the token into the marketplace, so a seller stops being
-    // the owner the moment they list. Both flags, or the check misses every
-    // piece that is currently for sale.
+    // Listing escrows the token, so a seller stops being the owner the moment
+    // they list. Both flags, or the check misses every piece that is for sale.
     const yours = isOwner || isSeller;
 
     if (!marketplace) {
@@ -102,16 +96,11 @@ export function PieceMarket({
     }
 
     /**
-     * A market action, and the wait for the chain to agree it happened.
-     *
-     * A signature returns as soon as the operation is injected, which is
-     * several seconds before it is in a block and longer before an indexer has
-     * it. Clearing the form there leaves a page saying "not listed" for a
-     * token that is listed, and a button that will cheerfully list it again.
-     *
-     * So the controls stay disabled and the page is refreshed until the server
-     * comes back with something different. The effect below is what ends it:
-     * new props are the only reliable signal that the write is visible.
+     * A market action, and the wait for the chain to agree it happened. A
+     * signature returns when the operation is injected, seconds before it is in
+     * a block and longer before an indexer has it, so the controls stay
+     * disabled and the page refreshes until the server answers differently.
+     * New props are the only reliable signal that the write is visible.
      */
     async function run(label: string, fn: () => Promise<unknown>) {
         setBusy(label);
@@ -196,10 +185,6 @@ export function PieceMarket({
                             onClick={() =>
                                 run("list", async () => {
                                     const client = await getClient();
-                                    // Grant, list and revoke in one operation.
-                                    // The marketplace can only escrow as an
-                                    // operator, and it needs that for exactly
-                                    // as long as the call it is used by.
                                     await ops.listToken(
                                         client,
                                         contract,
@@ -228,11 +213,9 @@ export function PieceMarket({
                 <p className="text-sm text-muted-foreground">Not for sale</p>
             )}
 
-            {/* Bidding against yourself costs a fee and moves nothing, so the
-                form is for everyone else. Standing offers stay on screen
-                either way: an owner needs to see what has been offered, and
-                somebody who offered and then acquired the piece needs the way
-                back to their money. */}
+            {/* The form is for everyone but the holder. Standing offers show
+                either way, so somebody who offered and then acquired the piece
+                still has the way back to their money. */}
             {(!yours || offers.length > 0) && (
                 <div className="border-t border-border pt-3">
                     {!yours && (
@@ -252,10 +235,8 @@ export function PieceMarket({
                                     address
                                         ? run("offer", async () => {
                                               const mutez = offerMutez as bigint;
-                                              // An offer escrows real money the moment
-                                              // it is signed, so a fat finger costs
-                                              // more here than anywhere else on the
-                                              // page.
+                                              // An offer escrows the amount the
+                                              // moment it is signed.
                                               if (
                                                   mutez >= CONFIRM_ABOVE_MUTEZ &&
                                                   !window.confirm(
@@ -292,12 +273,9 @@ export function PieceMarket({
                                     </span>
                                     <span className="flex shrink-0 items-center gap-2">
                                         <span className="font-medium">{tez(o.amountMutez)}</span>
-                                        {/* One action per row, never two. An offer
-                                            you made is yours to cancel, and
-                                            accepting it would pay you your own
-                                            money less the fee and the royalty.
-                                            Anyone else's is yours to accept, if
-                                            you are holding the piece. */}
+                                        {/* One action per row. Accepting your own
+                                            offer pays you your own money less
+                                            the fee and the royalty. */}
                                         {address === o.buyer ? (
                                             <button
                                                 type="button"
@@ -323,10 +301,8 @@ export function PieceMarket({
                                                     run(`accept-${o.id}`, async () => {
                                                         const client = await getClient();
                                                         // Listing escrows the
-                                                        // token, so a seller
-                                                        // takes the listing down
-                                                        // and accepts in one
-                                                        // operation.
+                                                        // token, so delist and
+                                                        // accept go together.
                                                         if (isSeller && listing) {
                                                             await ops.delistAndAcceptOffer(
                                                                 client,

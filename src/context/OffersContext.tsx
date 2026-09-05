@@ -18,20 +18,15 @@ import {
 } from "@/lib/market";
 
 /**
- * Standing offers, for whoever is connected.
+ * Standing offers, for whoever is connected. One provider, so the header and
+ * the offers page agree: the page writes the mark that says an offer has been
+ * looked at and the header reads it.
  *
- * One provider, because the header and the offers page have to agree.
- * Accepting an offer clears the count in the menu at the same moment it leaves
- * the list, and the mark that says an offer has been looked at is written by
- * the page and read by the header.
+ * Read state lives in `localStorage`, keyed by address, since this site stores
+ * nothing about a person. So it is per browser, and the dot lights again on a
+ * machine you have not used.
  *
- * Read state lives in `localStorage`, keyed by address. Nothing about a person
- * is stored on this site, so there is no account to hang it on and nowhere
- * else it could go. The consequence is honest: it is per browser, and the dot
- * lights again on a machine you have not used.
- *
- * Nothing here is privileged. Every offer in the big map is public, and this is
- * a view of it filtered to one address, which is why it needs no server.
+ * Every offer in the big map is public, so this needs no server.
  */
 const POLL_SECONDS = 60;
 
@@ -65,8 +60,7 @@ function readSeen(address: string): Set<string> {
         return new Set(parsed.filter((k): k is string => typeof k === "string"));
     } catch {
         // Blocked storage, or something else's value under our key. Everything
-        // reads as unseen, which is the safe way to be wrong: a dot that should
-        // not be there costs a glance, one that is missing costs a sale.
+        // reads as unseen, which is the safe way to be wrong.
         return new Set();
     }
 }
@@ -91,8 +85,7 @@ export function OffersProvider({ children }: { children: ReactNode }) {
     const refresh = useCallback(() => setTick((n) => n + 1), []);
 
     // A different wallet is a different set of offers and a different set of
-    // marks. Without this, disconnecting leaves the last account's count in the
-    // menu and the next one inherits its read state.
+    // marks, or the next account inherits the last one's read state.
     useEffect(() => {
         setOffers(EMPTY);
         setSeen(address ? readSeen(address) : new Set());
@@ -119,10 +112,8 @@ export function OffersProvider({ children }: { children: ReactNode }) {
         };
     }, [address, tick]);
 
-    // Paused while the tab is hidden, and read again on coming back. Same
-    // reasoning as LiveRefresh: a background tab polling an indexer to update a
-    // page nobody is looking at spends somebody's battery and our rate limit,
-    // and the read that matters is the one on return.
+    // Paused while the tab is hidden, and read again on coming back, since the
+    // read that matters is the one on return. Same as LiveRefresh.
     useEffect(() => {
         if (!address) return;
 
@@ -153,8 +144,8 @@ export function OffersProvider({ children }: { children: ReactNode }) {
         };
     }, [address, refresh]);
 
-    // The stored set is replaced rather than added to, so it tracks the open
-    // offers and cannot grow without bound as offers are accepted and cancelled.
+    // Replaced, not added to, so the set tracks the open offers and cannot grow
+    // without bound.
     const markSeen = useCallback(() => {
         if (!address) return;
         const keys = offers.incoming.map(keyOf);
