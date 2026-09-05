@@ -1,14 +1,11 @@
 /**
- * What the contracts said happened.
+ * What the contracts said happened: `deploy` from the factory, `mint` from
+ * every collection. An event is part of a contract's interface and carries the
+ * figures it published; an origination or token row is the indexer's record of
+ * a side effect.
  *
- * The factory emits `deploy` and every collection emits `mint`. Those are the
- * events, they are part of the contract's interface, and they are what this
- * reads. An origination row or a token row is the indexer's record of a side
- * effect; the event is the contract stating the thing itself, with the figures
- * it chose to publish already in the payload.
- *
- * **An event is emitted once.** That is where exactly-once comes from here.
- * The mark is an event id, ids only go up, and `id.gt` is the whole of it.
+ * An event is emitted once, which is where exactly-once comes from. The mark is
+ * an event id, ids only go up, and `id.gt` is the whole of it.
  */
 import { addresses, tzkt } from "./chain";
 import { collectionsOf } from "./stats";
@@ -68,10 +65,8 @@ export interface NewMint {
     tokenId: string;
     collector: string;
     /**
-     * Mutez, from the `mint` event. Null when that event was emitted before
-     * this process started and only the render was seen, since the figure is
-     * the contract's to state and reconstructing it from the current price
-     * would be a guess dressed as a fact.
+     * Mutez, from the `mint` event. Null when only the render was seen, because
+     * the current price is not what was paid.
      */
     paidMutez: number | null;
     /** What the collector chose, decoded from the event's own payload. */
@@ -106,11 +101,8 @@ interface Meta {
 }
 
 /**
- * A collection's own metadata document.
- *
- * The `deploy` event carries what the contract knows: who, what code, how
- * many. The name the artist typed is TZIP-16 and lives in a big map, so it
- * takes this one read on top.
+ * A collection's own metadata document. The `deploy` event carries who, what
+ * code and how many; the name the artist typed is TZIP-16 in a big map.
  */
 async function collectionMeta(address: string): Promise<Meta> {
     try {
@@ -130,11 +122,9 @@ const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xy
 );
 
 /**
- * The document the render event points at.
- *
- * `set_token_metadata` carries the URI of the piece's own metadata, so the
- * name and the picture come from what the contract just published. The indexer
- * resolves the same document on its own schedule and is behind when this fires.
+ * The document `set_token_metadata` points at, which is what the contract just
+ * published. The indexer resolves the same document on its own schedule and is
+ * behind when this fires.
  */
 async function documentAt(uri: string): Promise<Meta> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
@@ -172,13 +162,9 @@ interface Facts {
 }
 
 /**
- * What a collection is, looked up once.
- *
- * A mint announcement wants the collection's name and how big the edition is,
- * and neither is in the `mint` event because neither changes per mint. Held
- * for the life of the process: a collection is named at deploy and an edition
- * only ever shrinks, so a busy collection costs two reads in total rather than
- * two per piece.
+ * What a collection is, looked up once and held for the life of the process. An
+ * announcement wants the name and the edition size, neither of which is in the
+ * `mint` event and neither of which changes per mint.
  */
 const known = new Map<string, Facts>();
 
@@ -280,41 +266,29 @@ interface Sale {
 }
 
 /**
- * Mints whose piece has not been rendered yet.
- *
- * The sale is in the `mint` event and the picture arrives with a later one, so
- * the first is held until the second turns up. Keyed on contract and token
- * together: every collection numbers from zero, so token 0 is three different
- * pieces across three collections.
- *
- * A piece that is never rendered leaves its entry here. That is a stuck
- * provider rather than a leak worth writing code about, and an entry is three
- * short strings.
+ * Mints whose piece has not been rendered yet. The sale is in the `mint` event
+ * and the picture arrives with a later one. Keyed on contract and token
+ * together, because every collection numbers from zero.
  */
 const waiting = new Map<string, Sale>();
 
 /**
- * Pieces already announced.
- *
- * `set_token_metadata` is rewritable on purpose, so a provider retrying a
- * publish emits it a second time for a piece that has already been posted.
- * Thirteen of thirty-nine pieces on shadownet have been written more than
- * once, so this is the common case and not an edge one.
+ * Pieces already announced. `set_token_metadata` is rewritable on purpose, so a
+ * provider retrying a publish emits it again for a piece already posted.
  */
 const announced = new Set<string>();
 
 /**
  * Pieces ready to announce, and how far the feed was read.
  *
- * **The trigger is the render, not the mint.** At mint time `token_info[""]`
- * still holds the collection's pending document, so a message sent then has no
- * picture in it, and a picture is the whole point of announcing a piece of
- * art. `set_token_metadata` refuses to accept the pending document, so it
- * fires only when there is something real to show.
+ * The trigger is the render, not the mint. At mint time `token_info[""]` still
+ * holds the collection's pending document, so a message sent then has no
+ * picture in it. `set_token_metadata` refuses the pending document, so it fires
+ * only when there is something to show.
  *
- * `consumed` is the last row examined, which is not the last row returned: a
- * pass that sees only mints produces nothing to post, and without it the mark
- * would never move and those rows would be re-read until they filled the page.
+ * `consumed` is the last row examined, not the last row returned. A pass that
+ * sees only mints produces nothing to post, and the mark still has to move or
+ * those rows are re-read until they fill the page.
  */
 export async function newMints(since: number): Promise<{ items: NewMint[]; consumed: number }> {
     const { collections } = await watched();
@@ -351,13 +325,10 @@ export async function newMints(since: number): Promise<{ items: NewMint[]; consu
         const sale = waiting.get(key);
         waiting.delete(key);
 
-        // The document first, since the event just named it. The indexer is
-        // the fallback for the restart case, where a render is seen whose
-        // event payload we never held.
+        // The document first, since the event just named it.
         const published = await documentAt(bytesToString(row.payload?.metadata_uri ?? ""));
-        // The indexer is still worth asking when the document did not answer,
-        // and when there is no buffered sale: the collector is on the token
-        // and in no document.
+        // The indexer answers when the document did not, and when there is no
+        // buffered sale: the collector is on the token and in no document.
         const needIndexer = !published.name || !sale;
         const [indexed, facts] = await Promise.all([
             needIndexer
@@ -371,12 +342,10 @@ export async function newMints(since: number): Promise<{ items: NewMint[]; consu
             cursor: row.id,
             contract,
             tokenId,
-            // The mint said who bought it. Without that event, the token's own
-            // first holder is the same answer from a different direction.
+            // Without the mint event, the token's first holder is the same
+            // answer from a different direction.
             collector: sale?.collector ?? meta.firstMinter ?? "",
             paidMutez: sale ? sale.paidMutez : null,
-            // The event when we saw it, the piece's own document when we did
-            // not. Both were published by the chain, so neither is a guess.
             params: sale?.params ?? asRecord(meta.aleaParams ?? ""),
             name: meta.name || "",
             imageUri: meta.displayUri || meta.thumbnailUri || "",
