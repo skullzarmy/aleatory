@@ -1,8 +1,4 @@
-/**
- * The recent feed: pieces minted across every Aleatory collection, newest
- * first. Assembled from public chain data, so anyone can reproduce it against
- * TzKT.
- */
+/** Pieces minted across every Aleatory collection, newest first. */
 import { allFactories } from "./router";
 import {
     fetchCollections,
@@ -36,18 +32,8 @@ interface TokenDoc {
 }
 
 /**
- * Metadata documents for a collection, fetched from the chain's own pointers.
- *
- * One big_map read for the whole collection, then one fetch per document that
- * TzKT has not already resolved. Failures are silent on purpose: a document
- * that will not load leaves the piece looking unrendered, which is exactly
- * what it looks like today, rather than taking the page down with it.
- */
-/**
- * Collection names, from each collection's own metadata document.
- *
- * Not TzKT's `alias`, which it sets for contracts it happens to know and never
- * for one of ours, so every card read "Untitled collection".
+ * Collection names, from each collection's own metadata document. TzKT's
+ * `alias` is set only for contracts it happens to know, never for one of ours.
  */
 async function namesFor(addresses: string[]): Promise<Map<string, string>> {
     const entries = await Promise.all(
@@ -61,9 +47,7 @@ async function namesFor(addresses: string[]): Promise<Map<string, string>> {
 
 /**
  * For each token, its own metadata pointer and its collection's pending one.
- *
- * Two reads per collection, not per token, and only for the collections
- * actually on screen.
+ * Two reads per collection, not per token.
  */
 async function pendingState(
     tokens: TzktToken[],
@@ -105,18 +89,11 @@ async function resolveDocs(collection: string, tokenIds: string[]): Promise<Map<
 
     const uris = await fetchTokenUris(collection).catch(() => new Map<string, string>());
 
-    // Bounded, and every fetch has a deadline.
+    // A document that misses its deadline leaves its piece looking unrendered,
+    // which the next request recovers. A page that never returns does not.
     //
-    // A gateway takes a few seconds per document and a feed can be dozens of
-    // tokens, so unbounded parallel fetches with no timeout is a page that
-    // hangs rather than a page that loads. A document that does not arrive in
-    // time leaves its piece looking unrendered, which is recoverable on the
-    // next request; a page that never returns is not.
-    // Measured: this gateway answers in 3.6 to 5.8 seconds. A four second
-    // deadline dropped documents at random, so a finished piece showed as
-    // unrendered on one load and drew fine on the next. The deadline has to
-    // clear the slow end, not the fast one; concurrency keeps the page quick
-    // regardless.
+    // Measured: this gateway answers in 3.6 to 5.8 seconds, so the deadline has
+    // to clear the slow end. Concurrency is what keeps the page quick.
     const CONCURRENCY = 8;
     const TIMEOUT_MS = GATEWAY_TIMEOUT_MS;
 
@@ -179,11 +156,7 @@ async function docsFor(tokens: TzktToken[]): Promise<Map<string, TokenDoc>> {
 }
 
 /**
- * One rendered image per collection, for a list that would otherwise be rows of
- * KT1 addresses.
- *
- * The newest piece that has an image, which is the truthful answer to "what
- * does this collection look like now" and costs one request for the whole page:
+ * The newest piece with an image, per collection, in one request:
  * `contract.in` returns tokens across every collection at once, newest first,
  * and the first hit per collection wins.
  *
@@ -224,11 +197,7 @@ export interface FeedPiece {
     imageUrl?: string;
     /** The generator itself, framed live when there is no image yet. */
     artifactUrl?: string;
-    /**
-     * True while the piece still carries its collection's "not revealed yet"
-     * document. The piece itself comes from chain state, and the metadata
-     * describes it.
-     */
+    /** True while the piece still carries its collection's "not revealed yet" document. */
     pending: boolean;
 }
 
@@ -239,17 +208,13 @@ function toPiece(
     /** The collection's pending pointer, and this token's, when known. */
     pendingState?: { pendingUri: string; tokenUri?: string },
 ): FeedPiece {
-    // TzKT's own `metadata` when it has it, and the document we fetched
-    // ourselves when it does not. TzKT resolves `ipfs://` metadata on its own
-    // schedule and on some networks never, so a piece finished on chain would
-    // otherwise sit here looking unrendered indefinitely.
+    // TzKT resolves `ipfs://` metadata on its own schedule and on some networks
+    // never, so the document fetched here fills in for it.
     const m = t.metadata ?? resolved;
     const display = m?.displayUri || m?.thumbnailUri;
-    // Not "has no image". A collection's pending document carries the
-    // collection cover as its displayUri, so every unrendered piece looked
-    // rendered, wore the cover as its own image, and took the collection's
-    // name for its own. The provider's queue rule is the pointer comparison,
-    // and matching it here means the site and the daemon never disagree.
+    // The pointer comparison, which is the provider's own queue rule, so the
+    // site and the daemon cannot disagree. "Has no image" is not the test: a
+    // pending document carries the collection cover as its displayUri.
     const pending =
         pendingState?.pendingUri && pendingState.tokenUri
             ? pendingState.tokenUri === pendingState.pendingUri
@@ -257,11 +222,8 @@ function toPiece(
     const collectionName = collectionAlias || t.contract.alias || "Untitled collection";
     const edition = `#${Number(t.tokenId) + 1}`;
 
-    // A piece that has not been rendered carries its collection's *pending*
-    // document, which is one CID shared by every unrevealed token in the
-    // collection and therefore cannot name any of them. Taking its `name` gave
-    // every piece the collection's name, so a whole edition read as one work
-    // repeated. Derived here instead, in the form the real document uses, so
+    // The pending document is one CID shared by every unrevealed token, so it
+    // cannot name any of them. Derived in the form the real document uses, so
     // the name does not change when the render lands.
     const name = pending ? `${collectionName} ${edition}` : m?.name || edition;
 
@@ -280,17 +242,13 @@ function toPiece(
 }
 
 /**
- * Turn a set of (collection, token) pairs into real pieces.
+ * Turn a set of (collection, token) pairs into real pieces. A listing carries a
+ * collection, a token id and a price, so the image, the name and the artist are
+ * a separate read.
  *
- * The market knows which tokens are for sale and nothing else about them: a
- * listing carries a collection, a token id and a price. Everything a person
- * needs to decide whether they want it, the image, the name, who made it, is a
- * separate read, which is why the market page was a list of numbers.
- *
- * One query for the whole page. `contract.in` and `tokenId.in` are independent
- * filters rather than a set of pairs, so this over-fetches the cross product
- * and then keeps only the pairs actually asked for. At a page of listings that
- * is cheaper than one query per row by an order of magnitude.
+ * One query for the whole page. `contract.in` and `tokenId.in` filter
+ * independently, so this over-fetches the cross product and keeps the pairs
+ * asked for.
  */
 export async function piecesFor(
     pairs: { collection: string; tokenId: string }[],
@@ -329,13 +287,8 @@ export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
     if (factories.length === 0) {
         return { pieces: [], collectionCount: 0, unconfigured: true };
     }
-    // Every factory, not just the current one. A redeploy retires a factory
-    // and the collections it made stay real, so reading only the newest would
-    // drop them off the site.
-    //
-    // The blocklist applied here too. It was on the wallet page and the market
-    // and not on the front page, which is the one surface where it obviously
-    // has to be.
+    // Every factory, not only the current one: a redeploy retires a factory and
+    // the collections it made stay real.
     const collections = (await collectionsFrom(factories)).filter(
         (c) => !isBlockedCollection(c.address),
     );
@@ -365,13 +318,7 @@ export interface WalletView {
     unconfigured: boolean;
 }
 
-/**
- * One account, both ways round: what they hold and what they made.
- *
- * A single page for both because on this chain they are the same person as
- * often as not, and an artist's public page and a collector's public page would
- * otherwise be two views of one address.
- */
+/** One account, both ways round: what they hold and what they made. */
 export async function fetchWallet(account: string, limit = 48): Promise<WalletView> {
     const factories = await allFactories();
     if (factories.length === 0) {
@@ -394,9 +341,8 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
     const mine = collections.filter((c) => madeSet.has(c.address));
     const madeAddresses = mine.map((c) => c.address);
 
-    // The made side is a handful of collections, not the whole chain, so the
-    // cover, the edition size and the artist's own name are worth fetching:
-    // this is the page their work is presented on.
+    // The made side is a handful of collections, so the cover, the edition size
+    // and the artist's own name are worth the extra reads.
     const [docs, state, metas, covers, editions] = await Promise.all([
         docsFor(tokens),
         pendingState(tokens),
