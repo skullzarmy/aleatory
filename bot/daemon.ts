@@ -1,19 +1,17 @@
 /**
- * The stats bot. A process that stays up.
+ * The stats bot, as a process that stays up.
  *
  *   npm run bot:daemon
  *
- * It reads the chain and writes the figures into Discord channel names, on a
- * clock. Nothing is received from Discord, so there is no gateway connection
- * and no socket to hold open: a rename is one REST call.
+ * It reads the chain and writes the figures into Discord channel names on a
+ * clock. Nothing is received from Discord, so there is no socket to hold open.
  *
- * **Ten minutes is a limit, not a preference.** Discord allows about two
- * channel renames per ten minutes, per channel. Polling faster would spend
- * that allowance on names that had not changed and leave none for the moment
- * one did.
+ * Ten minutes is a limit, not a preference: Discord allows about two renames
+ * per ten minutes, per channel, and polling faster spends that allowance on
+ * names that did not change.
  *
- * Runs anywhere with Node and an outbound connection, alongside the provider
- * or on its own. Nothing here imports from the site.
+ * Runs anywhere with Node and an outbound connection. Nothing here imports from
+ * the site.
  */
 import dotenv from "dotenv";
 import { platformStats } from "./stats";
@@ -29,12 +27,9 @@ const MIN_TICK_MS = 10 * 60_000;
 const TICK_MS = Math.max(MIN_TICK_MS, Number(process.env.ALEA_BOT_TICK_MS || MIN_TICK_MS));
 
 /**
- * Announcements run on their own clock.
- *
- * The ten minute figure is Discord's rename limit and has nothing to say about
- * posting a message. A mint announced nine minutes after the mint is not an
- * announcement, so this half of the process looks far more often. The floor is
- * there because the chain reads behind it are not free.
+ * Announcements run on their own clock. The rename limit says nothing about
+ * posting a message, and a mint announced nine minutes late is not an
+ * announcement. The floor is there because the chain reads are not free.
  */
 const MIN_ANNOUNCE_MS = 15_000;
 const ANNOUNCE_MS = Math.max(MIN_ANNOUNCE_MS, Number(process.env.ALEA_BOT_ANNOUNCE_MS || 60_000));
@@ -65,8 +60,7 @@ async function main() {
         `${channels.length} channel${channels.length === 1 ? "" : "s"}, every ${TICK_MS / 60_000}m`,
     );
 
-    // Where the chain is right now. Everything before this point already
-    // happened without us, and announcing it would be announcing history.
+    // Where the chain is now. Everything before this point is history.
     const announcing = Boolean(generatorsChannel() || mintsChannel());
     let marks: Marks = { generators: 0, mints: 0 };
     if (announcing) {
@@ -86,10 +80,8 @@ async function main() {
             if (stopping) process.exit(1);
             stopping = true;
             log(`${sig}, stopping after this pass`);
-            // Most of this process's life is spent inside the wait between
-            // passes. Without waking it, a stop would sit there until the ten
-            // minutes were up, and every `systemctl restart` would stall until
-            // TimeoutStopSec ran out and killed it.
+            // Most of this process's life is spent in the wait between passes,
+            // so a stop that did not wake it would sit for the full tick.
             wake?.();
         });
     }
@@ -118,9 +110,8 @@ async function main() {
                 const stats = await platformStats();
 
                 if (stats.problems.length > 0) {
-                    // Every figure that failed is zero, and a zero written over
-                    // a real number reads as the platform having lost
-                    // everything. Leave the last good names up and try again.
+                    // A figure that failed is zero, and a zero written over a
+                    // real number reads as the platform having lost everything.
                     log(`incomplete, nothing written: ${stats.problems.join("; ")}`);
                 } else {
                     const results = await writeAll(token, channels, stats);
@@ -129,10 +120,8 @@ async function main() {
                     }
                     if (results.every((r) => r.outcome === "unchanged")) log("no figure changed");
                 }
-                // Due again in a full tick either way. An incomplete read is
-                // still a read, and retrying it on the announcement clock
-                // would put TzKT under ten times the traffic for a figure
-                // nobody is waiting on.
+                // Due again in a full tick either way: retrying an incomplete
+                // read on the announcement clock is ten times the traffic.
                 statsDue = Date.now() + TICK_MS;
                 backoff = BACKOFF_MIN_MS;
             }
