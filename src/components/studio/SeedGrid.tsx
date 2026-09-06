@@ -4,15 +4,8 @@ import { Frame } from "./Frame";
 import { seedAt } from "@/lib/draft";
 import type { ParamSpec } from "@/lib/params";
 
-/**
- * Sixteen seeds at once.
- *
- * The thing an artist looks at all day, because one draw says almost nothing
- * about a generator and a page of them says most of what there is to know.
- *
- * Grids are derived from one base seed, so a grid is reproducible: the same
- * base gives the same sixteen, and an artist can point at one of them.
- */
+// All sixteen seeds derive from one base seed, so the same base always
+// reproduces the same grid.
 export function SeedGrid({
     html,
     baseSeed,
@@ -42,8 +35,7 @@ export function SeedGrid({
                         title={seed}
                         className="group relative aspect-square overflow-hidden rounded-md border border-border transition-shadow hover:shadow-lg"
                     >
-                        {/* The frame must not eat the click: the whole tile
-                            selects the seed. */}
+                        {/* pointer-events-none so the click hits the button, not the frame. */}
                         <span className="pointer-events-none absolute inset-0">
                             <Frame
                                 html={html}

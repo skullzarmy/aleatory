@@ -3,8 +3,7 @@
  *
  *   npx tsx scripts/logo-preview.mts aleatory drift-01 drift-02
  *
- * Writes full and compact renders to /tmp/logo, plus favicon-size versions,
- * because the only way to know a mark works small is to look at it small.
+ * Writes full and compact renders to /tmp/logo, plus favicon-size versions.
  */
 import { renderLogo } from "../src/lib/logo";
 import { writeFileSync, mkdirSync } from "node:fs";

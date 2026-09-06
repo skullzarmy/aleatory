@@ -7,10 +7,7 @@ import { tez } from "@/lib/format";
 
 const ADDRESS = /^(tz1|tz2|tz3|KT1)[1-9A-HJ-NP-Za-km-z]{33}$/;
 
-/**
- * Validated here rather than at the confirm step, because that step states
- * what the operation will do and can only do so once the value is real.
- */
+/** Validated here because the confirm step needs a real value to describe the operation. */
 export function Amount(
     props:
         | { kind: "withdraw"; provider: string; max: number; operator: string; defaultTo: string }

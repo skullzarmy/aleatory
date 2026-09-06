@@ -4,13 +4,8 @@ import { useEffect, useState } from "react";
 import { formatTez } from "@/lib/utils";
 import { NETWORK } from "@/lib/config";
 
-/**
- * What publishing this generator costs.
- *
- * Both figures come from the chain at the moment you look, rather than from a
- * constant in this file. Protocol constants change, and a number that used to
- * be right is worse than no number.
- */
+// Cost figures are fetched from the chain rather than hardcoded, since
+// protocol constants (cost per byte, size limits) can change.
 const RPC: Record<string, string> = {
     shadownet: "https://rpc.tzkt.io/shadownet",
     mainnet: "https://rpc.tzkt.io/mainnet",

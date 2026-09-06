@@ -5,14 +5,9 @@ import Link from "next/link";
 import { getDraft, type Draft } from "@/lib/draft";
 import { Workspace } from "@/components/studio/Workspace";
 
-/**
- * One draft, opened.
- *
- * Drafts live in IndexedDB, so there is nothing to render on the server and
- * this page is a client component that loads by id. A draft that is not in this
- * browser is genuinely gone rather than merely unauthorized, and the page says
- * that instead of showing a spinner forever.
- */
+// Drafts live in IndexedDB, so there is nothing to render on the server; this is a
+// client component that loads by id. A draft missing from this browser is gone, not
+// just unauthorized, so the page says that instead of spinning forever.
 export default function DraftPage({ params }: { params: Promise<{ draft: string }> }) {
     const { draft: id } = use(params);
     const [draft, setDraft] = useState<Draft | null | undefined>(undefined);

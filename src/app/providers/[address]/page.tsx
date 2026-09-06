@@ -23,14 +23,7 @@ export async function generateMetadata({
     };
 }
 
-/**
- * One provider's record.
- *
- * The ranked list answers "who should I pick". This answers "what has this one
- * actually done", which is the question an artist has once a piece of theirs is
- * sitting unrendered. Every figure is measured, not claimed: a provider cannot
- * write anything on this page.
- */
+// Every figure is measured from chain events; a provider cannot write anything on this page.
 export default async function ProviderPage({ params }: { params: Promise<{ address: string }> }) {
     const { address } = await params;
     if (!isAddress(address)) notFound();

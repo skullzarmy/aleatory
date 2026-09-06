@@ -11,8 +11,7 @@ import { BRAND } from "@/lib/config";
 export const revalidate = 30;
 
 export const metadata: Metadata = {
-    // The root title is a template, and a template applied to nothing gives a
-    // page called "Aleatory ·". `absolute` is how the home page opts out.
+    // The root layout's title is a template; `absolute` opts the home page out of it.
     title: { absolute: `${BRAND.name} — ${BRAND.tagline}` },
     description: BRAND.description,
     alternates: { canonical: "/" },
@@ -25,10 +24,8 @@ export const metadata: Metadata = {
 };
 
 async function Recent() {
-    // An indexer that did not answer is a quiet front page, the way it is a
-    // quiet market page. This is the first thing anybody sees, and throwing
-    // here takes the whole route to the error screen over a read that will
-    // work again in fifteen seconds.
+    // An indexer that doesn't answer shows an empty feed rather than the error screen;
+    // the read typically works again within seconds.
     const feed = await fetchRecentFeed().catch(() => null);
     if (!feed) return <EmptyFeed reason="unreachable" />;
 

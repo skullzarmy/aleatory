@@ -10,14 +10,13 @@ export default {
     theme: {
         extend: {
             colors: {
-                // Aleatory's own accent. Everything else is the shared token
-                // system lifted from rejkt, so the two sites read as siblings.
+                // Aleatory's own accent; the rest of the tokens are shared
+                // with rejkt.
                 //
-                // Royal blue, and darker at 600 than the colour it is named
-                // after: #4169e1 carries white text at 4.85:1, which clears AA
-                // and leaves nothing spare on the one control that appears on
-                // every page. This sits at 6.64:1. The ratios that matter are
-                // asserted in brand.test.ts.
+                // Royal blue (#4169e1) carries white text at 4.85:1, just
+                // clearing AA. The 600 shade used on the one control that
+                // appears on every page sits at 6.64:1. Ratios are asserted
+                // in brand.test.ts.
                 alea: {
                     "50": "#f0f4ff",
                     "100": "#dae4fd",

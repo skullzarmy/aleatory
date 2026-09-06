@@ -3,16 +3,8 @@ import { avatarUrl, SOURCE_LABEL, type Profile, type Source } from "@/lib/identi
 import { shortAddress } from "@/lib/utils";
 import { tzktLink } from "@/lib/config";
 
-/**
- * Who someone is, at the top of their page.
- *
- * Everything here is optional and the block collapses to whatever exists, down
- * to a name and an address. A page that reserves space for a bio nobody wrote
- * is a page with a hole in it.
- *
- * The chain explorer link lives here and nowhere else. This is the one place a
- * reader is looking at an address as an address.
- */
+// Every field is optional; the block collapses to whatever exists, down to
+// just a name and an address.
 export function ProfileCard({
     address,
     name,
@@ -27,7 +19,6 @@ export function ProfileCard({
     source?: Source | null;
 }) {
     const heading = profile?.name || name || shortAddress(address);
-    // Show the domain underneath only when it is not already the heading.
     const subtitle = name && name !== heading ? name : null;
 
     return (
@@ -56,9 +47,7 @@ export function ProfileCard({
                 )}
 
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    {/* In full. The heading is already a truncation when there
-                        is no name, and two different abbreviations of one
-                        address stacked reads as two addresses. */}
+                    {/* Full address here, not shortened: the heading already truncates it. */}
                     <a
                         href={tzktLink(address)}
                         target="_blank"

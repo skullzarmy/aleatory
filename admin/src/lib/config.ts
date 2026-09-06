@@ -1,8 +1,5 @@
-/**
- * Its own copy rather than an import across the repo root: this deploys
- * separately, and pointing it at a different network from the public site is
- * something an operator legitimately wants to do.
- */
+// This file deploys separately from the public site's config, so an operator
+// can point the admin console at a different network than the public site.
 
 export type Network = "shadownet" | "mainnet";
 
@@ -36,10 +33,8 @@ export function tzktLink(hashOrAddress: string): string {
     return `${TZKT_WEB[NETWORK]}/${hashOrAddress}`;
 }
 
-/**
- * `provider` is the one this operator runs. The public site never singles one
- * out because it ranks them all; here it is the thing being administered.
- */
+// The public site lists all providers; `provider` here is the one this
+// operator runs and administers.
 export const ADDRESSES = {
     router: process.env.NEXT_PUBLIC_ROUTER_ADDRESS || "",
     factory: process.env.NEXT_PUBLIC_FACTORY_ADDRESS || "",
@@ -52,10 +47,8 @@ export const ADDRESSES = {
 
 export type AddressKey = keyof typeof ADDRESSES;
 
-/**
- * Below this, top the daemon up. An empty agent key does not fail loudly:
- * publishing stops and pieces sit pending, which looks like a render fault.
- */
+// Below this, top the daemon up. An empty agent key fails silently: publishing
+// stops and pieces sit pending, which looks like a render fault.
 export const AGENT_LOW_WATER_MUTEZ = Number(
     process.env.NEXT_PUBLIC_AGENT_LOW_WATER_MUTEZ || 5_000_000,
 );

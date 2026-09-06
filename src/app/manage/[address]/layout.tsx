@@ -2,13 +2,8 @@ import type { Metadata } from "next";
 import { fetchCollection } from "@/lib/collection";
 import { shortAddress } from "@/lib/utils";
 
-/**
- * The page is a client component, so its metadata lives here.
- *
- * `noindex`: this is an artist's control panel for one collection, it is
- * useless to anyone who does not hold the key, and `/collection/[address]` is
- * the public page for the same thing.
- */
+// The page itself is a client component, so its metadata lives here. noindex: this is
+// a control panel useless without the key; /collection/[address] is the public page.
 export async function generateMetadata({
     params,
 }: {

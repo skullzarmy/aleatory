@@ -46,7 +46,7 @@ const nextConfig: NextConfig = {
                     { key: "Referrer-Policy", value: "no-referrer" },
                     { key: "X-Content-Type-Options", value: "nosniff" },
                     { key: "X-Frame-Options", value: "DENY" },
-                    // A console is not something to find in a search result.
+                    // Keeps the console out of search results.
                     { key: "X-Robots-Tag", value: "noindex, nofollow" },
                 ],
             },

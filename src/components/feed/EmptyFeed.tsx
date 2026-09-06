@@ -1,11 +1,5 @@
 import { BRAND, NETWORK } from "@/lib/config";
 
-/**
- * Four kinds of nothing, each told apart: the indexer did not answer, nothing
- * deployed, no collections, no pieces. Each is a distinct fact and the copy
- * states which one it is. The first is the only one that is our problem rather
- * than a description of the chain, so it says so and says it will retry.
- */
 export function EmptyFeed({
     reason,
 }: {

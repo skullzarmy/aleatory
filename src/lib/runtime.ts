@@ -87,4 +87,3 @@ export interface ParamDeclaration {
     default: number | boolean | string;
     hint?: string;
 }
-

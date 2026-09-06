@@ -9,12 +9,8 @@ import { ThemeToggle } from "@/components/themeToggle";
 import { ConnectButton } from "./ConnectButton";
 import { BRAND, NETWORK } from "@/lib/config";
 
-/**
- * Manage is not here. It lists the collections this wallet administers, which
- * is an account concern, and in the main navigation it showed an empty page to
- * everyone who is not an artist with something deployed. It is in the account
- * menu instead.
- */
+// Manage lives in the account menu, not here: it's an account-scoped
+// concern (collections this wallet administers), not site navigation.
 const NAV = [
     { href: "/", label: "Recent" },
     { href: "/collections", label: "Collections" },
@@ -31,8 +27,7 @@ export function Header() {
     const pathname = usePathname();
     const [open, setOpen] = useState(false);
 
-    // Navigating is the end of the menu's usefulness. Without this, tapping a
-    // link leaves the panel covering the page that was just asked for.
+    // Close the mobile menu on navigation, or it covers the page just requested.
     useEffect(() => setOpen(false), [pathname]);
 
     useEffect(() => {
@@ -47,10 +42,8 @@ export function Header() {
     return (
         <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
             <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:h-20 sm:gap-6">
-                {/* The mark carries the brand on its own, drawn fresh on
-                    every load. Two sizes rather than one scaled by CSS,
-                    because Logo sets its dimensions as an inline style and a
-                    class cannot win against that. */}
+                {/* Two Logo instances, not one scaled by CSS: Logo sets its
+                    size as an inline style, which a class can't override. */}
                 <Link
                     href="/"
                     aria-label={`${BRAND.name}, home`}
@@ -69,7 +62,6 @@ export function Header() {
                     className="hidden gap-4 text-sm text-muted-foreground sm:flex"
                 >
                     {NAV.map((item) => {
-                        // Marked for assistive tech, not only coloured in.
                         const here = isHere(pathname, item.href);
                         return (
                             <Link
@@ -92,9 +84,8 @@ export function Header() {
                             {NETWORK}
                         </span>
                     )}
-                    {/* Moved into the menu on small screens. The network badge
-                        stays out here at every width, because which chain you
-                        are about to sign against is not a preference. */}
+                    {/* Unlike the theme toggle, the network badge stays visible at every
+                        width: which chain you're about to sign against isn't a preference. */}
                     <span className="hidden sm:inline-flex">
                         <ThemeToggle />
                     </span>

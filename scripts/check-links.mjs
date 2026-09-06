@@ -1,9 +1,5 @@
 /**
  * Every relative link in every tracked markdown file, checked.
- *
- * A link into src/app/docs/interface resolves as a path and lands a reader on
- * a Next page directory rather than the spec, which is the kind of thing that
- * only looks fine to whoever wrote it.
  */
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";

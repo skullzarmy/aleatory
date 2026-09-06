@@ -12,12 +12,8 @@ const LINKS = [
     { href: "/terms/privacy", label: "Privacy" },
 ];
 
-/**
- * Both marks come from one pack, so they are the same weight beside each
- * other. Lucide, which everything else here uses, carries GitHub and not
- * Discord, and a stroked outline next to a solid brand glyph reads as a
- * mistake at this size.
- */
+// Lucide (used elsewhere in the app) has no Discord icon, so all four marks
+// here come from the same icon pack to keep a consistent weight.
 const ELSEWHERE = [
     { href: BRAND.repo, label: "Source on GitHub", Icon: SiGithub },
     { href: BRAND.discord, label: "Discord", Icon: SiDiscord },
@@ -25,11 +21,6 @@ const ELSEWHERE = [
     { href: BRAND.bluesky, label: "Aleatory on Bluesky", Icon: SiBluesky },
 ];
 
-/**
- * Wrapping belongs between the links and never inside one, so each label is
- * `whitespace-nowrap` and the row wraps around them. Otherwise a phone breaks
- * "New to Tezos" three words tall while the row still overflows.
- */
 export function Footer() {
     return (
         <footer className="border-t border-border">
@@ -58,11 +49,9 @@ export function Footer() {
                                     href={href}
                                     target="_blank"
                                     rel="noreferrer"
-                                    // The label is the only name this link has,
-                                    // and the padding is what makes an 18px
-                                    // glyph a target a thumb can hit (2.5.8).
                                     aria-label={label}
                                     title={label}
+                                    // -m-1 offsets the padding so the 44px touch target (WCAG 2.5.8) doesn't enlarge the visible icon.
                                     className="-m-1 inline-flex rounded-md p-2 hover:bg-accent hover:text-foreground"
                                 >
                                     <Icon size={18} aria-hidden />

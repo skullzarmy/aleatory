@@ -6,13 +6,8 @@ export const metadata: Metadata = {
     robots: { index: false, follow: false },
 };
 
-/**
- * What the service worker serves when the network is gone.
- *
- * Static on purpose: it is cached at install and has to render with no chain,
- * no indexer and no gateway. Pieces already seen are still in the cache, so
- * "go back" is real advice rather than a shrug.
- */
+// Served by the service worker when the network is gone; cached at install, so it
+// must render with no chain, indexer, or gateway available.
 export default function Offline() {
     return (
         <div className="mx-auto max-w-md px-4 py-24 text-center">
