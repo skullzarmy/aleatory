@@ -17,14 +17,8 @@ export const metadata: Metadata = {
         "The interface a collection conforms to so any provider renders it and any front end can list it.",
 };
 
-/**
- * The interface spec, on the web.
- *
- * The point of publishing ALEATORY-001 is that somebody else can build against
- * it without our source, and asking them to read it in a git repository is
- * asking most of them not to. The page renders `docs/interface.md` directly, so
- * there is one copy of the spec and it cannot drift from the one in the repo.
- */
+// Renders docs/interface.md directly, so there's one copy of the spec and it can't
+// drift from the one in the repo.
 export default async function InterfacePage() {
     const source = await readFile(join(process.cwd(), "docs", "interface.md"), "utf8");
     const { html, headings } = renderMarkdown(source);

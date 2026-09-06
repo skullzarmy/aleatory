@@ -5,22 +5,12 @@ import { ImageIcon, Play } from "lucide-react";
 import { IsolateFrame } from "@/components/IsolateFrame";
 
 /**
- * The artwork.
+ * The artwork, drawn from the chain first, with the published image fading in
+ * over it once it has loaded.
  *
- * Generator code runs in a sandboxed frame on a separate origin, so it has no
- * reach into wallet state or session storage on this one. The `sandbox`
- * attribute allows scripts and nothing else.
- *
- * **The piece is drawn from the chain first, and the published image replaces
- * it once it has actually loaded.** A piece is a pure function of its code and
- * its seed, both of which are on chain and already in this page, so there is
- * never a reason to show a spinner, a broken image, or an empty square while a
- * gateway is thinking. The canonical image is worth waiting for and worth
- * nothing to wait *on*.
- *
- * So the load is a background upgrade. It fades in over the live render when
- * it arrives, and a gateway that 404s or times out costs the viewer nothing:
- * they are already looking at the piece.
+ * A piece is a pure function of its code and its seed, both already in this
+ * page, so nothing here waits on a gateway: the image is a background upgrade
+ * and one that 404s costs the viewer nothing.
  */
 export function ArtifactFrame({
     code,
@@ -42,9 +32,8 @@ export function ArtifactFrame({
     /** What the viewer asked for, once they have asked. */
     const [prefer, setPrefer] = useState<"image" | "live" | null>(null);
 
-    // Bumping this remounts the element, which re-requests the image. One
-    // dropped request should not cost somebody the published image for the
-    // life of the page.
+    // Bumping this remounts the element, which re-requests the image, so one
+    // dropped request does not cost the published image for the page's life.
     const [attempt, setAttempt] = useState(0);
     const timer = useRef(0);
     useEffect(() => {
@@ -70,10 +59,8 @@ export function ArtifactFrame({
                 />
             )}
 
-            {/* Mounted while it loads so the fetch starts, and kept out of the
-                way until it has something to show. A failure leaves it mounted
-                and invisible, which costs the viewer nothing: the piece is
-                already running underneath it. */}
+            {/* Mounted while it loads so the fetch starts, invisible until it
+                has something to show. */}
             {imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -82,10 +69,8 @@ export function ArtifactFrame({
                     alt={name}
                     onLoad={() => setReady(true)}
                     onError={() => {
-                        // Once, on the same URL. A failed response was never
-                        // cached, so this is a real second request, and a blip
-                        // is the case worth covering. If it fails again the
-                        // live render stands, which is the honest answer.
+                        // Once, on the same URL. A failed response was not
+                        // cached, so this is a real second request.
                         if (attempt > 0) return;
                         timer.current = window.setTimeout(() => setAttempt((n) => n + 1), 1500);
                     }}

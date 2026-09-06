@@ -1,16 +1,12 @@
 "use client";
 
 /**
- * The error page, generated.
+ * The error page, generated. The seed is the error's digest, so one failure
+ * draws one picture and a fixed bug takes its picture with it.
  *
- * The seed is the error's digest. The same failure draws the same picture
- * every time, so two people hitting one bug are looking at one piece, and a
- * fixed bug takes its picture with it.
- *
- * A fracture: a stress point, and cracks that run outward branching as they
- * go, each one losing energy until it stops. Nothing is repaired and nothing
- * loops. It propagates once, slows, and rests, and the last frame is the
- * piece. Decorative, so it is aria-hidden and the words carry the meaning.
+ * A fracture: a stress point, and cracks running outward and branching until
+ * each loses its energy. It propagates once and rests, and the last frame is
+ * the piece. Decorative, so it is aria-hidden and the words carry the meaning.
  */
 
 import { useEffect, useRef } from "react";

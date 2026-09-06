@@ -3,14 +3,12 @@
  *
  *   npm run provider:retry -- KT1… 3
  *
- * The queue finds pieces still holding the collection's pending document, so
- * it cannot see a piece that already got a write. That is the whole reason
- * this exists: a publish whose confirmation was missed, a render that came out
- * wrong, a metadata document pinned somewhere that later went away. Every one
- * of those leaves a piece the queue considers finished.
+ * The queue finds pieces still holding the collection's pending document, so it
+ * cannot see one that already got a write: a publish whose confirmation was
+ * missed, a render that came out wrong, a metadata document that went away.
  *
- * `set_token_metadata` is a plain write for the same reason. Who may write is
- * the bound, and that is the provider's current agent, asked live.
+ * `set_token_metadata` is a plain write, and who may write is the bound: the
+ * provider's current agent, asked live.
  */
 import dotenv from "dotenv";
 dotenv.config();

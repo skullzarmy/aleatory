@@ -1,6 +1,4 @@
-/**
- * Marketplace state, read from the contract's storage through TzKT.
- */
+/** Marketplace state, read from the contract's storage through TzKT. */
 import { CONTRACTS, tzktApi } from "./config";
 import { isBlockedCollection } from "./blocklist";
 import { addresses } from "./router";
@@ -9,12 +7,8 @@ import { fetchHeldAmong, indexerFetch } from "./tzkt";
 export interface Listing {
     id: number;
     /**
-     * The marketplace holding it.
-     *
-     * Carried on the row because buying, delisting and cancelling have to go
-     * to the contract that holds the listing, which is not always the current
-     * one. Sending a delist to the wrong marketplace fails, and sending a buy
-     * to the wrong one fails after the wallet has already asked.
+     * The marketplace holding it, which is not always the current one. Buying,
+     * delisting and cancelling all have to go to this address.
      */
     marketplace: string;
     seller: string;
@@ -34,12 +28,8 @@ export interface Offer {
     tokenId: string;
     amountMutez: bigint;
     /**
-     * The platform fee this offer was made under.
-     *
-     * Snapshotted onto the record when the offer was placed, the way a
-     * listing's is. `set_fee` is never retroactive, so what a seller receives
-     * for accepting is worked out from this rather than from whatever the
-     * marketplace charges today.
+     * The platform fee this offer was made under, snapshotted when it was
+     * placed. `set_fee` is never retroactive.
      */
     feeBps: number;
 }
@@ -105,12 +95,9 @@ const bigmapPath = (marketplace: string, name: string) =>
     `/v1/contracts/${marketplace}/bigmaps/${name}/keys`;
 
 /**
- * Ask every marketplace, in parallel.
- *
- * A listing lives in whichever contract it was made on, and that contract
- * keeps working after a newer one ships. Reading only the current address
- * would hide live listings and escrowed offers from the people who own them.
- * One slow or missing marketplace returns nothing and the rest still answer.
+ * Ask every marketplace, in parallel. A listing lives in whichever contract it
+ * was made on, and that contract keeps working after a newer one ships. One
+ * slow or missing marketplace returns nothing and the rest still answer.
  */
 async function acrossMarketplaces<T>(read: (marketplace: string) => Promise<T[]>): Promise<T[]> {
     const { marketplaces } = await addresses();
@@ -203,13 +190,10 @@ async function fetchAllOffers(limit = 200): Promise<Offer[]> {
 /** An offer somebody made on a piece this account is holding or selling. */
 export interface IncomingOffer extends Offer {
     /**
-     * The listing escrowing this piece, when it is for sale.
-     *
-     * `accept_offer` transfers from the sender, and listing moves the token
-     * into the marketplace, so the listing has to come down first. Both ids
-     * are carried so the two go in one operation, and both marketplaces,
-     * because a listing and an offer on the same piece can live in different
-     * contracts.
+     * The listing escrowing this piece, when it is for sale. `accept_offer`
+     * transfers from the sender, so the listing has to come down first, and
+     * both ids and both marketplaces are carried so the two go in one
+     * operation.
      */
     listing: { id: number; marketplace: string } | null;
 }
@@ -222,23 +206,17 @@ export interface AccountOffers {
 }
 
 /**
- * Both sides of the offer book, for one account.
+ * Both sides of the offer book, for one account. Ownership is not in the offers
+ * big map, so the book is read first and narrowed against the account second:
+ * two requests when nothing is standing, four when something is.
  *
- * Ownership is not in the offers big map, so there is no query that asks for
- * "offers on pieces I hold" directly. The book is read first and narrowed
- * against the account second, which is two requests when nothing is standing
- * and four when something is. That budget is what lets this run in the header
- * on every page.
+ * Pieces this account has listed count as theirs, because listing escrows the
+ * token into the marketplace and a seller stops holding it the moment they
+ * list.
  *
- * Pieces this account has *listed* count as theirs. Listing escrows the token
- * into the marketplace, so a seller stops holding a piece the moment they list
- * it, and reading holdings alone would hide every offer on everything for sale
- * from the person selling it.
- *
- * The cap is on the whole book rather than per account. At the point where
- * there are more than two hundred standing offers this reads the newest of them
- * and the oldest offer on somebody's piece stops being counted, which is the
- * signal to page this properly.
+ * The cap is on the whole book. Past two hundred standing offers this reads the
+ * newest and the oldest offer on somebody's piece stops being counted, which is
+ * the signal to page it properly.
  */
 export async function fetchAccountOffers(account: string): Promise<AccountOffers> {
     const offers = await fetchAllOffers();
@@ -272,10 +250,8 @@ export async function fetchAccountOffers(account: string): Promise<AccountOffers
 }
 
 /**
- * What a seller nets after the platform fee and royalties.
- *
- * The arithmetic matches the contract's: floor at each step, and the royalty
- * total clamped at 25% the way the marketplace clamps it.
+ * What a seller nets after the platform fee and royalties. The arithmetic
+ * matches the contract's: floor at each step, royalties clamped at 25%.
  */
 export function proceeds(
     priceMutez: bigint,

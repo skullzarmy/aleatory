@@ -12,8 +12,8 @@
  *   4. print the environment for the daemon
  *
  * Deploying the provider contract and listing it in the registry is
- * `contract/deploy.ts`, which the operator runs. This is the once-per-agent
- * part: a funded agent that has never revealed looks configured and is not.
+ * `contract/deploy.ts`. This is the once-per-agent part, and a funded agent
+ * that has never revealed looks configured and is not.
  */
 import dotenv from "dotenv";
 dotenv.config();

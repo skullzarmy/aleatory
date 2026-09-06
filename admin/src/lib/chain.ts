@@ -53,8 +53,8 @@ export interface MarketplaceState {
     feeBps: number;
     paused: boolean;
     /**
-     * The two claims on the balance. A sale pays every royalty recipient in
-     * the same operation, so nobody else's money is ever held here.
+     * The two claims on the balance. A sale pays every royalty recipient in the
+     * same operation, so nobody else's money is held here.
      */
     feesAccrued: number;
     escrowed: number;
@@ -63,11 +63,9 @@ export interface MarketplaceState {
     /** What the contract actually holds. */
     balance: number;
     /**
-     * Balance minus everything spoken for: its fee, and live offer escrow.
-     *
-     * Should be zero. Positive means tez arrived that nothing accounts for.
-     * Negative means the contract has promised more than it holds, and a
-     * cancelled offer is going to fail. Nothing else reports this.
+     * Balance less everything spoken for: its fee, and live offer escrow.
+     * Should be zero. Positive is tez nothing accounts for; negative means the
+     * contract has promised more than it holds and a cancelled offer will fail.
      */
     unaccounted: number;
 }
@@ -167,20 +165,16 @@ export interface RouterState {
     administrator: string;
     proposedAdmin: string | null;
     /**
-     * Every marketplace the router has pointed at, newest first.
-     *
-     * Storage holds one. The rest come from `set_marketplace` events, because
-     * a retired marketplace keeps its listings and the tez escrowed against
-     * its open offers. Reconciling only the current one reports that money as
-     * missing, which is the opposite of what this console is for.
+     * Every marketplace the router has pointed at, newest first. Storage holds
+     * one; a retired marketplace keeps its listings and the tez escrowed
+     * against its open offers, and reconciling only the current one reports
+     * that money as missing.
      */
     marketplaces: string[];
     /**
-     * The factory a deploy goes to now, which is the head of the list.
-     *
-     * `add_factory` conses onto the front, so `factories` runs newest first.
-     * Nothing is ever removed: a collection keeps pointing at the factory that
-     * made it, and that has to stay resolvable forever.
+     * The factory a deploy goes to now. `add_factory` conses onto the front, so
+     * `factories` runs newest first and nothing is ever removed: a collection
+     * keeps pointing at the factory that made it.
      */
     currentFactory: string;
     factories: string[];
@@ -236,11 +230,9 @@ export async function fetchResolver(address: string): Promise<ResolverState | nu
 }
 
 /**
- * Every marketplace the router has held, newest first.
- *
- * Storage history, not `set_marketplace` events: the first marketplace is
- * written at origination and emits nothing, so an event scan loses it and
- * reports the tez escrowed there as missing.
+ * Every marketplace the router has held, newest first. From storage history,
+ * because the first marketplace is written at origination and emits nothing, so
+ * an event scan loses it and the tez escrowed there reads as missing.
  */
 async function previousMarketplaces(router: string): Promise<string[]> {
     try {
@@ -265,7 +257,7 @@ interface RegistryStorage {
     count: string;
 }
 
-/** The registry has no notion of whose is whose, so this is the list, not yours. */
+/** Every registered provider. The registry has no notion of whose is whose. */
 export async function fetchProviderAddresses(registry: string): Promise<string[]> {
     if (!registry) return [];
     const s = await tzkt<RegistryStorage>(`/v1/contracts/${registry}/storage`);

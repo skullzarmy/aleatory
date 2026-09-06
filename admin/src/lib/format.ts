@@ -3,9 +3,8 @@ export function tez(mutez: number): string {
     const t = mutez / 1_000_000;
     if (t === 0) return "0 ꜩ";
     if (Math.abs(t) < 0.01) return `${t.toFixed(6).replace(/0+$/, "")} ꜩ`;
-    // Pinned, because the console renders on a server and hydrates in a
-    // browser, and the two disagree about digit grouping under any locale that
-    // is not the server's. React tears the page down over that.
+    // Locale pinned to en-US: server and browser locales can disagree on
+    // digit grouping, and a hydration mismatch on that fails the render.
     return `${t.toLocaleString("en-US", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 6,

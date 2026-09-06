@@ -1,13 +1,11 @@
 /**
- * Every file path and npm script named in the docs, checked against the repo.
+ * Every file path and npm script named in the docs, checked against the repo. A
+ * renamed script or a moved module leaves prose that still reads fine and sends
+ * somebody to a command that does not exist.
  *
- * Docs rot silently. A renamed script or a moved module leaves prose that
- * still reads fine and sends somebody to a command that does not exist, which
- * is worse than saying nothing, because they assume the fault is theirs.
- *
- * Shorthand is allowed. Docs write `studio/Workspace.tsx` for a file whose
- * full path is `src/components/studio/Workspace.tsx`, and that is clearer in a
- * sentence, so a path counts as real when it is the tail of a tracked file.
+ * Shorthand counts: docs write `studio/Workspace.tsx` for
+ * `src/components/studio/Workspace.tsx`, so a path is real when it is the tail
+ * of a tracked file.
  */
 
 import { readFileSync, existsSync } from "node:fs";
@@ -48,12 +46,9 @@ for (const doc of docs) {
         }
     }
 
-    // Flags, against the script that would receive them.
-    //
-    // This is the one that matters. A doc showing `-- --go` for a script that
-    // stopped taking --go reads perfectly and sends somebody to a command
-    // that quietly does nothing, or worse, does the opposite of what they
-    // read. Checking the name existed was never enough.
+    // Flags, against the script that would receive them. A doc showing `--
+    // --go` for a script that stopped taking it reads perfectly and does
+    // nothing, or the opposite of what it says.
     for (const m of src.matchAll(/npm run ([a-z0-9:_-]+) -- (--[a-z-]+)/g)) {
         const [, name, flag] = m;
         const command = scripts.get(name);
@@ -71,19 +66,11 @@ for (const doc of docs) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Documents named by the source, against what a checkout actually contains
-// ---------------------------------------------------------------------------
-
 /**
- * Some documents here are working notes and gitignored: the decision log, the
- * roadmap, the audit and its response. A comment citing one of them reads
- * perfectly to whoever wrote it and points everybody else at a file their
- * checkout does not have, which is worse than saying nothing, because they go
- * looking for it.
- *
- * The loop above reads markdown, so it never saw these. Seven had accumulated
- * in tracked source by the time anybody noticed.
+ * Documents named by the source, against what a checkout contains. Some
+ * documents here are working notes and gitignored: the decision log, the
+ * roadmap, the audit and its response. A comment citing one points everybody
+ * but its author at a file they do not have.
  */
 const source = execSync("git ls-files '*.ts' '*.tsx' '*.mts' '*.mjs' '*.js' '*.py' '*.html'", {
     encoding: "utf8",
@@ -93,22 +80,16 @@ const source = execSync("git ls-files '*.ts' '*.tsx' '*.mts' '*.mjs' '*.js' '*.p
     .filter(Boolean);
 
 /**
- * Tracked, not merely present.
- *
- * `isReal` above accepts a file on disk, which is the right test for a path in
- * prose and the wrong one here: the documents this catches are gitignored, so
- * they sit in the working copy of whoever wrote the comment and in nobody
- * else's checkout. Asking git is the only way to see what a contributor gets.
+ * Tracked, not merely present. `isReal` above accepts a file on disk, and the
+ * documents this catches are gitignored, so they sit in one working copy and no
+ * checkout.
  */
 const isTracked = (p) => tracked.some((t) => t === p || t.endsWith(`/${p}`));
 
 for (const file of source) {
     for (const line of readFileSync(file, "utf8").split("\n")) {
-        // Whole-line and trailing comments both. A citation is as likely to be
-        // at the end of a line of code as on its own.
-        //
-        // Whitespace before the slashes, or `https://` is read as the start of
-        // one and every URL in the repository names a file that is not here.
+        // Whole-line and trailing comments both. Whitespace before the slashes,
+        // or `https://` reads as the start of one.
         const comment = /^\s*(?:\*|\/\/|#)/.test(line)
             ? line
             : (line.match(/(?:^|\s)\/\/(.*)$/) ?? [])[1];

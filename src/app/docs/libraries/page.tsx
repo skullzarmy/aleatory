@@ -18,14 +18,8 @@ export const metadata: Metadata = {
     },
 };
 
-/**
- * The declaration mechanism, for the person using it.
- *
- * ALEATORY-001 §1 specifies it, correctly and for an implementer. That is the
- * wrong document for an artist who wants to know what to type, what is
- * available, and what happens if they get it wrong, and nothing answered that
- * anywhere.
- */
+// Companion to ALEATORY-001 §1: that spec is written for implementers, this page for
+// an artist who wants to know what to type and what's available.
 export default async function LibrariesPage() {
     const source = await readFile(join(process.cwd(), "docs", "libraries.md"), "utf8");
     const { html, headings } = renderMarkdown(source);

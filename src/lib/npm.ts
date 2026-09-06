@@ -1,12 +1,12 @@
 /**
  * Reading npm well enough to know whether a package can be declared.
  *
- * A declared library is loaded with a plain `<script>` tag. Most of npm cannot
- * be: an ES module or a CommonJS default build loads nothing and renders a
- * blank frame. See docs/libraries.md.
+ * A declared library loads from a plain `<script>` tag, and most of npm cannot:
+ * an ES module or a CommonJS default build renders a blank frame. See
+ * docs/libraries.md.
  *
  * Nothing here executes a package. A build states its flavour and names its
- * global in its wrapper, so this reads rather than runs.
+ * global in its wrapper, so this reads.
  */
 
 /** How a build expects to be loaded. Only `umd` and `global` work from a tag. */
@@ -25,19 +25,15 @@ export interface Inspection {
     global: string | null;
     /**
      * A file in the same version that would load, when the default will not.
-     *
-     * Packages that ship several builds are the common case, and naming the
-     * file is already how a declaration asks for one: the coordinate becomes
-     * `@tweenjs/tween.js@23.1.3/dist/tween.umd.js`. Finding it here is the
-     * difference between that escape hatch existing and anybody using it.
+     * The coordinate becomes `@tweenjs/tween.js@23.1.3/dist/tween.umd.js`.
      */
     alternate: { path: string; global: string | null; bytes: number } | null;
     /** Said to the artist when `loadable` is false. */
     why: string | null;
 }
 
-// npm's own naming rules, and nothing that could climb out of a path. Same
-// shapes the dependency proxy validates against, for the same reason.
+// npm's own naming rules, and nothing that could climb out of a path. The same
+// shapes the dependency proxy validates against.
 export const ID = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 export const VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/;
 
@@ -51,16 +47,14 @@ export const BUDGET_MS = 5_000;
 const WALK_MS = 2_500;
 
 /**
- * The wrapper, wherever in the file it is and whichever branches it has.
+ * A wrapper sits at either end of a file: `two.js@0.8.15` puts its at character
+ * 181,446 of 181,525. Which branches it has depends on the bundler, so `two.js`
+ * asks about `exports` and never mentions `define`, and `zdog` mentions
+ * `define.amd` and never says `typeof exports`.
  *
- * A wrapper sits at either end: `two.js@0.8.15` puts its at character 181,446
- * of 181,525. Its branches are optional, and which ones it has depends on the
- * bundler: `two.js` asks about `exports` and never mentions `define`, `zdog`
- * mentions `define.amd` and never says `typeof exports`.
- *
- * An AMD branch is conclusive on its own, since nothing but a wrapper asks
- * whether `define.amd` exists. A CommonJS branch counts when it is a question
- * about the environment rather than a plain assignment.
+ * An AMD branch is conclusive alone, since nothing but a wrapper asks whether
+ * `define.amd` exists. A CommonJS branch counts when it is a question about the
+ * environment and not a plain assignment.
  */
 function looksUmd(text: string): boolean {
     if (/define\.amd/.test(text)) return true;
@@ -106,14 +100,12 @@ export function globalNameIn(source: string): string | null {
     );
     if (viaParen) return viaParen[1];
 
-    // A hand written wrapper assigning onto the global it was passed. Names
-    // walled in underscores are internal markers, like three's `__THREE__`.
+    // Names walled in underscores are internal markers, like three's `__THREE__`.
     const onRoot = /\b(?:root|global|self|window)\s*\.\s*([A-Za-z_$][\w$]*)\s*=\s*[A-Za-z_$]/.exec(
         text,
     );
     if (onRoot && !/^__.*__$/.test(onRoot[1])) return onRoot[1];
 
-    // A bundle assigned to one name, which in a plain script is the global.
     const viaExports = /\bmodule\.exports\s*=\s*([A-Za-z_$][\w$]*)\s*[;}\s]/.exec(text);
     if (viaExports && !/^__.*__$/.test(viaExports[1])) return viaExports[1];
 
@@ -121,10 +113,9 @@ export function globalNameIn(source: string): string | null {
 }
 
 /**
- * What kind of build this is. The extension decides where it says anything.
- *
- * Ordered so the strongest evidence wins: a UMD wrapper carries
- * `module.exports` in a branch, so testing CommonJS first would catch them all.
+ * What kind of build this is. Ordered so the strongest evidence wins: a UMD
+ * wrapper carries `module.exports` in a branch, so a CommonJS test first would
+ * catch every one of them.
  */
 export function classify(path: string, source: string): Flavor {
     if (path.endsWith(".cjs")) return "cjs";
@@ -133,8 +124,6 @@ export function classify(path: string, source: string): Flavor {
     const text = edges(source);
     if (looksUmd(text)) return "umd";
 
-    // Real module syntax, which cannot appear in a script a tag can load.
-    //
     // Anywhere in the tail, not anchored to the end of it.
     // `three@0.185.1/build/three.core.min.js` closes with an export list some
     // thousands of characters long, so a window measured back from the end
@@ -144,8 +133,8 @@ export function classify(path: string, source: string): Flavor {
     if (/\bexport\s*\{/.test(text)) return "esm";
     if (/\bexport\s+default\b/.test(text)) return "esm";
 
-    // Nothing asked for a module system, so a plain script that assigns onto
-    // the window is what is left. That is most of the older web.
+    // Nothing asked for a module system, so a plain script assigning onto the
+    // window is what is left.
     if (/\b(?:window|self|globalThis)\s*\.\s*[A-Za-z_$][\w$]*\s*=/.test(text)) return "global";
 
     if (/\bmodule\.exports\b|\bexports\.[A-Za-z_$]/.test(text)) return "cjs";
@@ -187,8 +176,7 @@ export function browserCandidates(paths: string[]): string[] {
             if (/\bumd\b/.test(p)) score += 40;
             if (/\.min\.js$/.test(p)) score += 20;
             if (usual.test(p)) score += 10;
-            // A shallower file is more likely the package's own build than
-            // something under examples/ or test/.
+            // Shallower is more likely the package's own build.
             score -= p.split("/").length;
             if (/^(?:examples?|tests?|src|node_modules)\//.test(p)) score -= 200;
             return { p, score };
@@ -198,18 +186,13 @@ export function browserCandidates(paths: string[]): string[] {
         .map((c) => c.p);
 }
 
-// ---------------------------------------------------------------------------
-// Reading jsDelivr
-// ---------------------------------------------------------------------------
-
 const DATA = "https://data.jsdelivr.com/v1/packages/npm";
 const CDN = "https://cdn.jsdelivr.net/npm";
 
 /**
- * How long the whole question gets, not one request.
- *
- * Resolving can mean a listing, a build, a version list, seven probes and a
- * few more builds. A deadline on each bounds none of them together.
+ * How long the whole question gets, not one request. Resolving can mean a
+ * listing, a build, a version list, seven probes and a few more builds, and a
+ * deadline on each bounds none of them together.
  */
 export class Budget {
     private readonly until: number;
@@ -327,8 +310,6 @@ export async function inspect(
         return { ...base, flavor, loadable: true, global: globalNameIn(source) };
     }
 
-    // The default will not load. Something else in the package might, and
-    // naming a file is already how a declaration asks for one.
     const alternate = await firstLoadable(id, version, files, path, budget);
 
     return { ...base, flavor, loadable: false, why: whyNot(flavor, id), alternate };
@@ -364,10 +345,6 @@ async function firstLoadable(
     return null;
 }
 
-// ---------------------------------------------------------------------------
-// Finding a version that works
-// ---------------------------------------------------------------------------
-
 /**
  * The search predicate below, from a filename alone. Whatever it settles on is
  * inspected properly afterwards, so a wrong guess costs a probe, not an answer.
@@ -385,20 +362,19 @@ async function defaultPathFor(id: string, version: string, budget: Budget): Prom
 }
 
 /**
- * The newest version a script tag can still load, found by halving.
+ * The newest version a script tag can still load, found by halving. `three` has
+ * 312 versions and the last with a global build is 34 back, so a scan is 34
+ * requests.
  *
- * `three` has 312 versions and the last with a global build is 34 back, so
- * scanning is 34 requests. A package that drops its global build does not
- * restore it, so the list is ordered by whether it loads. Where that does not
- * hold this finds a version that loads rather than the newest.
+ * This assumes a package that drops its global build does not restore it. Where
+ * that does not hold, the answer is a version that loads and not the newest.
  */
 export async function newestLoadable(
     id: string,
     versions: string[],
     budget: Budget,
 ): Promise<{ version: string; inspection: Inspection } | null> {
-    // Newest first, and only the recent past. Nobody wants a five year old
-    // release, and the boundary is never that far back in practice.
+    // Newest first, and only the recent past.
     const window = versions.slice(0, 40);
     if (window.length === 0) return null;
 
@@ -452,9 +428,8 @@ export interface Resolution {
 }
 
 /**
- * A package turned into something declarable, or an honest no. In order: the
- * version asked for, another file in it, an older version. Search returns the
- * newest release, which for most packages of age is a module.
+ * A package turned into something declarable, or a no. In order: the version
+ * asked for, another file in it, an older version.
  */
 export async function resolve(
     id: string,
@@ -473,8 +448,8 @@ export async function resolve(
         };
     }
 
-    // The proxy is stricter about paths than the registry is, and it is what
-    // fetches this at publish.
+    // The proxy fetches this at publish and is stricter about paths than the
+    // registry is.
     if (inspection.alternate && DEP_PATH.test(inspection.alternate.path)) {
         return {
             coordinate: `${id}@${version}/${inspection.alternate.path}`,
@@ -485,14 +460,10 @@ export async function resolve(
         };
     }
 
-    // A bonus, not the answer. The verdict on the version asked for is already
-    // in hand, so failing to find a better one returns that rather than a
-    // timeout: `remotion` is CommonJS in 323ms and has 1,256 versions, none of
-    // which ship a browser build.
-    //
     // On its own slice of the budget, so a package that will never load does
-    // not spend the whole of it proving that. The catch wraps the version list
-    // too: awaited as an argument, its own failure would pass straight by.
+    // not spend the whole of it proving that: `remotion` is CommonJS in 323ms
+    // and has 1,256 versions, none with a browser build. The catch wraps the
+    // version list too, since awaited as an argument its failure would pass by.
     const older = await (async () => {
         const walk = new Budget(Math.min(WALK_MS, budget.left));
         try {
@@ -521,10 +492,6 @@ export async function resolve(
         } Bundle it into your file instead.`,
     };
 }
-
-// ---------------------------------------------------------------------------
-// Searching npm
-// ---------------------------------------------------------------------------
 
 export interface Hit {
     id: string;

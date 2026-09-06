@@ -18,22 +18,16 @@ export const metadata: Metadata = {
 };
 export const revalidate = 15;
 
-/**
- * Everything for sale.
- *
- * A listing carries a collection, a token id and a price and nothing else, so
- * the images and names are a second read. Two queries for the whole page, not
- * one per row.
- */
+// A listing carries only a collection, token id and price; images and names come
+// from a second, batched read rather than one query per row.
 export default async function MarketPage() {
     const [marketplace, listings] = await Promise.all([
         addresses().then((a) => a.marketplaces[0] ?? ""),
         fetchListings().catch(() => []),
     ]);
 
-    // Collection names first, so a card can say "Drift" rather than a KT1.
-    // TzKT's own alias is null for every contract we deploy, so the name comes
-    // from the collection's metadata.
+    // TzKT's alias is null for every contract we deploy, so the display name comes
+    // from the collection's own metadata instead.
     const collections = await fetchAllCollections().catch(() => []);
     const names = new Map(
         collections.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])),

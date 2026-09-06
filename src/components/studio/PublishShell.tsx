@@ -9,14 +9,8 @@ import { validateSchema } from "@/lib/params";
 import type { Provider } from "@/lib/providers";
 import { DeployForm } from "./DeployForm";
 
-/**
- * The last screen before a signature.
- *
- * A draft is checked here rather than trusted, because everything on the deploy
- * form marked permanent is permanent: a broken parameter declaration cannot be
- * corrected once a collection exists, and a generator that reaches the network
- * will not render the same way twice for anyone who ever holds a piece.
- */
+// Validated here because a broken parameter declaration, once deployed, can't
+// be corrected: the fields on the deploy form marked permanent are permanent.
 export function PublishShell({ providers }: { providers: Provider[] }) {
     const params = useParams<{ draft: string }>();
     const id = params?.draft;

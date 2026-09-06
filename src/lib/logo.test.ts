@@ -1,13 +1,10 @@
 /**
  * The mark, checked for the things that make it disappear.
  *
- * Element ids are document-wide. The mark builds its symmetry from one path
- * per band and a `<use>` for each rotation, so two marks on a page that name
- * their bands the same way collide: the second one's uses resolve to the first
- * one's paths, because getElementById returns the first match in the document.
- *
- * That happened the moment the header rendered two marks, one per breakpoint,
- * and it showed as a logo with most of itself missing.
+ * Element ids are document-wide, and the mark builds its symmetry from one path
+ * per band and a `<use>` for each rotation. Two marks on a page that name their
+ * bands the same way collide: the second one's uses resolve to the first one's
+ * paths, and it draws as a logo with most of itself missing.
  *
  * Run: npm test
  */

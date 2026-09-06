@@ -1,20 +1,12 @@
 /**
- * Aleatory, the runtime kinds catalog.
+ * The runtime kinds catalog. Data only: nothing here fetches and nothing here
+ * has a dependency, so reading a kind's label does not pull in the resolution
+ * half of `runtimes.ts` and its blake2b hashing.
  *
- * Split out of `runtimes.ts` so that reading a kind's name costs a browser
- * nothing else. The resolution half of that module fetches libraries and
- * hashes them with blake2b, behind a dynamic import, and anything client side
- * that wanted a label was pulling that whole graph in behind it.
- *
- * Data only. Nothing here fetches, and nothing here has a dependency.
- * This is the v0 mirror of what becomes the on-chain **Runtimes** contract
- * (docs/architecture.md §3). Kinds live in an append-only catalog
- * rather than an enum precisely so that adding a runtime in 2029 is one append
- * operation instead of a registry migration, and the v0 shape is deliberately
- * identical to the on-chain record so the swap is a data-source change.
- *
- * A kind is never edited. A better harness for a kind is a NEW kind_id, and
- * existing generators keep pointing at the old one, forever.
+ * The v0 mirror of the on-chain Runtimes contract (docs/architecture.md §3),
+ * with the same shape, so the swap is a change of data source. The catalog is
+ * append-only: a kind is never edited, and a better harness for one is a new
+ * kind_id that existing generators do not point at.
  */
 
 /**
@@ -23,28 +15,19 @@
  *   foc   in contract storage
  *   ipfs  on IPFS, content hash recorded on chain
  *
- * Only two, because a generator is always the whole piece. There was a third,
- * "shared", for code on chain that referenced a library resolved at render
- * time. That was never a storage class, it was a piece with a hole in it, and
- * the hole was filled by this website being in the room.
- *
- * Displayed on every piece. Not a ranking and not a gate: a collector should be
- * able to see where a work is kept before they buy it.
+ * Displayed on every piece, so a collector can see where a work is kept before
+ * they buy it.
  */
 export type StorageClassId = "foc" | "ipfs";
 
 /**
- * A library a generator asks for instead of carrying.
+ * A library a generator asks for instead of carrying, so an artist's bytes go
+ * to their art.
  *
- * An artist can bundle anything they like, up to whatever fits. This exists so
- * they do not have to spend their bytes on p5: name a standard library and a
- * renderer loads it for them.
- *
- * What makes that safe to do is the hash, and what makes the hash trustworthy
- * is that we are not the authority behind it. The coordinates point at a public
- * registry, the registry publishes its own integrity digest, and anyone can
- * check ours against theirs at any time, forever, without asking us. We host a
- * copy for speed and we are never the thing being trusted.
+ * The hash is what makes that safe, and the coordinates are what make the hash
+ * checkable: they point at a public registry that publishes its own integrity
+ * digest, so anyone can check ours against theirs without asking us. The copy
+ * we host is for speed.
  */
 export interface DepSpec {
     /** Stable id, recorded in the generator record. */
@@ -60,21 +43,16 @@ export interface DepSpec {
         path: string;
     };
     /**
-     * A same-origin copy we serve ourselves, tried first because it is one
-     * hop. Optional: without it the library resolves through /api/dep, which
-     * fetches from npm's mirrors and verifies before answering.
+     * A same-origin copy, tried first. Without it the library resolves through
+     * /api/dep, which fetches from npm's mirrors and verifies before answering.
      */
     url?: string;
     /** Approximate size, for the cost estimate before anything is fetched. */
     approxBytes: number;
     /**
-     * blake2b-256 of the exact bytes, hex. Mandatory.
-     *
-     * This is what a generator records and what a renderer checks before it
-     * runs anything. It was optional once and empty in practice, which meant
-     * whatever a CDN happened to return got written into an artist's immutable
-     * record with the chain vouching for it. There is no version of this that
-     * is safe to leave blank.
+     * blake2b-256 of the exact bytes, hex. What a generator records and what a
+     * renderer checks before it runs anything. Never blank: an empty hash
+     * writes whatever a CDN returned into an artist's immutable record.
      */
     hash: string;
 }
@@ -95,14 +73,8 @@ export interface RuntimeKind {
 }
 
 /**
- * p5 1.5.0.
- *
- * Verified end to end, not copied off a CDN: the npm tarball was fetched from
- * registry.npmjs.org, checked against the `dist.integrity` npm publishes for
- * that exact version, and `lib/p5.min.js` extracted from it. The file in
- * `public/vendor` is that extraction, byte for byte.
- *
- * To re-check, from anything, with no reference to us:
+ * p5 1.5.0. `public/vendor` holds `lib/p5.min.js` from the npm tarball, byte
+ * for byte. To re-check, with no reference to us:
  *
  *   npm view p5@1.5.0 dist.integrity
  *   npm pack p5@1.5.0 && tar xzOf p5-1.5.0.tgz package/lib/p5.min.js | sha256sum
@@ -122,20 +94,17 @@ export const P5_DEP: DepSpec = {
 };
 
 /**
- * three.js 0.160.1.
- *
- * Derived the same way as p5 and checkable the same way:
+ * three.js 0.160.1, checkable the same way as p5:
  *
  *   npm view three@0.160.1 dist.integrity
  *   npm pack three@0.160.1 && tar xzOf three-0.160.1.tgz package/build/three.min.js | sha256sum
  *
- * Pinned at 0.160.1 because it is the last release shipping `three.min.js`,
- * the classic build that defines a global. Later versions ship ES modules
- * only, which a generator cannot use from a plain script tag, so moving this
- * version forward is a change to how a piece loads rather than a bump.
+ * The last release shipping `three.min.js`, the classic build that defines a
+ * global. Later versions ship ES modules only, which a generator cannot load
+ * from a plain script tag, so moving this forward changes how a piece loads.
  *
- * No copy in public/vendor. It resolves through /api/dep, which is the path
- * every library that is not p5 will take.
+ * No copy in public/vendor: it resolves through /api/dep, the path every
+ * library that is not p5 takes.
  */
 export const THREE_DEP: DepSpec = {
     id: "three",
@@ -151,12 +120,9 @@ export const THREE_DEP: DepSpec = {
 };
 
 /**
- * Every library a generator may declare.
- *
- * Separate from the runtime kinds. A kind says which harness a piece boots
- * under; a library is something any kind can ask for, and tying the two
- * together meant the catalog held exactly what the p5 kind depended on and
- * a custom piece asking for three.js was told its library was unknown.
+ * Every library a generator may declare, separate from the runtime kinds. A
+ * kind says which harness a piece boots under; any kind can ask for any of
+ * these.
  */
 export const LIBRARIES: DepSpec[] = [P5_DEP, THREE_DEP];
 

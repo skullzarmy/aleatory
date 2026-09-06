@@ -1,10 +1,6 @@
 /**
- * Aleatory, packaging.
- *
- * The v0 package format is a single self-contained HTML document. A .zip in
- * the shape artists already ship (index.html at the root, a libraries/ folder,
- * a stylesheet) is accepted and flattened into one, because the point is that
- * work made for the old flow runs here untouched.
+ * Packaging. The format is a single self-contained HTML document, and a .zip in
+ * the shape artists already ship is flattened into one.
  *
  * Flattening is a pre-render step, like dependency resolution: by the time a
  * piece boots it is one document with no local references and no network.
@@ -72,10 +68,9 @@ export function packageFromHtml(html: string): PackagedProject {
 }
 
 /**
- * Flatten a zipped project into one document.
- *
- * Handles the common shapes: index.html at the root, or a single wrapper
- * folder containing it (what every OS produces when you zip a directory).
+ * Flatten a zipped project into one document: index.html at the root, or inside
+ * a single wrapper folder, which is what every OS produces when you zip a
+ * directory.
  */
 export function packageFromZip(data: Uint8Array): PackagedProject {
     const files = unzipSync(data);
@@ -99,11 +94,9 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
 
     let html = strFromU8(files[entry]);
     const notes: string[] = [];
-    // Sets rather than lists. A stylesheet is walked for `url(…)` when it is
-    // inlined and again in the pass over the document's own <style> blocks, and
-    // two stylesheets may point at the same missing asset, so the same name
-    // arrives more than once. What the artist needs to read is which files are
-    // missing, each said once.
+    // Sets, because a stylesheet is walked for `url(…)` when it is inlined and
+    // again in the pass over the document's own <style> blocks, and two
+    // stylesheets may point at the same missing asset.
     const missing = new Set<string>();
     const inlined = new Set<string>();
 
@@ -135,13 +128,10 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
     );
 
     /**
-     * `url(…)` inside CSS, wherever that CSS ends up.
-     *
-     * Inlining a stylesheet moves its text into the document but leaves every
-     * path in it pointing at a folder that no longer exists. A background image
-     * or a webfont then resolves against the page instead, which in a sandbox
-     * with `connect-src 'none'` is simply gone: no error, no image, and nothing
-     * anywhere saying a file was left behind.
+     * `url(…)` inside CSS, wherever that CSS ends up. Inlining a stylesheet
+     * moves its text into the document and leaves every path in it pointing at
+     * a folder that no longer exists, which under `connect-src 'none'` is a
+     * missing image with no error anywhere.
      */
     const inlineCssUrls = (css: string): string =>
         css.replace(
@@ -183,8 +173,7 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
     html = html.replace(/\bsrc\s*=\s*["']([^"']+)["']/gi, (match: string, src: string) => {
         const file = lookup(src);
         if (!file) {
-            // Recorded so a piece with a hole in it says so. Remote and
-            // already-inlined references are not missing, just not ours.
+            // Remote and already-inlined references are not missing.
             if (!/^(https?:|data:|blob:)/i.test(src)) missing.add(normalize(src));
             return match;
         }
@@ -193,10 +182,8 @@ export function packageFromZip(data: Uint8Array): PackagedProject {
         return `src="data:${mime};base64,${literal(toBase64(file))}"`;
     });
 
-    // Files actually pulled in, counted rather than inferred. Subtracting the
-    // unresolved references from the files in the package counted two unlike
-    // things: one missing asset referenced twice made the total negative, and a
-    // package that had inlined a stylesheet reported nothing at all.
+    // Counted, not inferred from the package size less what went missing: those
+    // are two unlike things and one asset referenced twice makes the sum wrong.
     const inlinedCount = inlined.size;
     if (inlinedCount > 0)
         notes.push(

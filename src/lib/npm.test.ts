@@ -1,16 +1,11 @@
 /**
- * Reading a package well enough to know whether it can be declared.
+ * Reading a package well enough to know whether it can be declared. A
+ * declaration loads from a script tag, most of npm no longer ships anything one
+ * can load, and a kit built from the wrong file renders a blank frame.
  *
- * The thing being defended against is specific. A declaration is loaded with a
- * script tag, most of npm no longer ships anything a script tag can load, and a
- * kit built from the wrong file renders a blank frame that its author finds
- * after minting. `docs/libraries.md` warns about three.js in prose; these are
- * the same facts, checked.
- *
- * The wrapper cases run offline against the bytes those packages really ship,
- * copied here so a classifier change has to face them. The network half asks
- * jsDelivr the same questions and is skipped without a connection rather than
- * failing, so a flight does not turn into a red suite.
+ * The wrapper cases run offline against the bytes those packages really ship.
+ * The network half asks jsDelivr the same questions and is skipped without a
+ * connection.
  *
  * Run: npm test
  */
@@ -29,11 +24,9 @@ function check(name: string, ok: boolean, detail?: string) {
 }
 
 /**
- * The opening bytes of four real builds, as published.
- *
- * Truncated where the wrapper ends, which is all any of this reads. They are
- * the four shapes npm ships: an unminified rollup UMD, two minified ones that
- * differ in how they reach the global, and a browserify bundle.
+ * The opening bytes of four real builds, truncated where the wrapper ends: an
+ * unminified rollup UMD, two minified ones that differ in how they reach the
+ * global, and a browserify bundle.
  */
 const TWEEN_UMD = `(function (global, factory) {
     typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
@@ -76,11 +69,9 @@ export { REVISION, Vector3 };
 `;
 
 /**
- * The shapes that were refused when this only read the first bytes of a file.
- *
- * `two.js@0.8.15` puts its wrapper at character 181,446 of 181,525, and never
- * mentions `define`. `zdog@1.1.3` mentions `define.amd` and never says
- * `typeof exports`. Requiring both markers, at the top, refused them both.
+ * Wrappers that are neither at the top nor complete. `two.js@0.8.15` puts its
+ * at character 181,446 of 181,525 and never mentions `define`; `zdog@1.1.3`
+ * mentions `define.amd` and never says `typeof exports`.
  */
 const TWO_FOOTER = `/* MIT License Copyright (c) 2012 - 2024 @jonobr1 */
 var Two=(function(){${"var filler=1;".repeat(4_000)}return Qi($s);})().default;
@@ -91,9 +82,8 @@ const ZDOG_AMD = `/** Minified by jsDelivr using Terser */
 
 /**
  * A partial build whose export list is longer than any window measured back
- * from the end of the file. `three@0.185.1/build/three.core.min.js` ships one
- * of a few thousand characters, and reading only the last two thousand of them
- * begins inside the braces, sees no `export`, and calls it loadable.
+ * from the end of the file. `three@0.185.1/build/three.core.min.js` ships one of
+ * a few thousand characters.
  */
 const LONG_EXPORT_TAIL = `/** @license three.js */
 const t="185";${"const a=1;".repeat(3_000)}
@@ -139,8 +129,8 @@ async function run() {
         `got ${classify("index.js", THREE_CJS)}`,
     );
 
-    // A global name that cannot be read is null, never a guess. A wrong name
-    // reads as authoritative and sends somebody hunting a bug in their own code.
+    // A global name that cannot be read is null, never a guess: a wrong name
+    // reads as authoritative.
     check("an unreadable wrapper yields no global", globalNameIn(THREE_CJS) === null);
 
     // --- wrappers that are not at the top, and not both branches ---------
@@ -157,7 +147,6 @@ async function run() {
         `got ${classify("js/index.min.js", ZDOG_AMD)}`,
     );
 
-    // The one that would have shipped a partial three.js as if it worked.
     check(
         "a long export list at the end is still an ES module",
         classify("build/three.core.min.js", LONG_EXPORT_TAIL) === "esm",
@@ -195,14 +184,10 @@ async function run() {
     );
 
     /**
-     * A budget these cases are not about.
-     *
-     * `resolve` runs on the clock a serverless invocation gives it, and the
-     * walk back through three's versions is seven probes and a few reads. On a
-     * cold runner with nothing cached that legitimately runs out and answers
-     * "no version loads", which is correct behaviour and a failed assertion
-     * about the walk itself. The cases below are about where the walk arrives,
-     * so they are given room to arrive.
+     * `resolve` runs on the clock a serverless invocation gives it, and the walk
+     * back through three's versions is seven probes and a few reads, which on a
+     * cold runner correctly runs out. These cases are about where the walk
+     * arrives, so they are given room to arrive.
      */
     const unhurried = () => new Budget(60_000);
 
@@ -246,10 +231,9 @@ async function run() {
                 JSON.stringify({ path: p5.path, global: p5.global }),
             );
 
-            // What the picker actually does. npm's search hands back the newest
-            // release, and for three that is an ES module thirty four releases past
-            // the last one a piece can declare. Resolving has to cross that gap on
-            // its own or the common path through the feature ends in a refusal.
+            // What the picker does. npm's search hands back the newest release,
+            // and for three that is an ES module thirty four releases past the
+            // last one a piece can declare.
             const latest = await resolve("three", "0.185.1", unhurried());
             check(
                 "the newest three resolves back to one that loads",
@@ -265,8 +249,6 @@ async function run() {
                 JSON.stringify({ coordinate: named.coordinate, global: named.global }),
             );
 
-            // Was accepted as a global build before the export list at its end was
-            // read properly, which would have declared a partial three.js.
             const partial = await resolve("three", "0.185.1", unhurried());
             check(
                 "the newest three does not settle for a partial core build",
@@ -291,12 +273,9 @@ async function run() {
                 hits.every((h) => h.id && h.version),
             );
         } catch (e) {
-            // Reachable when the half started and not while it ran. npm and a
-            // CDN are somebody else's machines, and this half is about our
-            // reading of what they serve, not their uptime: failing here would
-            // put a red mark on a contributor's branch for an outage they have
-            // no part in. The offline cases above still hold the parsing to
-            // the bytes those packages really ship.
+            // npm and a CDN are somebody else's machines, and this half is
+            // about our reading of what they serve and not their uptime. The
+            // offline cases above still hold the parsing to real bytes.
             console.log(
                 `\n  (jsDelivr or npm went away mid-run, rest skipped: ${
                     e instanceof Error ? e.message : String(e)

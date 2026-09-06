@@ -16,12 +16,6 @@ export const metadata: Metadata = {
 };
 export const revalidate = 300;
 
-/**
- * Every registered provider, ranked by what they have delivered.
- *
- * The method is printed on the page and the query is in the open, so anyone
- * can recompute this list and order it differently.
- */
 export default async function ProvidersPage() {
     const providers = await fetchProviders().catch(() => []);
 
@@ -99,14 +93,6 @@ export default async function ProvidersPage() {
     );
 }
 
-/**
- * The pitch, for anyone who could run one.
- *
- * The page listed providers and ranked them and never said how to become one,
- * which for a role the whole design depends on being contestable is the wrong
- * thing to leave out. If nobody else can plausibly run one, the openness is
- * decorative.
- */
 function RunOne() {
     return (
         <section className="mt-12 rounded-lg border border-border p-6">

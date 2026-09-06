@@ -6,26 +6,18 @@ import { fetchProvider } from "@/lib/providers";
  * Tell the provider a collection names that a piece is waiting.
  *
  * ALEATORY-001 §5: a provider may advertise a push endpoint in its TZIP-016
- * metadata, and that URL is where this goes. The address comes from the
- * collection and the URL from that provider's own contract, so a collection
- * served by somebody else's provider notifies somebody else's provider. An
- * environment variable here could only ever reach ours.
+ * metadata. The address comes from the collection and the URL from that
+ * provider's own contract, so somebody else's provider gets notified for
+ * somebody else's collection. Every provider polls regardless, so this only
+ * shortens a wait.
  *
- * Every provider polls the chain regardless, so this shortens a wait and
- * carries no other meaning.
+ * The destination is chosen by a stranger: anyone can originate a contract
+ * whose metadata names any URL, and this route is unauthenticated, so without
+ * the checks below it is a server that fetches whatever it is told to. Nothing
+ * is sent with the request and the response is discarded.
  *
- * **The destination is chosen by a stranger.** Anyone can originate a contract
- * whose metadata names any URL, this route is unauthenticated, and it is a
- * server making the request, so without the checks below it is a machine that
- * fetches whatever it is told to. That is the whole threat here: the response
- * is discarded and nothing of ours travels with the request.
- *
- * Nothing is sent: no body, no credential. A provider is entitled to be
- * tapped by any UI, so there is no secret a UI could hold, and the tap only
- * asks a provider to read the chain sooner than it was going to.
- *
- * A route rather than a call from the browser so the checks above run on a
- * machine, out of reach of whoever is minting.
+ * A route rather than a call from the browser, so those checks run out of reach
+ * of whoever is minting.
  */
 
 /** Hosts that only ever mean "somewhere inside the network this runs on". */
@@ -33,12 +25,9 @@ const PRIVATE_HOST =
     /^(localhost$|.*\.local$|.*\.internal$|.*\.localhost$|\[|(\d{1,3}\.){3}\d{1,3}$)/i;
 
 /**
- * A URL worth sending a stranger's request to.
- *
- * https only, a named host, and no address literal. Cloud metadata services
- * and everything on a private network are reached by literal or by a
- * loopback name, so refusing both covers the cases that matter without
- * resolving DNS on the request path.
+ * A URL worth sending a stranger's request to: https, a named host, no address
+ * literal. Cloud metadata services and private networks are reached by literal
+ * or by a loopback name, so refusing both covers them without resolving DNS.
  */
 function reachable(raw: string): URL | null {
     let url: URL;
@@ -58,13 +47,9 @@ function reachable(raw: string): URL | null {
 }
 
 /**
- * A gap between calls, held per running instance.
- *
- * Best effort, and named as such: this file can be running in more than one
- * instance at once, so it slows a hammer without bounding one. What actually
- * limits the damage is that the request is 1:1 with no body, and that a
- * destination has to have been published on chain by a contract somebody paid
- * to originate.
+ * A gap between calls, per running instance, so it slows a hammer without
+ * bounding one. What limits the damage is that the request is 1:1 with no body,
+ * to a destination published on chain by a contract somebody paid to originate.
  */
 let lastAt = 0;
 const MIN_GAP_MS = 250;
@@ -96,8 +81,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             signal: AbortSignal.timeout(5_000),
         });
     } catch {
-        // The piece is minted and the provider's own poll finds it by the same
-        // rule, so there is nothing here worth reporting to a collector.
+        // The provider's own poll finds the piece by the same rule.
     }
     return NextResponse.json({ pinged: true });
 }

@@ -1,10 +1,7 @@
 /**
  * Claims the documentation makes about the contracts, against the contracts.
- *
- * The contract table said five when there were seven, and a sentence two
- * paragraphs above it said six. Prose about code drifts silently and reads
- * fine while it does, so the counts and the names are checked rather than
- * proofread.
+ * Prose about code drifts silently and reads fine while it does, so the counts
+ * and the names are checked rather than proofread.
  */
 
 import { readFileSync } from "node:fs";
@@ -59,11 +56,7 @@ for (const doc of docs) {
     }
 }
 
-// Runtime kinds, from the catalog that defines them.
-//
-// src/lib/kinds.ts, which is the catalog on its own: data, no imports, nothing
-// that fetches. It was the top half of runtimes.ts until reading a kind's label
-// from the browser meant pulling the library resolver and blake2b in behind it.
+// Runtime kinds, from src/lib/kinds.ts, which is the catalog on its own.
 {
     const catalog = readFileSync("src/lib/kinds.ts", "utf8");
     const kinds = [...catalog.matchAll(/kindId:\s*(\d+),\s*\n\s*name:\s*"([a-z]+)"/g)].map((m) => ({
@@ -86,8 +79,8 @@ for (const doc of docs) {
         }
     }
 
-    // And nothing invented. Kind names appear in that table and nowhere else
-    // as a claim about what exists.
+    // And nothing invented: that table is the only place a kind name is a
+    // claim about what exists.
     for (const m of arch.matchAll(/\|\s*\d+\s*\|\s*`([a-z]+)`/g)) {
         if (!kinds.some((k) => k.name === m[1])) {
             bad++;
@@ -100,9 +93,7 @@ for (const doc of docs) {
 //
 // Taquito encodes an origination by walking the contract's own storage schema
 // and taking the keys it finds, so a field the contract dropped stays in
-// deploy.ts and is silently discarded. `royalties_owed` sat there through a
-// deploy that worked, naming a field that no longer existed, which is the one
-// place a rename can hide with nothing failing.
+// deploy.ts and is discarded in silence while the deploy succeeds.
 {
     const deploy = readFileSync("contract/deploy.ts", "utf8");
     for (const [name, cls] of [
@@ -116,15 +107,14 @@ for (const doc of docs) {
         const at = deploy.indexOf(`case '${name}':`);
         if (at === -1) continue;
 
-        // The storage object this arm returns, and only that: bounded by its
-        // own `return {` and the brace that closes it, so neither a nested
-        // value nor the next arm nor an unrelated call further down is read
-        // as one of this contract's fields.
+        // Only this arm's storage object, bounded by its own `return {` and the
+        // brace that closes it, so no nested value or later arm is read as one
+        // of this contract's fields.
         const arm = deploy.slice(at + 1);
         const nextCase = arm.search(/^\s*case '/m);
         const lines = (nextCase === -1 ? arm : arm.slice(0, nextCase)).split("\n");
-        // A one-line `return { ... }` arm has no fields worth checking this
-        // way, and looking past it would read the following arm's.
+        // A one-line `return { ... }` arm has nothing to check this way, and
+        // looking past it would read the following arm's fields.
         const opens = lines.findIndex((l) => /^\s*return \{\s*$/.test(l));
         if (opens === -1) continue;
         const indent = lines[opens].match(/^\s*/)[0];

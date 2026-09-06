@@ -1,21 +1,16 @@
 /**
- * A starter kit, assembled from whatever libraries somebody picked.
+ * A starter kit, assembled from whatever libraries somebody picked. The fixed
+ * kits under `public/templates` answer "start me from p5"; this answers "three
+ * and d3 and a canvas".
  *
- * The four fixed kits under `public/templates` answer "I want to start from
- * p5". This answers "I want three and d3 and a canvas", which the protocol has
- * always allowed and the page never offered: `specFor` takes any coordinate and
- * `/api/dep` verifies any package against npm's own digest.
+ * Assembled in the browser, since every input is already on screen and `fflate`
+ * is already a dependency.
  *
- * Assembled in the browser. Every input is already on screen by the time the
- * button is pressed, `fflate` is already a dependency, and a route that zipped
- * four small files would be a serverless invocation per download for work the
- * page can do itself.
- *
- * The pieces come from one source each: the documents from
- * `templates.generated.ts`, which `scripts/build-templates.mts` writes from the
- * same files it zips, and the declarations from `withLibraries`, which is what
- * the studio uses to write them. A kit built here and a kit downloaded from the
- * releases cannot drift apart, because neither has its own copy of anything.
+ * The documents come from `templates.generated.ts`, which
+ * `scripts/build-templates.mts` writes from the same files it zips, and the
+ * declarations from `withLibraries`, which is what the studio writes them with.
+ * Nothing here keeps its own copy, so a kit built here cannot drift from one
+ * downloaded from the releases.
  */
 import { strToU8, zipSync } from "fflate";
 import { TEMPLATE_README, KIT_SERVE } from "./templates.generated";
@@ -37,11 +32,9 @@ export interface KitInput {
     kindId: number;
     libraries: KitLibrary[];
     /**
-     * `public/skill/aleatory-generator/SKILL.md`, fetched same-origin.
-     *
-     * Passed in rather than imported so the rules an agent is given are the
-     * ones being served right now, and so a 200 kB guide does not ride along
-     * in the bundle of every page that loads the header.
+     * `public/skill/aleatory-generator/SKILL.md`, fetched same-origin. Passed in
+     * so an agent gets the rules being served now, and so a 200 kB guide does
+     * not ride along in every page's bundle.
      */
     skill: string;
 }
@@ -54,11 +47,8 @@ function globalLine(lib: KitLibrary): string {
 }
 
 /**
- * A note under the declarations naming what each one puts on the window.
- *
- * The tag says which library. It does not say what to type, and a global whose
- * name has to be guessed at is the difference between a kit somebody starts
- * from and a kit somebody debugs.
+ * A note under the declarations naming what each one puts on the window. The
+ * tag says which library, never what to type.
  */
 function libraryNote(libraries: KitLibrary[]): string {
     if (libraries.length === 0) return "";
@@ -66,10 +56,8 @@ function libraryNote(libraries: KitLibrary[]): string {
     const rows = libraries
         .map((l) => `      ${l.coordinate.padEnd(widest)}  ${globalLine(l)}`)
         .join("\n");
-    // The templates phrase around writing a script tag with a CDN URL in it,
-    // and so does this. A file that tells you never to write one should not
-    // contain one, in a comment or anywhere else: it defeats grepping your own
-    // work, and any check anybody writes later.
+    // No CDN URL anywhere in here, comment included: a file that says never to
+    // write one should not contain one to grep for.
     return `  <!--
     Declared above, and loaded before your first line runs:
 
@@ -88,8 +76,7 @@ export function kitHtml(input: KitInput): string {
     if (!note) return html;
 
     // After the tags withLibraries just wrote, so the note sits with what it
-    // describes. Falls back to leaving the document alone rather than putting
-    // the note somewhere it makes no sense.
+    // describes, and the document is left alone when they are not found.
     const lastTag = html.lastIndexOf('<meta name="alea:library"');
     if (lastTag === -1) return html;
     const endOfLine = html.indexOf("\n", lastTag);
@@ -127,19 +114,15 @@ ${librarySection(input.libraries)}`;
 }
 
 /**
- * The file a coding agent is pointed at.
- *
- * The generator guide as served, plus what is true of this kit in particular.
- * The second half is the part an agent cannot infer: which globals exist, and
- * that installing or importing anything is the wrong move here.
+ * The file a coding agent is pointed at: the generator guide as served, plus
+ * what an agent cannot infer about this kit, which is the globals that exist
+ * and that installing or importing anything is wrong here.
  */
 export function kitAgents(input: KitInput): string {
     const kind = getKind(input.kindId);
 
-    // The guide is fetched, and a fetch can fail. Shipping the kit-specific
-    // half on its own would leave an agent the globals and none of the rules
-    // they exist under, which is worse than saying so: the rules are the part
-    // that keeps a piece conforming.
+    // The fetch can fail, and the kit-specific half alone would leave an agent
+    // the globals and none of the rules they exist under.
     const guide =
         input.skill.trim() ||
         `# Writing a generator for Aleatory
@@ -202,7 +185,7 @@ export function kitFiles(input: KitInput): Record<string, string> {
     };
 }
 
-/** What the download is called. Names what it is, so a downloads folder reads. */
+/** What the download is called. */
 export function kitName(input: KitInput): string {
     const parts = [
         getKind(input.kindId).name,

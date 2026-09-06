@@ -1,12 +1,7 @@
-/**
- * A small markdown renderer, for this repository's own documents.
- *
- * Scoped deliberately: it handles what `docs/*.md` actually contains, and the
- * input is files in this repository rather than anything a visitor supplies.
- * It is not a CommonMark implementation and should not be pointed at untrusted
- * text, so every value it emits is HTML-escaped first and the only markup that
- * survives is the markup this function itself writes.
- */
+// Not a CommonMark implementation. Handles what docs/*.md actually contains,
+// and expects trusted input from this repository, not visitor-supplied text.
+// Everything is HTML-escaped first; the only markup that survives is markup
+// this function writes itself.
 
 const ESCAPES: Record<string, string> = {
     "&": "&amp;",
@@ -24,8 +19,7 @@ function escape(s: string): string {
 function inline(s: string): string {
     return (
         escape(s)
-            // An entrypoint name, a contract address or a storage key has no
-            // spaces in it, and a phone is narrower than most of them.
+            // break-words: inline code (addresses, keys) has no spaces to wrap on.
             .replace(
                 /`([^`]+)`/g,
                 '<code class="break-words rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">$1</code>',

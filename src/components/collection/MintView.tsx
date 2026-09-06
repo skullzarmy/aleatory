@@ -7,16 +7,12 @@ import type { Collection } from "@/lib/collection";
 import type { ParamsSchema } from "@/lib/params";
 
 /**
- * The preview and the mint form, which have to share state.
+ * The preview and the mint form, which share state: Randomize changes what is
+ * drawn, so this owns the values and the preview seed and hands both down.
  *
- * Randomize changes what is drawn, so the frame and the panel cannot be two
- * islands on a server-rendered page. This owns the values and the preview seed
- * and hands both down.
- *
- * The seed here is a stand-in and the panel says so. A collector's real seed is
- * the hash of the operation they have not sent yet, so nothing on this page can
- * know it. What the preview is for is showing the space they are buying into,
- * and what Randomize changes is which draw from it they are looking at.
+ * That seed is a stand-in, and the panel says so. A collector's real seed is
+ * the hash of an operation they have not sent, so the preview shows the space
+ * they are buying into and not the draw they will get.
  */
 export function MintView({
     collection,

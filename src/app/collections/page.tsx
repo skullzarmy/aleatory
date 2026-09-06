@@ -15,15 +15,8 @@ export const metadata: Metadata = {
 };
 export const revalidate = 60;
 
-/**
- * Every collection, as a wall of work.
- *
- * A list of names was a list of KT1 addresses, because the name it showed was
- * TzKT's `alias`, which TzKT sets for contracts it happens to know and never
- * for ours. The name is now the artist's own, from the collection's metadata,
- * and the cover is its newest rendered piece: on a site about images, a text
- * list is a page that refuses to show you anything.
- */
+// TzKT's alias is set only for contracts it recognizes, never ours, so the display
+// name comes from the collection's own metadata instead.
 export default async function CollectionsPage() {
     const collections = await fetchAllCollections();
 

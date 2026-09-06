@@ -6,17 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { FeedPiece } from "@/lib/feed";
 import type { CollectionSummary } from "@/lib/collection";
 
-/**
- * The two things an address is: someone who made work, and someone who holds it.
- *
- * Created leads. On a site about generative art the work someone published is
- * the reason to be on their page at all, and a collection of forty pieces they
- * bought pushed it off the screen.
- *
- * It only leads when there is something there, though. Defaulting to an empty
- * panel to honour an ordering rule is the ordering rule beating the reader.
- */
 export function WalletTabs({ made, held }: { made: CollectionSummary[]; held: FeedPiece[] }) {
+    // "Created" leads by default, but only when there's something to show there.
     const first = made.length > 0 ? "created" : "collected";
 
     return (

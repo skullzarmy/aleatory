@@ -4,34 +4,23 @@ import blakejs from "blakejs";
 /**
  * The dependency proxy: a declared library, fetched and verified server-side.
  *
- * The browser cannot go to a CDN itself. `connect-src` is `'self'` plus a
- * short list of named hosts, and widening it to npm's mirrors would put every
- * visitor's IP in front of them and make the privacy policy wrong. So this
- * route does the fetching, from the same mirrors and in the same order as the
- * renderer in `provider/libraries.mts`, and the studio sees one
+ * The browser cannot go to a CDN itself. `connect-src` is `'self'` plus a short
+ * list of named hosts, and widening it to npm's mirrors would put every
+ * visitor's IP in front of them. So this route fetches, from the same mirrors
+ * and in the same order as `provider/libraries.mts`, and the studio sees one
  * same-origin URL.
  *
- * No mirror is trusted. The bytes hash to what the caller asked for or nothing
- * is served, which is the same rule the renderer applies and the reason it
- * does not matter which mirror answered.
+ * No mirror is trusted: the bytes hash to what the caller asked for or nothing
+ * is served, which is why it does not matter which mirror answered.
  *
- * Two ways in, and both end in bytes somebody other than us vouched for.
+ * With a hash, the fast path: fetch and check, once a library has been
+ * published and the recorded digest is what has to be satisfied.
  *
- * **With a hash**, the fast path: fetch from a mirror and check. Used once a
- * library has been published, when the recorded digest is the thing being
- * satisfied.
- *
- * **Without one**, the first time anybody asks for a package: fetch npm's
- * packument, fetch the tarball it names, check that tarball against the
- * `dist.integrity` npm publishes for it, and take the file out. The answer
- * carries the blake2b of those bytes, which is what gets recorded when the
- * piece is published.
- *
- * The second path is what makes the catalog unnecessary. Any package on npm
- * can be declared, because npm is the authority on what a package is and this
- * checks against npm rather than against a list we keep. What it will not do
- * is hand back unverified bytes: "these are probably three.js" is the thing
- * the declaration model exists to refuse.
+ * Without one, the first time anybody asks for a package: fetch npm's index,
+ * fetch the file it names, check it against the digest npm publishes for it,
+ * and answer with the blake2b of those bytes, which is what gets recorded at
+ * publish. That path is what makes a catalog unnecessary, since npm is the
+ * authority on what a package is.
  */
 
 const { blake2bHex } = blakejs;
@@ -92,8 +81,8 @@ export async function GET(request: Request) {
         const bytes = new TextEncoder().encode(text);
         const got = blake2bHex(bytes, undefined, 32);
         if (got !== hash) {
-            // Not an error to retry past quietly. A mirror serving different
-            // bytes under a pinned version is worth saying out loud.
+            // A mirror serving different bytes under a pinned version is worth
+            // reporting, not just skipping.
             tried.push(`${url} -> hash ${got}`);
             continue;
         }
@@ -102,8 +91,7 @@ export async function GET(request: Request) {
             status: 200,
             headers: {
                 "content-type": "application/javascript; charset=utf-8",
-                // Pinned version, verified bytes. This response can never
-                // legitimately change, so it can be cached indefinitely.
+                // Pinned version, verified bytes: this response cannot change.
                 "cache-control": "public, max-age=31536000, immutable",
                 "x-alea-hash": got,
             },
@@ -118,14 +106,11 @@ export async function GET(request: Request) {
 
 /**
  * The file from jsDelivr, checked against the digest jsDelivr publishes for it.
+ * Its data API lists every file with a sha256 and names the package's default
+ * browser build, so `d3@7.9.0` needs nothing else to resolve.
  *
- * Its data API lists every file in a package with a sha256 and a size, and
- * names the package's default browser build, so a declaration of `d3@7.9.0`
- * needs nothing else to resolve. Bytes that do not match are refused.
- *
- * This is the path taken the first time anybody asks for a package. The answer
- * carries the blake2b of the file, which is what gets recorded when the piece
- * is published, and every renderer afterwards checks against that instead.
+ * The answer carries the blake2b of the file, which is what gets recorded at
+ * publish and what every renderer checks against afterwards.
  */
 async function fromRegistry(id: string, version: string, requested: string): Promise<Response> {
     const fail = (why: string, status = 502) =>

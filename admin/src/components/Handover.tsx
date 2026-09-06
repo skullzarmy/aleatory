@@ -15,15 +15,13 @@ export interface Administered {
 }
 
 /**
- * Moving administration, one contract at a time.
+ * Moving administration, one contract at a time. Two steps everywhere: the
+ * current administrator proposes and the proposed address accepts, so a typo
+ * cannot strand a contract.
  *
- * Two steps everywhere: the current administrator proposes, and the proposed
- * address accepts. Nothing changes hands until that second call, so a typo
- * cannot strand a contract with an administrator that does not exist.
- *
- * Each contract is separate. There is no operation that moves all of them at
- * once, and a handover half done leaves the platform administered by two
- * different parties, so the pending column is the one to read.
+ * No operation moves all of them at once, and a half-done handover leaves the
+ * platform administered by two parties, so the pending column is the one to
+ * read.
  */
 export function Handover({ contracts }: { contracts: Administered[] }) {
     return (

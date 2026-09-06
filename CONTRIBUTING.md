@@ -76,8 +76,8 @@ implementations to the same spec. Each caught a bug that had shipped.
 
 ## Sending a change
 
-Fork, branch, open a pull request against `main`. Nobody outside the project
-pushes to `main` directly.
+Fork, branch, open a pull request against `main`. Nobody pushes to `main`
+directly, maintainers included: a ruleset on the repository refuses it.
 
 Small and focused lands faster than large and mixed. If a change is going to be
 big, or touches the contracts, open an issue first so the shape can be agreed
@@ -90,6 +90,14 @@ cost real time, and the conventions. Worth reading before a first change.
 and stop. Describe the model as it stands now. Four habits to keep out: em
 dashes, "not an X, a Y" constructions, accounts of decisions since replaced,
 and justification by contrast.
+
+**Comments earn their place.** Write one when there is something to say that
+the code cannot say on its own: a constraint arriving from outside the file, a
+failure the shape of the code is avoiding, an ordering nothing in the language
+enforces. Everything else goes. A comment that restates the line below it,
+narrates what the code used to be, or records which name or icon was picked and
+why is noise, and it goes stale while the code stays correct. Fewer comments,
+each load-bearing.
 
 ---
 

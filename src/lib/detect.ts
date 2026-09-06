@@ -5,15 +5,9 @@ import { fromFxParams, MAX_PARAMS, type ParamSpec, resolveParam, validateSchema 
 /**
  * Which runtime kind a generator was written against, read from the generator.
  *
- * Asking an artist to pick this on the way back in is asking them to remember
- * a choice they made on the way out, and to be punished for misremembering it.
- * The file already says: what it declares, and which lifecycle it implements.
- *
- * Getting it wrong is not fatal, which is what makes guessing acceptable here.
- * Libraries load from the `alea:library` tags rather than from the kind, so a
- * mislabelled piece still renders. The kind selects a default parameter set
- * and describes the work, so a wrong answer is a wrong label, and the caller
- * shows what was detected rather than silently applying it.
+ * Guessing is safe here. Libraries load from the `alea:library` tags and not
+ * from the kind, so a mislabelled piece still renders, and the caller shows
+ * what was detected instead of applying it silently.
  */
 
 export interface Detection {
@@ -27,8 +21,7 @@ export interface Detection {
 export interface ParamsDetection {
     params: ParamSpec[];
     because: string;
-    /** What reading the declaration cost: a param with no equivalent here, or
-     *  one past the ceiling. Losses are reported, never absorbed in silence. */
+    /** What reading the declaration cost, for showing to the artist. */
     notes: string[];
 }
 
@@ -38,11 +31,8 @@ const idOf = (name: string) =>
 export function detectKind(html: string): Detection {
     const declared = declaredIn(html);
 
-    // A custom-runtime piece is driven by the harness rather than by itself,
-    // so this is the strongest signal there is: nothing else exports it.
-    // Assignment, not mention. The dev harness in every template reads
-    // window.ALEA_MAIN to drive a custom piece, so merely naming it says
-    // nothing about which kind this is.
+    // Assignment, not mention: the dev harness in every template reads
+    // window.ALEA_MAIN, so naming it says nothing about the kind.
     if (/\bALEA_MAIN\s*=[^=]/.test(html)) {
         return {
             kindId: idOf("custom"),
@@ -56,8 +46,6 @@ export function detectKind(html: string): Detection {
         return { kindId: idOf("p5"), because: `it declares ${p5}`, certain: true };
     }
 
-    // Anything else declared is somebody's own engine, which is what the
-    // custom kind is for.
     if (declared.length > 0) {
         return {
             kindId: idOf("custom"),
@@ -66,9 +54,8 @@ export function detectKind(html: string): Detection {
         };
     }
 
-    // Vector work builds an svg element rather than drawing to a canvas. Look
-    // for the element being made, not merely mentioned, so a comment about SVG
-    // in a canvas piece does not decide this.
+    // The element being built, not mentioned, so a comment about SVG in a
+    // canvas piece does not decide this.
     if (
         /createElementNS\s*\(\s*["']http:\/\/www\.w3\.org\/2000\/svg/.test(html) ||
         /<svg\b/i.test(html)
@@ -87,16 +74,9 @@ export function detectKind(html: string): Detection {
     };
 }
 
-// ---------------------------------------------------------------------------
-// Parameters the file declares about itself
-// ---------------------------------------------------------------------------
-
 /**
- * The array literal starting at `open`, found by counting brackets.
- *
- * Strings and comments are tracked rather than skipped past, because a `]`
- * inside either one closes nothing, and cutting the array short there leaves
- * a fragment that cannot be read.
+ * The array literal starting at `open`, found by counting brackets. Strings and
+ * comments are tracked, because a `]` inside either one closes nothing.
  */
 function arrayLiteralAt(source: string, open: number): string | null {
     let depth = 0;
@@ -148,19 +128,14 @@ const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*/;
 /**
  * Read a JavaScript literal without running it.
  *
- * These bytes came out of a file a stranger uploaded. `eval` or `new Function`
- * here would run that stranger's code on the app's own origin, next to the
- * artist's wallet session and their saved drafts, and that is the one thing
- * this codebase does not do anywhere: generator code never runs on our origin,
- * it runs in the isolate. Reading a declaration is a convenience. It is not
- * worth an origin, so this executes nothing.
+ * These bytes came out of an uploaded file. `eval` or `new Function` would run
+ * a stranger's code on this origin, beside the artist's wallet session and
+ * their drafts; generator code runs in the isolate and nowhere else.
  *
- * `JSON.parse` on its own is not enough, because generators declare object
- * literals rather than JSON, and every real one seen so far has unquoted keys.
- * Single quotes, trailing commas and comments are just as ordinary. So this
- * reads that subset and only that: anything built by a call, an identifier or
- * an operator is not a declaration we can read, and it says so rather than
- * guessing at what the artist meant.
+ * `JSON.parse` is not enough, because generators declare object literals with
+ * unquoted keys, single quotes, trailing commas and comments. This reads that
+ * subset only. Anything built by a call, an identifier or an operator returns
+ * NOT_LITERAL.
  */
 function parseLiteral(source: string): Literal | typeof NOT_LITERAL {
     let at = 0;
@@ -265,9 +240,8 @@ function parseLiteral(source: string): Literal | typeof NOT_LITERAL {
             at++;
             const value = readValue();
             if (value === NOT_LITERAL) return NOT_LITERAL;
-            // `__proto__` in a literal is a prototype, not a field. Reading one
-            // out of an uploaded file and assigning it would hand that file the
-            // prototype of every object downstream, so it is dropped.
+            // Assigning `__proto__` out of an uploaded file would hand it the
+            // prototype of every object downstream.
             if (key !== "__proto__") out[key] = value;
 
             skip();
@@ -314,21 +288,13 @@ const ESCAPES: Record<string, string> = {
 };
 
 /**
- * The array literal from the *last* declaration matching `pattern`, or null
- * when there is no literal assignment at all.
+ * The array literal from the last declaration matching `pattern`, or null when
+ * no literal assignment matches.
  *
- * Last, because that is what JavaScript does with these lines. All four
- * starter kits carry `window.$alea.paramsSchema = []` as part of their dev
- * harness, so on any file that began life as a template there are two
- * assignments and the artist's is the one below. Reading the first found the
- * harness's empty array on the one path almost every uploaded file takes.
- *
- * An empty array from the last assignment is an answer, not a miss: the
- * generator runs with no parameters, so neither should we read any. That is
- * what makes this rule better than "first non-empty" — it needs no guess about
- * which assignment the artist meant. The one that wins at runtime wins here,
- * and an artist who deliberately clears the schema on the last line gets
- * exactly what they wrote.
+ * Last, because that is the one that wins at runtime. All four starter kits
+ * carry `window.$alea.paramsSchema = []` in their dev harness, so a file that
+ * began as a template holds two assignments and the artist's is below. An empty
+ * array from the last one is an answer: the generator runs with no parameters.
  *
  * A reassignment by reference (`= window.ALEA_PARAMS`) is not a literal and
  * never matches, so it does not shadow the literal it points at.
@@ -391,16 +357,11 @@ function normalizeRawParam(p: unknown, at: number): Reading {
             default: min,
             ...hint,
         };
-        // Put the declared default through the same rule every renderer uses,
-        // the way `fromFxParams` does, rather than trusting it raw. A default
-        // outside its own range is a typo, and clamping it is what the rule
-        // says to do with an out-of-range value everywhere else.
-        //
-        // And say so when it moves. A default is the position a collector finds
-        // the control in, and the schema is immutable once the collection
-        // exists: one line about it now is worth more than any amount of
-        // explaining afterwards. Only the clamp is reported, not the snap onto
-        // the step grid, which moves a value by less than the control can hold.
+        // The declared default goes through the same clamp every renderer uses,
+        // and a move is reported, because a default is where a collector finds
+        // the control and the schema is immutable once the collection exists.
+        // The snap onto the step grid is not reported: it moves a value by less
+        // than the control can hold.
         const resolved = resolveParam(spec, obj.default);
         const declared = obj.default;
         let note: string | undefined = undefined;
@@ -454,17 +415,13 @@ function normalizeRawParam(p: unknown, at: number): Reading {
 /**
  * What survives of a raw declaration, or null if none of it does.
  *
- * Judged one parameter at a time. `validateSchema` is the studio's gate and
- * answers about a whole set, so running it over the lot meant a single typo in
- * the fifth declaration threw away the four above it and handed the artist
- * template defaults, which is the worst of both: their work is gone and
- * nothing says why. A parameter we cannot read costs that parameter.
+ * Judged one parameter at a time, so a typo in the fifth costs the fifth.
+ * `validateSchema` answers about a whole set, which is the studio's gate and
+ * the wrong shape here.
  *
- * Nothing is renamed to make it fit. An id is what the code reads back with
- * `$alea.param("density")`, so quietly repairing one would leave the artist
- * with a control that tunes nothing.
- *
- * Every loss is carried out in `notes`. They cannot see what we did not keep.
+ * Nothing is renamed to make it fit: an id is what the code reads back with
+ * `$alea.param("density")`, so a repaired one tunes nothing. Every loss goes
+ * out in `notes`.
  */
 function detected(
     readings: Reading[],
@@ -521,20 +478,14 @@ const ENTITIES: Record<string, string> = {
     "&amp;": "&",
 };
 
-/** An attribute's real text. JSON in an HTML attribute has to escape one quote
- *  or the other, and the declaration is the same declaration either way. */
+/** An attribute's real text. JSON in an attribute escapes one quote or the other. */
 function unescapeAttribute(value: string): string {
     return value.replace(/&(?:quot|apos|#34|#39|lt|gt|amp);/g, (e) => ENTITIES[e] ?? e);
 }
 
 /**
- * Read the parameters a generator declares about itself.
- *
- * Same bargain as `detectKind` above: the file already says what it wants
- * tuned, so asking the artist to retype five ranges they have already written
- * down is asking them to do the work twice and to be punished for a typo. It
- * is a starting point shown to them, not a decision made for them, and a
- * generator that declares nothing still gets its kind's defaults.
+ * Read the parameters a generator declares about itself. A generator that
+ * declares nothing gets its kind's defaults.
  *
  * In the order tried:
  * 1. `<meta name="alea:params" content="…">`, an explicit declaration in JSON
@@ -585,10 +536,8 @@ export function detectParams(html: string): ParamsDetection | null {
 
     const fx = declaredArray(html, /\$fx\.params\s*\(\s*\[/);
     if (fx) {
-        // `fromFxParams` already counted what it could not bring over: a string
-        // param has no equivalent here, and anything past the fifth is dropped.
-        // It reports those rather than absorbing them, so they are carried
-        // through rather than thrown away one line after being written down.
+        // `fromFxParams` reports what it could not bring over, and those notes
+        // are carried through.
         const converted = fromFxParams(fx);
         const found = detected(
             converted.params.map((spec) => ({ spec })),
@@ -604,24 +553,15 @@ export function detectParams(html: string): ParamsDetection | null {
 /**
  * Rewrite a document's parameter declaration to exactly these.
  *
- * The mirror of `withLibraries`, and for the same reason: the declaration
- * belongs inside the artist's file. A schema kept beside the document is lost
- * the first time they export it, work on it elsewhere for a week and bring it
- * back, and until then the panel and the file can disagree about a piece that
- * is published immutably.
- *
- * ALEATORY-001 says a generator declares its own parameters. Writing them here
- * is what makes the standard the storage.
- *
- * **Every parseable declaration is replaced by one canonical block**, the way
- * `withLibraries` rewrites every meta tag. The panel is the editor for this
- * part of the document, so leaving an older one behind would leave the file
- * saying two things.
+ * ALEATORY-001 says a generator declares its own parameters, so the declaration
+ * lives inside the artist's file and every parseable one is replaced by a
+ * single block. Leaving an older one behind would leave the file saying two
+ * things.
  *
  * The block goes last, before `</body>`. The starter kits build their dev
- * harness in the body, so a block in `<head>` would both lose to the harness's
- * own assignment and create `window.$alea` early enough that the guard below
- * skips building the harness at all.
+ * harness in the body, so a block in `<head>` loses to the harness's own
+ * assignment and creates `window.$alea` early enough that the harness is never
+ * built.
  *
  * Only the `$alea.paramsSchema` form is written. The other three are import
  * paths, and rewriting somebody's `$fx.params` call would edit code that still
@@ -630,9 +570,8 @@ export function detectParams(html: string): ParamsDetection | null {
 export function withParams(html: string, specs: ParamSpec[]): string {
     let out = html;
 
-    // Each assignment, with its array and any trailing semicolon, removed by
-    // measuring the literal rather than by pattern, so a `]` inside a string
-    // or a comment cannot cut one short.
+    // Measured, not matched, so a `]` inside a string or a comment cannot cut
+    // an assignment short.
     for (;;) {
         const at = out.search(/(?:window\.)?\$alea\.paramsSchema\s*=\s*\[/);
         if (at === -1) break;

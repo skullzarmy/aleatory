@@ -4,8 +4,7 @@
  *   npm run bot:check   read the chain, print what the names would be
  *   npm run bot:run     read the chain and write the names
  *
- * `--dry-run` is the difference, and it is how to see the figures before
- * anything lands in a live server's sidebar.
+ * `--dry-run` shows the figures before anything writes to a live server.
  */
 import dotenv from "dotenv";
 import { platformStats, render } from "./stats";
@@ -50,8 +49,8 @@ async function main() {
     }
 
     if (stats.problems.length > 0) {
-        // Every figure that failed is zero, and writing a zero over a real
-        // number reads as the platform having lost everything.
+        // A failed figure is zero; writing it over a real number would read
+        // as the platform having lost everything.
         console.log(`\nIncomplete, nothing written:\n  ${stats.problems.join("\n  ")}\n`);
         process.exit(1);
     }

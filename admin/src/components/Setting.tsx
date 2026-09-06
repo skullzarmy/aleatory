@@ -14,8 +14,7 @@ function parse(kind: Kind, raw: string): { value: string | number; valid: boolea
     const n = Number(raw);
     if (!Number.isFinite(n) || raw.trim() === "") return { value: 0, valid: false };
     if (kind === "bps") {
-        // Typed as a percentage, stored as basis points. The contract caps it
-        // at 1000 and rejects anything above, so it is refused here too.
+        // Typed as a percentage, stored as basis points. The contract caps it at 1000.
         const b = Math.round(n * 100);
         return { value: b, valid: b >= 0 && b <= 1000 };
     }
@@ -28,13 +27,7 @@ function show(kind: Kind, value: string | number): string {
     return tez(Number(value));
 }
 
-/**
- * Change one stored value, showing what it is now and what it would become.
- *
- * The before and after are the point. Every one of these is a single opaque
- * number or address in storage, and confirming a change to one without seeing
- * what it replaces is how a fee becomes 25% instead of 2.5%.
- */
+/** Changes one stored value, showing what it is now and what it would become. */
 export function Setting({
     label,
     help,
@@ -103,10 +96,9 @@ export function Setting({
 }
 
 /**
- * Append a value to a list, rather than replace one.
- *
- * `add_factory` and `add_writer` both grow a list that nothing removes from,
- * so there is no current value to show against, only what is already there.
+ * Appends a value to a list. `add_factory` and `add_writer` both grow a
+ * list that nothing removes from, so there is no current value to show
+ * against.
  */
 export function AddToList({
     label,

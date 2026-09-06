@@ -1,40 +1,26 @@
 /**
- * What to call an address.
+ * What to call an address. Three sources, in this order:
  *
- * A tz1 is not a name, and a page full of them tells a collector nothing about
- * who made or holds anything. Three sources, in this order:
- *
- *   1. The Tezos Domains reverse record. There is at most one, it is set
- *      deliberately by the holder, and it points at their wallet rather than
- *      being merely owned by it. That makes it the closest thing to a declared
- *      identity, so it wins.
- *   2. A hack.tez subdomain they own. There is no primary flag yet, so the
- *      first one is taken.
+ *   1. The Tezos Domains reverse record, which the holder sets deliberately and
+ *      points at their wallet.
+ *   2. A hack.tez subdomain they own.
  *   3. Their TzKT profile alias.
  *
- * The first two come from hack.tez's resolver in one call, whose `primary`
- * field is already that order. Its answers are CDN-cached, which matters when
- * a feed asks about forty addresses at once.
+ * The first two come from hack.tez's resolver in one CDN-cached call, whose
+ * `primary` field is already that order.
  *
- * Resolution is against mainnet regardless of the network the site is pointed
- * at, because a key is the same key on every chain and someone's name should
- * not disappear when they are testing. The alias is the exception: that is a
- * per-instance TzKT profile, so it comes from the network in use.
+ * Resolution is against mainnet whatever network the site points at, because a
+ * key is the same key on every chain. The alias is the exception: a TzKT
+ * profile is per-instance, so it comes from the network in use.
  */
 import { tzktApi, tzktLink } from "./config";
 
 const RESOLVER = process.env.NEXT_PUBLIC_HACKTEZ_API || "https://hacktez.com";
 
-/** Long enough that a feed costs one request per address, short enough that a
- *  name set this morning shows up today. */
 const TTL_MS = 10 * 60_000;
 const TIMEOUT_MS = 4_000;
 
-/**
- * Who told us. Shown on a profile, because a name and a face that arrive from
- * somewhere are worth attributing, and because it tells a person where to go
- * and change them.
- */
+/** Who told us, shown on a profile so a person knows where to change it. */
 export type Source = "tezos-domains" | "hacktez" | "objkt" | "tzkt";
 
 export const SOURCE_LABEL: Record<Source, { name: string; href: (a: string) => string }> = {
@@ -52,12 +38,8 @@ interface Resolved {
     /** Which of them answered, for attribution. */
     nameSource: Source | null;
     /**
-     * The hack.tez domain that is this wallet's identity.
-     *
-     * A wallet can own several, and the owner marks one on chain. Not the
-     * first of the list: that ordering carries no meaning, and taking it
-     * showed the operator of hack.tez as their own admin bot rather than as
-     * themselves.
+     * The hack.tez domain that is this wallet's identity. A wallet can own
+     * several and the owner marks one on chain; list order carries no meaning.
      */
     handle: string | null;
 }
@@ -71,12 +53,9 @@ const cache = new Map<string, Cached>();
 const inflight = new Map<string, Promise<Resolved>>();
 
 /**
- * How many addresses may be in flight at once.
- *
- * A feed of forty cards by forty different artists is forty lookups, and
- * firing them together buries the requests that actually matter, the chain
- * reads, behind a queue of decoration. Names arrive progressively instead,
- * which costs nothing: every one of them is already showing an address.
+ * A feed of forty cards is forty lookups, and firing them together buries the
+ * chain reads behind a queue of decoration. Names arrive progressively, which
+ * costs nothing: every card is already showing an address.
  */
 const MAX_CONCURRENT = 6;
 let active = 0;
@@ -102,7 +81,7 @@ async function timed(url: string): Promise<Response | null> {
         const res = await fetch(url, { signal: abort.signal });
         return res.ok ? res : null;
     } catch {
-        // A name is decoration. Nothing here is worth failing a page over.
+        // A name is decoration. Nothing here fails a page.
         return null;
     } finally {
         clearTimeout(timer);
@@ -121,12 +100,10 @@ async function lookup(address: string): Promise<Resolved> {
         // `hackTez[0]` only as a last resort, for a resolver deployed before
         // primaries existed.
         handle = body?.hackTezPrimary ?? body?.hackTez?.[0] ?? null;
-        // `primary` is already the reverse record, falling back to the
-        // designated hack.tez domain, so it needs no reassembling here.
+        // `primary` is already the reverse record falling back to the
+        // designated hack.tez domain, so only equality tells the two apart.
         const name = body?.primary ?? handle;
         if (name) {
-            // The reverse record and the hack.tez domain arrive in the same
-            // response, and only their equality tells them apart.
             return {
                 name,
                 nameSource: name === handle ? "hacktez" : "tezos-domains",
@@ -167,22 +144,17 @@ async function resolve(address: string): Promise<Resolved> {
 }
 
 /**
- * The best name for an address, or null when it has none.
- *
- * Callers show the truncated address when this is null rather than being given
- * one, so that the decision of how to abbreviate stays with the surface doing
- * the rendering.
+ * The best name for an address, or null when it has none. Abbreviating the
+ * address is the caller's decision, so nothing is truncated here.
  */
 export async function resolveName(address: string): Promise<string | null> {
     return (await resolve(address)).name;
 }
 
 /**
- * Where what is on screen came from.
- *
- * A profile's own source when there is one, and otherwise whoever supplied the
- * name. Free after `resolveName` or `fetchProfile`, both of which fill the same
- * cache.
+ * Where what is on screen came from: a profile's own source when there is one,
+ * otherwise whoever supplied the name. Free after `resolveName` or
+ * `fetchProfile`, which fill the same cache.
  */
 export async function sourceFor(address: string): Promise<Source | null> {
     const profile = await fetchProfile(address);
@@ -190,23 +162,14 @@ export async function sourceFor(address: string): Promise<Source | null> {
     return (await resolve(address)).nameSource;
 }
 
-// ── Profiles ────────────────────────────────────────────────────────────────
-
 /**
- * Who someone is, as far as an art site cares.
- *
- * Two sources, and the order is the point. hack.tez is primary: it is a profile
- * its owner edits directly, on chain, in records they hold, and it is where we
- * ask people to keep this. objkt is the fallback, because it aggregates
- * tzprofiles and its own profiles and therefore already knows almost every
- * Tezos artist who has ever filled a form in. An artist who has never heard of
- * us still arrives with a face.
- *
- * The directory carries more than this: projects, tip jars, registration
- * history. Those are hack.tez's own subject and belong on hack.tez.
+ * Who someone is, from two sources in order. hack.tez is primary: its owner
+ * edits it on chain, in records they hold. objkt is the fallback, aggregating
+ * tzprofiles and its own, so an artist who has never heard of us arrives with a
+ * face.
  */
 export interface Profile {
-    /** Which source answered. Shown, because one of them is editable and the other is not. */
+    /** Which source answered. One of them is editable by the holder and the other is not. */
     source: "hacktez" | "objkt";
     /** The hack.tez subdomain, when that is where this came from. */
     handle?: string;
@@ -231,12 +194,9 @@ export interface ProfileLink {
 }
 
 /**
- * One social value to a link.
- *
- * The two sources disagree on shape: hack.tez stores bare handles, objkt stores
- * whole URLs, and both are right for their own purposes. Anything already
- * absolute is left alone, so this stays correct without knowing which source it
- * came from.
+ * One social value to a link. hack.tez stores bare handles and objkt stores
+ * whole URLs, so anything already absolute is left alone and this needs no
+ * knowledge of which source it came from.
  */
 function link(kind: string, value: unknown): ProfileLink | null {
     if (typeof value !== "string" || value.trim() === "") return null;
@@ -280,7 +240,7 @@ function link(kind: string, value: unknown): ProfileLink | null {
         case "twitch":
             return { kind, label: handle, href: `https://twitch.tv/${handle}` };
         default:
-            // Discord tags and anything unrecognised: worth showing, not linking.
+            // A Discord tag is not addressable. Shown, not linked.
             return { kind, label: v };
     }
 }
@@ -318,9 +278,7 @@ async function fromHackTez(address: string): Promise<Profile | null> {
         : null;
 
     const raw = body?.data?.profile;
-    // An empty object means the domain is registered and never filled in,
-    // which is a different thing from having no domain, and should fall
-    // through to objkt rather than showing a blank profile.
+    // A registered domain that was never filled in falls through to objkt.
     if (!raw || Object.keys(raw).length === 0) return null;
 
     return {
@@ -338,13 +296,7 @@ async function fromHackTez(address: string): Promise<Profile | null> {
 
 const OBJKT_GRAPHQL = "https://data.objkt.com/v3/graphql";
 
-/**
- * objkt's holder record.
- *
- * It aggregates tzprofiles and objkt's own profiles into one row, which is why
- * it is the fallback: an artist who never touched hack.tez has usually still
- * filled this in somewhere, years ago, and forgotten.
- */
+/** objkt's holder record, which aggregates tzprofiles and objkt's own into one row. */
 async function fromObjkt(address: string): Promise<Profile | null> {
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
@@ -389,10 +341,8 @@ async function fromObjkt(address: string): Promise<Profile | null> {
 }
 
 /**
- * The profile behind an address, from whichever source has one.
- *
- * Only pages about one person should call this. A feed wants `resolveName` and
- * nothing more.
+ * The profile behind an address. For pages about one person; a feed wants
+ * `resolveName`.
  */
 export async function fetchProfile(address: string): Promise<Profile | null> {
     if (!address) return null;
@@ -409,11 +359,8 @@ export async function fetchProfile(address: string): Promise<Profile | null> {
 }
 
 /**
- * A picture for an address.
- *
- * Theirs if they set one. Otherwise the hackatar, when they have a hack.tez
- * name: a generative avatar derived from the domain, stable and free, and a
- * better answer than an empty circle on a site about generative art.
+ * A picture for an address: theirs if they set one, otherwise the hackatar, a
+ * generative avatar derived from their hack.tez domain.
  */
 export function avatarUrl(profile: Profile | null): string | null {
     if (!profile) return null;
@@ -422,5 +369,5 @@ export function avatarUrl(profile: Profile | null): string | null {
     return `${RESOLVER}/api/v1/hackatar/${profile.handle.split(".")[0]}?static=1`;
 }
 
-/** Where someone goes to fill in the profile this page would rather be showing. */
+/** Where someone goes to fill in a profile. */
 export const PROFILE_HOME = "https://hacktez.com";

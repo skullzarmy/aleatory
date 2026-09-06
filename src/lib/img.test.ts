@@ -1,15 +1,12 @@
 /**
- * What the image proxy will and will not serve.
+ * What the image proxy will and will not serve. It fetches a URL built from a
+ * path segment and returns the bytes from our own origin, which is an open
+ * proxy unless constrained: the segment has to be a CID, the gateway is ours to
+ * choose, and the answer has to be an image. A caller asks for content, never
+ * for a host.
  *
- * It fetches a URL built from a path segment and returns the bytes from our
- * own origin, which is the shape of an open proxy unless the pieces are
- * constrained. The constraints are: the segment has to be a CID, the gateway
- * is ours to choose and a caller cannot name one, and the answer has to be an
- * image. A caller can ask for content, never for a host.
- *
- * The refusals need no network. The one case that does is the one that
- * matters, that a real pinned render comes back and is cacheable forever, and
- * it is skipped offline rather than failing.
+ * The refusals need no network. The one case that does, a real pinned render
+ * coming back cacheable, is skipped offline.
  *
  * Run: npm test
  */

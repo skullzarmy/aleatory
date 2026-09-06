@@ -1,17 +1,13 @@
 /**
- * Saying what happened, once each.
+ * Saying what happened, once each. A new generator goes to one channel and a
+ * new mint to another, one message per event.
  *
- * A new generator goes to one channel and a new mint goes to another. One
- * message per event: these are their own channels, and a channel that is only
- * ever announcements is a channel somebody can mute.
+ * Forward only. The daemon reads where the chain is when it starts and carries
+ * the mark in memory, so there is no file to keep honest and nothing is
+ * announced for the time the process was not running.
  *
- * **Forward only.** The daemon reads where the chain is when it starts and
- * carries the mark in memory from there. A mint happens once and is announced
- * once, so there is nothing to remember across restarts and no file to keep
- * honest. What the process was not running for, it does not announce.
- *
- * Within a pass the mark moves only past events that were actually posted, so
- * a refused post is tried again on the next pass rather than skipped.
+ * Within a pass the mark moves only past events that were posted, so a refused
+ * post is tried again on the next pass.
  */
 import { post, type Embed, type Result } from "./discord";
 import { newGenerators, newMints } from "./feed";
@@ -42,12 +38,9 @@ function tez(mutez: number): string {
 }
 
 /**
- * A pinned URI, as something Discord can fetch.
- *
- * Through the site's own image route, which is the path the site already uses
- * and is already cached at the edge. A URI with a path inside it is not
- * something that route takes, and an embed with no picture is better than one
- * with a broken link in it.
+ * A pinned URI, as something Discord can fetch: the site's own image route,
+ * which is already cached at the edge. That route takes a bare CID, so a URI
+ * with a path inside it gets no picture rather than a broken link.
  */
 function image(uri: string): string | undefined {
     if (!uri.startsWith("ipfs://")) return undefined;
@@ -129,25 +122,20 @@ export function mintEmbed(m: {
         ],
     };
 
-    // Absent when only the render was seen, which happens to a piece minted
-    // just before this process started. The contract stated the figure and we
-    // missed it, so the field is left off rather than filled from the
-    // collection's current price, which would be a guess dressed as a fact.
+    // Absent when only the render was seen, for a piece minted just before this
+    // process started. The collection's current price is not what was paid.
     if (m.paidMutez !== null) {
         embed.fields?.push({ name: "Paid", value: tez(m.paidMutez), inline: true });
     }
 
-    // What this draw actually is. A generator's whole point is that two pieces
-    // differ, so the settings behind one are the thing worth reading.
     const traits = Object.entries(m.params)
         .map(([key, value]) => `${key} ${String(value)}`)
         .join(" · ");
     if (traits) {
         embed.fields?.push({ name: "Traits", value: traits.slice(0, MAX_FIELD) });
     }
-    // A piece is minted before it is rendered, so this is often empty on the
-    // pass that announces it. The link still goes to a page where the piece is
-    // already running from its code and its seed.
+    // Often empty on the pass that announces a mint, since a piece is minted
+    // before it is rendered. The link still reaches a page that draws it.
     const picture = image(m.imageUri);
     if (picture) embed.image = { url: picture };
     return embed;
@@ -162,18 +150,12 @@ export interface Pass {
 /**
  * Wait for a picture to be servable before saying anything about it.
  *
- * Discord fetches an embed's image once, when the message is posted, and
- * caches what it got against that URL. A piece pinned a second ago has often
- * not reached a gateway yet, so that one fetch finds nothing and the
- * announcement carries no picture, permanently: editing the message later does
- * not help, because the miss is cached against the URL rather than the message.
+ * Discord fetches an embed's image once, when the message is posted, and caches
+ * what it got against that URL, so a miss is permanent and editing the message
+ * does not fix it. Each attempt here also warms `/api/img`, which caches for a
+ * year once it has the bytes.
  *
- * So the site is asked first, and asked again for a while. Each attempt is also
- * what warms it, since `/api/img` caches for a year once it has the bytes, and
- * by the time Discord asks it is answering from cache.
- *
- * Bounded. A picture that has not appeared in a minute is not worth holding an
- * announcement for, and a mint is worth announcing without one.
+ * Bounded: a mint is worth announcing without a picture.
  */
 const READY_TIMEOUT_MS = 60_000;
 const READY_INTERVAL_MS = 5_000;
@@ -197,12 +179,10 @@ async function waitForImage(url: string | undefined): Promise<void> {
 }
 
 /**
- * One announcement pass, from the marks in, to the marks out.
- *
- * Never throws. Each half is caught on its own, so a chain read that fails
- * while fetching mints cannot discard a generator mark that has already moved.
- * Handing that failure upward would mean the caller kept the marks it came in
- * with, and everything posted in this pass would be posted again in the next.
+ * One announcement pass, from the marks in to the marks out. Never throws: each
+ * half is caught on its own, so a failed read while fetching mints cannot
+ * discard a generator mark that has already moved and cause everything posted
+ * this pass to be posted again next pass.
  */
 export async function announce(token: string, marks: Marks): Promise<Pass> {
     const next: Marks = { ...marks };
@@ -245,10 +225,9 @@ export async function announce(token: string, marks: Marks): Promise<Pass> {
                 next.mints = m.cursor;
                 posted++;
             }
-            // Most rows on this feed are mints being held for their render, so
-            // they post nothing and carry no cursor out. Without this the mark
-            // would sit still through a busy stretch and those rows would be
-            // re-read every pass until they filled the page.
+            // Most rows here are mints being held for their render, which post
+            // nothing and carry no cursor out. Without this the mark sits still
+            // and those rows are re-read every pass until they fill the page.
             if (complete) next.mints = Math.max(next.mints, consumed);
         } catch (e) {
             results.push({ id: mints, outcome: "failed", detail: said(e) });

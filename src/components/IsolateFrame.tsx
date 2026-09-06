@@ -4,18 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ISOLATE_ORIGIN } from "@/lib/config";
 
 /**
- * Runs a generator, wherever it came from.
+ * Runs a generator, wherever it came from. The isolate is a separate origin
+ * that executes and never fetches, so callers bring the code: the studio from
+ * IndexedDB, `/piece/*` from collection storage.
  *
- * The isolate is a separate origin that executes and never fetches, so this
- * component's job is to hand it the code. That is the whole split: every
- * caller already knows how to get the code and differs in how, and the isolate
- * is the one participant that must have no network at all.
- *
- *   the studio   a draft out of IndexedDB, never on chain
- *   /piece/*     the app has already read collection storage
- *
- * The handshake matters. Posting before the isolate has parsed loses the
- * message with no error anywhere, so it announces itself and this waits.
+ * Posting before the isolate has parsed loses the message with no error
+ * anywhere, so it announces itself and this waits.
  */
 export function IsolateFrame({
     code,
@@ -48,10 +42,9 @@ export function IsolateFrame({
 }) {
     const ref = useRef<HTMLIFrameElement>(null);
 
-    // Keyed on the payload's *content*, never on object identity. A caller that
-    // builds params or deps inline hands us a new object every render, and
-    // remounting on identity would remount forever without ever finishing the
-    // handshake. Callers should memoise; this does not depend on them doing it.
+    // Keyed on the payload's content, never on object identity: a caller that
+    // builds params or deps inline hands over a new object every render, and
+    // remounting on that never finishes the handshake.
     const payload = useMemo(
         () =>
             JSON.stringify({
@@ -66,8 +59,8 @@ export function IsolateFrame({
         [code, seed, params, paramsSchema, deps, wantImage],
     );
 
-    // A fresh document per change. Swapping the source underneath a piece that
-    // has already drawn leaves a stale canvas, which reads as a working render.
+    // A fresh document per change. Swapping the source under a piece that has
+    // drawn leaves a stale canvas, which reads as a working render.
     const [nonce, setNonce] = useState(0);
     const first = useRef(true);
     useEffect(() => {
@@ -78,22 +71,17 @@ export function IsolateFrame({
         setNonce((n) => n + 1);
     }, [payload]);
 
-    // Held in a ref so the listener registers once. Callbacks are usually
-    // inline arrows, and re-registering on every render would drop the
-    // handshake message somewhere between removals.
+    // A ref so the listener registers once. Callbacks are usually inline
+    // arrows, and re-registering drops the handshake message between removals.
     const handlers = useRef({ onReady, onViolation, onError, payload });
     handlers.current = { onReady, onViolation, onError, payload };
 
     useEffect(() => {
         function onMessage(e: MessageEvent) {
-            // `e.source` is the whole check, and it is a strong one: it is this
-            // exact window object and nothing else can forge it.
-            //
-            // Origin is deliberately not checked. The frame is sandboxed
-            // without `allow-same-origin`, so it lives in an opaque origin and
-            // its messages arrive as `origin: "null"`. Comparing that against
-            // the isolate's URL rejects every message it sends, which is what
-            // made the frame sit there saying nothing had been sent to it.
+            // `e.source` is the whole check: this exact window object, which
+            // nothing else can forge. Origin is not checked, because the frame
+            // is sandboxed without `allow-same-origin` and so sends
+            // `origin: "null"`, which matches no URL.
             if (e.source !== ref.current?.contentWindow) return;
 
             const d = e.data as {
@@ -107,9 +95,8 @@ export function IsolateFrame({
             };
 
             if (d?.type === "alea:hello") {
-                // "*" for the same reason: an opaque origin cannot be named,
-                // so a specific targetOrigin would drop the message silently.
-                // Only this frame receives it, because we hold its window.
+                // "*" because an opaque origin cannot be named. Only this frame
+                // receives it, since the window object is the target.
                 ref.current?.contentWindow?.postMessage(JSON.parse(handlers.current.payload), "*");
             }
             if (d?.type === "alea:ready") {

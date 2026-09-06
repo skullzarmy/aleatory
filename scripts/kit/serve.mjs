@@ -7,18 +7,13 @@
  *
  * No install, no dependency, no build. Node 18 or newer.
  *
- * What it does that opening the file directly does not: it reads the
- * `<meta name="alea:library">` tags in your index.html and loads those
- * libraries for you from a CDN, the same way a renderer will load them from
- * the chain's record when your piece is minted.
+ * It reads the `<meta name="alea:library">` tags in your index.html and loads
+ * those libraries for you, the way a renderer loads them from the chain's
+ * record once your piece is minted. So your index.html never holds a script tag
+ * pointing at a CDN, and cannot be published with one: a piece that fetches
+ * while rendering is captured as a blank frame.
  *
- * That is the point. Your index.html never contains a script tag pointing at a
- * CDN, so it cannot be published with one by accident. A piece that fetches
- * anything while rendering is not conforming: the sandbox blocks the request
- * and the capture is of a blank frame, which is discovered after minting, when
- * the piece can no longer be changed.
- *
- * Edit index.html, reload the browser. That is the whole loop.
+ * Edit index.html, reload the browser.
  */
 
 import { createServer } from "node:http";
@@ -33,12 +28,9 @@ const portArg = args.indexOf("--port");
 const PORT = Number(portArg !== -1 ? args[portArg + 1] : process.env.PORT || 4321);
 
 /**
- * Where a declared library comes from while you work.
- *
- * Any package on npm, by name and version, the same as the platform. jsDelivr
- * resolves a package's default browser build on its own, so `p5@1.5.0` is
- * enough and naming a file is only needed when a package has no default worth
- * loading.
+ * Where a declared library comes from while you work: any package on npm, by
+ * name and version, as on the platform. jsDelivr resolves a package's default
+ * browser build, so naming a file is only needed when there is no usable one.
  */
 function sourceFor(coordinate) {
     return `https://cdn.jsdelivr.net/npm/${coordinate}`;
@@ -58,10 +50,8 @@ function declaredIn(html) {
 }
 
 /**
- * Put the declared libraries in front of the piece.
- *
- * Injected right before the closing </head>, so they are defined before any of
- * the artist's code runs, which is where a renderer puts them too.
+ * Put the declared libraries in front of the piece, before the closing </head>,
+ * which is where a renderer puts them.
  */
 function withLibraries(html) {
     const declared = declaredIn(html);
@@ -80,9 +70,9 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
 
     if (url.pathname !== "/" && url.pathname !== "/index.html") {
-        // Anything else the piece asks for, served from beside it. A generator
-        // must end up self-contained, but while you are working it is
-        // reasonable to keep a scratch file next to it.
+        // Anything else the piece asks for, served from beside it. A published
+        // generator has to be self-contained; a scratch file while you work
+        // does not.
         try {
             const body = await readFile(join(here, url.pathname.slice(1)));
             res.writeHead(200);
@@ -107,8 +97,7 @@ const server = createServer(async (req, res) => {
 
     res.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
-        // Always the file as it is on disk. A cached generator is a reload
-        // that shows you the last edit but one.
+        // A cached generator is a reload showing the last edit but one.
         "cache-control": "no-store",
     });
     res.end(html);

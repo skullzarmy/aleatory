@@ -9,22 +9,6 @@ export const metadata: Metadata = {
     description: BRAND.description,
 };
 
-/**
- * The first question a visitor has.
- *
- * Opens on the word itself. The specialized sense is not a joke at the
- * reader's expense: chance-as-method is a century-old practice with Cage at
- * the front of it, and saying so places the work in a lineage rather than
- * treating randomness as a novelty the chain invented.
- *
- * Then answered in the order people actually ask: what happens when you mint,
- * what it costs, who decides, and what survives us.
- *
- * Reaches for print vocabulary where there is a choice. "Mint" stays, because
- * Art Blocks and fxhash have already taught it to everyone who makes this kind
- * of work. What goes is the wallet vocabulary underneath it: a signature is an
- * approval, a storage fee is a fee.
- */
 export default function AboutPage() {
     return (
         <div className="mx-auto max-w-2xl px-4 py-12">
@@ -146,7 +130,6 @@ export default function AboutPage() {
     );
 }
 
-/** The name, defined. Marked up as a definition because that is what it is. */
 function Entry() {
     return (
         <dl className="border-l-2 border-alea-600 pl-5">

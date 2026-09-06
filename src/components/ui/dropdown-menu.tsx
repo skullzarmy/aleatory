@@ -5,17 +5,13 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { cn } from "@/lib/utils";
 
 /**
- * shadcn's dropdown menu, trimmed to the parts that get used.
+ * shadcn's dropdown menu, trimmed to the parts that get used: this is a menu of
+ * links and one destructive action, so the submenus, checkbox items, radio
+ * groups and shortcut slots are dropped.
  *
- * Ported from rejkt.xyz. The submenus, checkbox items, radio groups and
- * shortcut slots of the full file are dropped: this is a menu of links and one
- * destructive action, and dead primitives are dead code that still has to be
- * read.
- *
- * Radix rather than hand-rolled because a menu is more than a panel that
- * appears. It closes on outside click and on escape, arrow keys move through
- * it, focus returns to the trigger when it closes, and the trigger carries the
- * aria state. Reimplementing that is how a menu ends up unusable by keyboard.
+ * Radix, because a menu closes on outside click and on escape, arrow keys move
+ * through it, focus returns to the trigger, and the trigger carries the aria
+ * state.
  */
 const DropdownMenu = DropdownMenuPrimitive.Root;
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;

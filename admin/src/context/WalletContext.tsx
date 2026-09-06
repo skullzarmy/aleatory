@@ -13,12 +13,9 @@ import type { DAppClient } from "@tezos-x/octez.connect-sdk";
 import { BRAND, NETWORK, RPC_URL } from "@/lib/config";
 
 /**
- * The operator's own wallet.
- *
- * Much smaller than the public site's version of this, on purpose: there is
- * one user, they are here to sign administrative calls, and there is no
- * anonymous browsing path worth optimising for. The SDK still loads lazily,
- * because most visits to this console are to look at numbers.
+ * The operator's own wallet. Smaller than the public site's: one user, here to
+ * sign administrative calls. The SDK still loads lazily, because most visits
+ * are to look at numbers.
  */
 type SDKModule = typeof import("@tezos-x/octez.connect-sdk");
 
@@ -41,12 +38,9 @@ let client: DAppClient | null = null;
 let onActiveAccount: ((address: string | null) => void) | null = null;
 
 /**
- * Is this session on the network this console is pointed at?
- *
- * It matters more here than on the public site. Signing an administrative
- * call against the wrong chain does not simply fail: the same contract
- * addresses do not exist there, so the operation is rejected in a way that
- * reads as a broken deployment rather than a wrong network.
+ * Is this session on the network this console is pointed at? The contract
+ * addresses do not exist on another chain, so signing there is rejected in a
+ * way that reads as a broken deployment.
  */
 function matchesNetwork(
     account: { network?: { type?: string; rpcUrl?: string } } | null,
@@ -64,18 +58,15 @@ function matchesNetwork(
 /**
  * Wait for the SDK's own IndexedDB to finish opening.
  *
- * `IndexedDBStorage` starts `initDB()` in its constructor and assigns the
- * handle in a `.then`, so for the first moments `this.db` is undefined. Its
- * `transaction()` reads `this.db?.objectStoreNames.contains(name)`, which on
- * undefined rejects with "<name> not found" and blames a missing object store
- * for a database that has not opened yet.
+ * `IndexedDBStorage` assigns its handle in a `.then`, so for the first moments
+ * `this.db` is undefined and `transaction()` rejects with "<name> not found",
+ * blaming a missing object store for a database that has not opened. The client
+ * writes metrics on `requestPermissions` before checking whether metrics are
+ * enabled, so connecting fast enough after load fails over a statistic nobody
+ * asked for.
  *
- * The client sends metrics on `requestPermissions`, and writes to that store
- * before the check for whether metrics are even enabled, so connecting fast
- * enough after load rejects a connection over a statistic nobody asked for.
- *
- * Retried rather than slept on: it usually passes on the first attempt, and
- * the bound means a genuinely broken IndexedDB costs a second, not a hang.
+ * Retried, not slept on: it usually passes first time, and the bound means a
+ * broken IndexedDB costs a second.
  */
 async function warmStorage(c: DAppClient): Promise<void> {
     const store = (c as unknown as { beaconIDB?: { getAllKeys?: (s: string) => Promise<unknown> } })
@@ -172,10 +163,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     scopes: [sdk.PermissionScope.OPERATION_REQUEST],
                 });
             } catch (e) {
-                // The connection is what matters, so ask the client whether it
-                // has an account before reporting a failure. Some of what this
-                // can reject with is bookkeeping the SDK does alongside the
-                // permission request rather than the request itself.
+                // Some of what this rejects with is bookkeeping the SDK does
+                // alongside the request, so ask whether an account arrived.
                 const account = await c.getActiveAccount().catch(() => null);
                 if (!account) throw e;
             }

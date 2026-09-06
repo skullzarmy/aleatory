@@ -5,12 +5,9 @@ import { resolveParams, type ParamSpec } from "@/lib/params";
 import { ISOLATE_ORIGIN } from "@/lib/config";
 
 /**
- * The checks a piece has to pass before it is worth publishing.
- *
- * Each one runs the piece for real and reports what happened. A check that
- * only passes good pieces is worth nothing: these have to catch a piece that
- * is doing the wrong thing, so the determinism check runs the same seed twice
- * in two fresh frames and compares what came out.
+ * The checks a piece has to pass before it is worth publishing. Each runs the
+ * piece for real: determinism means the same seed drawn twice in two fresh
+ * frames, compared.
  */
 type Status = "idle" | "running" | "pass" | "fail";
 
@@ -66,20 +63,12 @@ export function Checks({
     }, []);
 
     /**
-     * Run the piece once in a detached frame and report what it did.
-     *
-     * The frame is thrown away afterwards. Reusing one would let a second run
-     * inherit the first one's state, which is exactly the thing being tested.
-     */
-    /**
      * Run the piece once in a detached isolate frame and report what it did.
+     * The frame is thrown away afterwards, or a second run would inherit the
+     * first one's state, which is the thing being tested.
      *
-     * The frame is thrown away afterwards. Reusing one would let a second run
-     * inherit the first one's state, which is exactly the thing being tested.
-     *
-     * It goes through the same isolate the preview and a minted piece use, so
-     * what this checks is what actually runs. A check against a second
-     * implementation would only ever prove the second implementation works.
+     * The same isolate the preview and a minted piece use, so this checks what
+     * actually runs.
      */
     const runOnce = useCallback(
         (
@@ -123,9 +112,8 @@ export function Checks({
                                 paramsSchema: params,
                                 deps: deps ?? [],
                             },
-                            // Opaque origin: it cannot be named, so "*" is the
-                            // only targetOrigin that reaches it. Only this
-                            // frame gets it, we hold the window.
+                            // An opaque origin cannot be named, so "*" is the
+                            // only targetOrigin that reaches it.
                             "*",
                         );
                     }
@@ -141,8 +129,8 @@ export function Checks({
                 window.addEventListener("message", onMessage);
                 document.body.appendChild(frame);
 
-                // Browsers throttle hidden frames, so give a piece that never
-                // signals a generous window before calling it.
+                // Browsers throttle hidden frames, so a piece that never signals
+                // gets a generous window.
                 window.setTimeout(() => finish(null), CAPTURE_TIMEOUT + 2000);
             }),
         [html, params, values, deps],

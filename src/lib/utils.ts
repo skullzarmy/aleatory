@@ -6,10 +6,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Mutez to a tez string, trimmed. 1500000 -> "1.5".
- *
- * Formats from the integer rather than dividing, so a large amount keeps
- * every digit it arrived with.
+ * Mutez to a tez string, trimmed. 1500000 -> "1.5". Formatted from the integer,
+ * so a large amount keeps every digit it arrived with.
  */
 export function formatTez(mutez: number | string | bigint): string {
     let n: bigint;
@@ -30,9 +28,8 @@ export function shortAddress(a: string, lead = 5, tail = 4): string {
     return `${a.slice(0, lead)}…${a.slice(-tail)}`;
 }
 
-// Each entry is a unit, its abbreviation, and how many of it make the next one
-// up. The unit is the one you land *in*, not the one you divided by: naming it
-// after the divisor reported twenty-five minutes as "25 seconds ago".
+// A unit, its abbreviation, and how many of it make the next one up. The unit
+// is the one landed in, not the one divided by.
 const UNITS: [name: string, short: string, per: number][] = [
     ["second", "s", 60],
     ["minute", "m", 60],
@@ -64,13 +61,7 @@ export function timeAgo(iso: string): string {
     return `${a.value} ${unit}${a.value === 1 ? "" : "s"} ago`;
 }
 
-/**
- * "3m ago". The same measurement, for somewhere it has to share a line.
- *
- * A card puts this next to a name that is already truncating, so every word
- * spent here is taken off the name. Saying what the time refers to is worth
- * more than spelling out the unit.
- */
+/** "3m ago". The same measurement, for a line it has to share with a name. */
 export function timeAgoShort(iso: string): string {
     const a = age(iso);
     if (!a) return "";
@@ -78,23 +69,20 @@ export function timeAgoShort(iso: string): string {
     return `${a.value}${UNITS[a.unit][1]} ago`;
 }
 
-/**
- * Parse a tez amount typed by a person into mutez.
- *
- * Returns null for anything that is not a sane positive amount, so the value
- * shown in a preview and the value sent to a wallet are the same number,
- * derived once. Free text reaching an operation as NaN, zero, or something
- * absurd is a way to lose money to a typo.
- */
 export const MAX_TEZ = 1_000_000;
 
+/**
+ * A tez amount typed by a person, in mutez. Null for anything that is not a
+ * positive amount within range, so free text cannot reach an operation as NaN
+ * or zero.
+ */
 export function parseTez(input: string): bigint | null {
     const trimmed = input.trim();
     if (!/^\d*\.?\d*$/.test(trimmed) || trimmed === "" || trimmed === ".") return null;
     const tez = Number(trimmed);
     if (!Number.isFinite(tez) || tez <= 0 || tez > MAX_TEZ) return null;
-    // Through the decimal string rather than through a float, so 0.1 does not
-    // arrive as 99999.99999999999.
+    // Through the decimal string, not a float, so 0.1 does not arrive as
+    // 99999.99999999999.
     const [whole, frac = ""] = trimmed.split(".");
     const mutez = BigInt(whole || "0") * 1_000_000n + BigInt((frac + "000000").slice(0, 6));
     return mutez > 0n ? mutez : null;

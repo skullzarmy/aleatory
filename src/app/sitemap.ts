@@ -5,29 +5,17 @@ import { fetchCollections, fetchRecentTokens } from "@/lib/tzkt";
 import { isBlockedCollection } from "@/lib/blocklist";
 
 /**
- * Rebuilt hourly, on request, not pinned at build.
- *
- * `revalidate` makes this stale-while-revalidate: the first request after the
- * hour is served the old file and triggers a rebuild, so a collection
- * published five minutes ago is in it within the hour and nobody waits for a
- * chain crawl. No crawler asks more often than that.
- *
- * `force-dynamic` is deliberately not used. It would rebuild this on every
- * request, and every request would then walk the chain.
+ * Rebuilt hourly, on request. `revalidate` is stale-while-revalidate: the first
+ * request after the hour is served the old file and triggers a rebuild, so
+ * nobody waits for a chain crawl. `force-dynamic` would walk the chain on every
+ * request.
  */
 export const revalidate = 3600;
 export const dynamic = "force-static";
 
 /**
- * Every page worth crawling, built from chain state.
- *
- * The static routes are the ones a stranger would want. Collections and pieces
- * come from the chain, because a hand-written list would be stale the moment
- * somebody mints.
- *
- * Bounded on purpose. A sitemap that grows without limit becomes the slowest
- * route on the site, and pieces past the cap are reachable from their
- * collection, which is where a crawler finds them.
+ * The cap on pieces. Past it they are still reachable from their collection,
+ * which is where a crawler finds them.
  */
 const MAX_PIECES = 5_000;
 
@@ -56,18 +44,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: now,
     }));
 
-    // A failure here must not take the sitemap with it: a partial sitemap is
-    // worth more than a 500.
+    // A partial sitemap is worth more than a 500, so every read degrades to
+    // empty.
     //
-    // Tokens come from TzKT directly rather than through the feed, which
-    // resolves an IPFS document and the pending state for every piece it
-    // returns. A sitemap needs a URL and a date; asking the feed for five
-    // thousand of them would be thousands of gateway fetches to produce a list
-    // of strings, and it would time out long before it finished.
-    // One scan of the factories, reused for both lists. Not
-    // `fetchAllCollections`, which resolves a name and a cover image for every
-    // collection: a cover means reading tokens and then their documents off a
-    // gateway, and a sitemap has no use for either.
+    // Straight from TzKT, not through the feed or `fetchAllCollections`: both
+    // resolve an IPFS document per piece, which for five thousand of them is
+    // thousands of gateway fetches to produce a list of URLs and dates.
     const collections = await allFactories()
         .then((f) => Promise.all(f.map((x) => fetchCollections(x).catch(() => []))))
         .then((lists) => {

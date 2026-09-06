@@ -1,13 +1,9 @@
 /**
- * The accent colour, against the text that sits on it.
+ * The accent colour, against the text that sits on it. `bg-alea-600` with white
+ * text is the primary control on nearly every page, held to WCAG 2.2 AA.
  *
- * `bg-alea-600` with white text is the primary control on nearly every page,
- * so it is the single pair most worth holding to WCAG 2.2 AA. A palette is
- * also the easiest thing in a codebase to change on taste alone, months later,
- * without anyone thinking to measure it.
- *
- * Ratios are read out of tailwind.config.ts rather than written here, so this
- * measures the palette that ships instead of a copy of it.
+ * Ratios are read out of tailwind.config.ts, so this measures the palette that
+ * ships and not a copy of it.
  *
  * Run: npm test
  */

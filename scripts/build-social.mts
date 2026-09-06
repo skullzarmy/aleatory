@@ -3,17 +3,12 @@
  *
  *   npm run build:social
  *
- * X wants 1500x500 and Bluesky wants 3000x1000, so one file at 3000x1000
- * serves both and has the pixels for the larger of the two.
+ * X wants 1500x500 and Bluesky wants 3000x1000, so one file at 3000x1000 serves
+ * both. The field is `renderLogo` output nested as `<svg>` children at varying
+ * scale and opacity: nothing here draws, so the banner follows the mark.
  *
- * The field is the real mark, `renderLogo` output nested as `<svg>` children
- * at varying scale and opacity. Nothing here draws: whatever the mark becomes,
- * this follows, and a banner that drifted away from the favicon would be a
- * second source of truth about what Aleatory looks like.
- *
- * Both platforms lay the profile picture over the bottom left of the banner
- * and crop the bottom on narrow screens, so that corner is left empty and
- * nothing load-bearing sits in the lowest band.
+ * Both platforms lay the profile picture over the bottom left and crop the
+ * bottom on narrow screens, so that corner is left empty.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
@@ -48,8 +43,7 @@ interface Mark {
 
 /**
  * Nest one mark. A child `<svg>` with `x`/`y`/`width`/`height` scales its own
- * viewBox into that box, which is the whole reason the mark can be dropped in
- * at any size without touching its geometry.
+ * viewBox into that box, so the mark drops in at any size untouched.
  */
 function place({ cx, cy, size, opacity, seed }: Mark): string {
     const svg = renderLogo({ seed, size, stroke: GOLD, label: "" });
@@ -69,9 +63,8 @@ function overlapsAvatar(m: Mark): boolean {
 }
 
 /**
- * Two marks of similar weight sitting on each other reads as a smudge, so
- * centres are kept apart. Tracery crossing tracery is the point, though, and
- * the spacing is loose enough to let it.
+ * Two marks of similar weight on each other read as a smudge, so centres are
+ * kept apart. Loose enough to let tracery cross tracery.
  */
 function crowds(m: Mark, placed: Mark[]): boolean {
     return placed.some((p) => {
@@ -90,13 +83,12 @@ function field(): Mark[] {
     const hero: Mark = { ...HERO, opacity: 1, seed: CANONICAL_SEED };
     const placed: Mark[] = [];
 
-    // Bleeds past every edge, so the frame reads as a window onto a field that
-    // carries on rather than a composition that stops at the border.
+    // Bleeds past every edge, so the frame is a window onto a field.
     let tries = 0;
     while (placed.length < 38 && tries < 12000) {
         tries++;
-        // Squared so most are small and a few are large, which is what gives
-        // the field depth. A flat distribution reads as wallpaper.
+        // Squared, so most are small and a few are large. A flat distribution
+        // reads as wallpaper.
         const size = 130 + Math.floor(rand() * rand() * 520);
         const candidate: Mark = {
             cx: -260 + rand() * (W + 520),
@@ -122,8 +114,7 @@ const marks = field();
 const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Aleatory">`,
     `<defs>`,
-    // A little depth under the hero. Warm, and weak enough that it reads as
-    // light rather than as a shape of its own.
+    // Depth under the hero, weak enough to read as light and not a shape.
     `<radialGradient id="glow" cx="${HERO.cx / W}" cy="${HERO.cy / H}" r="0.62">`,
     `<stop offset="0" stop-color="#1d2f2b"/>`,
     `<stop offset="1" stop-color="${PLATE}"/>`,
@@ -139,9 +130,8 @@ mkdirSync(outDir, { recursive: true });
 const svgPath = join(outDir, "banner.svg");
 writeFileSync(svgPath, svg);
 
-// Neither platform accepts SVG for a banner, and Chrome is already on any
-// machine that develops this, so the raster comes from it rather than from a
-// native image dependency.
+// Neither platform accepts SVG for a banner, and Chrome rasterises it without
+// a native image dependency.
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const pngPath = join(outDir, "banner.png");
 

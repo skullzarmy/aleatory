@@ -1,13 +1,10 @@
 /**
- * The shape of a page before its chain reads land.
+ * The shape of a page before its chain reads land. A `loading.tsx` beside a
+ * route hands this back at once and streams the real content in behind it,
+ * instead of holding a blank screen until the indexer answers.
  *
- * Every route here waits on an indexer, so a cold page held a blank screen
- * until the whole thing resolved. A `loading.tsx` beside a route hands this
- * back immediately and streams the real content in behind it, which turns a
- * wait into an arrival.
- *
- * It reuses the shimmer an unrendered piece already uses, so waiting looks the
- * same everywhere it happens.
+ * Reuses the shimmer an unrendered piece uses, so waiting looks the same
+ * everywhere.
  */
 export function SkeletonGrid({ count = 8 }: { count?: number }) {
     return (

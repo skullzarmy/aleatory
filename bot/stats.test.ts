@@ -1,14 +1,12 @@
 /**
  * The platform's numbers, and the channel names they become.
  *
- * The figures themselves need a chain and are checked against one when there
- * is a connection: what matters is that they are totals rather than a first
- * page, and that they come from every factory and marketplace the router has
- * ever named instead of only the current ones.
+ * The figures need a chain and are checked against one when there is a
+ * connection: that they are totals and not a first page, and that they cover
+ * every factory and marketplace the router has named.
  *
- * The rendering needs no network and is checked always. A channel name is the
- * whole product here, so a placeholder that silently renders as nothing would
- * put an empty label in a sidebar with no error anywhere.
+ * The rendering needs no network and is always checked, because a placeholder
+ * that renders as nothing puts an empty label in a sidebar with no error.
  *
  * Run: npm test
  */

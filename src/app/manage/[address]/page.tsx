@@ -10,14 +10,9 @@ import { AccountLink } from "@/components/account/AccountLink";
 import { formatTez, parseTez, shortAddress } from "@/lib/utils";
 import { setEditionSize, setPaused, setPrice, setProvider, setTrustResolver } from "@/lib/ops";
 
-/**
- * One collection, from the artist's side.
- *
- * Every control writes to the artist's own contract, so the page reads the
- * chain again after each one rather than assuming the write landed. What the
- * contract refuses, it refuses here too: edition size only shrinks, and a
- * provider whose price moved above the ceiling fails the call.
- */
+// Every control writes to the contract, then re-reads the chain rather than assuming
+// the write landed. The contract enforces its own rules here too: edition size only
+// shrinks, and a provider whose price moved above the ceiling fails the call.
 export default function ManageCollectionPage({ params }: { params: Promise<{ address: string }> }) {
     const { address: contract } = use(params);
     const { address: wallet, getClient, connect } = useWallet();

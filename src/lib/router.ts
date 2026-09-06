@@ -2,32 +2,21 @@ import { CONTRACTS, tzktApi } from "./config";
 import { indexerFetch } from "./tzkt";
 
 /**
- * Where everything is, according to the chain.
+ * Where everything is, according to the chain. One address in the environment,
+ * the router, and the rest read from it, so a redeploy cannot leave a running
+ * site pointing at a contract that is gone.
  *
- * One address in the environment, the router, and the rest read from it, so a
- * redeploy cannot leave a running site pointing at a contract that is gone.
+ * Both lists hold every address the router has ever named, newest first. A
+ * retired factory's collections are still owned by real artists, and a retired
+ * marketplace still holds live listings and escrowed offers.
  *
- * **`factories` is every factory there has ever been, newest first.** A
- * redeploy adds one, it does not replace the list, because collections a
- * retired factory originated are still real collections owned by real artists.
- * A reader that only looked at the newest would drop them off the site.
- *
- * The environment still wins when it names something, so a fork can point at
- * its own contracts without deploying a router, and local development can
- * override one address without touching the chain.
+ * The environment wins where it names something, so a fork can point at its own
+ * contracts without deploying a router.
  */
 export interface Addresses {
     /** Newest first. The head is where a deploy goes. */
     factories: string[];
-    /**
-     * Every marketplace there has ever been, newest first.
-     *
-     * The router stores one, the current one, and emits `set_marketplace`
-     * whenever it changes, so the rest are recovered from those events. A
-     * reader that only looked at the current address would drop every live
-     * listing and every escrowed offer the moment a new marketplace shipped,
-     * and the tez behind an offer would look lost to whoever placed it.
-     */
+    /** Newest first. The router stores only the current one; the rest are history. */
     marketplaces: string[];
     registry: string;
     resolver: string;
@@ -44,11 +33,8 @@ let cached: { at: number; value: Addresses } | null = null;
 const TTL_MS = 60_000;
 
 /**
- * Read the router's storage.
- *
- * Storage rather than the on-chain view, because a view needs an RPC round
- * trip per call and this is on the path of every page. The values are the
- * same; the view exists for other contracts.
+ * Read the router's storage. The on-chain view carries the same values and
+ * needs an RPC round trip per call, and this is on the path of every page.
  */
 async function fromChain(): Promise<Addresses> {
     if (!CONTRACTS.router) return EMPTY;
@@ -80,14 +66,11 @@ async function fromChain(): Promise<Addresses> {
 /**
  * Every marketplace the router has ever held, newest first.
  *
- * From the storage history rather than from `set_marketplace` events. The
- * first marketplace is written at origination and emits nothing, so an event
- * scan silently loses it, along with every listing and escrowed offer on it.
- * Storage history has each value the field has held, however it got there.
+ * From storage history, which carries each value a field has held however it
+ * got there. The first marketplace is written at origination and emits nothing,
+ * so an event scan loses it along with every listing and offer on it.
  *
- * A failure here costs the history and not the present: the current address
- * still comes from storage, so the site works and only old listings go
- * missing.
+ * A failure here costs the history and not the present.
  */
 async function marketplaceHistory(): Promise<string[]> {
     try {
@@ -113,10 +96,8 @@ export async function addresses(): Promise<Addresses> {
 
     const chain = await fromChain();
 
-    // The environment overrides, so a fork or a local run can point at its own
-    // contracts without a router. An env factory is added to the front rather
-    // than replacing the list, or overriding one address would hide every
-    // collection the others made.
+    // An env address goes to the front of its list and does not replace it, or
+    // overriding one would hide every collection the others made.
     const envFactory = CONTRACTS.factory;
     const value: Addresses = {
         factories: envFactory
@@ -141,7 +122,7 @@ export async function currentFactory(): Promise<string> {
     return (await addresses()).factories[0] ?? "";
 }
 
-/** Every factory, so a reader sees the whole catalog and not just the newest. */
+/** Every factory, so a reader sees the whole catalog. */
 export async function allFactories(): Promise<string[]> {
     return (await addresses()).factories;
 }
@@ -150,10 +131,6 @@ export async function allFactories(): Promise<string[]> {
 export async function currentMarketplace(): Promise<string> {
     return (await addresses()).marketplaces[0] ?? "";
 }
-
-// ---------------------------------------------------------------------------
-// Every contract the router has ever named
-// ---------------------------------------------------------------------------
 
 /** One contract, and when the router adopted it. */
 export interface Held {
@@ -191,16 +168,10 @@ interface HistoryRow {
 const PAGE = 100;
 
 /**
- * Every contract this router has pointed at, current and retired.
- *
- * Read from storage history, which carries each value a field has held and the
- * operation that put it there. Events would miss everything set at
- * origination, which is the first of all four.
- *
- * A retired contract is still a real contract: collections a retired factory
- * made are owned by real artists, and a retired marketplace still holds the
- * listings and escrowed offers made on it. Publishing the whole list is what
- * lets anyone check that claim rather than take it.
+ * Every contract this router has pointed at, current and retired, from storage
+ * history, which carries each value a field has held and the operation that put
+ * it there. Events would miss everything set at origination, which is the first
+ * of all four.
  */
 export async function lineage(): Promise<Lineage> {
     const router = CONTRACTS.router;
@@ -235,11 +206,10 @@ export async function lineage(): Promise<Lineage> {
 }
 
 /**
- * Turn newest-first storage snapshots into an adoption order.
- *
- * Walked oldest first, so the moment a field's value differs from the one
- * before it, that row is when the new one was adopted. The oldest row carries
- * whatever the router was originated with, which has no adopting operation.
+ * Turn newest-first storage snapshots into an adoption order. Walked oldest
+ * first, so a row where a field differs from the row before it is when that
+ * value was adopted. The oldest row is what the router was originated with and
+ * has no adopting operation.
  */
 function finish(rows: HistoryRow[], router: string, truncated: boolean): Lineage {
     const oldestFirst = [...rows].reverse();
