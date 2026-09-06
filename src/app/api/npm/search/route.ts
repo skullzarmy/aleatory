@@ -1,20 +1,16 @@
 import { search } from "@/lib/npm";
 
 /**
- * npm's search, from our origin.
- *
- * The browser cannot ask npm itself. `connect-src` is `'self'` plus a short
- * list of named hosts, and widening it to the registry would put every
- * visitor's IP in front of npm and make the privacy policy wrong, which is the
- * same reason `/api/dep` exists.
+ * npm's search, from our origin. The browser cannot ask npm itself:
+ * `connect-src` is `'self'` plus a short list of named hosts, and widening it
+ * would put every visitor's IP in front of npm.
  *
  * A search result is not about the person who asked for it, so the answer is
- * cached hard and shared. Nothing here is logged and nothing about the caller
- * is forwarded.
+ * cached hard and shared, nothing is logged, and nothing about the caller is
+ * forwarded.
  *
- * No `revalidate` export. This reads the query string, so it is dynamic
- * whatever that said, and the caching that actually happens is the header on
- * the way out.
+ * No `revalidate` export: this reads the query string, so it is dynamic
+ * whatever that said, and the header below is the caching that happens.
  */
 export async function GET(request: Request) {
     const text = (new URL(request.url).searchParams.get("q") ?? "").trim();

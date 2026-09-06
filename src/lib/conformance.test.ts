@@ -1,19 +1,12 @@
 /**
- * ALEATORY-001, checked against every place that implements it.
+ * ALEATORY-001, checked against every place that implements it: the isolate
+ * that runs a piece on this site, the renderer that produces the canonical
+ * image, the dev harness inside every template an artist downloads, and the
+ * library resolvers on both sides of the wire.
  *
- * The standard is only worth having if the implementations agree, and there
- * are four of them: the isolate that runs a piece on this site, the renderer
- * that produces the canonical image, the dev harness inside every template an
- * artist downloads, and the library resolvers on both sides of the wire.
- *
- * They drifted. The dev harness made none of the substitutions the other two
- * make, so a generator calling `Math.random` was genuinely random in an
- * artist's editor and seeded when it rendered, and one reading the clock drew
- * differently on a different day. That is discovered after publishing, which
- * is the worst moment, and nothing announced it.
- *
- * Source of truth is docs/interface.md. When the spec changes, this fails
- * until the implementations follow.
+ * A harness that drifts is discovered after publishing. Source of truth is
+ * docs/interface.md, so when the spec changes this fails until the
+ * implementations follow.
  *
  * Run: npm test
  */
@@ -50,11 +43,8 @@ const SURFACE = [
 ];
 
 /**
- * Everything that installs `$alea`.
- *
- * The templates are included deliberately. A dev harness that diverges is not
- * a lesser problem than a renderer that does: it is the one an artist actually
- * develops against.
+ * Everything that installs `$alea`, templates included: the dev harness is the
+ * one an artist develops against.
  */
 const HARNESSES: { name: string; path: string; renderer: boolean }[] = [
     { name: "isolate", path: "isolate/index.html", renderer: true },
@@ -91,17 +81,16 @@ function auditHarnesses() {
         check(`${h.name}: freezes performance.now`, /performance\.now\s*=\s*function/.test(src));
 
         // The seed is a base58 operation hash. parseInt of it in base 16 is
-        // NaN, NaN coerced by an unsigned shift is 0, and every piece then
-        // draws the same thing. This has happened.
+        // NaN, an unsigned shift coerces that to 0, and every piece draws the
+        // same thing.
         check(
             `${h.name}: never parses the seed as a number`,
             !/parseInt\s*\(\s*(seed|hash)/.test(src),
         );
 
-        // A template that writes `alea.` must have bound it, by assignment
-        // or as a lifecycle argument. An unbound one is a ReferenceError at
-        // the moment the piece would have signalled it was finished, so the
-        // capture is of a blank frame and nothing says why.
+        // A template that writes `alea.` must have bound it, by assignment or
+        // as a lifecycle argument. Unbound is a ReferenceError at the moment the
+        // piece would have signalled, so the capture is a blank frame.
         if (!h.renderer) {
             const usesShort = /(?<![$\w.])alea\s*\./.test(src);
             const binds =
@@ -165,13 +154,7 @@ function auditLibraries() {
     );
 }
 
-/**
- * The documentation, against what is actually declarable.
- *
- * A list of libraries in prose goes stale the moment one is added, and an
- * artist reading it declares something that cannot load. The doc has to name
- * exactly the catalog.
- */
+/** The documentation, against what is actually declarable. */
 function auditDocs() {
     console.log("\nDocumentation (§1)\n");
 
@@ -179,19 +162,16 @@ function auditDocs() {
     check(
         "libraries.md says any npm package can be declared",
         /any package on npm|any npm package/i.test(doc),
-        "the limit was ours and it is gone; the doc must not reinstate it",
+        "the doc must not describe a limit the code does not have",
     );
     check(
         "libraries.md does not describe a list of allowed libraries",
         !/not in the catalog/i.test(doc),
     );
 
-    // The membership test, from the contract that enforces it.
-    //
-    // The spec said two views for as long as the registry asked for three, so
-    // anyone implementing section 5 literally built a contract that register
-    // rejects with NOT_A_PROVIDER. The spec is the document strangers build
-    // against, which makes it the worst place for this to be wrong.
+    // The membership test, read from the contract that enforces it. A spec
+    // naming fewer views than `register` asks for describes a provider that
+    // register rejects with NOT_A_PROVIDER.
     {
         const contract = read("contract/aleatory.py");
         const register = contract.slice(

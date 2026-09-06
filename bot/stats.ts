@@ -3,22 +3,18 @@ import { addresses, tzkt, provider } from "./chain";
 /**
  * What the platform has done, counted from the chain.
  *
- * Every address comes from the router, so this reads a network rather than a
- * deployment: point it at mainnet's router and the same code answers about
- * mainnet. Nothing here is configured with a contract address except the
- * render provider, which is ours specifically and is not something the router
- * names, because the registry lists everyone's.
+ * Every address comes from the router, so this reads a network and not a
+ * deployment. The render provider is the exception: it is ours specifically,
+ * and the router names nobody's, because the registry lists everyone's.
  *
- * Storage says what is true now. These are lifetime figures, so most of them
- * come from operation history.
+ * Storage says what is true now, and these are lifetime figures, so most of
+ * them come from operation history.
  *
- * **Money is counted where it landed, never from a contract's own bookkeeping.**
- * Three marketplace generations are live and they do not agree about
- * royalties: the first accrued them for later claiming, the ones after it pay
- * every recipient inside the sale. Adding up their storage would mean asking
- * each contract a different question and hoping the reader knows which. What
- * arrived at the treasury is one question with one answer, and it stays the
- * right question through the next redeploy.
+ * Money is counted where it landed, never from a contract's own bookkeeping.
+ * Three marketplace generations are live and they disagree about royalties: the
+ * first accrued them for later claiming, the ones after pay every recipient
+ * inside the sale. What arrived at the treasury is one question with one
+ * answer, and stays the right question through the next redeploy.
  */
 
 export interface PlatformStats {
@@ -60,11 +56,8 @@ const MAX_NAME = 100;
 const count = (n: number) => n.toLocaleString("en-US");
 
 /**
- * Tez, short enough for a channel name.
- *
- * Two decimals up to a thousand, then thousands and millions abbreviated. A
- * sidebar has no room for 1,204,553.482163 and nobody reads past the third
- * digit of it anyway.
+ * Tez, short enough for a channel name: two decimals up to a thousand, then
+ * thousands and millions abbreviated.
  */
 function tez(mutez: number): string {
     const value = mutez / 1_000_000;
@@ -75,11 +68,8 @@ function tez(mutez: number): string {
 }
 
 /**
- * A label with its figures filled in.
- *
- * An unknown placeholder is left as written, so a typo appears in the channel
- * name as itself. Rendering it as nothing would leave a half-empty label in a
- * sidebar with nothing anywhere to explain it.
+ * A label with its figures filled in. An unknown placeholder is left as
+ * written, so a typo appears in the channel name as itself.
  */
 export function render(label: string, stats: PlatformStats): string {
     const values: Record<string, string> = {
@@ -99,10 +89,8 @@ export function render(label: string, stats: PlatformStats): string {
 const PAGE = 1000;
 
 /**
- * Every value of one numeric field, added up across as many pages as there are.
- *
- * TzKT caps a page, and a query that quietly returns the first page reads as a
- * total while being one. Paging until short is what makes the figure a total.
+ * One numeric field, added up across every page. TzKT caps a page, and a query
+ * that returns the first one reads as a total while being a page.
  */
 async function sumOf(path: string): Promise<number> {
     let total = 0;
@@ -115,8 +103,8 @@ async function sumOf(path: string): Promise<number> {
 
 /** Contracts a list of factories originated, which is every generator. */
 export async function collectionsOf(factories: string[]): Promise<string[]> {
-    // The router's list can name one twice: `add_factory` conses on, and
-    // re-pointing at an earlier factory adds it again rather than moving it.
+    // The router's list can name one twice: `add_factory` conses on, so
+    // re-pointing at an earlier factory adds a second entry.
     const unique = [...new Set(factories.filter(Boolean))];
     if (unique.length === 0) return [];
     const out: string[] = [];
@@ -131,8 +119,8 @@ export async function collectionsOf(factories: string[]): Promise<string[]> {
 
 export async function platformStats(): Promise<PlatformStats> {
     const problems: string[] = [];
-    // The router is the one address that has to be configured, so failing to
-    // read it is a configuration problem and not a bad tick.
+    // The one address that has to be configured, so failing to read it is a
+    // configuration problem and not a bad tick.
     let where;
     try {
         where = await addresses();
@@ -149,8 +137,7 @@ export async function platformStats(): Promise<PlatformStats> {
 
     const collections = await collectionsOf(where.factories);
 
-    // Each figure on its own, so one failure costs one number. A stats channel
-    // showing three right answers and one stale one beats four blank ones.
+    // Each figure on its own, so one failure costs one number.
     const attempt = async <T>(label: string, read: () => Promise<T>, fallback: T): Promise<T> => {
         try {
             return await read();
@@ -181,9 +168,8 @@ export async function platformStats(): Promise<PlatformStats> {
                       ),
             0,
         ),
-        // Every transfer into the provider. Its balance would be wrong the
-        // moment the operator withdraws, and the point of the figure is what
-        // the provider has earned rather than what it is holding.
+        // Every transfer in, which is what the provider has earned. Its balance
+        // is what it is holding, and goes down when the operator withdraws.
         attempt(
             "render gas",
             async () =>
@@ -215,15 +201,13 @@ export async function platformStats(): Promise<PlatformStats> {
 }
 
 /**
- * What the platform's share has come to, wherever it currently sits.
+ * What the platform's share has come to, wherever it sits. `arrived` is what
+ * our contracts have sent the treasury; `unswept` is what they still hold for
+ * it, which anyone can claim at any time because the destination is fixed in
+ * storage.
  *
- * `arrived` is what our contracts have sent the treasury. `unswept` is what
- * they are still holding for it, which is claimable by anyone at any time
- * because the destination is fixed in storage, so it is already the
- * treasury's in every sense except custody.
- *
- * Both come from the marketplaces and factories the router has ever named, so
- * a retired contract still holding a fee is still counted.
+ * Both cover every marketplace and factory the router has named, so a retired
+ * contract holding a fee is still counted.
  */
 async function treasuryIncome(
     marketplaces: string[],
@@ -240,8 +224,7 @@ async function treasuryIncome(
 
     const unswept = storages.reduce((sum, s) => sum + Number(s.fees_accrued ?? 0), 0);
 
-    // Every treasury any of them names. One address in practice, and reading
-    // it off each contract keeps that a fact rather than an assumption.
+    // Every treasury any of them names. One address in practice.
     const treasuries = [...new Set(storages.map((s) => s.treasury).filter(Boolean))] as string[];
     if (treasuries.length === 0) return { arrived: 0, unswept };
 

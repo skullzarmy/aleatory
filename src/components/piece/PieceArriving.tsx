@@ -7,15 +7,9 @@ import { fetchPiece } from "@/lib/piece";
 import { shortAddress } from "@/lib/utils";
 
 /**
- * A piece that exists on chain and has not reached the indexer yet.
- *
- * The contract has already said this token id was minted, so the piece is real
- * and this page is its address. What is missing is the operation hash, which is
- * the seed, and until an indexer has it there is nothing to draw: the seed is
- * what makes this piece this piece rather than any other from the generator.
- *
- * So it waits, and says what it is waiting for. Drawing something in the
- * meantime would mean drawing a different piece and calling it theirs.
+ * A piece that exists on chain and has not reached the indexer yet. What is
+ * missing is the operation hash, which is the seed, so there is nothing to draw
+ * until an indexer has it: anything drawn meanwhile is a different piece.
  */
 export function PieceArriving({ contract, tokenId }: { contract: string; tokenId: string }) {
     const router = useRouter();

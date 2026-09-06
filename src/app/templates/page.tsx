@@ -13,15 +13,9 @@ export const metadata: Metadata = {
     openGraph: { type: "website", title: "Starter kits" },
 };
 
-/** Permanent, and not tied to a tag: the kit is the current starting point. */
 const RELEASE = `${BRAND.repo}/releases/latest/download`;
 
-/**
- * How each kit is offered, keyed by kind.
- *
- * `want` is the reader's half of the sentence, so the list reads down the left
- * as a question about their own work rather than across as a catalogue of ours.
- */
+// `want` completes "I want to ___", so each row reads as the reader's own question.
 const COPY: Record<string, { want: string; note: string; tag: string }> = {
     vanilla: {
         want: "draw to a canvas myself",
@@ -45,18 +39,11 @@ const COPY: Record<string, { want: string; note: string; tag: string }> = {
     },
 };
 
-/**
- * Choosing order, which is not catalog order: `RUNTIME_KINDS` is append-only
- * and ordered by when a kind was added, a fact about us rather than about the
- * work somebody is starting.
- */
+// RUNTIME_KINDS is append-only, ordered by when a kind was added; ORDER sets display order instead.
 const ORDER = ["vanilla", "p5", "svg", "custom"];
 const at = (name: string) => (ORDER.indexOf(name) + 1 || ORDER.length + 1) - 1;
 
-/**
- * Built from the catalog, so a kind added later appears here rather than
- * quietly not being offered. One without copy falls back to its own blurb.
- */
+// Built from RUNTIME_KINDS so a new kind appears automatically; one without copy falls back to its own blurb.
 const KITS = [...RUNTIME_KINDS]
     .sort((a, b) => at(a.name) - at(b.name))
     .map((k) => ({
@@ -83,12 +70,7 @@ function P({ children }: { children: React.ReactNode }) {
     return <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{children}</p>;
 }
 
-/**
- * A block of commands, meant to be copied.
- *
- * `leading-relaxed` because these are read a line at a time and the default
- * sets them too close for that.
- */
+// leading-relaxed: these lines are read one at a time.
 function Code({ children }: { children: React.ReactNode }) {
     return (
         <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs leading-relaxed">
@@ -97,12 +79,7 @@ function Code({ children }: { children: React.ReactNode }) {
     );
 }
 
-/**
- * A reference table: a thing you can write, and what it does.
- *
- * `max-content` sizes the left column to the longest name; the right takes
- * everything left over, so it uses the width instead of trailing off.
- */
+// max-content sizes the left column to the longest name; 1fr takes the rest.
 function Reference({ rows }: { rows: [string, string][] }) {
     return (
         <dl className="mt-3 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 overflow-x-auto rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs">
@@ -127,14 +104,7 @@ function Download({ file, children }: { file: string; children: React.ReactNode 
     );
 }
 
-/**
- * The starting point for working outside the studio.
- *
- * Ordered as the job is done: choose, run, publish. The downloads lead, because
- * they are what almost everybody came for, and the kit builder sits under
- * libraries where the need for it arises. A page that opens with the tool for
- * the rarest case spends its best position on the fewest readers.
- */
+// Ordered as the job is done: choose, run, publish.
 export default function TemplatesPage() {
     return (
         <div className="mx-auto max-w-2xl px-4 py-12">
@@ -144,9 +114,6 @@ export default function TemplatesPage() {
                 publish it. Node 18 or newer is the only requirement.
             </P>
 
-            {/* The three steps, and the page's contents, as one thing. Somebody
-                who reads it learns the shape of the job; somebody who does not
-                still gets a way to jump. */}
             <nav aria-label="On this page" className="mt-6 flex flex-wrap gap-2">
                 {STEPS.map((s) => (
                     <a
@@ -182,9 +149,7 @@ export default function TemplatesPage() {
                     </li>
                 ))}
 
-                {/* The fifth route is a decision rather than a download, so it
-                    points at the section that makes it instead of pretending
-                    to be another zip. */}
+                {/* Links to the section instead of a zip: choosing a library isn't a download. */}
                 <li className="p-4">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
                         <h3 className="text-sm">

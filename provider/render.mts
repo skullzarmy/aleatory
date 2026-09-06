@@ -1,20 +1,12 @@
 /**
- * Rendering a piece, through Cloudflare Browser Run.
+ * Rendering a piece, through Cloudflare Browser Run. In: the generator's
+ * source, a seed, parameters. Out: PNG bytes. The REST endpoint takes raw HTML,
+ * so there is no Worker to deploy and no `workers.dev` URL to guard.
  *
- * In: the generator's source, a seed, parameters. Out: PNG bytes.
- *
- * This replaces a Worker that used the old `env.BROWSER` binding with
- * `@cloudflare/puppeteer`. Browser Rendering became Browser Run and the
- * binding shape went with it; there is now a REST endpoint that takes raw
- * HTML, so there is no Worker to deploy, no `workers.dev` URL, and no shared
- * secret guarding one. The secret only ever existed because a `workers.dev`
- * URL is public, and a call made from here needs no such thing.
- *
- * This is the provider's half of the two harness implementations. The other is
+ * The provider's half of the two harness implementations. The other is
  * `isolate/index.html`, which draws for a viewer. They agree by conforming to
- * ALEATORY-001 §7, not by sharing a file, and they have to: a piece must look
- * the same in a browser as it does in the image that ends up on chain. When
- * they disagreed on seeding, every piece rendered from one identical stream.
+ * ALEATORY-001 §7 and not by sharing a file, and they have to: a piece has to
+ * look the same in a browser as in the image that ends up on chain.
  */
 
 const API = "https://api.cloudflare.com/client/v4/accounts";
@@ -23,10 +15,8 @@ const API = "https://api.cloudflare.com/client/v4/accounts";
 const SIZE = 1000;
 
 /**
- * How long to wait for a piece to signal.
- *
- * A generator sets its own capture point and cannot be trusted to reach it, so
- * this is the ceiling, not the artist's timeout.
+ * How long to wait for a piece to signal. A generator sets its own capture
+ * point and cannot be trusted to reach it, so this is the ceiling.
  */
 const CAPTURE_TIMEOUT_MS = 20_000;
 
@@ -47,8 +37,7 @@ export interface RenderConfig {
 }
 
 export function renderConfigFromEnv(): RenderConfig | null {
-    // Both spellings, because CLOUDFLARE_* is what Cloudflare's own tooling
-    // reads and CF_* is shorter to type. Neither is worth a rename.
+    // Both spellings: CLOUDFLARE_* is what Cloudflare's own tooling reads.
     const accountId = process.env.CF_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || "";
     const apiToken = process.env.CF_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN || "";
     if (!accountId || !apiToken) return null;
@@ -56,12 +45,10 @@ export function renderConfigFromEnv(): RenderConfig | null {
 }
 
 /**
- * The determinism harness.
- *
- * Kept in step with `isolate/index.html` by hand, with one addition: it marks
- * the document when the piece signals, so the renderer has a selector to wait
- * on. A screenshot taken before that point catches the piece mid-draw, and a
- * half-drawn render published on chain is permanent.
+ * The determinism harness, kept in step with `isolate/index.html` by hand, with
+ * one addition: it marks the document when the piece signals, so the renderer
+ * has a selector to wait on. A screenshot before that point is a half-drawn
+ * piece, published permanently.
  */
 function harness(seed: string, params: Record<string, unknown>): string {
     const config = JSON.stringify({ seed, params }).replace(/<\/script/gi, "<\\/script");
@@ -115,8 +102,8 @@ function harness(seed: string, params: Record<string, unknown>): string {
   function finish() {
     if (done) return;
     done = true;
-    // What the renderer waits on. An attribute rather than a global, because
-    // a selector is the only thing the screenshot endpoint can watch for.
+    // An attribute, because a selector is the only thing the screenshot
+    // endpoint can watch for.
     document.documentElement.setAttribute("data-alea-ready", "1");
   }
 
@@ -148,10 +135,8 @@ function harness(seed: string, params: Record<string, unknown>): string {
 }
 
 /**
- * Assemble the document.
- *
- * Injected as early as the document allows, so the CSP covers everything and
- * the harness wins every race against the artist's first line.
+ * Assemble the document. Injected as early as the document allows, so the CSP
+ * covers everything and the harness beats the artist's first line.
  */
 export function buildDocument(input: RenderInput): string {
     const csp = [
@@ -161,8 +146,7 @@ export function buildDocument(input: RenderInput): string {
         "img-src data: blob:",
         "media-src data: blob:",
         "font-src data:",
-        // The control. A piece that fetches would otherwise render against
-        // something external and stop being reproducible.
+        // The control: a piece that fetches is not reproducible.
         "connect-src 'none'",
         "frame-src 'none'",
         "object-src 'none'",
@@ -207,9 +191,8 @@ export async function render(input: RenderInput, config: RenderConfig): Promise<
         body: JSON.stringify({
             html: buildDocument(input),
             viewport: { width: SIZE, height: SIZE, deviceScaleFactor: 1 },
-            // Wait for the piece to say it is finished. Without this the
-            // capture lands whenever the document happens to be ready, which
-            // for a generative piece is usually before it has drawn anything.
+            // Without this the capture lands when the document is ready, which
+            // for a generative piece is before it has drawn anything.
             waitForSelector: { selector: "[data-alea-ready]", timeout: CAPTURE_TIMEOUT_MS },
             gotoOptions: { waitUntil: "domcontentloaded", timeout: CAPTURE_TIMEOUT_MS },
             screenshotOptions: { type: "png", omitBackground: false },

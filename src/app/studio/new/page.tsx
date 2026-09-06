@@ -11,24 +11,18 @@ import { newDraft, saveDraft } from "@/lib/draft";
 import type { ParamSpec } from "@/lib/params";
 
 /**
- * Loading a generator.
+ * Loading a generator, three ways: a running piece to change, a folder of work
+ * already made, or an empty file.
  *
- * Three ways in, because artists arrive from three places: some want a running
- * piece to change, some have a folder of work already, some want an empty file.
+ * A `.zip` is inlined into a single document here and not at publish, so what
+ * runs in the studio is byte for byte what goes on chain.
  *
- * A `.zip` is inlined into a single document here rather than at publish, so
- * what runs in the studio is byte for byte what goes on chain. A preview built
- * from loose files and a publish built from a bundle are two different pieces.
- *
- * An uploaded file stops here rather than going straight through. What was read
- * out of it is a guess: the kind is inferred, the parameters are inferred, and a
- * zip may have left a file behind. This page already said "change it below if
- * that is wrong" over an editable list of kinds, and then navigated away before
- * anyone could read it, so the correction it offered could not be made and the
- * wrong guess was discovered later, in a studio panel that looked odd. Reading
- * the file and opening it are two steps now, and the second one is the artist's.
+ * An uploaded file stops here rather than going straight through, because what
+ * was read out of it is a guess: the kind is inferred, the parameters are
+ * inferred, and a zip may have left a file behind. Reading the file and opening
+ * it are two steps, and the second is the artist's.
  */
-/** A file that has been read, waiting on the artist to confirm what it says. */
+
 /** A file that has been read and not yet opened. */
 interface Held {
     name: string;

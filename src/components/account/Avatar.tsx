@@ -5,15 +5,12 @@ import { fetchProfile, avatarUrl } from "@/lib/identity";
 import { ipfsImageUrl } from "@/utils/ipfs";
 
 /**
- * A face for an address.
+ * A face for an address: their picture where they set one, the hackatar where
+ * they have a hack.tez name, their initial where neither. Never an empty
+ * circle, which reads as broken rather than absent.
  *
- * Their picture where they set one, the hackatar where they have a hack.tez
- * name, and their initial where neither. Never an empty circle: a grid of
- * identical blank discs is worse than no avatars at all, because it reads as
- * broken rather than as absent.
- *
- * Sized in pixels rather than by class so a caller cannot half-apply a size and
- * get a squashed image.
+ * Sized in pixels, not by class, so a caller cannot half-apply a size and get a
+ * squashed image.
  */
 export function Avatar({
     address,

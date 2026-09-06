@@ -4,14 +4,8 @@ import Link from "next/link";
 import { AccountName } from "./AccountName";
 import { Avatar } from "./Avatar";
 
-/**
- * The way to show an account. Every account, everywhere.
- *
- * It goes to `/wallet/{address}`, the page about that person: what they made
- * and what they hold, with their profile on top. A block explorer is where you
- * check an operation, so that link lives once, on the account's own page, next
- * to the address it verifies.
- */
+// Links to /wallet/{address}. The block explorer link lives only on that
+// page, next to the address it verifies.
 export function AccountLink({
     address,
     withAvatar = false,

@@ -7,16 +7,13 @@ import { tzktLink } from "@/lib/config";
 import { shortAddress } from "@/lib/utils";
 
 /**
- * Every contract the router names, read in the visitor's own browser.
+ * Every contract the router names, resolved in the visitor's own browser, so
+ * the list is the chain's answer to a question the reader asked over a
+ * connection they control.
  *
- * Resolved here rather than on the server so the list is the chain's answer to
- * a question the reader asked, arriving over a connection they control. A page
- * about what we cannot quietly change should not itself be a thing we render
- * and hand over.
- *
- * Retired contracts are listed beside current ones because they are still
- * real: collections a retired factory originated belong to real artists, and a
- * retired marketplace still holds the listings and escrowed offers made on it.
+ * Retired contracts are listed beside current ones because they are still real:
+ * a retired factory's collections belong to real artists, and a retired
+ * marketplace still holds listings and escrowed offers.
  */
 
 const ROLES = [

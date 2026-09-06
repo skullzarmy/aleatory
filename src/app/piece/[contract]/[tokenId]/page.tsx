@@ -25,14 +25,11 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     const piece = await fetchPiece(contract, tokenId).catch(() => null);
     if (!piece) return { title: "Piece" };
 
-    // The artist by name where they have one. A title is read by a person, and
-    // a tz1 tells them nothing about who made this.
     const artist = piece.artist
         ? ((await resolveName(piece.artist).catch(() => null)) ?? shortAddress(piece.artist))
         : null;
 
-    // The root template appends " · Aleatory", so this is the whole title:
-    //   Drift #4 by skllzrmy.tez · Aleatory
+    // The root template appends " · Aleatory".
     const byline = artist ? `${piece.name} by ${artist}` : piece.name;
     const title = `${byline} · ${BRAND.name}`;
     const description = piece.description || BRAND.description;
@@ -43,8 +40,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
         description,
         alternates: { canonical: `/piece/${contract}/${tokenId}` },
         openGraph: { type: "article", siteName: BRAND.name, title, description, images },
-        // Without this X falls back to the small card, which crops a square
-        // image to a thumbnail and wastes the only thing worth showing.
+        // Without this X falls back to the small card, cropping a square image to a thumbnail.
         twitter: {
             card: piece.imageUrl ? "summary_large_image" : "summary",
             title,
@@ -58,10 +54,8 @@ export default async function PiecePage({ params }: { params: Params }) {
     const { contract, tokenId } = await params;
     const piece = await fetchPiece(contract, tokenId);
 
-    // The chain decides whether a piece exists, not the indexer. A token minted
-    // a second ago is real and unread, and 404ing it would tell somebody who
-    // has just paid that their piece is not there. `next_token_id` is the count
-    // the contract has issued, so anything below it has been minted.
+    // The indexer may not have caught up yet; check the contract's next_token_id
+    // (the count it has issued) before treating a token as not existing.
     if (!piece?.seed) {
         const collection = await fetchCollection(contract).catch(() => null);
         const minted = collection ? Number(tokenId) < collection.minted : false;
@@ -90,18 +84,15 @@ export default async function PiecePage({ params }: { params: Params }) {
                 collectionName={piece.collectionName}
                 url={`${BRAND.url}/piece/${contract}/${tokenId}`}
             />
-            {/* Only for whoever arrived here from the mint. A shared link is
-                the plain page. */}
+            {/* Only for whoever arrived here from the mint; a shared link gets the plain page. */}
             <Suspense fallback={null}>
                 <JustMinted contract={contract} remaining={remaining} />
             </Suspense>
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <div className="min-w-0">
-                    {/* The parameters go with the code and the seed. Without
-                        them the frame runs the generator on its own fallbacks,
-                        so the piece that appears while the image loads is a
-                        different piece from the one on the token. */}
+                    {/* Params must be passed, or the frame renders the generator's fallbacks
+                        instead of the piece on the token. */}
                     <ArtifactFrame
                         code={piece.code}
                         seed={piece.seed}
@@ -155,14 +146,9 @@ export default async function PiecePage({ params }: { params: Params }) {
     );
 }
 
-/**
- * The token's parameters, as the renderer will see them.
- *
- * Parsed and handed over as they were written, with no schema resolution on
- * top. The provider that made the pinned image did exactly this, so anything
- * done here that it did not do is a way for the live render and the permanent
- * one to disagree about the same piece.
- */
+// Parsed and handed over as written, with no schema resolution, matching what the
+// render provider did when it made the pinned image. Any divergence here would make
+// the live render disagree with the permanent one.
 function pieceParams(json?: string): Record<string, unknown> | undefined {
     if (!json) return undefined;
     try {

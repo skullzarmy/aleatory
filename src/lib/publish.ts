@@ -1,19 +1,14 @@
 /**
  * Publishing a draft: encode, hash, deploy.
  *
- * The generator goes into contract storage. That is what fully on-chain has to
- * mean, and it is affordable: a typical generator is well under 10KB, and at
- * 250 mutez per byte that is around half a dollar of storage burn, paid once by
- * the artist. A pointer to somebody's gateway costs less and is worth less,
- * because a gateway's content policy can change and the art stops resolving.
- * We learned that the direct way.
- *
- * A generator too large for one operation still needs a pointer, so `codeUri`
- * remains as the escape hatch and the contract accepts exactly one of the two.
+ * The generator goes into contract storage. A typical one is well under 10KB,
+ * which at 250 mutez per byte is around half a dollar of storage burn paid once
+ * by the artist. A generator too large for one operation falls back to
+ * `codeUri`, and the contract accepts exactly one of the two.
  *
  * Ordered so nothing irreversible happens until everything reversible has
- * already succeeded: the pending document is pinned first, because pinning is
- * free to retry, and only then is a wallet asked to sign.
+ * succeeded: pinning is free to retry, so it all happens before a wallet is
+ * asked to sign.
  */
 import type { DAppClient } from "@tezos-x/octez.connect-sdk";
 import { deployCollection } from "./ops";
@@ -26,14 +21,13 @@ import type { Draft } from "./draft";
 export type PublishStage = "encoding" | "pinning-metadata" | "signing";
 
 /**
- * The protocol's operation ceiling, less room for everything else the deploy
- * carries (metadata, royalties, the pending pointer). Measured against a real
- * deploy rather than guessed.
+ * The protocol's operation ceiling, less measured room for everything else the
+ * deploy carries: metadata, royalties, the pending pointer.
  */
 const MAX_INLINE_CODE_BYTES = 32_768 - 700;
 
-/** Storage burn per byte. Read from the chain for display; fixed here so a
- *  publish can quote a cost without a round trip. */
+/** Storage burn per byte, fixed here so a publish can quote a cost with no
+ *  round trip. */
 const COST_PER_BYTE = 250;
 
 function toHex(bytes: Uint8Array): string {
@@ -126,9 +120,8 @@ export async function publishCollection(
     let codeBytes: Uint8Array<ArrayBufferLike> = raw;
     let codeEncoding: "identity" | "gzip" = "identity";
 
-    // Identity by default. The extra storage is worth it: bytes a person can
-    // read straight off the chain are half of what on-chain means. Compress
-    // only when the generator would not otherwise fit one operation.
+    // Identity by default, so the bytes can be read straight off the chain.
+    // Compressed only when the generator would not otherwise fit one operation.
     if (raw.length > MAX_INLINE_CODE_BYTES) {
         codeBytes = await gzip(raw);
         codeEncoding = "gzip";
@@ -137,9 +130,8 @@ export async function publishCollection(
     const tooLarge = codeBytes.length > MAX_INLINE_CODE_BYTES;
     let codeUri = "";
     if (tooLarge) {
-        // Past the operation cap even compressed. Fall back to a pointer, and
-        // say so rather than failing: a large generator is still publishable,
-        // it just carries the dependency a small one does not.
+        // Past the operation cap even compressed, so it publishes as a pointer
+        // and carries the dependency a smaller one does not.
         onStage?.("pinning-metadata");
         codeUri = await pin({
             kind: "generator",
@@ -149,8 +141,8 @@ export async function publishCollection(
     }
 
     onStage?.("pinning-metadata");
-    // Every piece mints carrying this document, and a provider replaces it
-    // with the piece's own. The comparison against it is the whole work queue,
+    // Every piece mints carrying this document and a provider replaces it with
+    // the piece's own. The comparison against it is the provider's work queue,
     // so it has to be one stable pointer for the collection.
     const pendingMetadataUri = await pin({
         kind: "document",
@@ -167,11 +159,9 @@ export async function publishCollection(
     onStage?.("signing");
     const schema = schemaForRecord(detectParams(draft.html)?.params ?? []);
 
-    // What this generator expects a renderer to load for it. Recorded on chain
-    // because a renderer that cannot see this cannot draw the piece, and a
-    // renderer is not required to know anything about our catalog. Id,
-    // version and package path make it resolvable from any registry mirror;
-    // the hash makes every one of those answers checkable.
+    // What this generator expects a renderer to load, recorded on chain because
+    // a renderer knows nothing about our catalog. Id, version and package path
+    // resolve it from any registry mirror; the hash makes the answer checkable.
     const libraries = getKind(draft.kindId).deps.map((d) => ({
         id: d.id,
         version: d.version,
@@ -207,12 +197,11 @@ export async function publishCollection(
                           thumbnailUri: input.coverThumbUri ?? input.coverUri,
                       }
                     : {}),
-                // Recorded so the cover can be redrawn from chain state rather
-                // than only existing as a pinned file.
+                // Recorded so the cover can be redrawn from chain state.
                 ...(input.coverSeed ? { aleaCoverSeed: input.coverSeed } : {}),
             }),
-            // Held under its own key so a mint UI built by someone else needs
-            // one value rather than the whole record. docs/params.md §4.
+            // Under its own key, so a mint UI reads one value and not the whole
+            // record. docs/params.md §4.
             ...(schema ? { "aleatory:params": JSON.stringify(schema) } : {}),
             ...(libraries.length > 0 ? { "aleatory:libraries": JSON.stringify(libraries) } : {}),
         },

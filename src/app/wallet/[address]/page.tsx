@@ -41,20 +41,8 @@ export async function generateMetadata({
     };
 }
 
-/**
- * One person: what they made, what they hold, and who they are.
- *
- * Keyed by an address and needing no account, no connection and no permission,
- * so a collector can send someone the link to what they hold and an artist has
- * a page from the moment they deploy rather than when they get round to filling
- * one in. It answers both questions about one address because on this chain
- * they are usually the same person.
- *
- * The profile on top is theirs from elsewhere: a hack.tez record they own and
- * edit, or an objkt profile if that is all there is. Nothing about a person is
- * stored here, which is why this page exists for people who have never used the
- * site.
- */
+// Profile data is fetched from elsewhere (a hack.tez record, or an objkt profile as
+// fallback); nothing about a person is stored here, so the page works for any address.
 export default async function WalletPage({ params }: { params: Promise<{ address: string }> }) {
     const { address } = await params;
     if (!isAddress(address)) notFound();

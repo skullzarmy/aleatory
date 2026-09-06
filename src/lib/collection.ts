@@ -71,12 +71,9 @@ export interface Collection {
     soldOut: boolean;
     provider: string;
     /**
-     * Whether the provider still answers.
-     *
-     * A mint asks them what they charge and fails if they cannot say, so a
-     * provider that has gone takes the collection's sales with it until the
-     * artist picks another. Nobody is paid for work that will not be done,
-     * which is the point, but somebody has to be told.
+     * Whether the provider still answers. A mint asks them what they charge and
+     * fails if they cannot say, so a provider that has gone takes the
+     * collection's sales with it until the artist picks another.
      */
     providerReachable: boolean;
     /** Where writer authorisation is resolved from. Fixed at origination. */
@@ -108,9 +105,9 @@ export async function fetchCollection(address: string): Promise<Collection | nul
     const minted = parseInt(s.next_token_id, 10);
     const price = BigInt(s.sale.price);
 
-    // What a mint will be charged: the provider's price now, which is what
-    // the contract asks them for. The recorded price is only what they
-    // charged when they were chosen, and shown if they cannot be reached.
+    // The provider's price now, which is what the contract asks them for. The
+    // recorded price is what they charged when they were chosen, and stands in
+    // when they cannot be reached.
     const quoted = await fetchProviderGas(s.render.provider);
     const gas = quoted ?? BigInt(s.render.render_gas);
     const royalties = Object.entries(s.art.royalties).map(([a, bps]) => ({
@@ -126,11 +123,9 @@ export async function fetchCollection(address: string): Promise<Collection | nul
         description: meta.description,
         paramsSchema: await fetchParamsSchema(address),
         artist: s.administrator,
-        // The generator itself, out of storage. A viewer needs no gateway
-        // and no pin to see it, which is the point of putting it there.
         code: await decodeCode(s.art.code, s.art.code_encoding).catch(() => ""),
-        // `code_uri` is sp.string on chain, not sp.bytes, so it needs no
-        // decoding. Set only for a generator too large to carry on chain.
+        // sp.string on chain, not sp.bytes, so it needs no decoding. Set only
+        // for a generator too large to carry on chain.
         codeUri: s.art.code_uri,
         codeHash: s.art.code_hash,
         priceMutez: price,
@@ -150,16 +145,13 @@ export async function fetchCollection(address: string): Promise<Collection | nul
 }
 
 /**
- * A collection's total royalty, and nothing else.
+ * A collection's total royalty, and nothing else. `fetchCollection` carries it
+ * too, but pulls the whole storage record, and `art.code` is the generator: some
+ * fifty kilobytes for a number that fits in a word. TzKT's `path` selector
+ * returns the one field.
  *
- * `fetchCollection` carries this already, but reading it that way pulls the
- * whole storage record, and `art.code` is the generator itself: around fifty
- * kilobytes for a number that fits in a word. TzKT's `path` selector returns
- * the one field, so a page showing what a seller receives can ask about several
- * collections without downloading several generators.
- *
- * Clamped nowhere here. `proceeds` applies the contract's 25% cap, so the
- * caller gets the declared figure and one place decides what it means.
+ * Not clamped. `proceeds` applies the contract's 25% cap, so one place decides
+ * what the figure means.
  */
 export async function fetchRoyaltyBps(address: string): Promise<number> {
     const shares = await indexerFetch(
@@ -174,11 +166,9 @@ export async function fetchRoyaltyBps(address: string): Promise<number> {
 }
 
 /**
- * The parameter declaration, from the collection's own metadata.
- *
- * Held under its own key so a mint UI needs one value rather than a whole
- * generator record, which is the difference between an integration someone
- * builds and one they skip. See docs/params.md §4.
+ * The parameter declaration, from the collection's own metadata, under its own
+ * key so a mint UI reads one value and not a whole generator record. See
+ * docs/params.md §4.
  */
 async function fetchParamsSchema(address: string): Promise<ParamsSchema | null> {
     const rows = await indexerFetch(
@@ -202,8 +192,7 @@ export async function fetchCollectionPieces(address: string, limit = 48): Promis
     const tokens = await fetchRecentTokens([address], limit);
 
     // The chain's own pointers, for anything TzKT has not resolved. It fetches
-    // `ipfs://` metadata on its own schedule and on some networks never, and a
-    // piece finished on chain should not sit here looking unrendered.
+    // `ipfs://` metadata on its own schedule and on some networks never.
     const uris = await fetchTokenUris(address).catch(() => new Map<string, string>());
     const docs = new Map<string, TokenMetadata>();
     await Promise.all(
@@ -246,12 +235,12 @@ export interface CollectionSummary {
     name?: string;
     description?: string;
     /**
-     * The cover the artist chose at deploy, or the newest rendered piece when
-     * a collection has none. Absent only when there is neither.
+     * The cover the artist chose at deploy, or the newest rendered piece when a
+     * collection has none.
      */
     coverUrl?: string;
     minted: number;
-    /** The cap. Zero is an open edition, which is what the contract means by it. */
+    /** The cap. Zero is an open edition. */
     editionSize: number;
     firstActivity?: string;
 }
@@ -276,13 +265,11 @@ export async function fetchAllCollections(): Promise<CollectionSummary[]> {
 
     return rows.map((c, i) => ({
         address: c.address,
-        // The artist's own name for it. `alias` is TzKT's, which it sets for
-        // contracts it happens to know and never for ours.
+        // `alias` is TzKT's, set for contracts it happens to know.
         name: metas[i].name || c.alias,
         description: metas[i].description,
-        // The artist's own cover first. They picked it and we pinned it at
-        // deploy, so a collection has a face from the moment it exists rather
-        // than from whenever its first piece finishes rendering.
+        // The artist's own cover first, pinned at deploy, so a collection has a
+        // face before its first piece finishes rendering.
         coverUrl: (() => {
             const own = metas[i].displayUri ?? metas[i].thumbnailUri;
             return own ? ipfsImageUrl(own) : covers.get(c.address);

@@ -3,13 +3,10 @@
  *
  *   npm run bot:doctor
  *
- * Every refusal from the API arrives as a 403 or a 404, and from inside a
- * rename they all look alike: the same line whether the bot is in the wrong
- * server, cannot see the channel, or can see it and cannot change it. Each of
- * those is a different screen in Discord's settings, so guessing sends you to
- * the wrong one.
- *
- * This asks the three questions separately and says which of them failed.
+ * Every refusal arrives as a 403 or a 404, and from inside a rename they look
+ * alike whether the bot is in the wrong server, cannot see the channel, or can
+ * see it and cannot change it. Each is a different settings screen, so this
+ * asks the three questions separately.
  */
 import dotenv from "dotenv";
 import { channelsFromEnv } from "./discord";
@@ -35,12 +32,9 @@ interface Overwrite {
 }
 
 /**
- * What the bot may actually do in one channel.
- *
- * Discord's own algorithm, because there is no endpoint that answers it. A
- * server-wide permission is overridden by a channel that denies it, so asking
- * the guild alone reports a bot as able to post in a channel it cannot post
- * in, which is the exact confusion this file exists to end.
+ * What the bot may do in one channel. Discord's own algorithm, because no
+ * endpoint answers it, and a server-wide permission is overridden by a channel
+ * that denies it.
  */
 function effective(
     everyoneRole: bigint,
@@ -117,9 +111,8 @@ async function main() {
     }
     console.log(`  token      ${me.body.username}#${me.body.discriminator} (${me.body.id})`);
 
-    // 2. Which servers is it actually in? A bot invited to the wrong one, or
-    //    never added at all, refuses every channel with the same 403 as a
-    //    permission problem.
+    // 2. Which servers is it in? A bot invited to the wrong one, or never added,
+    //    refuses every channel with the same 403 as a permission problem.
     const guilds = await ask(token, "/users/@me/guilds");
     const inGuilds = Array.isArray(guilds.body)
         ? (guilds.body as { id: string; name: string }[])
@@ -131,11 +124,8 @@ async function main() {
     }
     for (const g of inGuilds) console.log(`  server     ${g.name} (${g.id})`);
 
-    // 3. Each channel, and what the bot may actually do in it.
-    //
-    // Reading a channel proves View Channel and nothing else. A bot that can
-    // read a channel it cannot post in looked healthy here until now, which is
-    // the failure this whole file is supposed to catch.
+    // 3. Each channel, and what the bot may do in it. Reading a channel proves
+    //    View Channel and nothing else.
     const RENAME: [bigint, string][] = [
         [VIEW_CHANNEL, "View Channel"],
         [MANAGE_CHANNELS, "Manage Channels"],

@@ -4,21 +4,14 @@ import { rpcUrl } from "./config";
 /**
  * Every privileged action, described once and sent two ways.
  *
- * Control of these contracts is meant to end up with a multisig, and when it
- * does, "connect a wallet and press the button" stops working: a KT1 cannot
- * hold a Beacon session. The multisig has to be handed the operation and vote
- * on it instead.
+ * Control of these contracts is meant to end up with a multisig, and a KT1
+ * cannot hold a Beacon session, so it has to be handed the operation and vote
+ * on it. Nothing here sends anything: an action builds an `AdminOp` describing
+ * one call, and a sink decides what happens to it. `signNow` puts it through
+ * the connected wallet, `toProposal` hands it over as data.
  *
- * So nothing here sends anything. An action builds an `AdminOp`, a plain
- * description of one call, and a sink decides what happens to it: `signNow`
- * puts it through the connected wallet, `toProposal` hands it over as data.
- * The day the administrator becomes a KT1, the actions do not change at all
- * and the default sink does.
- *
- * The same seam is why the authority is stated on every op rather than
- * inferred. The console can tell you *before* you sign that this one needs a
- * key you are not holding, which is the difference between a clear refusal and
- * a failed operation you paid for.
+ * Every op states its authority, so the console can refuse before a signature
+ * rather than after a failed operation somebody paid for.
  */
 
 /** Who the chain will accept this call from. */
@@ -46,11 +39,7 @@ export interface AdminOp {
      */
     args: unknown;
     authority: Authority;
-    /**
-     * Mutez to attach. Always zero: every entrypoint on these contracts
-     * asserts `TEZ_NOT_ACCEPTED`, because an administrative call that can
-     * carry a balance is an administrative call that can lose one.
-     */
+    /** Mutez to attach. Always zero: every entrypoint asserts `TEZ_NOT_ACCEPTED`. */
     amount?: number;
 }
 
@@ -59,14 +48,9 @@ export interface OpResult {
 }
 
 /**
- * Michelson for one call, by field name.
- *
- * Through Taquito's `methodsObject` rather than by position, and that is not a
- * style preference. SmartPy lays a record's fields out alphabetically, not in
- * the order they are written, so a positional encoding of `withdraw(amount,
- * to_)` is correct only by luck and silently wrong the moment an entrypoint's
- * fields do not happen to sort into declaration order. Naming the fields makes
- * the ordering the encoder's problem.
+ * Michelson for one call, by field name through Taquito's `methodsObject`.
+ * SmartPy lays a record's fields out alphabetically, so a positional encoding
+ * of `withdraw(amount, to_)` is right only by luck.
  */
 export async function encode(
     op: AdminOp,
@@ -115,13 +99,9 @@ export async function signNow(client: DAppClient, op: AdminOp): Promise<OpResult
 }
 
 /**
- * Sink two: the same call as data, for something else to submit.
- *
- * Deliberately not in any one multisig's proposal format. Every one of them
- * wants the same four facts, and guessing which tool will hold these keys
- * before that is decided would bake in a choice that has not been made. The
- * label rides along so a proposal is readable by the people voting on it,
- * who should not have to decode Michelson to know what they are approving.
+ * Sink two: the same call as data, for something else to submit. In no
+ * particular multisig's proposal format, since every one wants these same
+ * facts. The label rides along so the people voting need not read Michelson.
  */
 export async function toProposal(op: AdminOp): Promise<string> {
     const parameter = await encode(op);
@@ -139,12 +119,9 @@ export async function toProposal(op: AdminOp): Promise<string> {
     );
 }
 
-// --- the operations themselves -------------------------------------------
-//
-// Every one takes the contract to act on. Reading it from configuration
-// instead would let a button act on a different contract from the one whose
-// state is on screen, since the console resolves addresses from the router
-// and an environment variable only records what was true when it was set.
+// Every op below takes the contract to act on. The console resolves addresses
+// from the router, so reading one from configuration would let a button act on
+// a different contract from the one whose state is on screen.
 
 // Marketplace
 
@@ -233,9 +210,8 @@ export const registerProvider = (registry: string, provider: string): AdminOp =>
     to: registry,
     entrypoint: "register",
     args: provider,
-    // The registry asks the provider contract for the views that define one,
-    // so a bad entry cannot land. That is a type check, not an endorsement,
-    // and it needs nobody's permission.
+    // The registry asks the provider contract for the views that define one, so
+    // a bad entry cannot land. A type check, and it needs nobody's permission.
     authority: "anyone",
 });
 
@@ -248,7 +224,7 @@ export const deregisterProvider = (registry: string, provider: string): AdminOp 
     authority: "operator",
 });
 
-// Provider. The only money here that a signature can misdirect.
+// Provider
 
 export const setRenderGas = (provider: string, mutez: number): AdminOp => ({
     label: `Charge ${mutez} mutez of render gas per mint`,
@@ -266,8 +242,6 @@ export const withdrawRenderGas = (
     label: `Withdraw ${mutez} mutez of render gas to ${to}`,
     to: provider,
     entrypoint: "withdraw",
-    // Named, not positional. This is the entrypoint the alphabetical-ordering
-    // note above is about.
     args: { amount: mutez, to_: to },
     authority: "operator",
 });
@@ -288,8 +262,7 @@ export const setProviderMetadata = (
     label: `Set provider metadata ${key || "(empty key)"}`,
     to: provider,
     entrypoint: "set_metadata",
-    // The contract stores bytes. TZIP-16 keeps a URI here, so the console
-    // takes text and encodes it rather than asking anyone to type hex.
+    // The contract stores bytes, and TZIP-16 keeps a URI here.
     args: { key, value: toHex(value) },
     authority: "operator",
 });
@@ -354,9 +327,8 @@ export const removeWriter = (resolver: string, writer: string): AdminOp => ({
     authority: "admin",
 });
 
-// Handing over control. Two steps on every contract that has an administrator,
+// Handing over control, in two steps on every contract with an administrator,
 // so a typo cannot strand it: the new administrator has to appear and accept.
-// This is the path the multisig eventually walks.
 
 export const proposeAdmin = (contract: string, newAdmin: string): AdminOp => ({
     label: `Offer administration of ${contract} to ${newAdmin}`,
@@ -375,12 +347,9 @@ export const acceptAdmin = (contract: string): AdminOp => ({
 });
 
 /**
- * Setters by name, for the controls that take typed input.
- *
- * A server component cannot hand a client component a function, so the page
- * names the setter and the control looks it up. The alternative is making the
- * whole dashboard a client component to keep a closure alive, which would pull
- * every chain read into the browser to avoid passing a string.
+ * Setters by name, for the controls that take typed input. A server component
+ * cannot hand a client component a function, so the page names the setter and
+ * the control looks it up.
  */
 export const SETTERS = {
     fee: (to, v) => setFee(to, Number(v)),

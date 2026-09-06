@@ -28,17 +28,6 @@ function Mail() {
     );
 }
 
-/**
- * Terms of use, and the licence, in one document.
- *
- * Split into two pages elsewhere, which makes sense where a licence restricts
- * something. This one gives the code away outright, so an end user licence
- * agreement would be a page saying "there are no conditions" at length.
- *
- * The order is deliberate. What we are and are not comes first, because
- * almost everything downstream follows from this being an interface to public
- * contracts rather than a business holding anyone's property.
- */
 export default function TermsPage() {
     return (
         <div className="mx-auto max-w-2xl px-4 py-12">

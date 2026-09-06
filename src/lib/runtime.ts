@@ -1,31 +1,25 @@
 /**
- * Aleatory, the runtime harness.
+ * The message shapes the runtime harness speaks.
  *
- * This is the code that boots inside the frame, before the artist's
- * code, and provides the whole contract described in docs/aleatory:
+ * The harness itself lives in `isolate/index.html` and in
+ * `provider/render.mts`. The two agree by conforming to ALEATORY-001 §7, not by
+ * sharing a file, and a third copy here would be a third thing to drift.
  *
- *   - a seeded PRNG, so the piece is a pure function of (code, seed, params)
- *   - the $alea lifecycle: boot / render / ready / features / resize
- *   - mechanical enforcement of the determinism rule: network access is
- *     blocked and reported, Math.random is substituted and reported
- *   - deterministic capture at the declared capture point, digested so two
- *     runs of the same seed can be compared
- *
- * The types below describe the messages the isolate posts back.
- * sandboxed srcdoc frame with an opaque origin, nothing here can be imported
- * by the frame, so everything the frame needs travels with it.
+ * What the harness provides: a seeded PRNG, the $alea lifecycle (boot / render
+ * / ready / features / resize), blocked and reported network access, a
+ * substituted Math.random, and a digested capture at the declared capture
+ * point.
  */
 
 /**
- * Bumped when the harness changes behaviour. Recorded on chain per generator
- * as `standard_version`, so a piece always boots the harness it was made for.
+ * Bumped when the harness changes behaviour. Recorded on chain per generator as
+ * `standard_version`, so a piece boots the harness it was made for.
  *
  * v2 adds declared mint-time parameters: `$alea.params` is populated from the
- * generator's schema, `$alea.paramsSchema` exposes the declaration to the piece,
- * and a read of an undeclared name is reported. v1 code is unaffected, it
- * declared nothing, so it receives nothing, and every v1 entry point still
- * means exactly what it meant. Serving one harness for both is the v0 shortcut;
- * archiving a harness per (kind, standard_version) is v1 work (architecture §3).
+ * generator's schema, `$alea.paramsSchema` exposes the declaration, and a read
+ * of an undeclared name is reported. v1 code declared nothing and so receives
+ * nothing. One harness serves both today; archiving a harness per (kind,
+ * standard_version) is v1 work (architecture §3).
  */
 export const STANDARD_VERSION = 2;
 
@@ -45,9 +39,8 @@ export type FrameMessage =
           violations: Violation[];
           /**
            * How many times the piece reached for Math.random. Not a violation:
-           * the seeded stream is substituted, so the run stays reproducible, and
-           * libraries call it too (p5 does, during init). Reported only where it
-           * is actionable, as a likely cause when two runs of one seed differ.
+           * the seeded stream is substituted, and libraries call it too (p5
+           * does, during init). A likely cause when two runs of one seed differ.
            */
           mathRandomCalls: number;
           /** ms from boot to ready(). */
@@ -68,9 +61,9 @@ export interface HarnessConfig {
     /** 64 hex chars, the seed. */
     seed: string;
     /**
-     * The mint-time parameter values, ALREADY resolved against the schema by
-     * params.resolveParams. The harness clamps nothing: resolution is one rule
-     * in one place, shared by every caller, or it is two rules that disagree.
+     * The mint-time parameter values, already resolved against the schema by
+     * `resolveParams`. The harness clamps nothing, so resolution stays one rule
+     * in one place.
      */
     params: Record<string, unknown>;
     /** The declaration the values were resolved against. Empty when none. */
@@ -81,9 +74,8 @@ export interface HarnessConfig {
     timeout: number;
 }
 
-/** The subset of a ParamSpec the frame needs. Structurally a ParamSpec; typed
- *  loosely here so runtime.ts stays importable by anything, including the
- *  frame-side tooling that has no business knowing about the studio. */
+/** The subset of a ParamSpec the frame needs. Typed loosely so this file stays
+ *  importable by frame-side tooling that knows nothing about the studio. */
 export interface ParamDeclaration {
     id: string;
     label: string;
@@ -95,19 +87,3 @@ export interface ParamDeclaration {
     default: number | boolean | string;
     hint?: string;
 }
-
-/**
- * The harness source. `__GX_CONFIG__` is replaced with a JSON literal by
- * buildSandboxDoc. Written as ES5-flavoured JS on purpose: it runs before
- * anything else in a frame we do not control, and it should never be the
- * reason a piece fails to boot.
- */
-/**
- * The harness itself lives in `isolate/index.html`, not here.
- *
- * Two implementations, the isolate and `provider/render.mts`, agreeing by
- * conforming to ALEATORY-001 §7 and not by sharing a file. A third copy here
- * would be a third thing to drift.
- *
- * What stays here are the message shapes both sides speak.
- */

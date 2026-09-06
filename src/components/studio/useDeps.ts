@@ -7,13 +7,9 @@ import { librariesIn } from "@/lib/libraries";
 /**
  * The libraries this document asks for, resolved once for the whole workspace.
  *
- * Resolution is a pre-render step on purpose: a library is fetched here, in the
- * studio, and inlined into the document before it runs. The frame itself has
- * `connect-src 'none'` and reaches nothing, which is what makes "a piece never
- * touches the network" structural rather than a promise.
- *
- * Resolving per frame would fetch p5 seventeen times to draw a seed grid, so it
- * happens here and every frame is handed the same already-resolved sources.
+ * A library is fetched here and inlined into the document before it runs, so
+ * the frame can hold `connect-src 'none'` and reach nothing. Resolving per
+ * frame would fetch p5 seventeen times to draw a seed grid.
  */
 export function useDeps(html: string): {
     deps: string[];
@@ -25,10 +21,8 @@ export function useDeps(html: string): {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Keyed on what the document *declares*, never on the document. Editing
-    // drawing code changes no declaration, and depending on `html` re-resolves
-    // the libraries on every debounced keystroke, tearing down the frame of
-    // any consumer that swaps it out while loading.
+    // Keyed on what the document declares, never on the document: depending on
+    // `html` re-resolves the libraries on every debounced keystroke.
     const key = useMemo(() => {
         const { specs } = librariesIn(html);
         return specs.map((s) => `${s.id}@${s.version}#${s.hash ?? ""}`).join(",");
@@ -60,14 +54,13 @@ export function useDeps(html: string): {
         return () => {
             cancelled = true;
         };
-        // `html` is read inside and deliberately absent: `key` is the part of it
-        // that can change the answer.
+        // `html` is read inside and absent here: `key` is the part of it that
+        // can change the answer.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [key]);
 
-    // Memoised. Returning a fresh array each render makes every consumer's
-    // dependency arrays unstable, and a consumer that remounts a frame on
-    // change then remounts it forever.
+    // A fresh array each render would make every consumer's dependency arrays
+    // unstable, and one that remounts a frame on change never stops.
     const deps = useMemo(() => resolved.map((r) => r.source), [resolved]);
 
     return { deps, resolved, loading, error };

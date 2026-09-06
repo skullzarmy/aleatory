@@ -4,10 +4,10 @@
  *
  *   node build.mjs           write dist/index.html
  *
- * Publishing takes a single document that fetches nothing while it renders, so
- * everything imported has to end up inside it. esbuild drops the parts of a
- * package you did not use, which is what keeps this affordable: `d3-scale` and
- * `d3-shape` together come to about 10 kB, against 279 kB for the whole d3.
+ * The output fetches nothing at render time, so anything imported must be
+ * bundled in. esbuild only keeps the parts of a package you actually use, so
+ * importing `d3-scale` and `d3-shape` costs about 10 kB instead of the 279 kB
+ * for all of d3.
  */
 
 import { gzipSync } from "node:zlib";
@@ -16,10 +16,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * esbuild ships a native binary, and a browser based Node runtime cannot run
- * one: native addons are disabled there. `esbuild-wasm` is the same bundler
- * compiled to WebAssembly, works everywhere, and is several times slower, so
- * it is the fallback rather than the default.
+ * esbuild ships a native binary; browser-based Node runtimes disable native
+ * addons, so this falls back to `esbuild-wasm` (slower, but works anywhere).
  */
 async function loadEsbuild() {
     try {
@@ -32,12 +30,9 @@ async function loadEsbuild() {
 const here = dirname(fileURLToPath(import.meta.url));
 
 /**
- * What one operation can carry, gzipped, once the rest of a deploy is paid for.
- *
- * The same figure `src/lib/publish.ts` uses. A generator over it is still
- * publishable: it goes to IPFS and the contract stores a pointer, which is a
- * different promise from being on chain, so the build says which one you are
- * about to make.
+ * Gzipped byte cap for one on-chain operation. Matches the figure used in
+ * `src/lib/publish.ts`. A generator over the cap still publishes; it just
+ * goes to IPFS with a pointer stored on chain instead.
  */
 const ON_CHAIN_CAP = 32_768 - 700;
 
@@ -56,8 +51,8 @@ export async function buildHtml() {
     const js = result.outputFiles[0].text;
     const shell = readFileSync(join(here, "src/index.html"), "utf8");
 
-    // A function replacement, so a `$&` or `$1` in somebody's bundle is not
-    // read as a backreference and silently eaten.
+    // Function replacement, so a `$&` or `$1` in the bundle isn't read as a
+    // backreference and silently eaten.
     const html = shell.replace(/^\s*\/\/ alea:bundle\s*$/m, () => js);
     if (html === shell) throw new Error("src/index.html has no `// alea:bundle` line");
     return html;

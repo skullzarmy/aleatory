@@ -15,13 +15,7 @@ export const metadata: Metadata = {
     },
 };
 
-/**
- * Every contract this platform runs on, current and retired.
- *
- * The claim the whole project rests on is that a piece survives us, which is
- * only checkable if the addresses are public. So they are all here, retired
- * ones included, each linked to an explorer that has no relationship to us.
- */
+// Retired contracts are listed too, each linked to an independent block explorer.
 export default function ContractsPage() {
     return (
         <div className="mx-auto max-w-3xl px-4 py-8">

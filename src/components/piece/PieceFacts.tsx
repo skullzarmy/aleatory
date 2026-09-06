@@ -14,12 +14,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     );
 }
 
-/**
- * What determines the piece, stated so a reader can check it.
- *
- * Seed, parameters and code hash are the three inputs. Anyone holding them
- * can reproduce the output and compare it to what the collection displays.
- */
+// Seed, parameters, and code hash are the three inputs that determine the
+// piece: anyone holding them can reproduce the output and check it.
 export function PieceFacts({ piece }: { piece: Piece }) {
     const params = piece.params ? safeParse(piece.params) : null;
 
@@ -85,8 +81,6 @@ export function PieceFacts({ piece }: { piece: Piece }) {
                                 <dt className="min-w-0 truncate text-muted-foreground" title={k}>
                                     {k}
                                 </dt>
-                                {/* A parameter is part of what determines the
-                                    piece, so it wraps and stays readable. */}
                                 <dd className="min-w-0 break-words text-right font-medium">
                                     {String(v)}
                                 </dd>

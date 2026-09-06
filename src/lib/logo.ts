@@ -1,15 +1,12 @@
 /**
- * The mark, generated.
+ * The mark, generated: a mandala of twelve-fold symmetry drawn from a seed.
  *
- * A mandala of twelve-fold symmetry drawn from a seed. Identity is fixed and
- * the interior varies: the silhouette, the ring structure, the symmetry order
- * and the A at centre are the same every time, so the thing is recognisable
- * at sixteen pixels, and the tracery between the rings is what the seed
- * decides.
+ * The silhouette, the ring structure, the symmetry order and the A at centre
+ * are fixed, so the mark is recognisable at sixteen pixels. The tracery between
+ * the rings is what the seed decides.
  *
- * Written against the same surface artists get. Pass `$alea.random` in and
- * the logo is a piece from Aleatory's own system, which means the harness
- * breaks on our homepage before it breaks on anyone's work.
+ * Written against the same surface artists get, so passing `$alea.random` in
+ * makes the logo a piece from Aleatory's own system.
  */
 
 export interface LogoOptions {
@@ -23,23 +20,15 @@ export interface LogoOptions {
     /** Petals, spokes, and every repeat. Twelve is the mark. */
     fold?: number;
     /**
-     * How much tracery to draw.
-     *
-     * `full` is the mark. `compact` keeps the silhouette, the frame and the
-     * A, and drops the interior, because at favicon sizes detail turns to
-     * mush and the silhouette is what carries recognition.
+     * `full` is the mark. `compact` keeps the silhouette, the frame and the A
+     * and drops the interior, which turns to mush at favicon sizes.
      */
     detail?: "full" | "compact";
-    /**
-     * Accessible name. An empty string marks the mark decorative, which is
-     * right when it sits beside the word it stands for.
-     */
+    /** Accessible name. An empty string marks it decorative. */
     label?: string;
 }
 
-/* ------------------------------------------------------------------ */
-/* Seeded stream, matching provider/render.mts so the two agree exactly.  */
-/* ------------------------------------------------------------------ */
+/* Seeded stream, matching provider/render.mts so the two agree exactly. */
 
 function xmur3(str: string) {
     let h = 1779033703 ^ str.length;
@@ -77,10 +66,6 @@ export function makeRandom(seed: string): () => number {
     return sfc32(s(), s(), s(), s());
 }
 
-/* ------------------------------------------------------------------ */
-/* Geometry                                                            */
-/* ------------------------------------------------------------------ */
-
 const TAU = Math.PI * 2;
 
 /** Polar to cartesian, rounded so the output is compact and stable. */
@@ -100,11 +85,7 @@ function range(rand: () => number, lo: number, hi: number): number {
     return lo + rand() * (hi - lo);
 }
 
-/**
- * A petal: two arcs from the inner radius out to a point.
- *
- * `belly` bows the sides. Low values give a blade, high values a lotus leaf.
- */
+/** A petal: two arcs from the inner radius out to a point. `belly` bows the sides. */
 function petal(r0: number, r1: number, halfAngle: number, belly: number): string {
     const [ax, ay] = pt(r0, -Math.PI / 2 - halfAngle);
     const [bx, by] = pt(r1, -Math.PI / 2);
@@ -143,20 +124,9 @@ function arc(r: number, a0: number, a1: number, sweep = 1): string {
 }
 
 /**
- * The A.
- *
- * Two legs, a crossbar, and a bowl on the right that closes back into the
- * apex. Fixed geometry: this is the part that has to read the same forever.
- */
-/**
- * The A.
- *
- * Two splayed legs and a crossbar, and the crossbar lands exactly on the
- * legs: its ends are solved from the leg geometry rather than guessed, so
- * there is no overhang at any size.
- *
- * The letter stays plain on purpose. The ring around it is ornate, and two
- * ornate things at the same centre fight each other.
+ * The A: two splayed legs and a crossbar whose ends are solved from the leg
+ * geometry, so there is no overhang at any size. Fixed, and plain against the
+ * ornate ring around it.
  */
 function monogram(r: number, style: MonogramStyle = "plain"): string {
     const h = r * 1.6;
@@ -178,9 +148,7 @@ function monogram(r: number, style: MonogramStyle = "plain"): string {
     ];
 
     if (style === "hooked") {
-        // The right leg carries on past the foot and curls back under, a nod
-        // to the flourish in the original drawing. It reads as one stroke
-        // continuing rather than a second shape stuck on.
+        // The right leg carries on past the foot and curls back under.
         const hookR = w * 0.26;
         strokes[1] =
             `M0,${round(apexY)}L${round(halfW)},${round(footY)}` +
@@ -191,10 +159,6 @@ function monogram(r: number, style: MonogramStyle = "plain"): string {
 }
 
 type MonogramStyle = "plain" | "hooked";
-
-/* ------------------------------------------------------------------ */
-/* The mark                                                            */
-/* ------------------------------------------------------------------ */
 
 interface Stroke {
     d: string;
@@ -207,11 +171,8 @@ interface Stroke {
 }
 
 /**
- * A mandala is concentric bands, and legibility comes from keeping them
- * apart. Each band owns a radius range, draws one motif inside it, and never
- * crosses into its neighbours. The seed picks which motif each band gets.
- *
- * Radii are fractions of the outer radius.
+ * Each band owns a radius range, draws one motif inside it and never crosses
+ * into its neighbours. Fractions of the outer radius.
  */
 const BANDS = {
     core: [0, 0.3],
@@ -238,10 +199,8 @@ function polygon(r: number, n: number, phase = 0): string {
 }
 
 /**
- * Motifs for the band between the centre frame and the petals.
- *
- * Each one is drawn in a single wedge and repeated, so it tiles the ring
- * exactly however many times the fold says.
+ * Motifs for the band between the centre frame and the petals. Each is drawn in
+ * one wedge and repeated, so it tiles the ring exactly.
  */
 function innerMotif(rand: () => number, fold: number, r0: number, r1: number): Stroke[] {
     const step = TAU / fold;
@@ -249,8 +208,7 @@ function innerMotif(rand: () => number, fold: number, r0: number, r1: number): S
     const mid = (r0 + r1) / 2;
 
     switch (pick(rand, ["rosette", "arcade", "lattice", "teardrop"] as const)) {
-        // Overlapping circles, the classic. One per wedge, sized so
-        // neighbours kiss rather than tangle.
+        // Overlapping circles, one per wedge, sized so neighbours kiss.
         case "rosette": {
             const cr = ((r1 - r0) / 2) * range(rand, 0.85, 1);
             const [cx, cy] = pt(mid, up);
@@ -285,7 +243,6 @@ function innerMotif(rand: () => number, fold: number, r0: number, r1: number): S
             ];
         }
 
-        // Crossing diagonals, which reads as woven at small sizes.
         case "lattice": {
             const [ax, ay] = pt(r0, up - step / 2);
             const [bx, by] = pt(r1, up + step / 2);
@@ -297,7 +254,7 @@ function innerMotif(rand: () => number, fold: number, r0: number, r1: number): S
             ];
         }
 
-        // A small petal pointing inward, the mirror of the outer ring.
+        // A small petal pointing inward.
         default: {
             return [
                 {
@@ -331,10 +288,7 @@ function frameMotif(rand: () => number, fold: number, r: number): Stroke[] {
     }
 }
 
-/**
- * The silhouette. Always petals, always reaching the outer radius, because
- * this is the part that has to be recognisable at sixteen pixels.
- */
+/** The silhouette. Always petals, always reaching the outer radius. */
 function petalBand(rand: () => number, fold: number, r0: number, r1: number): Stroke[] {
     const step = TAU / fold;
     const belly = range(rand, 0.95, 1.15);
@@ -342,8 +296,7 @@ function petalBand(rand: () => number, fold: number, r0: number, r1: number): St
         { d: petal(r0, r1, step / 2, belly), width: 1.6, opacity: 0.9, repeat: true },
     ];
 
-    // A second, shorter layer offset by half a step, which is what gives the
-    // ring depth without adding noise.
+    // A second, shorter layer offset by half a step, for depth.
     if (rand() < 0.8) {
         out.push({
             d: petal(r0 * 0.94, r0 + (r1 - r0) * range(rand, 0.45, 0.62), step / 2.4, belly),
@@ -376,8 +329,7 @@ function buildStrokes(
     const strokes: Stroke[] = [];
 
     if (detail === "compact") {
-        // Silhouette, one frame ring, and the letter. Everything else is
-        // noise below about forty pixels.
+        // Below about forty pixels everything but these three is noise.
         strokes.push({
             d: circle(R * BANDS.frame[1] * 1.15),
             width: 2,
@@ -397,8 +349,7 @@ function buildStrokes(
     strokes.push(...frameMotif(rand, fold, R * BANDS.frame[1]));
     strokes.push(...innerMotif(rand, fold, R * BANDS.inner[0], R * BANDS.inner[1]));
 
-    // The divider, always a plain circle. It is what stops the inner band
-    // and the petals reading as one field.
+    // The divider, which stops the inner band and the petals reading as one field.
     strokes.push({
         d: circle(R * BANDS.divider[0]),
         width: 1.2,
@@ -412,10 +363,8 @@ function buildStrokes(
 }
 
 /**
- * An SVG string, ready to inline.
- *
- * Repeats are emitted as `<use>` against one definition, so symmetry is exact
- * by construction rather than by arithmetic done twelve times.
+ * An SVG string, ready to inline. Repeats are `<use>` against one definition,
+ * so the symmetry is exact by construction.
  */
 export function renderLogo(options: LogoOptions = {}): string {
     const {
@@ -430,16 +379,11 @@ export function renderLogo(options: LogoOptions = {}): string {
 
     const rand = makeRandom(seed);
 
-    // Element ids are document-wide, and a page may hold more than one mark.
-    // Two logos both defining `s0` means the second one's `<use href="#s0">`
-    // resolves to the first one's path, because getElementById returns the
-    // first match in document order. The second mark then draws the first
-    // mark's geometry where the ids happen to line up, and nothing at all
-    // where they do not, which reads as a logo that has lost most of itself.
-    //
-    // Derived from the seed rather than a counter, so the server and the
-    // browser produce the same markup. Two marks sharing a seed still collide,
-    // and are identical, so the collision is invisible.
+    // Element ids are document-wide, and a page may hold more than one mark: a
+    // second logo defining `s0` would have its `<use href="#s0">` resolve to
+    // the first one's path. Derived from the seed, not a counter, so the server
+    // and the browser produce the same markup. Two marks sharing a seed collide
+    // and are identical.
     const uid = xmur3(seed)().toString(36);
     const R = 100;
     const strokes = buildStrokes(rand, fold, R, detail);
@@ -469,9 +413,8 @@ export function renderLogo(options: LogoOptions = {}): string {
 
     const plate = background ? `<circle cx="0" cy="0" r="${R * 1.04}" fill="${background}"/>` : "";
 
-    // The centre is cleared before the monogram is drawn, so no tracery runs
-    // behind the A. Without a plate colour the clear is skipped and the mark
-    // stays a pure line drawing.
+    // Clears the centre so no tracery runs behind the A. Skipped without a
+    // plate colour, which keeps the mark a pure line drawing.
     const clear = background
         ? `<circle cx="0" cy="0" r="${round(R * BANDS.frame[0] * 0.98)}" fill="${background}"/>`
         : "";
@@ -492,5 +435,5 @@ export function renderLogo(options: LogoOptions = {}): string {
     ].join("");
 }
 
-/** The pinned mark. Favicons, OG cards, anywhere a file has to be forever. */
+/** The pinned mark. Favicons, OG cards, anywhere a file has to stay put. */
 export const CANONICAL_SEED = "aleatory";

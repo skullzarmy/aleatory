@@ -1,9 +1,7 @@
 /**
- * One piece, assembled from chain state.
- *
- * The seed is the hash of the operation that minted it, the parameters are in
- * that same operation, and the code is immutable in the collection's storage.
- * Those three determine the artwork, and this function collects them.
+ * One piece, assembled from chain state: the seed is the hash of the operation
+ * that minted it, the parameters are in that same operation, and the code is
+ * immutable in the collection's storage.
  */
 import { CONTRACTS, ISOLATE_ORIGIN } from "./config";
 import {
@@ -67,18 +65,8 @@ export interface Piece {
 }
 
 /**
- * Where a minted piece renders.
- *
- * The provider's render host loads the generator from its CID, injects the seed
- * and parameters, and runs it. Separate origin from this app on purpose: it is
- * executing code published by someone else.
- */
-/**
- * The generator, decoded, from contract storage.
- *
- * `identity` is the normal case and needs nothing. `gzip` is for a generator
- * that would not otherwise fit one operation, and `DecompressionStream` is
- * native everywhere this runs, so decoding costs no dependency.
+ * The generator, decoded, from contract storage. `identity` is the normal case;
+ * `gzip` is for a generator that would not otherwise fit one operation.
  */
 export async function decodeCode(hex: string, encoding: string): Promise<string> {
     const clean = hex.replace(/^0x/, "");
@@ -109,14 +97,9 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         fetchStorage<CollectionStorage>(contract).catch(() => null),
     ]);
 
-    // TzKT's resolved document when it has one, and the chain's own pointer
-    // when it does not. TzKT fetches `ipfs://` metadata on its own schedule
-    // and on some networks never, so a piece finished on chain would sit here
-    // looking unrendered indefinitely.
-    // The token's own metadata pointer, off chain state. This is what decides
-    // whether a piece has been rendered: the provider's queue rule is exactly
-    // "does token_info[\"\"] still equal the collection's pending document",
-    // and matching it here means the site and the daemon never disagree.
+    // The token's own metadata pointer, off chain state, which is what decides
+    // whether a piece has been rendered. The provider's queue rule is the same
+    // comparison, so the site and the daemon cannot disagree.
     const tokenUri = (await fetchTokenUris(contract).catch(() => new Map<string, string>())).get(
         tokenId,
     );
@@ -135,11 +118,9 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         }
     }
     const display = m?.displayUri || m?.thumbnailUri;
-    // sp.string on chain, so it needs no decoding. `pending_metadata` below
-    // is sp.bytes and does.
+    // sp.string on chain, so it needs no decoding. `pending_metadata` below is
+    // sp.bytes and does.
     const codeUri = storage ? storage.art.code_uri : "";
-    // The generator itself, when it is on chain, which is the normal case.
-    // A viewer needs no gateway and no pin to see the piece.
     const code = storage
         ? await decodeCode(storage.art.code, storage.art.code_encoding).catch(() => "")
         : "";
@@ -152,18 +133,14 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
           }))
         : [];
 
-    // Not "has no image": the pending document carries the collection's cover
-    // as its displayUri, so every unrendered piece looked rendered, showed the
-    // cover as its own image, and took the collection's name for its own.
+    // "Has no image" is not the test: a pending document carries the
+    // collection's cover as its displayUri.
     const pending = pendingDoc.length > 0 && tokenUri ? tokenUri === pendingDoc : !display;
     const edition = `#${Number(tokenId) + 1}`;
 
-    // While a piece is unrendered it carries the collection's pending
-    // document, which is one CID shared by every unrevealed token and so
-    // cannot name any of them: its `name` is the collection's. Taking it gave
-    // a whole edition one name, as though it were the same work repeated.
-    // Built here in the form the real document uses, so the name does not
-    // change when the render lands.
+    // The pending document is one CID shared by every unrevealed token, so its
+    // `name` is the collection's. Built here in the form the real document
+    // uses, so the name does not change when the render lands.
     const collectionName = (pending ? m?.name : undefined) ?? token.contract.alias;
     const name = pending
         ? `${collectionName ?? "Untitled collection"} ${edition}`
@@ -180,10 +157,8 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         seed: mint?.hash,
         mintedAt: mint?.timestamp ?? token.firstTime,
         // The operation the collector signed, ahead of the document a provider
-        // writes about it later. Both say the same thing, and only one of them
-        // exists in the minutes after a mint. The metadata is the fallback for
-        // a piece whose mint the indexer has forgotten but whose document it
-        // still holds.
+        // writes later. Only the first exists in the minutes after a mint; only
+        // the second survives an indexer that has forgotten the mint.
         params: mint?.params || m?.aleaParams,
         code,
         codeUri,

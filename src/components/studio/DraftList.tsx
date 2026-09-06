@@ -6,15 +6,7 @@ import { Trash2 } from "lucide-react";
 import { deleteDraft, listDrafts, type Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
 
-/**
- * Everything the artist has open.
- *
- * Drafts live in this browser and nowhere else. That is what makes the studio
- * usable with no account and nothing of the artist's on our infrastructure, and
- * it is also why this page says out loud that clearing the browser loses the
- * work. A studio that quietly relies on IndexedDB is a studio that eats a piece
- * one day without warning.
- */
+// Drafts live only in this browser's IndexedDB. No account, no server copy.
 export function DraftList() {
     const [drafts, setDrafts] = useState<Draft[] | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -26,9 +18,7 @@ export function DraftList() {
     }, []);
 
     async function remove(draft: Draft) {
-        // Asked, because this is the only copy there is. A draft lives in this
-        // browser and nowhere else: no server, no trash, no undo. The button
-        // that does it sits an inch from the link that opens the piece.
+        // Confirm before deleting: no server copy, no trash, no undo.
         const name = draft.name || "Untitled";
         if (
             !window.confirm(
@@ -42,8 +32,6 @@ export function DraftList() {
             await deleteDraft(draft.id);
             setDrafts((d) => (d ?? []).filter((x) => x.id !== draft.id));
         } catch {
-            // A silent rejection leaves the row sitting there, which reads as
-            // nothing having happened. Say the delete failed.
             setError(
                 `"${name}" could not be deleted. Another tab may be holding the draft store open.`,
             );

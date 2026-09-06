@@ -1,14 +1,9 @@
 /**
- * What this site declines to show.
+ * What this site declines to show. Display only: the contracts gate nothing,
+ * and a fork that disagrees drops this list.
  *
- * Display only. The contracts gate nothing: anyone can deploy a collection,
- * run a provider, list on the marketplace, or run the whole system without
- * asking. This list is one front end's editorial choice, it lives in the
- * open, and a fork that disagrees drops it.
- *
- * Kept per network, because most of what lands here is testing debris. One
- * shared list means every dead shadownet experiment ships to mainnet forever,
- * where it can only confuse whoever reads it next.
+ * Per network, because most of what lands here is testing debris, and one
+ * shared list would ship every dead shadownet experiment to mainnet.
  */
 import { NETWORK, type Network } from "./config";
 

@@ -4,26 +4,17 @@ import { TimeAgo } from "@/components/TimeAgo";
 import type { FeedPiece } from "@/lib/feed";
 import { AccountName } from "@/components/account/AccountName";
 
-/**
- * One piece in a feed.
- *
- * A piece awaiting its render shows an "awaiting render" state. It is a real
- * token, owned and tradeable, and the card says so.
- *
- * The artist is a name, not a link. The whole card is already a link to the
- * piece, and an anchor inside an anchor is invalid HTML that React refuses to
- * hydrate. Where a card is the link, accounts render as AccountName.
- */
+// The artist renders as AccountName, not a link: the whole card is already a
+// link to the piece, and an anchor inside an anchor won't hydrate.
 export function PieceCard({ piece }: { piece: FeedPiece }) {
     return (
         <Link
             href={`/piece/${piece.contract}/${piece.tokenId}`}
             className="group block overflow-hidden rounded-lg border border-border bg-card-background transition-shadow hover:shadow-lg"
         >
-            {/* The plate matters: an image that fails to load collapses to it
-                instead of painting the browser's broken glyph into the grid.
-                `alt=""` is what makes it collapse, and the name is already the
-                first line of the card, so the link is named without it. */}
+            {/* alt="" so a failed image load collapses to the muted plate instead of
+                showing the browser's broken-image glyph; the piece name below already
+                names the link. */}
             <div className="relative aspect-square bg-muted">
                 {piece.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

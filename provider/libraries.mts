@@ -1,25 +1,17 @@
 /**
- * Resolving the libraries a piece declared.
- *
- * A collection records, in its own metadata, the libraries its generator
- * expects a renderer to load:
+ * Resolving the libraries a piece declared. A collection records them in its
+ * own metadata:
  *
  *   [{ "id": "p5", "version": "1.5.0", "path": "lib/p5.min.js", "hash": "…" }]
  *
- * That is deliberately enough for a renderer that has never heard of Aleatory.
- * `id` and `version` are npm coordinates, `path` locates the file inside the
- * published package, and `hash` decides whether what came back is usable. Any
- * mirror will do because none of them is trusted: the bytes either hash to the
- * recorded value or they are refused.
- *
- * This provider tries its own site first, since it serves verified copies of
- * the libraries its studio offers, then unpkg. A third-party provider is free
- * to try anything at all in any order, and will arrive at identical bytes or
- * at an error.
+ * Enough for a renderer that has never heard of Aleatory. `id` and `version`
+ * are npm coordinates, `path` locates the file inside the published package,
+ * and `hash` decides whether what came back is usable. Any mirror will do,
+ * because none is trusted: the bytes hash to the recorded value or they are
+ * refused, so any order arrives at identical bytes or at an error.
  */
 // blakejs is CommonJS. A named import works under a bundler and throws under
-// plain Node, which is where the daemon runs, so the default export is
-// destructured instead.
+// plain Node, which is where the daemon runs.
 import blakejs from "blakejs";
 
 const { blake2bHex } = blakejs;
@@ -66,13 +58,9 @@ function sourcesFor(lib: DeclaredLibrary): string[] {
 }
 
 /**
- * One library, verified.
- *
- * Every candidate is checked against the recorded hash, so a mirror that is
- * out of date, wrong, or hostile is skipped rather than used. Running out of
- * candidates is a hard failure: a piece rendered without the library it asked
- * for is not that piece, and publishing an image of an empty frame is worse
- * than publishing nothing.
+ * One library, verified against the recorded hash, so a mirror that is out of
+ * date or hostile is skipped. Running out of candidates throws: a piece
+ * rendered without the library it asked for is not that piece.
  */
 async function resolveOne(lib: DeclaredLibrary): Promise<string> {
     if (!/^[0-9a-f]{64}$/.test(lib.hash)) {
@@ -107,7 +95,7 @@ async function resolveOne(lib: DeclaredLibrary): Promise<string> {
     );
 }
 
-/** In declaration order, because a library that lands late is one nothing used. */
+/** In declaration order, since they load in that order. */
 export async function resolveLibraries(libs: DeclaredLibrary[]): Promise<string[]> {
     const out: string[] = [];
     for (const lib of libs) out.push(await resolveOne(lib));

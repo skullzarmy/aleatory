@@ -3,10 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-/**
- * `router.refresh()` rather than a reload, so a half-typed withdrawal amount
- * survives the update. Paused while hidden, refreshed on the way back.
- */
+/** Uses router.refresh() so in-progress input, like a half-typed withdrawal amount, survives the update. */
 export function LiveRefresh({ seconds = 30 }: { seconds?: number }) {
     const router = useRouter();
 

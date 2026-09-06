@@ -1,22 +1,14 @@
 /**
- * The provider's render host, locally.
- *
- * Generator code runs on a different host from the app in production, and the
- * headers that host sends are the security control rather than a formality. A
- * host served without them would let a piece do things locally that
- * production forbids, which is the wrong direction for a difference to run in:
- * you find out on deploy. So this serves the same document under the same
- * Content-Security-Policy as `isolate/netlify.toml`.
+ * The provider's render host, locally, under the same Content-Security-Policy
+ * as `isolate/netlify.toml`. Those headers are the security control, so a local
+ * host without them lets a piece do things production forbids and the
+ * difference surfaces on deploy.
  *
  *   node scripts/dev-isolate.mjs [port]
- *
- * Then point the app at it:
- *
  *   NEXT_PUBLIC_ISOLATE_ORIGIN=http://localhost:4321
  *
- * The studio does not need this. Its preview frames come from `srcdoc` with
- * `sandbox="allow-scripts"`, which puts a piece in an opaque origin already.
- * This is for `/piece/*` and `/collection/*`, which frame the deployed host.
+ * For `/piece/*` and `/collection/*`, which frame the deployed host. The
+ * studio's own previews are `srcdoc` frames in an opaque origin already.
  */
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -28,9 +20,9 @@ const DOC = join(here, "..", "isolate", "index.html");
 const PORT = Number(process.argv[2] || process.env.ISOLATE_PORT || 4321);
 
 /**
- * Kept in step with isolate/netlify.toml by hand, with one deliberate
- * difference: frame-ancestors accepts localhost on any port, because the dev
- * server's port is not fixed.
+ * Kept in step with isolate/netlify.toml by hand, with one difference:
+ * frame-ancestors accepts localhost on any port, since the dev server's is not
+ * fixed.
  */
 const CSP = [
     "default-src 'none'",

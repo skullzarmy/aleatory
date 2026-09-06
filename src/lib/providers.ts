@@ -1,12 +1,11 @@
 /**
- * Render providers, and how they are ranked.
+ * Render providers, and how they are ranked. A provider is any contract
+ * exposing `get_render_gas`, `get_agent` and `get_operator`, and anyone can
+ * deploy one and list it in the registry for free.
  *
- * A provider is any contract exposing `get_render_gas`, `get_agent` and
- * `get_operator`. Anyone can deploy one and list it in the registry, for free.
- *
- * The ranking is computed from events every provider produces by working:
- * pieces published, how long each took, how many are still waiting. The
- * inputs are public, so anyone can recompute this and rank us lower.
+ * The ranking is computed from events a provider produces by working: pieces
+ * published, how long each took, how many are still waiting. The inputs are
+ * public, so anyone can recompute it.
  */
 import { tzktApi } from "./config";
 import { indexerFetch } from "./tzkt";
@@ -57,12 +56,8 @@ interface RegistryRow {
 }
 
 /**
- * Every registered provider, minus anything this site declines to show.
- *
- * The registry lists them and makes no claim about whether any of them are
- * any good, which is what the measured ranking answers. Hiding one here is a
- * display decision and changes nothing on chain: the provider keeps working
- * for every collection that names it.
+ * Every registered provider, minus anything this site declines to show. Hiding
+ * one is a display decision and changes nothing on chain.
  */
 export async function fetchProviders(): Promise<Provider[]> {
     const registry = (await addresses()).registry;
@@ -102,11 +97,9 @@ export async function fetchProviders(): Promise<Provider[]> {
 }
 
 /**
- * One provider, by address, whether or not it is in the registry.
- *
- * A collection names the provider it pays, and that address is authoritative
- * for the piece. The registry is a directory somebody has to add themselves
- * to, so a collection can perfectly well name a provider missing from it.
+ * One provider, by address, whether or not it is in the registry. A collection
+ * names the provider it pays, and the registry is a directory somebody has to
+ * add themselves to.
  */
 export async function fetchProvider(
     address: string,
@@ -124,11 +117,8 @@ interface ProviderMeta {
 
 /**
  * A provider's own description of itself, from its TZIP-016 metadata.
- *
- * Written by the provider, about the provider, so it is presentation and
- * nothing more: none of it affects who may write, what a render costs, or
- * whether a piece is published. A provider that says nothing shows as its
- * address, which is what every provider did until now.
+ * Presentation only: none of it affects who may write, what a render costs, or
+ * whether a piece is published. A provider that says nothing shows its address.
  */
 async function fetchProviderMetadata(address: string): Promise<ProviderMeta | null> {
     const row = await tzkt<{ value?: string }>(
@@ -141,8 +131,8 @@ async function fetchProviderMetadata(address: string): Promise<ProviderMeta | nu
         return {
             name: str("name"),
             description: str("description"),
-            // `avatar` is the key we write. `logo` and `imageUri` are read too,
-            // because a provider we did not deploy will have picked its own.
+            // `avatar` is the key we write; a provider we did not deploy picked
+            // its own.
             avatarUri: str("avatar") ?? str("logo") ?? str("imageUri"),
             endpoint: str("endpoint"),
         };
@@ -159,13 +149,7 @@ interface Publish {
     tokenId: string;
 }
 
-/**
- * How many publishes to pair with their buys.
- *
- * Each pairing is a request, so the median is taken over a sample rather than
- * over everything. Fifty is enough for the number to mean something and few
- * enough that the page does not spend a minute assembling itself.
- */
+/** How many publishes to pair with their buys. Each pairing costs a request. */
 const PAIRING_SAMPLE = 50;
 
 /** Collections to scan for unrendered pieces. */
@@ -175,11 +159,8 @@ const OUTSTANDING_SCAN = 20;
 const OUTSTANDING_AFTER_MINUTES = 30;
 
 /**
- * Everything this provider has published in the window.
- *
- * Read from its agent's calls to `set_token_metadata`, which is the only
- * action a provider takes on chain, so a provider that has done nothing has
- * nothing here and one that has worked cannot hide it.
+ * Everything this provider has published in the window, from its agent's calls
+ * to `set_token_metadata`, which is the only action a provider takes on chain.
  */
 async function publishes(agent: string, since: string): Promise<Publish[]> {
     const rows = await tzkt<
@@ -243,18 +224,16 @@ async function collectionsNaming(provider: string): Promise<string[]> {
         const storage = await tzkt<{ render?: { provider?: string } }>(
             `/v1/contracts/${address}/storage`,
         ).catch(() => null);
-        // Storage is what actually points work at a provider. An event
-        // payload is written by the contract that emits it.
+        // Storage points work at a provider. An event payload is written by the
+        // contract that emits it.
         if (storage?.render?.provider === provider) naming.push(address);
     }
     return naming;
 }
 
 /**
- * Pieces this provider was asked for and has not delivered.
- *
- * A piece still carrying its collection's pending document, bought long
- * enough ago that a working provider would have got to it.
+ * Pieces still carrying their collection's pending document, bought long enough
+ * ago that a working provider would have got to them.
  */
 async function outstandingFor(provider: string): Promise<number> {
     const collections = await collectionsNaming(provider);
@@ -284,11 +263,8 @@ async function outstandingFor(provider: string): Promise<number> {
 }
 
 /**
- * What a provider has actually done, from chain events alone.
- *
- * Every figure here is derived from actions a provider takes by working, so
- * none of it can be asserted by a provider about itself, and anyone can
- * recompute all of it.
+ * What a provider has done, from chain events alone, so none of it can be
+ * asserted by a provider about itself.
  */
 export async function fetchProviderStats(address: string): Promise<ProviderStats> {
     const since = new Date(Date.now() - RANKING_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -320,15 +296,9 @@ export async function fetchProviderStats(address: string): Promise<ProviderStats
 }
 
 /**
- * Sort by what a provider has actually done.
- *
- * Delivered first, because a provider that has published nothing has told you
- * nothing. Then the share of work still waiting, then how fast the delivered
- * work landed, then time in service as the tiebreak.
- *
- * A brand new provider sorts near the bottom, and so does a junk
- * registration. That is the same treatment, and a new provider climbs out of
- * it by working.
+ * Sort by what a provider has done: delivered, then the share of work still
+ * waiting, then how fast the delivered work landed, then time in service. A new
+ * provider and a junk registration both start at the bottom.
  */
 export function compareProviders(a: Provider, b: Provider): number {
     if (b.stats.delivered !== a.stats.delivered) {

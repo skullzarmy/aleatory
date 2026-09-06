@@ -1,18 +1,13 @@
 "use client";
 
 /**
- * The 404, generated.
+ * The 404, generated. The seed is the address that was asked for, so one wrong
+ * link always draws the same piece.
  *
- * The seed is the address you asked for. A wrong turn is still a seed, so the
- * page you never reached still draws one piece and only one, the same every
- * time that same wrong link is followed.
- *
- * A flow field: a still, seeded noise decides a direction at every point, and
- * a few hundred travellers are let loose to follow it. None of them knows the
- * others; the shape is what their agreement makes. It draws itself, eases to a
- * stop, and rests — finite motion, so nothing moves forever, and the last
- * frame is the piece. Decorative, so it is aria-hidden and the words carry the
- * meaning.
+ * A flow field: seeded noise decides a direction at every point and a few
+ * hundred travellers follow it. The motion is finite, so it eases to a stop and
+ * the last frame is the piece. Decorative, so it is aria-hidden and the words
+ * carry the meaning.
  */
 
 import { useEffect, useRef, useState } from "react";

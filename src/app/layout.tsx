@@ -25,8 +25,6 @@ export const metadata: Metadata = {
         url: BRAND.url,
     },
     twitter: { card: "summary_large_image" },
-    // Written as metadata rather than as tags in the markup so there is one
-    // source and nothing can be emitted twice.
     manifest: "/site.webmanifest",
     icons: {
         icon: [
@@ -43,11 +41,7 @@ export const metadata: Metadata = {
     },
 };
 
-/**
- * The colour the browser paints around the page, and the one behind a splash
- * screen on a phone. Matching the app means an install does not flash white
- * before it starts.
- */
+// Matches the app background so an install doesn't flash white before it starts.
 export const viewport: Viewport = {
     themeColor: "#17191c",
     colorScheme: "dark light",
@@ -64,15 +58,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     disableTransitionOnChange
                 >
                     <WalletProvider>
-                        {/* Inside the wallet, because it is a view of one
-                            address and idle until there is one. */}
+                        {/* Nested inside WalletProvider: offers are a view of one address and idle until there is one. */}
                         <OffersProvider>
                             <div className="flex min-h-screen flex-col bg-background">
                                 <Header />
-                                {/* 2.4.1 Bypass Blocks. Every page opens with the
-                                same header and nav; without this a keyboard or
-                                screen reader user walks all of it on every
-                                navigation. Visible only when focused. */}
+                                {/* WCAG 2.4.1 Bypass Blocks. Visible only when focused. */}
                                 <a
                                     href="#main"
                                     className="sr-only rounded-md bg-background px-4 py-2 text-sm font-medium underline focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"

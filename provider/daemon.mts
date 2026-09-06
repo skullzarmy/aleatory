@@ -1,22 +1,15 @@
 /**
- * The render provider. A process that stays up.
+ * The render provider, as a process that stays up.
  *
  *   npm run provider:daemon
  *
  * It watches the chain for pieces holding their collection's pending document
- * and renders them. A piece is minted, and seconds later it has its image.
+ * and renders them.
  *
- * Polling rather than a subscription, because the queue rule is a comparison
- * against chain state and not an event: it finds new mints, pieces missed
- * while this was down, and pieces inherited from a provider an artist switched
- * away from, with no state of its own to keep in sync. An event stream would
- * be faster and would need a cursor, and a cursor is a thing that can be
- * wrong.
- *
- * A push endpoint can sit in front of this later so a mint UI can say "look
- * now" instead of waiting for the next tick, but polling has to work on its
- * own first, or a provider is only as reliable as whoever remembers to call
- * it.
+ * Polling, because the queue rule is a comparison against chain state and not
+ * an event, so it keeps no cursor and finds new mints, pieces missed while this
+ * was down, and pieces inherited from a provider an artist switched away from.
+ * The push endpoint below only shortens the wait.
  */
 import dotenv from "dotenv";
 import { createServer } from "node:http";
@@ -27,12 +20,7 @@ const { renderConfigFromEnv } = await import("./render.mts");
 
 /** How often to look when there is nothing to do. */
 const IDLE_MS = Number(process.env.ALEA_POLL_MS || 15_000);
-/**
- * The push endpoint, off until it is asked for.
- *
- * Loopback by default, so reaching it from outside is a decision somebody
- * makes on purpose.
- */
+/** Off until asked for, and loopback by default. */
 const PUSH_ON = /^(1|on|true|yes)$/i.test(process.env.ALEA_PROVIDER_PUSH || "");
 const PUSH_PORT = Number(process.env.ALEA_PROVIDER_PORT || 8787);
 const PUSH_BIND = process.env.ALEA_PROVIDER_BIND || "127.0.0.1";
@@ -65,18 +53,15 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
         stopping = true;
         // The piece in flight finishes, so nothing is left half published.
         log(`${sig}, stopping after the current piece`);
-        // Stop accepting pushes at once; a render already under way finishes.
         pushServer?.close();
         wake?.();
     });
 }
 
 /**
- * The wait between passes, woken early by a signal or a push.
- *
- * Most of this process's life is spent in here. A stop that was only checked
- * on the way round the loop would sit until the interval was up, and a push
- * that could not shorten it would be a notification nobody acted on.
+ * The wait between passes, woken early by a signal or a push. Most of this
+ * process's life is spent in here, so a stop checked only at the top of the
+ * loop would sit until the interval was up.
  */
 let wake: (() => void) | null = null;
 const sleep = (ms: number) =>
@@ -91,29 +76,21 @@ const sleep = (ms: number) =>
     });
 
 /**
- * The push endpoint this provider advertises.
+ * The push endpoint this provider advertises (ALEATORY-001 §5).
  *
- * ALEATORY-001 §5: a provider may publish a URL, and a mint UI calls it when a
- * piece is minted. **It carries no authentication and cannot.** The UI doing
- * the calling holds none of this provider's secrets, and any UI is entitled to
- * call any provider, so a credential here would mean the endpoint only worked
- * for whoever we happened to share a secret with.
+ * It carries no authentication and cannot: any UI is entitled to call any
+ * provider, and the caller holds none of this provider's secrets, so a
+ * credential would mean the endpoint worked only for whoever we shared one
+ * with.
  *
- * So it is a shoulder tap from a stranger, and the design follows from that:
- * it may be ignored at any time with no loss. A tap sets a flag. The flag
- * shortens the wait before the next read of the chain, and the chain is what
- * decides the work. Nothing a caller sends is read, kept, or believed.
- *
- * Which makes a flood uninteresting. Taps are answered and dropped above
- * PUSH_FLOOR_MS, so the most a caller can buy is one early scan every few
- * seconds, which is a thing this process does on its own anyway.
+ * A tap therefore does one thing, which is shorten the wait before the next
+ * read of the chain. Nothing a caller sends is read, kept or believed, and the
+ * chain decides the work, so a tap can be ignored at any time with no loss.
  */
 let pushServer: ReturnType<typeof createServer> | null = null;
 
 /**
- * The soonest a tap may bring the next scan forward.
- *
- * The ceiling on what tapping achieves, and therefore the ceiling on what
+ * The soonest a tap may bring the next scan forward, and so the ceiling on what
  * flooding achieves. Below this a tap is answered and forgotten.
  */
 const PUSH_FLOOR_MS = 5_000;
@@ -126,8 +103,7 @@ function listen(bind: string, port: number) {
             return;
         }
 
-        // Answered either way, because a caller has done nothing wrong by
-        // tapping twice and there is nothing here worth hiding from them.
+        // Answered either way. A caller has done nothing wrong by tapping twice.
         const now = Date.now();
         if (now - lastTapAt < PUSH_FLOOR_MS) {
             res.writeHead(202).end();
@@ -136,17 +112,14 @@ function listen(bind: string, port: number) {
         lastTapAt = now;
         res.writeHead(202).end();
 
-        // The collection list is deliberately rescanned at most once a minute,
-        // because that scan is most of the work here. A tap leaves that alone:
-        // clearing it would let a stranger pick how often this process runs its
-        // heaviest query. A collection deployed a moment ago is found by the
-        // next rescan either way.
+        // A tap does not clear the collection-list interval below, which would
+        // let a stranger pick how often this runs its heaviest query.
         log("tapped, looking early");
         wake?.();
     });
 
-    // Slow-loris and header-flood limits. Node's defaults suit a public web
-    // server and are far too generous for a one-verb endpoint.
+    // Slow-loris and header-flood limits. Node's defaults are sized for a
+    // public web server, not a one-verb endpoint.
     pushServer.maxHeadersCount = 20;
     pushServer.headersTimeout = 3_000;
     pushServer.requestTimeout = 5_000;
@@ -173,9 +146,7 @@ else log(`polling every ${IDLE_MS / 1000}s, no push endpoint`);
 
 while (!stopping) {
     try {
-        // The set of collections changes rarely, and rescanning it every tick
-        // is most of the work. Once a minute is often enough to pick up a
-        // collection deployed a moment ago.
+        // Rescanning this every tick is most of the work here.
         if (Date.now() - servedAt > 60_000) {
             served = await collectionsServed();
             servedAt = Date.now();
@@ -197,20 +168,19 @@ while (!stopping) {
                     published++;
                     log(`  published ${hash}`);
                 } catch (e) {
-                    // One bad piece must not stop the queue. It stays pending,
-                    // so the next pass tries it again, and `provider:retry`
-                    // reaches it if it needs a hand.
+                    // One bad piece must not stop the queue. It stays pending
+                    // and the next pass tries again.
                     log(`  FAILED: ${e instanceof Error ? e.message : e}`);
                 }
             }
         }
 
         backoff = BACKOFF_MIN_MS;
-        // Straight back round when there was work: a busy collection should
+        // Straight back round when there was work, so a busy collection does
         // not wait a full interval between pieces.
         await sleep(published > 0 ? 1_000 : IDLE_MS);
     } catch (e) {
-        // Whatever this was, it was not one piece. Back off rather than spin.
+        // Not one piece, so back off rather than spin.
         log(`cycle failed: ${e instanceof Error ? e.message : e}`);
         log(`  retrying in ${backoff / 1000}s`);
         await sleep(backoff);

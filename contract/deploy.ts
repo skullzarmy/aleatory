@@ -56,16 +56,10 @@ const RPC_URL = process.env.TEZOS_RPC || DEFAULT_RPC[NETWORK];
 const MAX_OPERATION_BYTES = 32768;
 
 /**
- * Chain limits, read live.
- *
- * On shadownet `hard_gas_limit_per_operation` equals
- * `hard_gas_limit_per_block`, so an operation submitted at the per-operation
- * maximum consumes the entire block budget and the node rejects it with
- * `gas_exhausted.block`. Taquito's estimator simulates at that maximum, which
- * is why estimation fails there on contracts of any size.
- *
- * Reading both and staying under the block ceiling is what makes an
- * origination land.
+ * Chain limits, read live. On shadownet `hard_gas_limit_per_operation` equals
+ * `hard_gas_limit_per_block`, so an operation at the per-operation maximum
+ * consumes the whole block budget and the node rejects it with
+ * `gas_exhausted.block`. Taquito's estimator simulates at that maximum.
  */
 interface ChainLimits {
     gasPerOperation: number;
@@ -90,17 +84,15 @@ async function chainLimits(tezos: TezosToolkit): Promise<ChainLimits> {
 }
 
 /**
- * Limits to submit with when estimation is unavailable.
- *
- * Well under the block ceiling, since the operation has to fit inside a block
- * alongside whatever else is in it.
+ * Limits to submit with when estimation is unavailable. Under the block
+ * ceiling, since the operation shares a block with whatever else is in it.
  */
 function fallbackLimits(limits: ChainLimits) {
     const ceiling = Math.min(limits.gasPerOperation, limits.gasPerBlock);
     return {
         gasLimit: Math.floor(ceiling * 0.75),
-        // A measured ceiling rather than the protocol maximum. Burn is charged on
-        // bytes used, so the maximum is not a cost, but it authorises one.
+        // Burn is charged on bytes used, so the protocol maximum is not a cost,
+        // but it authorises one.
         storageLimit: Math.min(40_000, limits.storagePerOperation),
         fee: 100_000,
     };
@@ -117,8 +109,7 @@ const CONTRACT_DIR: Record<Name, string> = {
     marketplace: "AleatoryMarketplace",
 };
 
-/** Dependency order. The factory needs the resolver's address. */
-// The router last: it names everything else, so everything else has to exist.
+/** The factory needs the resolver, and the router names everything else. */
 const ORDER: Name[] = ["resolver", "provider", "registry", "marketplace", "factory", "router"];
 
 function loadCode(name: Name): unknown {
@@ -151,11 +142,9 @@ function meta(name: string, description: string, extra: Record<string, unknown> 
 }
 
 /**
- * A provider's own description of itself.
- *
- * Read by any UI listing providers, and written by the provider. Presentation
- * only: none of it decides who may write, what a render costs, or whether a
- * piece is published. `avatar` is an `ipfs://` URI.
+ * A provider's own description of itself. Presentation only: none of it decides
+ * who may write, what a render costs, or whether a piece is published. `avatar`
+ * is an `ipfs://` URI.
  */
 function providerMeta() {
     return meta(
@@ -185,9 +174,9 @@ function writeDeployments(d: Record<string, string>) {
 async function ensureRevealed(tezos: TezosToolkit, signer: InMemorySigner) {
     const pkh = await signer.publicKeyHash();
     if (await tezos.rpc.getManagerKey(pkh).catch(() => null)) return;
-    // Reveal separately, never bundled: on shadownet the per-operation gas cap
-    // equals the per-block cap, so a reveal riding along with an origination
-    // this size overflows and the whole batch fails.
+    // Never bundled: on shadownet the per-operation gas cap equals the
+    // per-block cap, so a reveal riding along with an origination this size
+    // overflows and the batch fails.
     console.log("\nRevealing deployer key (one-time)...");
     const branch = (await tezos.rpc.getBlockHeader()).hash;
     const protocol = (await tezos.rpc.getProtocols()).protocol;
@@ -221,23 +210,17 @@ async function ensureRevealed(tezos: TezosToolkit, signer: InMemorySigner) {
 }
 
 /**
- * Every role, explicitly, and no two of them the same.
+ * Every role, explicitly, and no two of them the same. Runs before the deployer
+ * key is read, so a misconfigured deployment fails on the configuration and not
+ * after unlocking a wallet.
  *
- * Runs before the deployer key is read, because a misconfigured deployment
- * should fail on the configuration rather than after unlocking a wallet.
+ * The agent is a hot key in a server environment; the admin holds the resolver,
+ * the factory lambda and the marketplace; the treasury receives the fees.
+ * Nothing here is defaulted, because a default collapses two roles into one key
+ * and a leak of the hot one then takes everything.
  */
 function roles(): { admin: string; treasury: string; agent: string } {
-    // Roles are separate on purpose: the agent is a hot key that lives in a
-    // Netlify environment variable so the provider can sign, and the admin
-    // holds the resolver, the factory lambda, the marketplace and the
-    // treasury. Defaulting both to the deployer collapses that into one key,
-    // and a leak of the hot one takes everything with it.
     const admin = process.env.ALEA_ADMIN_ADDRESS || "";
-    // Never defaulted to the admin. It was, and the shadownet deployment took
-    // that path in silence: the factory and the marketplace both went out with
-    // administrator == treasury, which is precisely the collapse this block
-    // exists to prevent. A default that quietly does the wrong thing is not a
-    // guard, so this one is required like the others.
     const treasury = process.env.ALEA_TREASURY_ADDRESS || "";
     const agent = process.env.ALEA_AGENT_ADDRESS || "";
 
@@ -297,11 +280,9 @@ async function main() {
     const tezos = new TezosToolkit(RPC_URL);
     const signer = await InMemorySigner.fromSecretKey(secretKey);
 
-    // The deployer is the fourth role, and the only one whose address is not
-    // configured but derived. It pays for the originations and then has no
-    // standing at all, which is the point: it is a hot key on whatever machine
-    // ran this. Letting it double as the admin would leave that machine holding
-    // `admin_lambda` over the factory permanently.
+    // The fourth role, derived rather than configured. It pays for the
+    // originations and keeps no standing afterwards, because it is a hot key on
+    // whatever machine ran this.
     const deployer = await signer.publicKeyHash();
     for (const [name, address] of [
         ["ALEA_ADMIN_ADDRESS", admin],
@@ -319,8 +300,8 @@ async function main() {
     const feeBps = parseInt(process.env.ALEA_MARKET_FEE_BPS || "250", 10);
     const deployPrice = parseInt(process.env.ALEA_DEPLOY_PRICE_MUTEZ || "0", 10);
 
-    // A mainnet run with a shadownet .env, or the reverse, bakes the wrong
-    // addresses in permanently, and nothing on chain catches it.
+    // A mainnet run with a shadownet .env bakes the wrong addresses in
+    // permanently, and nothing on chain catches it.
     const envNetwork = process.env.PUBLIC_TEZOS_NETWORK;
     if (envNetwork && envNetwork !== NETWORK) {
         console.error(`\n✗ REFUSING: --network ${NETWORK} but PUBLIC_TEZOS_NETWORK=${envNetwork}.`);
@@ -379,13 +360,8 @@ async function main() {
                     metadata: meta("Aleatory Marketplace", "Secondary market for Aleatory pieces."),
                 };
             case "router": {
-                // A directory. It names the current contracts and every factory
-                // there has ever been, so a front end needs one address in its
+                // A directory, so a front end needs one address in its
                 // environment and reads the rest from the chain.
-                //
-                // An existing router is *added to*, never replaced: a new factory
-                // goes to the head of its list and the retired ones stay, because
-                // collections a retired factory made are still real collections.
                 if (
                     !deployed.factory ||
                     !deployed.marketplace ||
@@ -420,8 +396,8 @@ async function main() {
                     fees_accrued: 0,
                     resolver: resolverAddress,
                     collections: new MichelsonMap(),
-                    // Every address this factory has originated, so `is_collection`
-                    // can answer without an indexer. Audit C3.
+                    // Every address this factory originated, so `is_collection`
+                    // answers without an indexer.
                     deployed: new MichelsonMap(),
                     next_collection_id: 0,
                 };
@@ -472,8 +448,6 @@ async function main() {
                 process.exit(1);
             }
             if (msg.match(/gas_exhausted|gas_limit_too_high/i)) {
-                // The estimator simulates at the per-operation maximum, which on this
-                // chain is the whole block. Submit explicit limits instead.
                 explicit = fallbackLimits(limits);
                 console.log(
                     `  estimation unavailable on ${NETWORK} (gas caps are equal), submitting explicit limits`,
@@ -498,7 +472,6 @@ async function main() {
         });
         console.log(`  injected ${op.hash}, confirming...`);
         const contract = await op.contract();
-        // What it actually cost, read from the receipt.
         console.log(
             `  cost            ${((op.fee + (op.storageDiff ?? 0) * limits.costPerByte) / 1_000_000).toFixed(6)} tez` +
                 `  (fee ${op.fee}, storage ${op.storageDiff ?? 0} bytes)`,

@@ -1,7 +1,6 @@
 /**
- * Every brand string and every chain address, in one module, so a fork, a
- * rename, or a redeploy is a one-file change. Nothing else in
- * the app hardcodes a name, a domain, or a KT1.
+ * Every brand string and every chain address, so a fork, a rename or a redeploy
+ * is a one-file change. Nothing else hardcodes a name, a domain or a KT1.
  */
 
 export const BRAND = {
@@ -39,14 +38,9 @@ export const RPC: Record<Network, string> = {
 export const rpcUrl = () => RPC[NETWORK];
 
 /**
- * Contract addresses.
- *
- * `router` is the only one that has to be set. Everything else is read from it
- * on chain by `lib/router.ts`, so a redeploy does not leave a running site
- * pointing at a contract that no longer exists.
- *
- * The rest are overrides. Set one and it wins, which is what lets a fork point
- * at its own contracts without deploying a router.
+ * Contract addresses. `router` is the only one that has to be set; the rest are
+ * read from it on chain by `lib/router.ts`. Setting one of the others overrides
+ * that, which lets a fork point at its own contracts without a router.
  */
 export const CONTRACTS = {
     router: process.env.NEXT_PUBLIC_ROUTER_ADDRESS || "",
@@ -57,11 +51,9 @@ export const CONTRACTS = {
 } as const;
 
 /**
- * Artist code renders here, never on this origin.
- *
- * Generator JavaScript is untrusted and runs in every visitor's browser. Same
- * origin would give it reach into wallet state and session storage, so
- * artifacts are framed from a separate host. See docs/architecture.md §10.
+ * Artist code renders here, never on this origin. Generator JavaScript is
+ * untrusted, and same origin would give it reach into wallet state and session
+ * storage. See docs/architecture.md §10.
  */
 export const ISOLATE_ORIGIN =
     process.env.NEXT_PUBLIC_ISOLATE_ORIGIN || "https://isolate.aleatory.art";

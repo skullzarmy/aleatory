@@ -8,13 +8,8 @@ import { fetchCollection, type Collection } from "@/lib/collection";
 import { fetchCollectionsDeployedBy } from "@/lib/tzkt";
 import { formatTez, shortAddress } from "@/lib/utils";
 
-/**
- * The collections you own.
- *
- * Ownership here is the contract's `administrator`, not an account on this
- * site. Anything listed is something this wallet can actually change, and
- * connecting a different wallet shows a different list.
- */
+// Ownership here is the contract's `administrator`; connecting a different wallet
+// shows a different list.
 export default function ManagePage() {
     const { address, connect, restoring } = useWallet();
     const [collections, setCollections] = useState<Collection[] | null>(null);

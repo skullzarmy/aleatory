@@ -4,21 +4,15 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 /**
- * Keep a server-rendered page current without a reload.
- *
- * Every page here is built on the server and revalidated on a timer, which
- * makes the *server* correct and leaves the screen stale until somebody
- * presses reload. Chain state moves on its own: a piece renders, an edition
- * sells out, a listing appears. None of that should need a keystroke.
+ * Keep a server-rendered page current without a reload. Revalidation on a timer
+ * makes the server correct and leaves the screen stale, while chain state moves
+ * on its own: a piece renders, an edition sells out, a listing appears.
  *
  * `router.refresh()` re-fetches the server components and reconciles in place,
- * so scroll position, focus, an open menu and anything else client-side
- * survive. It is not a reload and should not look like one.
+ * so scroll position, focus and an open menu survive.
  *
- * Paused while the tab is hidden. A background tab that keeps polling is a
- * background tab burning someone's battery and our indexer's rate limit to
- * update a page nobody is looking at, and the refresh on becoming visible
- * again is the one that actually matters.
+ * Paused while the tab is hidden, since the refresh that matters is the one on
+ * becoming visible again.
  */
 export function LiveRefresh({ seconds = 20 }: { seconds?: number }) {
     const router = useRouter();

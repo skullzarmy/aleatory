@@ -31,15 +31,13 @@ const pick = (c: { address: string; administrator: string; proposedAdmin: string
     proposedAdmin: c.proposedAdmin,
 });
 
-// Balances are the entire point. Nothing here is cached.
+// Balances are the point of this page, so nothing here is cached.
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
     const router = await fetchRouter().catch(() => null);
 
-    // Addresses come from the router wherever it has them. An env var records
-    // what was true when it was set; the router records what the contracts
-    // resolve to now.
+    // Prefer addresses from the router; env vars only record what was true when set.
     const [marketplace, factory, provider, agent, resolver] = await Promise.all([
         fetchMarketplace(
             router?.marketplaces[0] || router?.marketplace || ADDRESSES.marketplace,
@@ -55,8 +53,7 @@ export default async function Dashboard() {
         .then((all) => all.includes(ADDRESSES.provider))
         .catch(() => null);
 
-    // Only the contracts that actually answered. A handover control for
-    // something that could not be read is a control that cannot be trusted.
+    // Only contracts that answered get a handover control.
     const administered: Administered[] = [
         marketplace && { name: "Marketplace", ...pick(marketplace) },
         factory && { name: "Factory", ...pick(factory) },
@@ -64,8 +61,7 @@ export default async function Dashboard() {
         resolver && { name: "Resolver", ...pick(resolver) },
     ].filter(Boolean) as Administered[];
 
-    // Every marketplace, not only the current one: a retired contract can still
-    // hold fees from sales made on it, and they sweep the same way.
+    // Retired marketplaces can still hold fees from sales made on them.
     const retired = router
         ? (
               await Promise.all(
@@ -505,12 +501,9 @@ function ProviderCard({
 }
 
 /**
- * Marketplaces the router no longer points at.
- *
- * They keep their listings and the tez escrowed against their open offers, and
- * a seller or a bidder can still act on them, so the money is real and has to
- * be counted. Sweeping fees out of one is permissionless, exactly as it is for
- * the current one.
+ * Marketplaces the router no longer points at. They still hold escrowed
+ * funds against open offers, and sweeping their fees is permissionless,
+ * same as the current marketplace.
  */
 async function RetiredMarketplaces({ addresses }: { addresses: string[] }) {
     const states = (

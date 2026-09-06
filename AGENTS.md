@@ -169,11 +169,22 @@ parentheses. American spelling. Four habits to keep out: em dashes, "not an X,
 a Y" constructions, accounts of decisions since replaced, and justification by
 contrast ("rather than", "instead of").
 
-**Git:** a maintainer works on `main` and pushes it. Pushing one branch onto a
-differently named one (`git push origin work:main`) updates the ref and leaves
-Netlify without a build.
+**Comments earn their place.** Write one when there is something to communicate
+that the code does not communicate on its own: a constraint arriving from
+outside the file, a failure the shape of the code is avoiding, an ordering
+nothing in the language enforces, a number whose source is elsewhere. Anything
+else goes. Do not restate the line below. Do not narrate what the code used to
+be. Do not leave anecdotes about how a choice was made, which icon was picked,
+or what was tried first. A file with four comments that each carry weight is
+worth more than one with forty. When in doubt, delete it: the code is the
+description, and a wrong comment costs more than a missing one.
 
-Everybody else forks and opens a pull request, which is what
+**Git:** every change lands through a pull request, a maintainer's included. A
+ruleset on the repository protects `main` and refuses a direct push, a force
+push and a deletion, and holds the `site` and `contracts` checks. Branch, push
+the branch, open the pull request.
+
+Everybody outside the project forks first, which is what
 [CONTRIBUTING.md](CONTRIBUTING.md) describes. This file is the working document
 for the platform; that one is where somebody arriving starts.
 

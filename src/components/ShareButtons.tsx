@@ -4,20 +4,10 @@ import { useEffect, useState } from "react";
 import { Check, Link2, Share2 } from "lucide-react";
 
 /**
- * Share a piece.
- *
- * The networks and the copy-link row follow rejkt.xyz's share popout, which
- * has had these four in front of Tezos collectors for a while. Hand-rolled
- * rather than lifted, because the original is built on radix's popover and
- * toast and react-icons, and this is one component.
- *
- * The URL is the piece's permanent page rather than the page a collector lands
- * on after minting, because a link that celebrates a purchase is only
- * interesting to the person who made it.
- *
- * The text is composed here rather than left to the network's preview scrape,
- * since a card pulled from a page whose image is still being rendered would
- * show nothing at all.
+ * Share a piece. The URL is the piece's permanent page, never the one a
+ * collector lands on after minting, and the text is composed here rather than
+ * left to a network's preview scrape, which on a page whose image is still
+ * rendering pulls nothing.
  */
 export function ShareButtons({
     url,
@@ -29,9 +19,8 @@ export function ShareButtons({
     className?: string;
 }) {
     const [copied, setCopied] = useState(false);
-    // Offered only where it exists. Rendered from an effect rather than during
-    // render, because the server has no navigator and guessing produces a
-    // button that appears and vanishes on hydration.
+    // From an effect, because the server has no navigator and guessing produces
+    // a button that appears and vanishes on hydration.
     const [canShare, setCanShare] = useState(false);
     useEffect(() => {
         setCanShare(typeof navigator !== "undefined" && typeof navigator.share === "function");

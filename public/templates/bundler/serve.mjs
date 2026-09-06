@@ -5,14 +5,13 @@
  *   node serve.mjs            then open http://localhost:4321
  *   node serve.mjs --port 8080
  *
- * Rebuilds on every request, so the loop is: edit, reload. There is no watcher
- * and nothing to keep in sync.
+ * Rebuilds on every request, so the loop is edit, reload. No watcher, nothing
+ * to keep in sync.
  *
  * It also reads the `<meta name="alea:library">` tags in src/index.html and
- * loads those from a CDN, the same way the other kits do, so declaring and
- * bundling work together. Your file never contains a script tag pointing at a
- * CDN: a piece is refused the network while it renders, and one that tries is
- * captured as a blank frame.
+ * loads those, the way the other kits do, so declaring and bundling work
+ * together. Your file never holds a script tag pointing at a CDN: a piece is
+ * refused the network while it renders, and one that tries is captured blank.
  */
 
 import { createServer } from "node:http";

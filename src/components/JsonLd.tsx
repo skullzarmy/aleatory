@@ -1,16 +1,12 @@
 import { BRAND } from "@/lib/config";
 
 /**
- * Structured data, for the readers that are not people.
+ * Structured data, for the readers that are not people: a piece as a
+ * `VisualArtwork` with a creator, an image and a date.
  *
- * A generative piece is a `VisualArtwork` with a creator, an image and a date,
- * and none of that was stated anywhere a machine could read it. Search results
- * and social unfurls both use this, and so does anything else that wants to
- * describe the work without scraping our markup.
- *
- * Emitted as a script tag rather than through `metadata`, because Next has no
- * field for it. Serialised with `<` escaped: the values come from chain state
- * and a collection named `</script>` should not be able to close this one.
+ * A script tag rather than `metadata`, which has no field for it. `<` is
+ * escaped, because the values come from chain state and a collection named
+ * `</script>` would otherwise close this one.
  */
 function Ld({ data }: { data: Record<string, unknown> }) {
     return (

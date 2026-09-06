@@ -1,21 +1,18 @@
 /**
- * The render provider.
+ * The render provider. Finds pieces waiting for their metadata, renders them,
+ * pins them and publishes. Everything privileged lives here: the pinning key,
+ * the agent key that signs, and the work queue. The render worker holds none of
+ * it.
  *
- * Finds pieces waiting for their metadata, renders them, pins them, and
- * publishes. Everything privileged lives here: the pinning key, the agent key
- * that signs, and the work queue. The render worker holds none of it.
+ * Work arrives two ways, and the chain is the one that counts:
  *
- * Two ways work arrives, and the chain is the one that counts:
+ *   1. The cron, every five minutes, which survives our own UI being down.
+ *   2. A ping from the mint UI carrying a shared secret, which turns a polling
+ *      interval into a couple of seconds.
  *
- *   1. The cron, every five minutes. This works with no cooperation from
- *      anyone and survives our own UI being down.
- *   2. A ping from the mint UI, which turns a polling interval into a couple
- *      of seconds. The ping carries a shared secret.
- *
- * Everything a candidate collection asserts about itself is checked against
- * its own storage before any of it is used. An event payload is written by
- * the contract that emits it, so it can say anything, and it is treated as a
- * hint about where to look rather than as evidence.
+ * A candidate collection is checked against its own storage before anything it
+ * asserts is used. An event payload is written by the contract that emits it,
+ * so it is a hint about where to look and not evidence.
  */
 import { TezosToolkit } from "@taquito/taquito";
 import { InMemorySigner } from "@taquito/signer";
@@ -54,16 +51,13 @@ let factoryCache: { at: number; addresses: string[] } | null = null;
 /**
  * Factories whose collections this provider will look at.
  *
- * From the router, which is what the router is for: it holds the current
- * factory and every retired one, so a collection deployed by an old factory
- * keeps being served rather than quietly going unrendered forever.
+ * From the router, which holds the current factory and every retired one, so a
+ * collection deployed by an old factory keeps being served. An environment list
+ * written before a later factory existed serves that one alone and ignores the
+ * rest in silence.
  *
- * Not an environment list: one written before the other factories existed
- * serves that factory alone and silently ignores the rest, and nobody updates
- * a list they cannot see is wrong.
- *
- * Storage is still the authority afterwards. This only decides where to look,
- * and a collection is served because its own storage names this provider.
+ * This only decides where to look. Storage is the authority, and a collection
+ * is served because its own storage names this provider.
  */
 export async function collectionsFactories(): Promise<string[]> {
     if (FACTORY_OVERRIDE.length > 0) return FACTORY_OVERRIDE;
@@ -90,12 +84,8 @@ const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xy
 );
 
 /**
- * Collections this provider declines to render for.
- *
- * A provider serves anything that names it and pays render gas, which is the
- * arrangement the interface describes. This list is one operator saying no,
- * and it changes nothing for anyone else: the collection keeps working, and
- * another provider can pick it up.
+ * Collections this provider declines to render for. One operator saying no; the
+ * collection keeps working and another provider can pick it up.
  */
 const BLOCKED_COLLECTIONS = new Set(
     (process.env.ALEA_BLOCKED_COLLECTIONS || "")
@@ -134,10 +124,6 @@ interface PendingPiece {
     codeHash: string;
 }
 
-/* ------------------------------------------------------------------ */
-/* Reading the chain                                                   */
-/* ------------------------------------------------------------------ */
-
 async function tzkt<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
     const url = new URL(`${TZKT}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
@@ -175,23 +161,16 @@ interface CollectionStorage {
 }
 
 /**
- * Collections this provider actually serves.
- *
- * Candidates come from two places: contracts a trusted factory originated,
- * and `set_provider` events naming us. Both are only hints. Every candidate
- * is then confirmed against its own storage, because a contract's event
- * payload is written by that contract and can claim anything.
+ * Collections this provider actually serves. Candidates come from contracts a
+ * trusted factory originated and from `set_provider` events naming us, and each
+ * one is confirmed against its own storage.
  */
 export async function collectionsServed(): Promise<string[]> {
     const candidates = new Set<string>();
 
-    // Two ways in, because neither alone finds every collection.
-    //
-    // A collection deployed by a factory names its provider in its *initial
-    // storage* and never emits `set_provider`, so an event scan alone never
-    // sees a new collection at all: it would sit unrendered until its artist
-    // happened to switch provider. Everything a factory originated is the
-    // other half.
+    // A collection deployed by a factory names its provider in its initial
+    // storage and never emits `set_provider`, so an event scan alone never sees
+    // a new collection until its artist happens to switch provider.
     for (const factory of await collectionsFactories()) {
         const originated = await tzkt<{ address: string }[]>("/v1/contracts", {
             creator: factory,
@@ -204,8 +183,8 @@ export async function collectionsServed(): Promise<string[]> {
         }
     }
 
-    // And a collection that switched *to* us after deploy, which a factory
-    // scan would miss if it came from a factory we do not watch.
+    // And a collection that switched to us after deploy, from a factory we do
+    // not watch.
     const events = await tzkt<{ contract: { address: string } }[]>("/v1/contracts/events", {
         tag: "set_provider",
         "sort.desc": "id",
@@ -216,11 +195,8 @@ export async function collectionsServed(): Promise<string[]> {
         if (addr && ADDRESS.test(addr)) candidates.add(addr);
     }
 
-    // Storage is the authority, and it is the only check that matters here.
-    // An event payload is written by the contract that emits it, so a
-    // contract can claim anything; its storage is what actually points work
-    // at us. A collection that no longer names us has switched away, and its
-    // old event is still in the stream.
+    // Storage is the authority. A collection that no longer names us has
+    // switched away, and its old event is still in the stream.
     const served: string[] = [];
     for (const address of candidates) {
         if (BLOCKED_COLLECTIONS.has(address)) continue;
@@ -232,13 +208,6 @@ export async function collectionsServed(): Promise<string[]> {
     return served;
 }
 
-/**
- * Pieces still carrying their collection's pending document.
- *
- * That one comparison is the whole work queue: new buys, pieces missed while
- * this was down, and pieces inherited from a provider an artist switched away
- * from.
- */
 /** Name and description from the collection's own TZIP-16 document. */
 async function collectionFacts(collection: string): Promise<{ name: string; description: string }> {
     const raw = await metadataKey(collection, "content").catch(() => undefined);
@@ -267,11 +236,9 @@ async function metadataKey(collection: string, key: string): Promise<string | un
 }
 
 /**
- * Every token id in a collection, oldest first.
- *
- * For a retry that covers a whole collection rather than one piece. The queue
- * cannot find these: a piece that already got a write is one it considers
- * finished, which is exactly when a rebuild is needed.
+ * Every token id in a collection, oldest first, for a retry that covers the
+ * whole collection. The queue treats a piece that already got a write as
+ * finished, which is exactly when a rebuild is wanted.
  */
 export async function tokenIdsIn(collection: string): Promise<string[]> {
     const out: string[] = [];
@@ -295,30 +262,24 @@ export async function tokenIdsIn(collection: string): Promise<string[]> {
 export async function pendingIn(collection: string): Promise<PendingPiece[]> {
     const storage = await tzkt<CollectionStorage>(`/v1/contracts/${collection}/storage`);
     const pendingUri = hexToUtf8(storage.art.pending_metadata);
-    // `code_uri` is sp.string on chain, not sp.bytes. Decoding it as hex threw
-    // "not hex" on every collection published by pointer, so the scan died
-    // before it reached a single piece and an IPFS-stored generator could
-    // never be rendered at all.
+    // `code_uri` is sp.string on chain, not sp.bytes, so decoding it as hex
+    // throws "not hex" on every collection published by pointer.
     const codeUri = storage.art.code_uri ?? "";
     requireAddress(storage.administrator, "administrator");
 
-    // The generator is in storage. Nothing is fetched, so there is no gateway
-    // to be lied to by and no URL to be pointed at something else.
     let code = "";
     if (storage.art.code) {
         code = await decodeCode(storage.art.code, storage.art.code_encoding ?? "identity");
     } else if (codeUri.startsWith("ipfs://") && CID.test(codeUri.slice(7).split(/[/?#]/)[0])) {
         // Only for a generator too large to carry on chain. A pointer is
-        // written by whoever deployed the collection and anyone can deploy
-        // one, so it is IPFS only and a CID shape only.
+        // written by whoever deployed the collection, so it is IPFS only and a
+        // CID shape only.
         code = await fetchGenerator(codeUri);
     }
     if (!code) return [];
 
-    // What the collection says its generator needs loaded. Read from the
-    // collection's own metadata rather than inferred from anything here: a
-    // provider is not required to know what a "p5 collection" is, only how to
-    // resolve what it was told.
+    // Read from the collection's own metadata: a provider does not need to know
+    // what a "p5 collection" is, only how to resolve what it was told.
     const libraries = parseLibraries(
         await metadataKey(collection, "aleatory:libraries").catch(() => undefined),
     );
@@ -328,8 +289,7 @@ export async function pendingIn(collection: string): Promise<PendingPiece[]> {
     const waiting: PendingPiece[] = [];
     let offset = 0;
 
-    // Paginated, because a collection past one page of tokens would otherwise
-    // have pieces that never reveal and never report why.
+    // Paginated, or a collection past one page has pieces that never reveal.
     for (;;) {
         const tokens = await tzkt<{ tokenId: string }[]>("/v1/tokens", {
             contract: collection,
@@ -417,10 +377,6 @@ async function buyEvent(
     return { hash: ops[0], params };
 }
 
-/* ------------------------------------------------------------------ */
-/* Doing the work                                                      */
-/* ------------------------------------------------------------------ */
-
 /** Fetch a generator, with a ceiling and a clock on it. */
 async function fetchGenerator(codeUri: string): Promise<string> {
     const cid = codeUri.slice(7).split(/[/?#]/)[0];
@@ -437,20 +393,12 @@ async function fetchGenerator(codeUri: string): Promise<string> {
     return new TextDecoder().decode(body);
 }
 
-/**
- * Draw one piece.
- *
- * Goes to Browser Run's REST endpoint, which takes the document directly. A
- * REST call from here needs no deploy, no `workers.dev` URL, and no secret
- * guarding one.
- */
+/** Draw one piece, through Browser Run's REST endpoint. */
 async function render(piece: PendingPiece): Promise<Uint8Array> {
     const config = renderConfigFromEnv();
     if (!config) throw new Error("rendering is not configured");
-    // Refused rather than rendered without them. A p5 sketch drawn with no p5
-    // produces a blank frame, and publishing that as the piece is worse than
-    // publishing nothing: the token would carry a permanent image of an error
-    // nobody was told about.
+    // Throws rather than rendering without them. A p5 sketch drawn with no p5
+    // produces a blank frame, and the token would carry it permanently.
     const deps = await resolveLibraries(piece.libraries);
 
     return renderPiece(
@@ -475,11 +423,8 @@ async function decodeCode(hex: string, encoding: string): Promise<string> {
 }
 
 /**
- * Pin bytes this renderer produced.
- *
- * Only ever our own output. Accepting bytes from a caller would make this an
- * open upload endpoint, and checking someone else's image costs the same as
- * rendering it.
+ * Pin bytes this renderer produced. Only ever our own output: accepting bytes
+ * from a caller would make this an open upload endpoint.
  */
 async function pin(bytes: Uint8Array, name: string): Promise<string> {
     const form = new FormData();
@@ -494,16 +439,9 @@ async function pin(bytes: Uint8Array, name: string): Promise<string> {
 }
 
 /**
- * Ask the public gateway for something we just pinned.
- *
- * A gateway other than the pinning service has to fetch content across the
- * IPFS network before it can serve it, and until it does it answers with
- * nothing: a piece that is finished on chain shows as unrendered, and no
- * amount of reloading fixes it because nothing is asking the gateway to go
- * look. One request is what makes it go look.
- *
- * Failures are ignored. This is a warm-up, and the page it helps is not
- * waiting on it.
+ * Ask the public gateway for something we just pinned. A gateway other than the
+ * pinning service answers with nothing until something asks it to fetch the
+ * content across the network. Failures are ignored.
  */
 async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
@@ -515,18 +453,13 @@ async function warmGateway(uri: string): Promise<void> {
 }
 
 /**
- * Ask the site for it too, not only the gateway.
+ * Ask the site too. Everything that shows a picture points at `/api/img/{cid}`,
+ * which reads a gateway once and is cached for a year afterwards, so warming
+ * the gateway alone leaves that route cold.
  *
- * Everything that shows a picture points at `/api/img/{cid}`, which reads a
- * gateway once and is then cached for a year. Warming the gateway alone leaves
- * that route cold, so the first request for a piece pays a fetch against a
- * gateway that may still be pulling the content, and gets nothing.
- *
- * That first request is usually not a person. The stats bot announces a mint
- * within seconds of the publish, Discord fetches the image once to build the
- * embed, and a miss there is permanent: it caches the absence against the URL
- * and does not ask again. So the site is asked here, while nobody is waiting,
- * and by the time anything else looks it is answering from cache.
+ * The first request is usually Discord building an embed for the stats bot's
+ * announcement, seconds after the publish, and a miss there is permanent: it
+ * caches the absence against the URL and does not ask again.
  */
 async function warmSite(cid: string): Promise<void> {
     const site = (process.env.ALEA_SITE_URL || "").replace(/\/+$/, "");
@@ -548,11 +481,9 @@ async function pinJson(doc: unknown, name: string): Promise<string> {
 }
 
 /**
- * One toolkit for the whole invocation.
- *
- * Each publish reads the agent's counter, so separate instances issuing
- * concurrently collide and one operation is rejected. Sharing the instance
- * and awaiting each confirmation keeps a single operation in flight.
+ * One toolkit for the whole invocation. Each publish reads the agent's counter,
+ * so separate instances issuing concurrently collide and one operation is
+ * rejected.
  */
 let toolkit: TezosToolkit | null = null;
 async function signer(): Promise<TezosToolkit> {
@@ -566,16 +497,14 @@ async function signer(): Promise<TezosToolkit> {
 }
 
 /**
- * Reveal the agent's key, once, before it ever sends anything.
+ * Reveal the agent's key, once, before it sends anything.
  *
  * A Tezos account cannot transact until its public key is on chain. Taquito
- * normally bundles the reveal with the first operation, and on this chain
- * `hard_gas_limit_per_operation` equals the per-*block* limit, so a bundled
- * reveal overflows and the whole batch is refused. The symptom is an agent
- * that is funded, looks fine, and has never landed an operation.
- *
- * Sent by hand for the same reason estimation is skipped below: the estimator
- * simulates at the operation cap, which this chain's block cap rejects.
+ * bundles the reveal with the first operation, and on this chain
+ * `hard_gas_limit_per_operation` equals the per-block limit, so the bundle
+ * overflows and the batch is refused. The symptom is a funded agent that has
+ * never landed an operation. Sent by hand for the same reason estimation is
+ * skipped below.
  */
 async function ensureRevealed(tezos: TezosToolkit, s: InMemorySigner): Promise<void> {
     const pkh = await s.publicKeyHash();
@@ -618,36 +547,32 @@ async function publish(piece: PendingPiece, metadataUri: string): Promise<string
         metadata_uri: Buffer.from(metadataUri, "utf-8").toString("hex"),
     });
 
-    // Explicit limits and an explicit fee, because neither can be estimated
-    // here. Taquito simulates at `hard_gas_limit_per_operation`, and on this
-    // chain that equals the per-*block* limit, so the simulation is refused
-    // with gas_exhausted.block and no estimate comes back.
+    // Neither can be estimated here: Taquito simulates at
+    // `hard_gas_limit_per_operation`, which on this chain equals the per-block
+    // limit, so the simulation is refused with gas_exhausted.block.
     //
-    // The fee has to be derived from the gas limit, not guessed. A baker's
-    // minimum is roughly 100 + 0.1 per gas unit + 1 per byte, in mutez, and
-    // it is charged against the limit *declared*, not the gas consumed. So a
-    // generous limit raises the fee floor, and paying below it does not fail:
-    // the operation injects, returns a hash, and then sits in the mempool
-    // until it expires. Which looks exactly like a chain that is ignoring you.
+    // The fee follows from the gas limit. A baker's minimum is roughly 100 +
+    // 0.1 per gas unit + 1 per byte, in mutez, charged against the limit
+    // declared and not the gas consumed, so a generous limit raises the floor.
+    // Paying under it injects, returns a hash, and sits in the mempool until it
+    // expires.
     const GAS_LIMIT = 10_000;
     const BYTES = 400;
     const fee = 100 + Math.ceil(GAS_LIMIT * 0.1) + BYTES + 200;
 
     const op = await call.send({ gasLimit: GAS_LIMIT, storageLimit: 300, fee });
 
-    // The hash exists before the confirmation does, so a process that dies
-    // here can tell "already sent" from "never sent".
+    // Read before the confirmation, so a process that dies here can tell
+    // "already sent" from "never sent".
     const hash = op.hash;
     await op.confirmation();
     return hash;
 }
 
 /**
- * Build one piece by hand, ignoring the queue.
- *
- * The queue finds pieces still holding the pending document, which by
- * definition excludes a piece that got a write and needs a better one. This is
- * how you reach those: name the collection and the token.
+ * Build one piece by hand, ignoring the queue. The queue finds pieces still
+ * holding the pending document, which excludes one that got a write and needs a
+ * better one.
  */
 export async function pieceAt(collection: string, tokenId: string): Promise<PendingPiece> {
     const storage = await tzkt<CollectionStorage>(`/v1/contracts/${collection}/storage`);
@@ -657,10 +582,7 @@ export async function pieceAt(collection: string, tokenId: string): Promise<Pend
     if (storage.art.code) {
         code = await decodeCode(storage.art.code, storage.art.code_encoding ?? "identity");
     } else {
-        // `code_uri` is sp.string on chain, not sp.bytes. Decoding it as hex threw
-        // "not hex" on every collection published by pointer, so the scan died
-        // before it reached a single piece and an IPFS-stored generator could
-        // never be rendered at all.
+        // sp.string on chain, not sp.bytes. See `pendingIn`.
         const codeUri = storage.art.code_uri ?? "";
         if (codeUri.startsWith("ipfs://") && CID.test(codeUri.slice(7).split(/[/?#]/)[0])) {
             code = await fetchGenerator(codeUri);
@@ -696,9 +618,8 @@ export async function handle(piece: PendingPiece): Promise<string> {
     const imageUri = await pin(image, `${piece.collection}-${piece.tokenId}.png`);
 
     const params = safeParse(piece.params);
-    // The one builder, shared with the studio and covered by the golden
-    // tests. Assembling a document here instead is how a provider ships
-    // pieces with no royalties and nothing notices.
+    // Shared with the studio and covered by the golden tests. A document
+    // assembled here instead is how a provider ships pieces with no royalties.
     const doc = buildPieceDocument({
         collectionName: piece.collectionName,
         description: piece.description,
@@ -709,20 +630,17 @@ export async function handle(piece: PendingPiece): Promise<string> {
         seed: piece.seed,
         codeHash: piece.codeHash,
         params,
-        // Basis points from the collection's own storage. TZIP-21 with
-        // `decimals: 4` is the same unit, so these travel unchanged.
+        // Basis points, and TZIP-21 with `decimals: 4` is the same unit.
         royalties: { decimals: 4, shares: piece.royalties },
     });
 
-    // Who rendered it. The publish event records the agent that signed and
+    // Who rendered it. The publish event records the agent that signed, and
     // agents rotate, so the provider contract is the durable answer.
     const withProvider = { ...doc, aleaProvider: PROVIDER_ADDRESS };
 
     const metadataUri = await pinJson(withProvider, `${piece.collection}-${piece.tokenId}.json`);
 
-    // Before the write lands, so the gateway has both by the time anything
-    // reads the token. Not awaited for correctness, only so the two requests
-    // overlap with the operation.
+    // Started before the write lands so the two requests overlap the operation.
     const warmed = Promise.all([warmGateway(imageUri), warmGateway(metadataUri)]);
 
     const hash = await publish(piece, metadataUri);
@@ -738,7 +656,3 @@ function safeParse(s: string): Record<string, unknown> {
         return {};
     }
 }
-
-/* ------------------------------------------------------------------ */
-/* Claims                                                              */
-/* ------------------------------------------------------------------ */

@@ -1,29 +1,15 @@
 /**
- * Aleatory, mint-time parameters.
+ * Mint-time parameters: up to five named inputs a generator declares and whoever
+ * mints a piece tunes before they sign. Optional, and most generators declare
+ * none.
  *
- * A generator may declare up to five named inputs that whoever mints a piece
- * tunes before they sign. The declaration is the artist's: their names, their
- * ranges, their defaults. Nothing is imposed, and a generator that declares
- * nothing is the normal case, params are always optional.
- *
- * That is deliberately not what the previous generation of this idea did.
- * editart handed every project the same five unnamed sliders, so a parameter
- * meant whatever the artist could talk collectors into believing it meant. A
- * declared name with a declared range is legible on its own: a mint UI built by
- * someone who has never read our source can render the right control, and a
- * collector can see what they are actually turning.
- *
- * The piece stays a pure function of (code, seed, params). Two of those three
- * are chosen by a person, which is precisely why the third, resolution, has
- * to be mechanical: given a schema and any raw values at all, every renderer
- * anywhere must land on the same values, or the same token renders differently
- * in two places and the whole determinism guarantee is theatre.
- *
- * `resolveParams` below IS that rule, and docs/params.md is its spec.
+ * A piece is a pure function of (code, seed, params), so resolution has to be
+ * mechanical: given a schema and any raw values, every renderer anywhere lands
+ * on the same values, or one token renders two ways. `resolveParams` is that
+ * rule and docs/params.md is its spec.
  */
 
-/** Ceiling on declared params. Five is the most a collector will actually
- *  reason about before they stop reading and drag things at random. */
+/** Ceiling on declared params. */
 export const MAX_PARAMS = 5;
 
 export type ParamType = "number" | "int" | "bool" | "color" | "select";
@@ -58,10 +44,6 @@ export interface ParamsSchema {
 
 export const PARAMS_SCHEMA_VERSION = 1;
 
-// ---------------------------------------------------------------------------
-// Declaring
-// ---------------------------------------------------------------------------
-
 const ID_RE = /^[a-z][a-z0-9_]{0,23}$/;
 const HEX_RE = /^#[0-9a-f]{6}$/i;
 
@@ -78,11 +60,9 @@ export function newParam(existing: ParamSpec[]): ParamSpec {
 }
 
 /**
- * Everything wrong with a declaration, in the artist's terms.
- *
- * Validation runs in the studio and gates publishing, because a broken schema
- * is not recoverable after the fact: the record is immutable, and a mint UI
- * built from a contradictory declaration cannot be fixed by us later.
+ * Everything wrong with a declaration, in the artist's terms. Gates publishing,
+ * because the record is immutable and a contradictory declaration cannot be
+ * fixed afterwards.
  */
 export function validateSchema(params: ParamSpec[]): string[] {
     const errors: string[] = [];
@@ -146,8 +126,8 @@ export function validateSchema(params: ParamSpec[]): string[] {
     return errors;
 }
 
-/** The schema as it goes into the record, null when nothing is declared, so
- *  "no params" stays one unambiguous shape rather than two. */
+/** The schema as it goes into the record. Null when nothing is declared, so
+ *  "no params" is one shape and not two. */
 export function schemaForRecord(params: ParamSpec[]): ParamsSchema | null {
     if (params.length === 0) return null;
     return { version: PARAMS_SCHEMA_VERSION, params };
@@ -157,24 +137,17 @@ export function specsOf(schema: ParamsSchema | null | undefined): ParamSpec[] {
     return schema?.params ?? [];
 }
 
-// ---------------------------------------------------------------------------
-// Resolving
-// ---------------------------------------------------------------------------
-
 /**
- * Snap a number onto the declared grid.
- *
- * Two runs of one token must produce identical values, and a float that arrives
- * as 0.30000000000000004 from one UI and 0.3 from another is the same slider in
- * two positions as far as the piece is concerned. Quantizing at resolution time
- *, not at control time, means it does not matter which UI produced it.
+ * Snap a number onto the declared grid. A float arriving as 0.30000000000000004
+ * from one UI and 0.3 from another is the same slider position, and quantizing
+ * at resolution time makes it not matter which UI produced it.
  */
 function quantize(value: number, min: number, max: number, step: number): number {
     const clamped = Math.min(max, Math.max(min, value));
     const steps = Math.round((clamped - min) / step);
     const snapped = Math.min(max, min + steps * step);
-    // Kill the binary-float tail the multiply reintroduces. 6 decimals is finer
-    // than any control a person operates and survives a JSON round trip exactly.
+    // The binary-float tail the multiply reintroduces. Six decimals survives a
+    // JSON round trip exactly.
     return Math.round(snapped * 1e6) / 1e6;
 }
 
@@ -212,27 +185,24 @@ export function resolveParam(spec: ParamSpec, raw: unknown): ParamValue {
 }
 
 /**
- * Schema + anything at all in → the values the piece will actually see.
- *
- * Every path into a render goes through here: the studio tuner, the mint form,
- * the gallery reading values back off a token, and any third-party renderer
- * following params.md. A value that arrives out of range or of the wrong type
- * is corrected, never rejected, the alternative is a token that some viewers
- * can render and others cannot, which is the one outcome worth designing out.
+ * Schema and any raw values in, the values the piece will see out. Every path
+ * into a render goes through here: the studio tuner, the mint form, the gallery
+ * reading values off a token, any third-party renderer following params.md. A
+ * value out of range or of the wrong type is corrected, never rejected, so no
+ * token renders for some viewers and not others.
  */
 export function resolveParams(
     specs: ParamSpec[],
-    // Values, never the JSON they were written as. A string here used to
-    // compile, match none of the branches below, and return every declared
-    // default: a plausible-looking set of values that nobody chose. That is
-    // `decodeParams`, one door down, and this signature is what makes taking
-    // the wrong one a build error rather than a wrong picture.
+    // Values, never the JSON they were written as. A string matches none of the
+    // branches below and returns every declared default, a plausible set nobody
+    // chose. `decodeParams` takes the JSON, and this signature makes reaching
+    // for the wrong one a build error.
     raw: Record<string, unknown> | null | undefined,
 ): ParamValues {
     const source = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
     const out: ParamValues = {};
-    // Declaration order, not input order: the encoding below is canonical, and
-    // two encodings of the same values must be byte-identical.
+    // Declaration order, not input order: the encoding is canonical, and two
+    // encodings of the same values must be byte-identical.
     for (const spec of specs) out[spec.id] = resolveParam(spec, source[spec.id]);
     return out;
 }
@@ -243,8 +213,7 @@ export function defaultValues(specs: ParamSpec[]): ParamValues {
     return out;
 }
 
-/** A value picked uniformly at random within the declaration, the "surprise
- *  me" the mint UI offers, and how the grid shows off a parameter's range. */
+/** A value picked uniformly at random within the declaration. */
 export function randomValues(specs: ParamSpec[], rand: () => number = Math.random): ParamValues {
     const out: ParamValues = {};
     for (const spec of specs) {
@@ -281,17 +250,11 @@ export function randomValues(specs: ParamSpec[], rand: () => number = Math.rando
     return out;
 }
 
-// ---------------------------------------------------------------------------
-// Encoding
-// ---------------------------------------------------------------------------
-
 /**
  * The canonical on-chain form: JSON, keys in declaration order, values already
- * resolved. Written into token_info as `aleaParams`.
- *
- * Canonical because it is quoted in provenance and compared across renderers.
- * Declaration order rather than sorted order because the declaration is the
- * only ordering a third party can reconstruct without our code.
+ * resolved. Written into token_info as `aleaParams`, quoted in provenance and
+ * compared across renderers. Declaration order, because that is the only
+ * ordering a third party can reconstruct without our code.
  */
 export function encodeParams(specs: ParamSpec[], values: ParamValues): string {
     const resolved = resolveParams(specs, values);
@@ -301,8 +264,8 @@ export function encodeParams(specs: ParamSpec[], values: ParamValues): string {
     return `{${parts.join(",")}}`;
 }
 
-/** Read `aleaParams` back off a token. Bad JSON resolves to defaults rather
- *  than failing the render, the schema is the authority, not the token. */
+/** Read `aleaParams` back off a token. Bad JSON resolves to defaults, because
+ *  the schema is the authority and not the token. */
 export function decodeParams(specs: ParamSpec[], json: string | null | undefined): ParamValues {
     if (!json) return defaultValues(specs);
     try {
@@ -312,21 +275,12 @@ export function decodeParams(specs: ParamSpec[], json: string | null | undefined
     }
 }
 
-// ---------------------------------------------------------------------------
-// Importing an fxhash-era declaration
-// ---------------------------------------------------------------------------
-
 /**
- * Map an `$fx.params([...])` declaration onto ours.
+ * Map an `$fx.params([...])` declaration onto ours. `name` becomes `label`, the
+ * nested `options` object flattens, and `bigint` lands as an int.
  *
- * Nothing stranded is a promise about whole projects, and a project whose
- * controls have to be re-typed by hand is only most of the way home. The shapes
- * are close enough that this is mechanical: `name` becomes `label`, the nested
- * `options` object flattens, and `bigint` lands as an int.
- *
- * Two honest losses, reported rather than silently absorbed: fxhash string
- * params have no equivalent here (a free-text input is not a dimension of a
- * piece, it is a caption), and anything past the fifth declaration is dropped.
+ * Two losses, reported in `notes`: fxhash string params have no equivalent
+ * here, and anything past the fifth declaration is dropped.
  */
 export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes: string[] } {
     const list = Array.isArray(definition) ? definition : [];
@@ -363,10 +317,6 @@ export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes:
                     default: fallbackDefault,
                 };
                 const resolved = resolveParam(spec, d.default);
-                // Said out loud, like every other loss here. A default is the
-                // position a collector finds the control in, and the schema is
-                // immutable once the collection exists, so a default that moved
-                // is worth one line now and worth nothing afterwards.
                 if (
                     typeof d.default === "number" &&
                     Number.isFinite(d.default) &&
@@ -383,8 +333,7 @@ export function fromFxParams(definition: unknown): { params: ParamSpec[]; notes:
                 params.push({ id, label, type: "bool", default: d.default === true });
                 break;
             case "color": {
-                // fxhash colors are hex8 without a leading #; alpha has no meaning
-                // in a declaration a collector reads, so it is dropped.
+                // fxhash colors are hex8 without a leading #. Alpha is dropped.
                 const raw = String(d.default ?? "000000")
                     .replace(/^#/, "")
                     .slice(0, 6)

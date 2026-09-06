@@ -4,14 +4,9 @@ import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cn } from "@/lib/utils";
 
-/**
- * shadcn's tabs, ported from rejkt.xyz.
- *
- * Radix because a tab strip is a roving-focus widget: arrow keys move between
- * triggers, only the selected one is in the tab order, and the panel is wired
- * to its trigger by `aria-controls`. A row of buttons that swaps a div looks
- * identical and is not the same thing.
- */
+// shadcn's tabs, ported from rejkt.xyz. Built on Radix for its roving-focus
+// keyboard behavior (arrow keys between triggers, aria-controls wiring) that
+// a plain button row swapping a div wouldn't have.
 const Tabs = TabsPrimitive.Root;
 
 const TabsList = React.forwardRef<

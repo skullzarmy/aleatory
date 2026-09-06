@@ -3,17 +3,12 @@
 import { SUGGESTED, declaredIn, specFor, withLibraries } from "@/lib/libraries";
 
 /**
- * Which libraries this generator asks for.
+ * Which libraries this generator asks for. It edits the document: toggling p5
+ * writes a `<meta name="alea:library">` tag into the artist's own file, so the
+ * file still says what it needs after a round trip through their disk.
  *
- * It edits the document. Toggling p5 writes a `<meta name="alea:library">` tag
- * into the artist's own file, which is what makes the file portable: download
- * it, work on it somewhere else for a week, upload it again, and it still says
- * what it needs. A preference stored beside the document instead of inside it
- * would be lost on the first round trip.
- *
- * Nothing is bundled. The bytes stay out of the artist's generator and a
- * renderer loads them, which is the whole reason to declare one rather than
- * paste it in.
+ * Nothing is bundled. The bytes stay out of the generator and a renderer loads
+ * them.
  */
 export function LibraryPicker({
     html,

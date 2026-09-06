@@ -5,14 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 
-/**
- * "What you own", for whoever is connected.
- *
- * A shortcut rather than a page: every address already has one at
- * `/wallet/{address}`, built from public chain state and shareable by anyone.
- * A second implementation of that view, gated on a connection, would show the
- * same pieces to one fewer person.
- */
+// Every address already has a page at /wallet/{address}; this resolves the connected
+// wallet and redirects there.
 export default function MinePage() {
     const router = useRouter();
     const { address, connecting, restoring, connect } = useWallet();

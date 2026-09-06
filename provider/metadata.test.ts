@@ -1,12 +1,9 @@
 /**
- * Golden tests for the royalty encoder.
+ * Golden tests for the royalty encoder. These bytes get pinned and their CID
+ * goes on chain permanently, so a mis-encoded royalty pays out wrong for the
+ * life of the collection.
  *
- * These bytes get pinned and their CID goes on chain, permanently, and a
- * mis-encoded royalty pays out wrong for the life of the collection. The form
- * works in relative terms and the standard stores absolute shares, so this
- * conversion is the thing worth pinning hardest.
- *
- *   npx tsx src/lib/metadata.test.ts
+ *   npx tsx provider/metadata.test.ts
  */
 import assert from "node:assert/strict";
 import { encodeRoyalties, royaltyPreview, buildPieceDocument } from "./metadata";

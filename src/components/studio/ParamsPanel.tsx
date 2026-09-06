@@ -15,23 +15,18 @@ import {
 } from "@/lib/params";
 
 /**
- * Aleatory, the params panel.
- *
- * Two components, and the split between them is the whole point:
+ * Two components:
  *
  *   <ParamsDeclaration>  the artist declares up to five named inputs
  *   <ParamsTuner>        anyone turns them
  *
- * The tuner is built from nothing but the declaration. It reads no template, no
- * kind, no code: feed it a schema fetched from contract storage and it renders
- * the right controls. That is deliberate, it is the reference implementation of
- * the mint UI another platform has to be able to build for our generators
- * without our source (docs/params.md), and keeping it honest is easier
- * when our own mint form is that same component.
+ * The tuner reads no template, no kind and no code: a schema fetched from
+ * contract storage is enough for it to render the right controls. It is the
+ * reference implementation of the mint UI another platform builds without our
+ * source (docs/params.md), and our own mint form is the same component.
  *
- * <ParamsPanel> is the studio's view of the pair: declare on the left, turn the
- * result on the right, so an artist sees the control a collector will get at
- * the moment they declare it.
+ * <ParamsPanel> is the studio's view of the pair, so an artist sees the control
+ * a collector will get at the moment they declare it.
  */
 
 const field =
@@ -45,10 +40,6 @@ const TYPES: { id: ParamType; label: string }[] = [
     { id: "color", label: "colour" },
     { id: "select", label: "choice" },
 ];
-
-// ---------------------------------------------------------------------------
-// The studio's pair
-// ---------------------------------------------------------------------------
 
 export function ParamsPanel({
     specs,
@@ -84,10 +75,6 @@ export function ParamsPanel({
     );
 }
 
-// ---------------------------------------------------------------------------
-// Declaring, the artist's side
-// ---------------------------------------------------------------------------
-
 export function ParamsDeclaration({
     specs,
     onChange,
@@ -99,9 +86,8 @@ export function ParamsDeclaration({
 
     const update = (index: number, patch: Partial<ParamSpec>) => {
         const next = specs.map((spec, i) => (i === index ? { ...spec, ...patch } : spec));
-        // A type change carries its own sensible shape with it, or the row is
-        // left holding a min/max that means nothing and a default that is now
-        // the wrong kind of thing entirely.
+        // A type change carries its own shape, or the row keeps a min/max that
+        // means nothing and a default of the wrong kind.
         if (patch.type) {
             const spec = next[index];
             if (patch.type === "number")
@@ -369,17 +355,10 @@ function DefaultInput({
     );
 }
 
-// ---------------------------------------------------------------------------
-// Tuning, everyone else's side
-// ---------------------------------------------------------------------------
-
 /**
- * Controls generated from a declaration alone.
- *
- * Every value that leaves here has been through `resolveParam`, so what the
- * control emits is exactly what the piece will receive and exactly what gets
- * written to the token. A tuner that let a value through unresolved would be a
- * preview that lies about the thing being minted.
+ * Controls generated from a declaration alone. Every value that leaves here has
+ * been through `resolveParam`, so what a control emits is what the piece
+ * receives and what gets written to the token.
  */
 export function ParamsTuner({
     specs,

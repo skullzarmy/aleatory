@@ -1,14 +1,10 @@
 import { deflateRawSync, crc32 as nodeCrc32 } from "node:zlib";
 
 /**
- * A ZIP writer, in about eighty lines and no dependency.
- *
- * Adding a package to produce three small archives would put a supply chain in
- * front of the thing artists download from us, which is a poor trade for a
- * format whose entire specification here is two headers and a trailer.
+ * A minimal ZIP writer with no dependency: two headers and a trailer.
  */
 
-// node:zlib gained crc32 in 20.12. Fall back rather than require a version.
+// node:zlib gained crc32 in 20.12; fall back for older versions.
 const table = (() => {
     const t = new Uint32Array(256);
     for (let i = 0; i < 256; i++) {
@@ -35,9 +31,7 @@ export function zip(files) {
     const central = [];
     let offset = 0;
 
-    // A fixed timestamp, so the same inputs produce the same bytes. Otherwise
-    // every build writes a different archive and nothing downstream can tell a
-    // real change from the clock moving.
+    // Fixed timestamp, so the same inputs produce the same bytes.
     const time = 0;
     const date = 0x21; // 1 January 1980, the epoch the format allows.
 

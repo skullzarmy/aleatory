@@ -10,19 +10,12 @@ import type { Hit, Resolution } from "@/lib/npm";
 /**
  * Build a starter kit out of any packages on npm.
  *
- * The four fixed kits answer "start me from p5". This answers "I want three and
- * d3 and a canvas", which the declaration model has always allowed and the page
- * never offered.
+ * A pick is resolved, not accepted. npm's search returns the newest release,
+ * and for any package of age that is an ES module a script tag cannot load:
+ * searching `three` gives `0.185.1`, and the last one a piece can declare is
+ * `0.160.1`, thirty four releases back.
  *
- * The work that makes it worth having is version archaeology. npm's search
- * returns the newest release, and for any package of age the newest release is
- * an ES module, which a script tag cannot load. Searching `three` gives
- * `0.185.1`; the last one a piece can actually declare is `0.160.1`, thirty
- * four releases back. So a pick is resolved rather than accepted, and what
- * lands in the list is something that loads or an honest refusal.
- *
- * Nothing here is silent. Every state this can be in says so on screen, because
- * the failure that costs an artist a piece is the one nothing mentioned.
+ * Every state this can be in says so on screen.
  */
 
 interface KitLibrary {
@@ -65,11 +58,9 @@ export function KitBuilder() {
     const latest = useRef(0);
 
     /**
-     * What the chosen base already declares.
-     *
-     * The p5 template's body is a p5 sketch, so p5 there is not a choice, it is
-     * what the file is. Shown as part of the kit and not removable, rather than
-     * added silently at zip time where nobody could see it.
+     * What the chosen base already declares. The p5 template's body is a p5
+     * sketch, so p5 there is what the file is: shown as part of the kit and not
+     * removable, and not added silently at zip time.
      */
     useEffect(() => {
         const base = declaredIn(kindPreamble(kindId)).flatMap((coordinate): Pick[] => {
@@ -91,9 +82,8 @@ export function KitBuilder() {
                 },
             ];
         });
-        // A base that pins p5 replaces a p5 somebody added by hand, rather
-        // than sitting beside it and writing the declaration into the file
-        // twice.
+        // A base that pins p5 replaces a p5 somebody added by hand, or the
+        // declaration goes into the file twice.
         const pinned = new Set(base.map((p) => p.id));
         setPicks((was) => [...base, ...was.filter((p) => p.s !== "pinned" && !pinned.has(p.id))]);
     }, [kindId]);
@@ -196,15 +186,11 @@ export function KitBuilder() {
 
     /**
      * The kind this file will be read as, from the same function the studio
-     * asks.
+     * asks. Declaring anything other than p5 makes it custom.
      *
-     * The base is a body to start writing in. The kind is what the file turns
-     * out to be, and declaring anything other than p5 makes it custom, because
-     * a kind here means "no dependencies, fully on chain" or it means nothing.
-     *
-     * Asked of the declarations alone rather than the finished document, so the
-     * templates do not have to be in this page's bundle to answer it. Declaring
-     * something is the rule that fires first, so the two agree.
+     * Asked of the declarations alone and not the finished document, so the
+     * templates stay out of this page's bundle. Declaring something is the rule
+     * that fires first, so the two agree.
      */
     const willBe = useMemo(() => {
         if (usable.length === 0) return getKind(kindId);
@@ -219,9 +205,8 @@ export function KitBuilder() {
         setBuilding(true);
         setError(null);
         try {
-            // Loaded here, not at the top. The kit module carries every
-            // template, every readme and the local server inline, which is a
-            // lot of bytes to hand somebody who is only reading the page.
+            // Loaded here, because the kit module carries every template, every
+            // readme and the local server inline.
             const [{ zipKit, kitName }, skill] = await Promise.all([
                 import("@/lib/kit"),
                 fetch("/skill/aleatory-generator/SKILL.md")
@@ -333,11 +318,9 @@ export function KitBuilder() {
 }
 
 /**
- * Why a request failed, in words fit to put on screen.
- *
- * Only this route's own plain-text bodies are shown. A proxy that times out
- * ahead of it answers with a full HTML error page, and rendering that verbatim
- * puts a stranger's markup in the middle of the panel.
+ * Why a request failed, in words fit to put on screen. Only this route's own
+ * plain-text bodies are shown: a proxy that times out ahead of it answers with
+ * a full HTML error page.
  */
 async function reasonFrom(res: Response): Promise<string> {
     const generic =
@@ -506,8 +489,6 @@ function PickRow({
             {pick.s === "refused" && (
                 <div className="mt-1 space-y-1.5">
                     <p className="text-xs text-muted-foreground">{pick.why}</p>
-                    {/* The end of the road for declaring is the start of the
-                        other kit, so say so here rather than leave it. */}
                     <p className="text-xs text-muted-foreground">
                         The{" "}
                         <a href="#bundler" className="underline hover:text-foreground">
@@ -535,10 +516,8 @@ function PickRow({
 }
 
 /**
- * The declarations a base carries, without loading the templates to find out.
- *
- * Only p5 has any, and its kind record names it. Reading it from the generated
- * module would put every template's bytes in this page's bundle for one string.
+ * The declarations a base carries, from its kind record, so the generated
+ * template module stays out of this page's bundle.
  */
 function kindPreamble(kindId: number): string {
     return getKind(kindId)

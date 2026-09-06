@@ -10,18 +10,6 @@ export const metadata: Metadata = {
     openGraph: { type: "website", title: "New to Tezos" },
 };
 
-/**
- * For the visitor who likes the work and has never held a wallet.
- *
- * Written for someone who collects prints, so it answers what they would
- * actually ask, in that order: is this the wasteful kind, what do I install,
- * what does it cost, what do I own. The energy question comes first because
- * for this reader it is not one objection among several, it is the one that
- * decides whether they read the rest.
- *
- * No price predictions and no talk of appreciation anywhere on this page. It
- * is here to get somebody to a first piece they like, not to a position.
- */
 export default function TezosPage() {
     return (
         <div className="mx-auto max-w-2xl px-4 py-12">

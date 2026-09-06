@@ -1,13 +1,8 @@
 /**
- * Work in progress, held in the browser.
- *
- * A generator exists before a collection does, and there is no server to keep
- * it on. Drafts live in IndexedDB: no account, nothing of the artist's on our
- * infrastructure, and a cleared browser loses unpublished work, which the
- * studio says out loud.
- *
- * A draft is exportable as the `.zip` it came from at any point, which is the
- * real answer to durability: the artist's own disk.
+ * Work in progress, held in the browser. Drafts live in IndexedDB, so there is
+ * no account and nothing of the artist's on our infrastructure. A cleared
+ * browser loses unpublished work, which the studio says out loud, and export is
+ * the answer to durability.
  */
 import type { ParamSpec } from "./params";
 import { withParams } from "./detect";
@@ -23,12 +18,9 @@ export interface Draft {
     /** Runtime kind, from runtimes.ts. */
     kindId: number;
     /**
-     * The generator, with its local files already inlined.
-     *
-     * It carries the declared parameters too, in `$alea.paramsSchema`, the way
-     * it carries declared libraries in a meta tag. Read them with
-     * `detectParams`, write them with `withParams`. A second copy beside the
-     * document is a copy that can disagree with it.
+     * The generator, with its local files inlined. It carries the declared
+     * parameters too, in `$alea.paramsSchema`: read with `detectParams`, written
+     * with `withParams`. A copy beside the document is one that can disagree.
      */
     html: string;
     /** The seed the artist pinned as the one they look at. */
@@ -38,11 +30,9 @@ export interface Draft {
 }
 
 /**
- * One connection, reused.
- *
- * Opening per call is a handshake per keystroke once autosave is running, and
- * a connection left open across a version change blocks the upgrade for every
- * other tab. Dropped on `versionchange` so the next call opens cleanly.
+ * One connection, reused: opening per call is a handshake per keystroke once
+ * autosave is running. Dropped on `versionchange`, because a connection held
+ * across one blocks the upgrade for every other tab.
  */
 let connection: Promise<IDBDatabase> | null = null;
 
@@ -79,15 +69,11 @@ function open(): Promise<IDBDatabase> {
 }
 
 /**
- * One transaction, resolved when it has actually happened.
- *
- * A write resolves on `oncomplete`, the only event that means it is on disk.
- * `request.onsuccess` fires when the request succeeded and not when the
- * transaction committed, so a save can resolve and then abort.
- *
- * Reads resolve on the request: there is nothing to commit.
- *
- * Found by @webid in #1.
+ * One transaction, resolved when it has happened. A write resolves on
+ * `oncomplete`, the only event meaning it is on disk: `request.onsuccess` fires
+ * when the request succeeded and not when the transaction committed, so a save
+ * can resolve and then abort. Reads resolve on the request, having nothing to
+ * commit.
  */
 async function tx<T>(
     mode: IDBTransactionMode,
@@ -155,8 +141,7 @@ export function newDraft(
         id: crypto.randomUUID(),
         name,
         kindId,
-        // Declared into the document when a kind supplies defaults, so the
-        // starting point is a file that says what it wants, like any other.
+        // Declared into the document when a kind supplies defaults.
         html: params.length > 0 ? withParams(project.html, params) : project.html,
         seed: randomSeed(),
         createdAt: Date.now(),
@@ -164,12 +149,7 @@ export function newDraft(
     };
 }
 
-/**
- * A seed to look at while working.
- *
- * Shaped like an operation hash so what an artist sees in the studio is the
- * same kind of value a real mint produces.
- */
+/** A seed to work against, shaped like the operation hash a real mint produces. */
 export function randomSeed(): string {
     const bytes = crypto.getRandomValues(new Uint8Array(32));
     return (

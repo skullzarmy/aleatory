@@ -1,14 +1,12 @@
 /**
- * Builds the documents that get pinned and pointed at from chain.
+ * The two documents that get pinned and pointed at from chain: a collection's
+ * pending document, which every piece carries until a provider publishes its
+ * own, and a piece's own document once it is rendered.
  *
- * Two of them. The collection's pending document, which every piece carries
- * until a provider publishes its own, and a piece's own document once it has
- * been rendered.
- *
- * Royalty encoding is the part to get right: the form works in relative terms
- * (a total, then who splits it), and the objkt convention stores absolute
- * shares against the sale price with `decimals` as the divisor. 25% split
- * evenly between two wallets is `decimals: 4` with shares of 1250 each.
+ * The deploy form works in relative royalty terms, a total and who splits it,
+ * and the objkt convention stores absolute shares against the sale price with
+ * `decimals` as the divisor. 25% split evenly between two wallets is
+ * `decimals: 4` with shares of 1250 each.
  */
 
 export const ROYALTY_DECIMALS = 4;
@@ -28,10 +26,8 @@ export interface RoyaltySplit {
 
 /**
  * Absolute shares against the sale price, in the shape objkt and Teia read.
- *
- * Splits rarely divide evenly, so every share is floored and the leftover
- * goes to the first recipient. The shares then sum to exactly the declared
- * total, every time.
+ * Every share is floored and the remainder goes to the first recipient, so the
+ * shares sum to exactly the declared total.
  */
 export function encodeRoyalties(split: RoyaltySplit): {
     decimals: number;
@@ -99,12 +95,9 @@ export function buildPendingDocument(input: PendingDocInput) {
 export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placeholderImageUri"> {
     tokenId: number;
     /**
-     * Already encoded, `{ decimals, shares }`.
-     *
-     * The chain is the authority: a collection stores its royalties as basis
-     * points, and TZIP-21 with `decimals: 4` is the same unit, so a provider
-     * publishes what the contract holds rather than reconstructing a split it
-     * would have to guess at.
+     * Already encoded, `{ decimals, shares }`. A collection stores its royalties
+     * as basis points and TZIP-21 with `decimals: 4` is the same unit, so a
+     * provider publishes what the contract holds.
      */
     royalties: { decimals: number; shares: Record<string, number> };
     /** The generator, with the seed and parameters applied. */
@@ -116,10 +109,9 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
 }
 
 /**
- * The document a provider publishes for one piece.
- *
- * The only builder, so a provider cannot assemble its own and drift from the
- * name and royalties every other piece is published with.
+ * The document a provider publishes for one piece. The only builder, so no
+ * provider assembles its own and drifts from the name and royalties every other
+ * piece carries.
  */
 export function buildPieceDocument(input: PieceDocInput) {
     return {

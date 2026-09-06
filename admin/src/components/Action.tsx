@@ -13,16 +13,14 @@ const KEY: Record<string, string> = {
 };
 
 /**
- * Both sinks from `ops.ts` behind one control: it signs when you hold the key
- * the chain will accept, and exports a proposal when you do not, which is the
- * normal path once a multisig that cannot hold a wallet session administers
- * these contracts.
+ * Signs when the connected wallet holds the required key, and exports a
+ * proposal otherwise, which is the path when a multisig administers these
+ * contracts.
  */
 export function Action({
     op,
     /** The address the chain requires, from storage. Ignored if permissionless. */
     holder,
-    /** Why this cannot be done right now, if it cannot. */
     unavailable,
 }: {
     op: AdminOp;
@@ -38,9 +36,7 @@ export function Action({
 
     const permissionless = op.authority === "anyone";
     const maySign = permissionless || (!!address && !!holder && address === holder);
-    // A KT1 cannot hold a wallet session, so when the required signer is a
-    // contract there is no account anyone could switch to. That is the only
-    // case where exporting the call is the answer rather than a curiosity.
+    // A KT1 cannot hold a wallet session, so a contract signer has no account to switch to.
     const holderIsContract = !!holder && holder.startsWith("KT1");
 
     async function send() {
@@ -154,8 +150,6 @@ export function Action({
                 )}
             </div>
 
-            {/* Say up front which key the chain will accept, rather than
-                letting a signature go out and come back rejected. */}
             {!maySign && holderIsContract && (
                 <p className="text-xs text-dim">
                     <Who holder={holder!} /> is a contract and cannot sign in a browser.

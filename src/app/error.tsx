@@ -7,20 +7,15 @@ import { ErrorArt } from "@/components/brand/ErrorArt";
 import { BRAND } from "@/lib/config";
 
 /**
- * When a page throws.
+ * When a page throws. Without this file React unmounts the tree and Next prints
+ * "Application error: a client-side exception has occurred".
  *
- * Without this file React unmounts the whole tree and Next prints
- * "Application error: a client-side exception has occurred", which tells a
- * visitor nothing and gives them nowhere to go.
- *
- * Every route here reads public chain state, so almost everything landing on
- * this screen is transient: an indexer that timed out, a gateway that was
- * slow, a network that dropped. Retrying is usually the whole fix, so it is
- * offered first.
+ * Every route here reads public chain state, so most of what lands on this
+ * screen is transient: a slow indexer, a slow gateway, a dropped network.
+ * Retrying is offered first.
  *
  * The piece behind the card is seeded by the digest, so one failure is one
- * picture: two people hitting the same bug see the same fracture, and fixing
- * it takes that piece out of the world.
+ * picture.
  */
 export default function Error({
     error,

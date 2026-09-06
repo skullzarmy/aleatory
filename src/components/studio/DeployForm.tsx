@@ -23,17 +23,13 @@ import { CoverPicker } from "./CoverPicker";
 import { publishCollection, type PublishResult, type PublishStage } from "@/lib/publish";
 
 /**
- * Deploy a collection.
+ * Deploy a collection. Everything here except the price and the edition size is
+ * permanent from the moment the collection exists, and the fields say so.
  *
- * Everything on this form except the price and the edition size is permanent
- * from the moment the collection exists, so the permanent fields say so, and
- * the royalty preview shows what each recipient will receive on a sale before
- * anything is signed.
- *
- * Given a draft, the generator comes from the studio rather than from a pointer
- * the artist types: the bytes that were checked are the bytes that get pinned.
- * Without one the form still accepts an `ipfs://` pointer, so a generator built
- * entirely outside this site can be published through it.
+ * Given a draft, the generator comes from the studio, so the bytes that were
+ * checked are the bytes that get pinned. Without one the form takes an
+ * `ipfs://` pointer, so a generator built outside this site can be published
+ * through it.
  */
 export function DeployForm({ providers, draft }: { providers: Provider[]; draft?: Draft }) {
     const { address, connect, getClient } = useWallet();
@@ -60,23 +56,18 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [stage, setStage] = useState<PublishStage | null>(null);
     const [error, setError] = useState<string | null>(null);
     // Recipients that will never be paid, shown once and deployed past on a
-    // second click. Cleared whenever a recipient changes, so an acknowledgement
-    // never carries over to an address it was not about.
+    // second click.
     const [royaltyWarnings, setRoyaltyWarnings] = useState<string[]>([]);
     const [acknowledged, setAcknowledged] = useState(false);
     const [checking, setChecking] = useState(false);
     const [done, setDone] = useState<PublishResult | null>(null);
 
     const provider = providers.find((p) => p.address === providerAddress);
-    // The cover renders through the same isolate as everything else, so it
-    // needs the same libraries the generator does.
     /**
-     * Where a shared royalty goes: the marketplace's treasury.
-     *
-     * The marketplace contract itself was used here, and it cannot receive a
-     * plain transfer. Now that a sale pays each royalty share in the same
-     * operation, naming it would have made every sale of the collection
-     * revert, permanently, because the royalty map has no setter.
+     * Where a shared royalty goes: the marketplace's treasury, never the
+     * marketplace contract, which cannot receive a plain transfer. A sale pays
+     * each royalty share in the same operation, and the royalty map has no
+     * setter, so an address that cannot be paid is permanent.
      */
     const [platformAddress, setPlatformAddress] = useState("");
     useEffect(() => {
@@ -98,10 +89,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         if (address) {
             const platform = platformShare ? parseFloat(platformPercent) || 0 : 0;
             recipients.push({ address, percent: 100 - platform });
-            // Only when it is actually known. Falling back to the artist's
-            // own address made a share they meant to give us go to
-            // themselves, written into a map with no setter, with every
-            // number on screen still looking right.
+            // Only when it is known. There is no fallback, because the wrong
+            // address here is written into a map with no setter.
             if (platform > 0 && platformAddress) {
                 recipients.push({ address: platformAddress, percent: platform });
             }
@@ -111,16 +100,15 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
     const preview = useMemo(() => royaltyPreview(split), [split]);
 
-    // Read from the document, which is where the declaration lives. This form
-    // shows what is about to be written on chain, so it reads the same source
-    // the publish path does.
+    // The same source the publish path reads, so the form shows what is about
+    // to be written on chain.
     const declared = useMemo(
         () => (draft ? (detectParams(draft.html)?.params ?? []) : []),
         [draft],
     );
 
-    // A new set of recipients is a new question. Without this, acknowledging a
-    // warning about one address would deploy past an unchecked different one.
+    // A new set of recipients is a new question, or acknowledging a warning
+    // about one address deploys past an unchecked different one.
     const recipientKey = split.recipients.map((r) => r.address).join(",");
     useEffect(() => {
         setRoyaltyWarnings([]);
@@ -128,11 +116,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     }, [recipientKey]);
 
     /**
-     * Everything that has to be true before a wallet is opened.
-     *
-     * Checked here rather than left to the contract, because a rejected
-     * operation still costs an artist a signature and a confusing failure,
-     * and every one of these is knowable beforehand.
+     * Everything that has to be true before a wallet is opened. All of it is
+     * knowable here, and a rejected operation still costs a signature.
      */
     function problem(): string | null {
         if (!address) return "Connect a wallet first.";
@@ -170,17 +155,13 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     /**
      * What each royalty recipient will actually receive.
      *
-     * The marketplace pays every share inside the sale and asks first, so a
-     * recipient that cannot take a plain transfer is skipped and its share
-     * goes to the seller. That keeps the collection sellable. It also means
-     * the address is never paid, on any sale, and `royalties` has no setter,
-     * so nothing after this can put it right. This form is the last moment
-     * the address is editable, which is why it is asked here.
+     * The marketplace asks before it pays, so a recipient that cannot take a
+     * plain transfer is skipped and its share goes to the seller. `royalties`
+     * has no setter, so this form is the last moment the address is editable.
      *
-     * ALEATORY-001 section 1 puts this on any front end that originates
-     * collections. A recipient whose entrypoint accepts the transfer and then
-     * throws is the one case the contract cannot survive, and it is the one
-     * the simulation exists to catch.
+     * ALEATORY-001 §1 puts this on any front end that originates collections. A
+     * recipient whose entrypoint accepts the transfer and then throws is the
+     * case the contract cannot survive, and what the simulation catches.
      */
     async function royaltyProblems(): Promise<{ fatal: string[]; warnings: string[] }> {
         const fatal: string[] = [];
@@ -224,10 +205,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             setError(bad);
             return;
         }
-        // Checked once. A recipient that reverts a sale stops this outright; a
-        // recipient that will silently never be paid is shown and the artist
-        // decides, because they may know something about the address that we
-        // cannot see from here.
+        // Checked once. A recipient that reverts a sale stops this outright.
+        // One that will never be paid is shown, and the artist decides.
         if (!acknowledged) {
             setChecking(true);
             const { fatal, warnings } = await royaltyProblems();
@@ -246,9 +225,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             setAcknowledged(true);
         }
         if (!draft) {
-            // Publishing a pointer someone else pinned is a different flow:
-            // there are no bytes here to hash, so the guarantee that chain
-            // state matches the document cannot be made from this page.
+            // No bytes here to hash, so chain state cannot be tied to the
+            // document from this page.
             setError("Open your generator in the studio to publish it.");
             return;
         }
@@ -658,11 +636,8 @@ function Fact({ label, value, href }: { label: string; value: string; href?: str
 }
 
 /**
- * A labelled field.
- *
- * The id is generated here and handed to the child, so every input this wraps
- * is labelled without each call site remembering to. A label beside an input
- * with no `htmlFor` announces nothing and does not focus the field.
+ * A labelled field. The id is generated here and handed to the child, so every
+ * input this wraps is labelled without each call site remembering to.
  */
 function Field({
     label,
@@ -678,8 +653,7 @@ function Field({
     const id = useId();
     const hintId = hint ? `${id}-hint` : undefined;
 
-    // The child is the control. Give it the id the label points at, and the
-    // hint as its description, unless the call site set them itself.
+    // The child is the control, unless the call site set these itself.
     const control = isValidElement(children)
         ? cloneElement(children as ReactElement<Record<string, unknown>>, {
               id: (children.props as { id?: string }).id ?? id,

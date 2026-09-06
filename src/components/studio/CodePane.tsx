@@ -8,15 +8,11 @@ import { Upload } from "lucide-react";
 import { packageFromFile } from "@/lib/project";
 
 /**
- * The generator, open, on the left.
+ * The generator, open, on the left. Typing in it redraws the piece.
  *
- * The document is the work, so the document is on screen and typing in it
- * redraws the piece.
- *
- * Edits are debounced rather than applied per keystroke. A generator is a whole
- * document and half-typed HTML is not valid HTML, so redrawing on every
- * character means the preview spends most of its time showing the consequences
- * of an unfinished tag.
+ * Edits are debounced, because a generator is a whole document and half-typed
+ * HTML is not valid HTML, so redrawing per keystroke shows the preview mostly
+ * unfinished tags.
  *
  * Local text only. Nothing here is uploaded and nothing here is fetched.
  */

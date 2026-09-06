@@ -28,15 +28,8 @@ function Mail() {
     );
 }
 
-/**
- * What we collect, said plainly.
- *
- * Written against what the code actually does rather than against a template.
- * The third-party list is the CSP's `connect-src` and `img-src` read back as
- * prose: every host the browser is permitted to reach is a host that sees the
- * visitor's IP address, and a policy that omits them is inaccurate no matter
- * how carefully the rest is worded.
- */
+// The third-party list mirrors the CSP's connect-src and img-src hosts: every host the
+// browser is allowed to reach sees the visitor's IP address.
 export default function PrivacyPage() {
     return (
         <div className="mx-auto max-w-2xl px-4 py-12">

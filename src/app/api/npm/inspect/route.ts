@@ -1,20 +1,17 @@
 import { ID, OutOfTime, VERSION, resolve } from "@/lib/npm";
 
 /**
- * One package, turned into something declarable.
+ * One package, turned into something declarable: whether a script tag can load
+ * it, what it puts on `window`, how large it is, and what to declare instead
+ * when the version asked for will not do. Read from jsDelivr's listings and the
+ * builds themselves, and nothing is executed.
  *
- * Whether a script tag can load it, what it puts on `window`, how large it is,
- * and what to declare instead when the version asked for will not do: another
- * file in the same version, or the newest version that still ships a global
- * build. Read from jsDelivr's listings and the builds themselves. Nothing is
- * executed: see the note at the top of `lib/npm.ts`.
+ * One call answers the whole question, so a client needs no knowledge of the
+ * fallback order.
  *
- * One call answers the whole question, because the alternative is a client that
- * has to know the fallback order and three round trips to walk it.
- *
- * No `revalidate` export. This reads the query string, so it is dynamic
- * whatever that said, and the caching that actually happens is the header
- * below. A pinned version cannot change what it is, so the answer is immutable.
+ * No `revalidate` export: this reads the query string, so it is dynamic, and
+ * the header below is the caching that happens. A pinned version cannot change
+ * what it is, so the answer is immutable.
  */
 export async function GET(request: Request) {
     const q = new URL(request.url).searchParams;
