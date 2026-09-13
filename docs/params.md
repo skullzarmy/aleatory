@@ -22,7 +22,7 @@ The five-parameter ceiling is kept. Not for storage reasons; because a collector
 
 ## 2. The declaration
 
-JSON, written under the collection's `aleatory:params` metadata key when a generator declares anything. One key, one place to read it, which is what §5 is for.
+JSON, written under the generator's `aleatory:params` metadata key when a generator declares anything. One key, one place to read it, which is what §5 is for.
 
 **A generator declares its own parameters, in the file.** The studio reads that declaration when the file is uploaded and seeds the params panel with it, so an artist who already wrote their ranges down does not type them a second time and is not punished for a typo in the retyping. Four forms are read:
 
@@ -124,7 +124,7 @@ carries the declaration; its storage carries the code.
 
 | What | Where |
 |---|---|
-| The declaration | the collection's `aleatory:params` metadata key |
+| The declaration | the generator's `aleatory:params` metadata key |
 | The resolution rule | this document, §3. It is the same for every generator. |
 | One piece's values | the `mint` operation that created it, and `aleaParams` in that token's metadata JSON |
 
@@ -137,7 +137,7 @@ absent key and an empty declaration never both have to mean the same thing.
 
 The whole point. Given a generator contract address:
 
-1. Read the collection's metadata big_map and take `aleatory:params`. Absent means the generator has no parameters: mint as normal.
+1. Read the generator's metadata big_map and take `aleatory:params`. Absent means the generator has no parameters: mint as normal.
 2. Render one control per entry, per the table in §2. Use `label` above it and `hint` below it. Start at `default`.
 3. Resolve what the user set, per §3.
 4. Preview by rendering the generator's code with the resolved values, see §6.

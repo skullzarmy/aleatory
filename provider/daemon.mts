@@ -3,7 +3,7 @@
  *
  *   npm run provider:daemon
  *
- * It watches the chain for pieces holding their collection's pending document
+ * It watches the chain for pieces holding their generator's pending document
  * and renders them.
  *
  * Polling, because the queue rule is a comparison against chain state and not
@@ -15,7 +15,7 @@ import dotenv from "dotenv";
 import { createServer } from "node:http";
 dotenv.config();
 
-const { collectionsServed, pendingIn, handle } = await import("./provider.mts");
+const { generatorsServed, pendingIn, handle } = await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
 
 /** How often to look when there is nothing to do. */
@@ -112,7 +112,7 @@ function listen(bind: string, port: number) {
         lastTapAt = now;
         res.writeHead(202).end();
 
-        // A tap does not clear the collection-list interval below, which would
+        // A tap does not clear the generator-list interval below, which would
         // let a stranger pick how often this runs its heaviest query.
         log("tapped, looking early");
         wake?.();
@@ -148,21 +148,21 @@ while (!stopping) {
     try {
         // Rescanning this every tick is most of the work here.
         if (Date.now() - servedAt > 60_000) {
-            served = await collectionsServed();
+            served = await generatorsServed();
             servedAt = Date.now();
         }
 
         let published = 0;
-        for (const collection of served) {
+        for (const generator of served) {
             if (stopping) break;
-            const waiting = await pendingIn(collection).catch((e: unknown) => {
-                log(`scan ${collection}: ${e instanceof Error ? e.message : e}`);
+            const waiting = await pendingIn(generator).catch((e: unknown) => {
+                log(`scan ${generator}: ${e instanceof Error ? e.message : e}`);
                 return [];
             });
 
             for (const piece of waiting) {
                 if (stopping) break;
-                log(`rendering ${piece.collection} #${piece.tokenId}`);
+                log(`rendering ${piece.generator} #${piece.tokenId}`);
                 try {
                     const hash = await handle(piece);
                     published++;
@@ -176,7 +176,7 @@ while (!stopping) {
         }
 
         backoff = BACKOFF_MIN_MS;
-        // Straight back round when there was work, so a busy collection does
+        // Straight back round when there was work, so a busy generator does
         // not wait a full interval between pieces.
         await sleep(published > 0 ? 1_000 : IDLE_MS);
     } catch (e) {

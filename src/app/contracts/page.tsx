@@ -22,7 +22,7 @@ export default function ContractsPage() {
             <h1 className="text-xl font-semibold tracking-tight">Contracts</h1>
             <p className="mt-2 text-sm text-muted-foreground">
                 Everything this platform runs on, read from the router in your browser and linked to
-                a block explorer. Retired contracts are listed too: a collection an old factory made
+                a block explorer. Retired contracts are listed too: a generator an old factory made
                 is still owned by the artist who made it, and an old marketplace still holds the
                 offers escrowed on it.
             </p>

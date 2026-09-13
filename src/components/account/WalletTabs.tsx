@@ -1,12 +1,12 @@
 "use client";
 
 import { FeedGrid } from "@/components/feed/FeedGrid";
-import { CollectionGrid } from "@/components/collection/CollectionCard";
+import { GeneratorGrid } from "@/components/generator/GeneratorCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { FeedPiece } from "@/lib/feed";
-import type { CollectionSummary } from "@/lib/collection";
+import type { GeneratorSummary } from "@/lib/generator";
 
-export function WalletTabs({ made, held }: { made: CollectionSummary[]; held: FeedPiece[] }) {
+export function WalletTabs({ made, held }: { made: GeneratorSummary[]; held: FeedPiece[] }) {
     // "Created" leads by default, but only when there's something to show there.
     const first = made.length > 0 ? "created" : "collected";
 
@@ -26,10 +26,10 @@ export function WalletTabs({ made, held }: { made: CollectionSummary[]; held: Fe
             <TabsContent value="created">
                 {made.length === 0 ? (
                     <p className="py-6 text-sm text-muted-foreground">
-                        No collections published from this address.
+                        No generators published from this address.
                     </p>
                 ) : (
-                    <CollectionGrid collections={made} />
+                    <GeneratorGrid generators={made} />
                 )}
             </TabsContent>
 

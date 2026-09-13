@@ -11,7 +11,7 @@
  * asked to sign.
  */
 import type { DAppClient } from "@tezos-x/octez.connect-sdk";
-import { deployCollection } from "./ops";
+import { deployGenerator } from "./ops";
 import { buildPendingDocument, royaltiesToBps, type RoyaltySplit } from "@provider/metadata";
 import { detectParams } from "./detect";
 import { schemaForRecord } from "./params";
@@ -46,7 +46,7 @@ async function gzip(bytes: Uint8Array): Promise<Uint8Array> {
 
 export interface PublishInput {
     draft: Draft;
-    /** The collection name, which is also each piece's name stem. */
+    /** The generator name, which is also each piece's name stem. */
     name: string;
     description: string;
     artist: string;
@@ -61,7 +61,7 @@ export interface PublishInput {
     /** Shown on a piece until its own render is published. */
     placeholderImageUri?: string;
     /**
-     * The collection cover: a flat PNG captured in the studio and pinned.
+     * The generator cover: a flat PNG captured in the studio and pinned.
      * Goes into TZIP-016 metadata, which is what an external marketplace
      * reads, and the artist can replace it later with `set_metadata`.
      */
@@ -104,7 +104,7 @@ async function pin(body: unknown): Promise<string> {
     return json.uri;
 }
 
-export async function publishCollection(
+export async function publishGenerator(
     client: DAppClient,
     input: PublishInput,
     onStage?: (stage: PublishStage) => void,
@@ -121,7 +121,7 @@ export async function publishCollection(
     let codeEncoding: "identity" | "gzip" = "identity";
 
     // Identity by default, so the bytes can be read straight off the chain.
-    // Compressed only when the generator would not otherwise fit one operation.
+    // Compressed only when the source would not otherwise fit one operation.
     if (raw.length > MAX_INLINE_CODE_BYTES) {
         codeBytes = await gzip(raw);
         codeEncoding = "gzip";
@@ -134,7 +134,7 @@ export async function publishCollection(
         // and carries the dependency a smaller one does not.
         onStage?.("pinning-metadata");
         codeUri = await pin({
-            kind: "generator",
+            kind: "source",
             content: draft.html,
             name: `${input.name || "generator"}.html`,
         });
@@ -143,12 +143,12 @@ export async function publishCollection(
     onStage?.("pinning-metadata");
     // Every piece mints carrying this document and a provider replaces it with
     // the piece's own. The comparison against it is the provider's work queue,
-    // so it has to be one stable pointer for the collection.
+    // so it has to be one stable pointer for the generator.
     const pendingMetadataUri = await pin({
         kind: "document",
         name: "pending.json",
         content: buildPendingDocument({
-            collectionName: input.name,
+            generatorName: input.name,
             description: input.description,
             artist: input.artist,
             placeholderImageUri: input.placeholderImageUri ?? input.coverUri ?? "",
@@ -159,7 +159,7 @@ export async function publishCollection(
     onStage?.("signing");
     const schema = schemaForRecord(detectParams(draft.html)?.params ?? []);
 
-    // What this generator expects a renderer to load, recorded on chain because
+    // What this source expects a renderer to load, recorded on chain because
     // a renderer knows nothing about our catalog. Id, version and package path
     // resolve it from any registry mirror; the hash makes the answer checkable.
     const libraries = getKind(draft.kindId).deps.map((d) => ({
@@ -169,7 +169,7 @@ export async function publishCollection(
         hash: d.hash,
     }));
 
-    const result = await deployCollection(client, {
+    const result = await deployGenerator(client, {
         codeHex: tooLarge ? "" : toHex(codeBytes),
         codeEncoding,
         codeHashHex,

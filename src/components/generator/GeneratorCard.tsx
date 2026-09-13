@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { shortAddress, timeAgoShort } from "@/lib/utils";
-import type { CollectionSummary } from "@/lib/collection";
+import type { GeneratorSummary } from "@/lib/generator";
 
-export function CollectionCard({ collection: c }: { collection: CollectionSummary }) {
+export function GeneratorCard({ generator: c }: { generator: GeneratorSummary }) {
     const soldOut = c.editionSize > 0 && c.minted >= c.editionSize;
 
     return (
         <Link
-            href={`/collection/${c.address}`}
+            href={`/generator/${c.address}`}
             className="group block overflow-hidden rounded-lg border border-border transition-colors hover:border-foreground/30"
         >
             <div className="relative aspect-square overflow-hidden bg-muted">
@@ -51,12 +51,12 @@ export function CollectionCard({ collection: c }: { collection: CollectionSummar
 }
 
 // Grid layout matches FeedGrid, so the two tabs line up.
-export function CollectionGrid({ collections }: { collections: CollectionSummary[] }) {
+export function GeneratorGrid({ generators }: { generators: GeneratorSummary[] }) {
     return (
         <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {collections.map((c) => (
+            {generators.map((c) => (
                 <li key={c.address}>
-                    <CollectionCard collection={c} />
+                    <GeneratorCard generator={c} />
                 </li>
             ))}
         </ul>

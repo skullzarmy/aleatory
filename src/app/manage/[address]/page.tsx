@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
-import { fetchCollection, type Collection } from "@/lib/collection";
+import { fetchGenerator, type Generator } from "@/lib/generator";
 import { fetchProviders, type Provider } from "@/lib/providers";
 import { tzktLink } from "@/lib/config";
 import { AccountLink } from "@/components/account/AccountLink";
@@ -13,16 +13,16 @@ import { setEditionSize, setPaused, setPrice, setProvider, setTrustResolver } fr
 // Every control writes to the contract, then re-reads the chain rather than assuming
 // the write landed. The contract enforces its own rules here too: edition size only
 // shrinks, and a provider whose price moved above the ceiling fails the call.
-export default function ManageCollectionPage({ params }: { params: Promise<{ address: string }> }) {
+export default function ManageGeneratorPage({ params }: { params: Promise<{ address: string }> }) {
     const { address: contract } = use(params);
     const { address: wallet, getClient, connect } = useWallet();
-    const [collection, setCollection] = useState<Collection | null | undefined>(undefined);
+    const [generator, setGenerator] = useState<Generator | null | undefined>(undefined);
     const [providers, setProviders] = useState<Provider[]>([]);
     const [busy, setBusy] = useState<string | null>(null);
     const [note, setNote] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
 
     const reload = useCallback(async () => {
-        setCollection(await fetchCollection(contract).catch(() => null));
+        setGenerator(await fetchGenerator(contract).catch(() => null));
     }, [contract]);
 
     useEffect(() => {
@@ -54,25 +54,25 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
         }
     }
 
-    if (collection === undefined) {
+    if (generator === undefined) {
         return (
             <p className="mx-auto max-w-2xl px-4 py-8 text-sm text-muted-foreground">Loading…</p>
         );
     }
 
-    if (collection === null) {
+    if (generator === null) {
         return (
             <div className="mx-auto max-w-md px-4 py-16 text-center">
-                <h1 className="text-lg font-semibold">No collection there</h1>
+                <h1 className="text-lg font-semibold">No generator there</h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                    {shortAddress(contract)} is not an Aleatory collection, or it was published
+                    {shortAddress(contract)} is not an Aleatory generator, or it was published
                     moments ago and has not appeared yet.
                 </p>
             </div>
         );
     }
 
-    const isArtist = wallet !== null && wallet === collection.artist;
+    const isArtist = wallet !== null && wallet === generator.artist;
 
     return (
         <div className="mx-auto max-w-2xl px-4 py-8">
@@ -80,32 +80,32 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                 href="/manage"
                 className="text-xs text-muted-foreground underline hover:text-foreground"
             >
-                All your collections
+                All your generators
             </Link>
 
             <header className="mt-3 flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
                     <h1 className="truncate text-xl font-semibold tracking-tight">
-                        {collection.name || shortAddress(collection.address)}
+                        {generator.name || shortAddress(generator.address)}
                     </h1>
                     <p className="mt-1 text-xs text-muted-foreground">
                         <a
-                            href={tzktLink(collection.address)}
+                            href={tzktLink(generator.address)}
                             target="_blank"
                             rel="noreferrer"
                             className="underline hover:text-foreground"
                         >
-                            {shortAddress(collection.address)}
+                            {shortAddress(generator.address)}
                         </a>
                         {" · "}
-                        {collection.minted} minted
-                        {collection.editionSize > 0
-                            ? ` of ${collection.editionSize}`
+                        {generator.minted} minted
+                        {generator.editionSize > 0
+                            ? ` of ${generator.editionSize}`
                             : ", open edition"}
                     </p>
                 </div>
                 <Link
-                    href={`/collection/${collection.address}`}
+                    href={`/generator/${generator.address}`}
                     className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
                 >
                     View public page
@@ -115,8 +115,8 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
             {!isArtist && (
                 <p className="mt-6 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
                     {wallet
-                        ? `This collection belongs to ${shortAddress(collection.artist)}. Connect that wallet to make changes.`
-                        : "Connect the wallet that owns this collection to make changes."}
+                        ? `This generator belongs to ${shortAddress(generator.artist)}. Connect that wallet to make changes.`
+                        : "Connect the wallet that owns this generator to make changes."}
                     {!wallet && (
                         <button
                             type="button"
@@ -145,9 +145,9 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                 <Control
                     title="Sale"
                     detail={
-                        collection.soldOut
+                        generator.soldOut
                             ? "This edition has sold out."
-                            : collection.paused
+                            : generator.paused
                               ? "Nobody can mint while this is paused."
                               : "Open for minting."
                     }
@@ -156,19 +156,19 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                         type="button"
                         onClick={() =>
                             void run("pause", (c) =>
-                                setPaused(c, collection.address, !collection.paused),
+                                setPaused(c, generator.address, !generator.paused),
                             )
                         }
                         className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-60"
                     >
-                        {busy === "pause" ? "Signing…" : collection.paused ? "Resume" : "Pause"}
+                        {busy === "pause" ? "Signing…" : generator.paused ? "Resume" : "Pause"}
                     </button>
                 </Control>
 
                 <ValueControl
                     title="Price"
                     detail="What a collector pays, before render costs."
-                    initial={formatTez(Number(collection.priceMutez))}
+                    initial={formatTez(Number(generator.priceMutez))}
                     suffix="ꜩ"
                     busy={busy === "price"}
                     onSubmit={(raw) => {
@@ -177,16 +177,16 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                             setNote({ kind: "bad", text: "That price does not look right." });
                             return;
                         }
-                        void run("price", (c) => setPrice(c, collection.address, mutez));
+                        void run("price", (c) => setPrice(c, generator.address, mutez));
                     }}
                 />
 
                 <ValueControl
                     title="Edition size"
                     detail={`Currently ${
-                        collection.editionSize === 0 ? "open" : collection.editionSize
-                    }. It can shrink to as low as ${collection.minted} minted, and can never grow.`}
-                    initial={String(collection.editionSize)}
+                        generator.editionSize === 0 ? "open" : generator.editionSize
+                    }. It can shrink to as low as ${generator.minted} minted, and can never grow.`}
+                    initial={String(generator.editionSize)}
                     busy={busy === "edition"}
                     onSubmit={(raw) => {
                         const size = Number.parseInt(raw, 10);
@@ -197,22 +197,22 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                             });
                             return;
                         }
-                        void run("edition", (c) => setEditionSize(c, collection.address, size));
+                        void run("edition", (c) => setEditionSize(c, generator.address, size));
                     }}
                 />
 
-                {!collection.providerReachable && (
+                {!generator.providerReachable && (
                     <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
                         Your render provider is not answering. A mint asks them what they charge, so
-                        nobody can buy from this collection until you switch to one that does. Your
+                        nobody can buy from this generator until you switch to one that does. Your
                         price and everything else are untouched.
                     </p>
                 )}
 
                 <Control
                     title="Render provider"
-                    detail={`${shortAddress(collection.provider)}, ${formatTez(
-                        Number(collection.renderGasMutez),
+                    detail={`${shortAddress(generator.provider)}, ${formatTez(
+                        Number(generator.renderGasMutez),
                     )} ꜩ per piece, which is what they charge today. A mint pays their price at the time. Switch at any time.`}
                 >
                     <select
@@ -223,7 +223,7 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                             void run("provider", (c) =>
                                 setProvider(
                                     c,
-                                    collection.address,
+                                    generator.address,
                                     next.address,
                                     BigInt(next.renderGasMutez),
                                 ),
@@ -233,7 +233,7 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                     >
                         <option value="">{busy === "provider" ? "Signing…" : "Switch to…"}</option>
                         {providers
-                            .filter((p) => p.address !== collection.provider)
+                            .filter((p) => p.address !== generator.provider)
                             .map((p) => (
                                 <option key={p.address} value={p.address}>
                                     {p.name || shortAddress(p.address)} —{" "}
@@ -246,8 +246,8 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                 <Control
                     title="Let Aleatory publish your images"
                     detail={
-                        collection.trustResolver
-                            ? `On. Writers authorised by the resolver at ${shortAddress(collection.resolver)} may publish metadata for your unrevealed pieces, which is what lets a provider work without further setup.`
+                        generator.trustResolver
+                            ? `On. Writers authorised by the resolver at ${shortAddress(generator.resolver)} may publish metadata for your unrevealed pieces, which is what lets a provider work without further setup.`
                             : "Off. Only your chosen provider's agent may publish metadata here."
                     }
                 >
@@ -255,14 +255,14 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                         type="button"
                         onClick={() =>
                             void run("trust", (c) =>
-                                setTrustResolver(c, collection.address, !collection.trustResolver),
+                                setTrustResolver(c, generator.address, !generator.trustResolver),
                             )
                         }
                         className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-60"
                     >
                         {busy === "trust"
                             ? "Signing…"
-                            : collection.trustResolver
+                            : generator.trustResolver
                               ? "Turn off"
                               : "Turn on"}
                     </button>
@@ -275,15 +275,15 @@ export default function ManageCollectionPage({ params }: { params: Promise<{ add
                     Set when you published. These can never be changed.
                 </p>
                 <dl className="mt-3 divide-y divide-border rounded-lg border border-border text-sm">
-                    <Row label="Generator" value={collection.codeUri} mono />
-                    <Row label="Code hash" value={collection.codeHash} mono />
+                    <Row label="Source" value={generator.codeUri} mono />
+                    <Row label="Code hash" value={generator.codeHash} mono />
                     <Row
                         label="Royalty"
-                        value={`${(collection.royaltyTotalBps / 100).toFixed(2)}% across ${
-                            collection.royalties.length
-                        } recipient${collection.royalties.length === 1 ? "" : "s"}`}
+                        value={`${(generator.royaltyTotalBps / 100).toFixed(2)}% across ${
+                            generator.royalties.length
+                        } recipient${generator.royalties.length === 1 ? "" : "s"}`}
                     />
-                    <Row label="Owner" value={<AccountLink address={collection.artist} />} />
+                    <Row label="Owner" value={<AccountLink address={generator.artist} />} />
                 </dl>
             </section>
         </div>

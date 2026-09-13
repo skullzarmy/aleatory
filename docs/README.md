@@ -20,7 +20,7 @@ Downloadable starting points, and the local loop, are in
 
 | | |
 |---|---|
-| [interface.md](interface.md) | **ALEATORY-001.** The interface a conforming collection implements. Normative, and written so it can be built against without this source. |
+| [interface.md](interface.md) | **ALEATORY-001.** the interface a conforming generator implements. Normative, and written so it can be built against without this source. |
 | [architecture.md](architecture.md) | How the pieces fit and why each is shaped that way. The reasoning behind the spec, including what this deliberately does not do. |
 
 ## If you are running infrastructure

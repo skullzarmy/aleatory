@@ -46,9 +46,9 @@ export default function AboutPage() {
                     test. It is a type check, not an endorsement, and we cannot refuse anyone.
                 </p>
                 <p>
-                    You choose yours when you publish, and your collection records it. We run one
-                    and it is not privileged. If ours went away, or we decided we disliked your
-                    work, another provider renders your collection and the pieces already minted are
+                    You choose yours when you publish, and your generator records it. We run one and
+                    it is not privileged. If ours went away, or we decided we disliked your work,
+                    another provider renders your generator and the pieces already minted are
                     untouched either way.
                 </p>
                 <p>
@@ -67,14 +67,14 @@ export default function AboutPage() {
                 <p>
                     Minting costs the artist&rsquo;s price, which goes to the artist, plus a small
                     fee to whoever renders the image. We take none of it. We earn 2.5% when a piece
-                    resells here and nothing before that. Royalties are paid by the collection
+                    resells here and nothing before that. Royalties are paid by the generator
                     itself, so a seller cannot cut the artist out.
                 </p>
             </Section>
 
             <Section title="Permission">
                 <p>
-                    None of it needs ours. Anyone can publish a collection, run a render provider,
+                    None of it needs ours. Anyone can publish a generator, run a render provider,
                     trade, or run this whole system themselves. What you publish is yours and we
                     cannot touch it.
                 </p>
@@ -95,7 +95,7 @@ export default function AboutPage() {
 
             <Section title="If this site disappears">
                 <p>
-                    Your collection is a contract on Tezos and your piece is a token in it, with the
+                    Your generator is a contract on Tezos and your piece is a token in it, with the
                     code stored right there alongside. Anyone can build a site that reads{" "}
                     <Link href="/docs/interface" className="underline hover:text-foreground">
                         ALEATORY-001

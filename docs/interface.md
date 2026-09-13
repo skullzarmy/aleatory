@@ -1,6 +1,6 @@
 # ALEATORY-001
 
-The interface. Conform to this and your collection is rendered by any
+The interface. Conform to this and your generator is rendered by any
 provider, traded on any Aleatory market, and indexed by anything that reads
 this document.
 
@@ -9,9 +9,9 @@ against.
 
 ---
 
-## 1. What a collection is
+## 1. What a generator is
 
-A standard FA2 (TZIP-012) contract holding one generator and its edition.
+A standard FA2 (TZIP-012) contract holding one artwork's source and its edition.
 Beyond FA2 it exposes one entrypoint and one view, emits two events, and
 follows one rule about token metadata.
 
@@ -19,7 +19,7 @@ Declare conformance in TZIP-016 contract metadata so an indexer can find you:
 
 ```json
 {
-  "name": "Your collection",
+  "name": "Your generator",
   "interfaces": ["TZIP-012", "TZIP-016", "ALEATORY-001"]
 }
 ```
@@ -38,27 +38,27 @@ the generator declares none (§8 of [params.md](params.md)). The amount must
 cover the price and the render gas together.
 
 It is called `mint` because it mints. `buy` is the marketplace verb, for a
-token that already exists, and a collection that names its creation path
+token that already exists, and a generator that names its creation path
 `buy` will be read wrong by everyone who has used any other Tezos contract.
 
-### The generator
+### The source
 
 Four immutable fields, and none has a setter anywhere:
 
 | field | meaning |
 |---|---|
-| `code` | the generator itself, a self-contained HTML document, as `bytes` |
+| `code` | the source itself, a self-contained HTML document, as `bytes` |
 | `code_encoding` | `identity` or `gzip` |
 | `code_hash` | **SHA-256** of the DECODED source, raw, as `bytes` |
-| `code_uri` | `ipfs://` pointer, only for a generator past the operation cap |
+| `code_uri` | `ipfs://` pointer, only for source past the operation cap |
 
-**Exactly one of `code` and `code_uri` is set.** The generator belongs in
+**Exactly one of `code` and `code_uri` is set.** The source belongs in
 storage: a typical one is well under 10KB, which is about half a dollar of
 storage burn paid once by the artist, and a pointer costs less while being
 worth less. A gateway's content policy can change and the art stops resolving.
 
-`code_uri` exists because a protocol operation is capped at 32,768 bytes and a
-generator larger than that cannot be carried on chain. `gzip` buys roughly
+`code_uri` exists because a protocol operation is capped at 32,768 bytes and
+source larger than that cannot be carried on chain. `gzip` buys roughly
 2.5x before that limit bites.
 
 The hash covers the decoded source either way, so it verifies what actually
@@ -68,7 +68,7 @@ something other than what was published.
 ### Declared libraries
 
 "Self-contained" means the document carries everything it needs **except** the
-libraries it declares. A generator declares one with a meta tag:
+libraries it declares. A document declares one with a meta tag:
 
 ```html
 <meta name="alea:library" content="p5@1.5.0">
@@ -84,9 +84,9 @@ list, and a conforming renderer needs no knowledge of a library in advance:
 the record carries everything required to fetch it and to decide whether what
 arrived is right.
 
-The collection repeats the declaration in its metadata, under
+The generator repeats the declaration in its metadata, under
 `aleatory:libraries`, so a renderer can resolve a piece without parsing the
-generator first:
+source first:
 
 ```json
 [{ "id": "p5", "version": "1.5.0", "path": "lib/p5.min.js", "hash": "16f48a…" }]
@@ -110,7 +110,7 @@ publishing that as the piece is worse than publishing nothing.
 public registry, and the registry publishes its own integrity digest for the
 package, so anyone can check a recorded hash against a source that has no
 relationship to the platform the piece was minted on. Cache by hash, never by
-`id@version`: a generator declaring `p5@1.5.0` with different bytes must be
+`id@version`: a document declaring `p5@1.5.0` with different bytes must be
 able to harm only itself.
 
 A library that is not on a public registry has no independent authority behind
@@ -118,14 +118,14 @@ it, so it belongs inside the document.
 
 ### Royalty recipients must be payable
 
-**A front end that originates a collection must check that every royalty
-recipient can receive tez, before the collection exists.**
+**A front end that originates a generator must check that every royalty
+recipient can receive tez, before the generator exists.**
 
 A sale pays each share in the same operation. The marketplace only sends to
 an address that can take a plain transfer: an implicit account always can,
 and a contract only through a `default` entrypoint of type unit. A share it
 cannot deliver is skipped and goes to the seller, so one bad address never
-makes a collection unsellable. `royalties` has no setter, so a skipped
+makes a generator unsellable. `royalties` has no setter, so a skipped
 recipient forfeits that share on every sale, forever. A contract that
 accepts the transfer and then fails while handling it still reverts the
 sale.
@@ -151,11 +151,11 @@ thing for the person writing a generator.
 `token_info[""]` holds an `ipfs://` pointer to a JSON document, which is the
 ordinary Tezos arrangement.
 
-**Every token mints carrying the same document**, the collection's pending
+**Every token mints carrying the same document**, the generator's pending
 document. A provider replaces it, once, with that piece's own.
 
 **A piece needs rendering when its `token_info[""]` still equals the
-collection's pending document.** That single comparison is the whole work
+generator's pending document.** That single comparison is the whole work
 queue. It covers new mints, pieces missed while a provider was down, and
 pieces inherited when an artist switches provider, and it requires no state on
 the provider's side.
@@ -187,7 +187,7 @@ checking the result.
 
 ### `set_provider`
 
-Emitted when a collection chooses or changes its render provider.
+Emitted when a generator chooses or changes its render provider.
 
 | field | type | meaning |
 |---|---|---|
@@ -195,12 +195,12 @@ Emitted when a collection chooses or changes its render provider.
 | `agent` | address | the key that will publish metadata |
 | `render_gas` | mutez | the provider's price when they were chosen |
 
-A provider watches for its own address here to learn which collections it
+A provider watches for its own address here to learn which generators it
 serves.
 
 **Render gas is asked for, not remembered.** A mint reads the provider's
 `get_render_gas` view and pays what it answers, so a provider changing their
-price reaches every collection at once. The price in this event is what they
+price reaches every generator at once. The price in this event is what they
 charged when they were chosen, not what the next mint will cost.
 
 ---
@@ -213,14 +213,14 @@ One entrypoint, callable by an authorised writer:
 set_token_metadata(token_id: nat, metadata_uri: bytes)
 ```
 
-Rules a conforming collection enforces:
+Rules a conforming generator enforces:
 
 - Rewritable by an authorised writer. Refusing a second write means a publish
   whose confirmation was missed can never be corrected or retried, and the
   writer is already trusted with the whole document.
 - The URI cannot equal the pending document, which would leave the piece
   looking unrendered forever.
-- Authorisation is the collection's business. Ours accepts the provider's
+- Authorisation is the generator's business. Ours accepts the provider's
   current agent, an address the artist authorised directly, or one our
   resolver vouches for while the artist trusts it.
 
@@ -244,7 +244,7 @@ entry nobody could ever remove cannot be created. A contract answering the
 first two would otherwise list itself and stay listed for good, because
 deregistering has nothing to ask about who is allowed to do it.
 
-The contract has to be able to receive tez, since a collection pays it on
+The contract has to be able to receive tez, since a generator pays it on
 every mint.
 
 Advertise a push endpoint in your TZIP-016 metadata if you want mint UIs to
@@ -365,12 +365,12 @@ Everything a front end needs, from public chain data:
 
 | Question | Query |
 |---|---|
-| Which collections came from a factory | contracts where `creator` is the factory |
-| Which collections a provider serves | `set_provider` events naming its address |
+| Which generators came from a factory | contracts where `creator` is the factory |
+| Which generators a provider serves | `set_provider` events naming its address |
 | Which pieces need rendering | tokens whose `token_info[""]` is the pending document |
 | A piece's seed | the hash of the `mint` operation that created it |
 | A piece's parameters | the `params` field of that same event |
-| Who to pay on a sale | `get_royalties()` on the collection |
+| Who to pay on a sale | `get_royalties()` on the generator |
 | Every marketplace there has been | the router's storage history, `marketplace` at each state |
 
 No index held by anyone is required for any of it.
@@ -381,20 +381,20 @@ No index held by anyone is required for any of it.
 
 A renderer turns a minted piece into an image and writes that image to the
 token. Nothing here is privileged: the only step needing permission is the
-last, and the collection decides who has it.
+last, and the generator decides who has it.
 
 **1. Find the work.** A piece needs rendering when its `token_info[""]` still
-equals the collection's `art.pending_metadata`. One comparison, and it covers
+equals the generator's `art.pending_metadata`. One comparison, and it covers
 new mints, pieces missed while you were down, and pieces inherited from a
 provider an artist switched away from. It needs no state of your own.
 
-**2. Read the generator.** From the collection's storage: `art.code`, decoded
+**2. Read the source.** From the generator's storage: `art.code`, decoded
 per `art.code_encoding`, which is `identity` or `gzip`. A generator past the
 operation cap has `art.code_uri` instead and empty `art.code`. Check the bytes
 against `art.code_hash`, which is SHA-256 of the decoded source.
 
 **3. Resolve declared libraries.** Read `aleatory:libraries` from the
-collection's metadata. Fetch each by its coordinates from any mirror, check
+generator's metadata. Fetch each by its coordinates from any mirror, check
 blake2b-256 against the recorded `hash`, and inline them ahead of the artist's
 code. **If a library will not resolve, do not draw.** A p5 sketch rendered
 without p5 is a blank frame, and writing that to a token is worse than writing
@@ -410,8 +410,8 @@ are not optional: they are what makes two renders of one seed agree.
 
 **6. Capture when the piece says so**, on `$alea.ready()`, and not on a timer.
 
-**7. Publish** with `set_token_metadata` on the collection. You may call it if
-the collection names you: its `render.provider_agent`, an address in
+**7. Publish** with `set_token_metadata` on the generator. You may call it if
+the generator names you: its `render.provider_agent`, an address in
 `render.local_writers`, or a key the resolver vouches for while
 `render.trust_resolver` is set. It is a plain write rather than write-once, so
 a piece rendered wrongly can be rendered again.
@@ -425,7 +425,7 @@ answer rather than a second opinion.
 A viewer is steps 2 through 6 without step 7, and it needs nobody's
 permission at all.
 
-Read the generator and its libraries exactly as a renderer does, install
+Read the source and its libraries exactly as a renderer does, install
 `$alea` with the same seed and parameters, make the same substitutions, and
 show the result live instead of capturing it.
 

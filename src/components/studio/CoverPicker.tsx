@@ -7,12 +7,12 @@ import type { ParamSpec } from "@/lib/params";
 import { resolveParams } from "@/lib/params";
 
 /**
- * The collection's cover: captured in the artist's browser, from the same
+ * The generator's cover: captured in the artist's browser, from the same
  * isolate that renders everything else, and pinned as a flat PNG. No provider
  * is involved, because a cover is marketing and not a token's image.
  *
  * Flat, and not a stored seed, because objkt will not run our isolate and a
- * list of collections cannot afford a live render per row. `set_metadata`
+ * list of generators cannot afford a live render per row. `set_metadata`
  * replaces it later, so the choice is not permanent.
  */
 
@@ -167,7 +167,7 @@ export function CoverPicker({
             )}
 
             <p className="text-xs text-muted-foreground">
-                Shown wherever your collection is listed. You can change it later.
+                Shown wherever your generator is listed. You can change it later.
             </p>
         </div>
     );

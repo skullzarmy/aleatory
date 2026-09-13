@@ -101,7 +101,7 @@ export function ConnectButton() {
                     <DropdownMenuItem asChild>
                         <Link href="/manage">
                             <Settings2 />
-                            Manage collections
+                            Manage generators
                         </Link>
                     </DropdownMenuItem>
 

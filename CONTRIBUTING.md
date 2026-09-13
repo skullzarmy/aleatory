@@ -27,7 +27,7 @@ what they do.
 
 **Running a piece needs two servers.** Artwork executes on its own origin under
 a policy that blocks the network, so anything that frames a generator, the
-studio, a piece page, a collection page, needs the isolate running too:
+studio, a piece page, a generator page, needs the isolate running too:
 
 ```
 npm run dev:all
@@ -107,15 +107,15 @@ Pull requests against `contract/` are welcome on the same terms as anything
 else. Four things make them different, and none of them are obvious from the
 code.
 
-**A collection's code is frozen at origination.** There is no upgrade path and
+**A generator's code is frozen at origination.** There is no upgrade path and
 no authority retained by anyone. A change reaches nothing already deployed,
 which is the price of the guarantee the platform is built on, and the reason
 the template stays boring.
 
-**Shipping one means a new factory.** The factory embeds the collection
+**Shipping one means a new factory.** The factory embeds the generator
 template, so changing the template means originating a new factory and pointing
 the router at it. The router keeps every factory it has ever named, because the
-collections a retired one made are still real collections owned by real
+generators a retired one made are still real generators owned by real
 artists.
 
 **The checks are not optional.**
@@ -131,7 +131,7 @@ encodes an origination from the contract's own schema, so a field left behind
 after a rename is dropped in silence and the deploy still succeeds.
 
 **The template is audited before it reaches mainnet.** A bug in it is frozen
-into every collection made from it, with no remedy.
+into every generator made from it, with no remedy.
 
 ---
 

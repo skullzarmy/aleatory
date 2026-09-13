@@ -112,7 +112,7 @@ against the digest jsDelivr publishes for that exact file, and bytes that do
 not match are refused instead of drawn. The digest of what did arrive is what
 gets recorded when you publish.
 
-**At publish.** The declaration is written into your collection's metadata
+**At publish.** The declaration is written into your generator's metadata
 alongside your code:
 
 ```json

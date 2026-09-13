@@ -6,7 +6,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useOffers } from "@/context/OffersContext";
 import { AccountLink } from "@/components/account/AccountLink";
 import { piecesFor, type FeedPiece } from "@/lib/feed";
-import { fetchRoyaltyBps } from "@/lib/collection";
+import { fetchRoyaltyBps } from "@/lib/generator";
 import { proceeds, type IncomingOffer, type Offer } from "@/lib/market";
 import { formatTez, shortAddress } from "@/lib/utils";
 import * as ops from "@/lib/ops";
@@ -20,7 +20,7 @@ import * as ops from "@/lib/ops";
  * so this needs no server and no account.
  */
 const keyOf = (o: Offer) => `${o.marketplace}:${o.id}`;
-const pairOf = (o: Offer) => `${o.collection}:${o.tokenId}`;
+const pairOf = (o: Offer) => `${o.generator}:${o.tokenId}`;
 
 export default function OffersPage() {
     const { address, connecting, restoring, connect, getClient } = useWallet();
@@ -50,15 +50,15 @@ export default function OffersPage() {
         [incoming, outgoing],
     );
 
-    // An offer carries a collection, a token id and a price, so what somebody
+    // An offer carries a generator, a token id and a price, so what somebody
     // is being asked to sell is a second read. One query for the whole page.
     useEffect(() => {
         const pairs = pairsKey
             .split(",")
             .filter(Boolean)
             .map((k) => {
-                const [collection, tokenId] = k.split(":");
-                return { collection, tokenId };
+                const [generator, tokenId] = k.split(":");
+                return { generator, tokenId };
             });
         if (pairs.length === 0) {
             setPieces(new Map());
@@ -77,17 +77,17 @@ export default function OffersPage() {
         };
     }, [pairsKey]);
 
-    // What each collection takes, so a row can say what accepting pays.
+    // What each generator takes, so a row can say what accepting pays.
     // `fetchRoyaltyBps` asks for the one field, not the whole storage record.
-    const collectionsKey = useMemo(
+    const generatorsKey = useMemo(
         () =>
-            [...new Set(incoming.map((o) => o.collection))]
+            [...new Set(incoming.map((o) => o.generator))]
                 .sort((a, b) => a.localeCompare(b))
                 .join(","),
         [incoming],
     );
     useEffect(() => {
-        const list = collectionsKey.split(",").filter(Boolean);
+        const list = generatorsKey.split(",").filter(Boolean);
         if (list.length === 0) return;
         let cancelled = false;
         void Promise.all(
@@ -98,7 +98,7 @@ export default function OffersPage() {
         return () => {
             cancelled = true;
         };
-    }, [collectionsKey]);
+    }, [generatorsKey]);
 
     // Refresh until the answer changes, capped. Same shape as PieceMarket: a
     // signature returns when the operation is injected, seconds before it is in
@@ -202,7 +202,7 @@ export default function OffersPage() {
                             key={keyOf(o)}
                             offer={o}
                             piece={pieces.get(pairOf(o))}
-                            royaltyBps={royalties.get(o.collection) ?? 0}
+                            royaltyBps={royalties.get(o.generator) ?? 0}
                             busy={busy === `accept-${keyOf(o)}`}
                             disabled={disabled}
                             onAccept={() =>
@@ -213,7 +213,7 @@ export default function OffersPage() {
                                     return o.listing
                                         ? ops.delistAndAcceptOffer(
                                               client,
-                                              o.collection,
+                                              o.generator,
                                               address,
                                               o.tokenId,
                                               o.listing.id,
@@ -223,7 +223,7 @@ export default function OffersPage() {
                                           )
                                         : ops.acceptOfferFor(
                                               client,
-                                              o.collection,
+                                              o.generator,
                                               address,
                                               o.tokenId,
                                               o.id,
@@ -351,7 +351,7 @@ function Row({
     piece?: FeedPiece;
     children: React.ReactNode;
 }) {
-    const href = `/piece/${offer.collection}/${offer.tokenId}`;
+    const href = `/piece/${offer.generator}/${offer.tokenId}`;
 
     return (
         <li className="flex gap-3 p-3 sm:gap-4 sm:p-4">
@@ -383,7 +383,7 @@ function Row({
                         {piece?.name || `#${Number(offer.tokenId) + 1}`}
                     </Link>
                     <p className="truncate text-xs text-muted-foreground">
-                        {piece?.collectionName || shortAddress(offer.collection)}
+                        {piece?.generatorName || shortAddress(offer.generator)}
                     </p>
                 </div>
 

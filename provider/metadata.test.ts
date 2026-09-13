@@ -1,7 +1,7 @@
 /**
  * Golden tests for the royalty encoder. These bytes get pinned and their CID
  * goes on chain permanently, so a mis-encoded royalty pays out wrong for the
- * life of the collection.
+ * life of the generator.
  *
  *   npx tsx provider/metadata.test.ts
  */
@@ -106,7 +106,7 @@ console.log("\npiece document");
 
 check("edition numbers display 1-based over 0-based token ids", () => {
     const doc = buildPieceDocument({
-        collectionName: "Drift",
+        generatorName: "Drift",
         artist: A,
         royalties: encodeRoyalties({
             totalPercent: 10,
@@ -123,7 +123,7 @@ check("edition numbers display 1-based over 0-based token ids", () => {
 
 check("parameters land in aleaParams and in attributes", () => {
     const doc = buildPieceDocument({
-        collectionName: "Drift",
+        generatorName: "Drift",
         artist: A,
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 41,

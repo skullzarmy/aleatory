@@ -1,5 +1,5 @@
 /**
- * A collection, read from its own storage.
+ * A generator, read from its own storage.
  */
 import {
     fetchStorage,
@@ -9,17 +9,17 @@ import {
     type TzktToken,
 } from "./tzkt";
 import {
-    fetchCollections,
-    fetchCollectionMeta,
+    fetchGenerators,
+    fetchGeneratorMeta,
     fetchEditionSizes,
-    type CollectionMeta,
+    type GeneratorMeta,
     indexerFetch,
 } from "./tzkt";
 
-export { fetchCollectionMeta, type CollectionMeta };
+export { fetchGeneratorMeta, type GeneratorMeta };
 import { tzktApi } from "./config";
 import { allFactories } from "./router";
-import { isBlockedCollection } from "./blocklist";
+import { isBlockedGenerator } from "./blocklist";
 import {
     bytesToString,
     convertIpfsToGatewayUrl,
@@ -52,12 +52,12 @@ interface RawStorage {
     metadata: number;
 }
 
-export interface Collection {
+export interface Generator {
     address: string;
     artist: string;
     name?: string;
     description?: string;
-    /** The generator source, decoded from storage. Empty when it is a pointer. */
+    /** The source, decoded from storage. Empty when it is a pointer. */
     code: string;
     codeUri: string;
     codeHash: string;
@@ -73,7 +73,7 @@ export interface Collection {
     /**
      * Whether the provider still answers. A mint asks them what they charge and
      * fails if they cannot say, so a provider that has gone takes the
-     * collection's sales with it until the artist picks another.
+     * generator's sales with it until the artist picks another.
      */
     providerReachable: boolean;
     /** Where writer authorisation is resolved from. Fixed at origination. */
@@ -82,7 +82,7 @@ export interface Collection {
     trustResolver: boolean;
     royalties: { address: string; bps: number }[];
     royaltyTotalBps: number;
-    /** Declared parameters, when the generator has any. */
+    /** Declared parameters, when the source declares any. */
     paramsSchema: ParamsSchema | null;
 }
 
@@ -97,7 +97,7 @@ async function fetchProviderGas(provider: string): Promise<bigint | null> {
     }
 }
 
-export async function fetchCollection(address: string): Promise<Collection | null> {
+export async function fetchGenerator(address: string): Promise<Generator | null> {
     const s = await fetchStorage<RawStorage>(address).catch(() => null);
     if (!s || !s.art) return null;
 
@@ -115,7 +115,7 @@ export async function fetchCollection(address: string): Promise<Collection | nul
         bps: parseInt(String(bps), 10),
     }));
 
-    const meta: CollectionMeta = await fetchCollectionMeta(address).catch(() => ({}));
+    const meta: GeneratorMeta = await fetchGeneratorMeta(address).catch(() => ({}));
 
     return {
         address,
@@ -125,7 +125,7 @@ export async function fetchCollection(address: string): Promise<Collection | nul
         artist: s.administrator,
         code: await decodeCode(s.art.code, s.art.code_encoding).catch(() => ""),
         // sp.string on chain, not sp.bytes, so it needs no decoding. Set only
-        // for a generator too large to carry on chain.
+        // for source too large to carry on chain.
         codeUri: s.art.code_uri,
         codeHash: s.art.code_hash,
         priceMutez: price,
@@ -145,8 +145,8 @@ export async function fetchCollection(address: string): Promise<Collection | nul
 }
 
 /**
- * A collection's total royalty, and nothing else. `fetchCollection` carries it
- * too, but pulls the whole storage record, and `art.code` is the generator: some
+ * A generator's total royalty, and nothing else. `fetchGenerator` carries it
+ * too, but pulls the whole storage record, and `art.code` is the source: some
  * fifty kilobytes for a number that fits in a word. TzKT's `path` selector
  * returns the one field.
  *
@@ -166,8 +166,8 @@ export async function fetchRoyaltyBps(address: string): Promise<number> {
 }
 
 /**
- * The parameter declaration, from the collection's own metadata, under its own
- * key so a mint UI reads one value and not a whole generator record. See
+ * The parameter declaration, from the generator's own metadata, under its own
+ * key so a mint UI reads one value and not the whole storage record. See
  * docs/params.md §4.
  */
 async function fetchParamsSchema(address: string): Promise<ParamsSchema | null> {
@@ -188,7 +188,7 @@ async function fetchParamsSchema(address: string): Promise<ParamsSchema | null> 
     }
 }
 
-export async function fetchCollectionPieces(address: string, limit = 48): Promise<FeedPiece[]> {
+export async function fetchGeneratorPieces(address: string, limit = 48): Promise<FeedPiece[]> {
     const tokens = await fetchRecentTokens([address], limit);
 
     // The chain's own pointers, for anything TzKT has not resolved. It fetches
@@ -220,7 +220,7 @@ export async function fetchCollectionPieces(address: string, limit = 48): Promis
             contract: address,
             tokenId: t.tokenId,
             name: m?.name || `#${Number(t.tokenId) + 1}`,
-            collectionName: t.contract.alias || "",
+            generatorName: t.contract.alias || "",
             artist: t.firstMinter?.address,
             mintedAt: t.firstTime,
             imageUrl: display ? ipfsImageUrl(display) : undefined,
@@ -230,13 +230,13 @@ export async function fetchCollectionPieces(address: string, limit = 48): Promis
     });
 }
 
-export interface CollectionSummary {
+export interface GeneratorSummary {
     address: string;
     name?: string;
     description?: string;
     /**
      * The cover the artist chose at deploy, or the newest rendered piece when a
-     * collection has none.
+     * generator has none.
      */
     coverUrl?: string;
     minted: number;
@@ -245,19 +245,19 @@ export interface CollectionSummary {
     firstActivity?: string;
 }
 
-export async function fetchAllCollections(): Promise<CollectionSummary[]> {
+export async function fetchAllGenerators(): Promise<GeneratorSummary[]> {
     const factories = await allFactories();
     if (factories.length === 0) return [];
-    const lists = await Promise.all(factories.map((f) => fetchCollections(f).catch(() => [])));
+    const lists = await Promise.all(factories.map((f) => fetchGenerators(f).catch(() => [])));
     const seen = new Set<string>();
     const rows = lists
         .flat()
         .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
-        .filter((c) => !isBlockedCollection(c.address));
+        .filter((c) => !isBlockedGenerator(c.address));
     const addresses = rows.map((c) => c.address);
     const [metas, covers, editions] = await Promise.all([
         Promise.all(
-            addresses.map((a): Promise<CollectionMeta> => fetchCollectionMeta(a).catch(() => ({}))),
+            addresses.map((a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({}))),
         ),
         coversFor(addresses).catch(() => new Map<string, string>()),
         fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
@@ -268,7 +268,7 @@ export async function fetchAllCollections(): Promise<CollectionSummary[]> {
         // `alias` is TzKT's, set for contracts it happens to know.
         name: metas[i].name || c.alias,
         description: metas[i].description,
-        // The artist's own cover first, pinned at deploy, so a collection has a
+        // The artist's own cover first, pinned at deploy, so a generator has a
         // face before its first piece finishes rendering.
         coverUrl: (() => {
             const own = metas[i].displayUri ?? metas[i].thumbnailUri;

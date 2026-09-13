@@ -6,7 +6,7 @@ import { ISOLATE_ORIGIN } from "@/lib/config";
 /**
  * Runs a generator, wherever it came from. The isolate is a separate origin
  * that executes and never fetches, so callers bring the code: the studio from
- * IndexedDB, `/piece/*` from collection storage.
+ * IndexedDB, `/piece/*` from generator storage.
  *
  * Posting before the isolate has parsed loses the message with no error
  * anywhere, so it announces itself and this waits.

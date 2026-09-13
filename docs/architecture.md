@@ -41,9 +41,9 @@ runs it, and one to the artist who deployed it.
 | Contract | Owns | Who controls it |
 |---|---|---|
 | **Router** | Which factory, marketplace, registry and resolver are current | Us. Two-step transferable admin. |
-| **Factory** | The collection template and a record of what it deployed | Us. Two-step transferable admin, plus `admin_lambda`. |
+| **Factory** | The generator template and a record of what it deployed | Us. Two-step transferable admin, plus `admin_lambda`. |
 | **Marketplace** | Listings, offers, fees | Us. Two-step transferable admin. |
-| **Resolver** | Which keys may write resolution entries | Us. One flip rotates a leaked key across every collection. |
+| **Resolver** | Which keys may write resolution entries | Us. One flip rotates a leaked key across every generator. |
 | **Collection** (FA2) | One project: one generator, one edition, its tokens | The artist, from the moment it exists. |
 | **Provider** | One render provider's price and working key | Whoever runs it. |
 | **Registry** | The list of providers | Nobody. Permissionless, no fee. |
@@ -62,13 +62,13 @@ scan silently loses it. Acting on a listing or an offer means calling the
 contract that holds it, which is why a listing carries its own marketplace
 address rather than being assumed to live at the current one.
 
-**A collection has no escape hatch at all.** No `admin_lambda`, no upgrade path, no platform fee, and no authority retained by us. `code`, `code_uri`, `code_hash` and `royalties` have no setter anywhere in it. The artist administers only what established Tezos NFT contracts let an artist administer: pause the sale, reprice the unsold remainder, reduce or close the edition, switch render provider, and hand the contract to another address in two steps (§4).
+**A generator has no escape hatch at all.** No `admin_lambda`, no upgrade path, no platform fee, and no authority retained by us. `code`, `code_uri`, `code_hash` and `royalties` have no setter anywhere in it. The artist administers only what established Tezos NFT contracts let an artist administer: pause the sale, reprice the unsold remainder, reduce or close the edition, switch render provider, and hand the contract to another address in two steps (§4).
 
-The price of that guarantee is real: a bug in the template is frozen into every collection already deployed, with no remedy. Which is why the collection stays boring, and why it needs to be audited before the first one ships.
+The price of that guarantee is real: a bug in the template is frozen into every generator already deployed, with no remedy. Which is why the generator stays boring, and why it needs to be audited before the first one ships.
 
 ### Deploy is one operation
 
-The artist calls `deploy` with the fee. The factory originates the collection in that same operation with the artist already installed as its administrator *in the initial storage*, nothing is ever held by us and transferred, and there is no second signature.
+The artist calls `deploy` with the fee. The factory originates the generator in that same operation with the artist already installed as its administrator *in the initial storage*, nothing is ever held by us and transferred, and there is no second signature.
 
 Storage burn and gas are charged to the operation's source, which is the artist's wallet, as Tezos charges all storage to the payer including for internal originations. The factory fronts nothing.
 
@@ -76,7 +76,7 @@ Storage burn and gas are charged to the operation's source, which is the artist'
 
 ### Changing the template means a new factory
 
-The template is Michelson code compiled into the factory, and contract code is immutable, no lambda can rewrite it. So a new template is a new factory. That is cheap: it deploys new collections, existing ones are untouched, and nothing migrates.
+The template is Michelson code compiled into the factory, and contract code is immutable, no lambda can rewrite it. So a new template is a new factory. That is cheap: it deploys new generators, existing ones are untouched, and nothing migrates.
 
 ### The template is not required
 
@@ -86,17 +86,17 @@ So the artifact that has to be right is the published interface. The template is
 
 ### The resolver, and its failure mode
 
-Collections store the resolver address immutably and consult it through an on-chain view at mint. Rotating a leaked backend key is one operation instead of one per collection ever deployed, which matters most at exactly the moment you are compromised and slow.
+Generators store the resolver address immutably and consult it through an on-chain view at mint. Rotating a leaked backend key is one operation instead of one per generator ever deployed, which matters most at exactly the moment you are compromised and slow.
 
-The cost, stated plainly: whoever administers the resolver can authorise a minter into every collection that trusts it.
+The cost, stated plainly: whoever administers the resolver can authorise a minter into every generator that trusts it.
 
-Two things bound that. A collection's resolver is fixed at origination, so we cannot repoint an existing collection at a different authority after the fact. And every collection carries a **local minter override set by the artist**, consulted first, so a resolver that is broken, captured, or gone cannot permanently freeze someone's edition. Their contract, their escape hatch.
+Two things bound that. A generator's resolver is fixed at origination, so we cannot repoint an existing generator at a different authority after the fact. And every generator carries a **local minter override set by the artist**, consulted first, so a resolver that is broken, captured, or gone cannot permanently freeze someone's edition. Their contract, their escape hatch.
 
 ---
 
-## 3. What a collection stores
+## 3. What a generator stores
 
-A collection is one generator, one edition, and its tokens. Everything a
+A generator is one generator, one edition, and its tokens. Everything a
 renderer or a marketplace needs is in its storage or its metadata big_map, and
 nothing needs an index of ours.
 
@@ -113,7 +113,7 @@ sale   : price, edition_size (0 is open), paused
 render : provider        the provider contract the artist chose
          provider_agent  the agent snapshotted at deploy
          resolver, trust_resolver, local_writers
-                         who else may write this collection's token metadata
+                         who else may write this generator's token metadata
 
 ledger, operators, token_metadata, administrator, proposed_admin, next_token_id
 ```
@@ -173,7 +173,7 @@ if that happens, which is why kind_id is a number rather than a string.
 
 1. **Additive only.** New metadata keys are added; existing keys never change
    meaning. A reader that does not recognise a key ignores it, and a reader
-   that expects one absent from an older collection treats it as undeclared.
+   that expects one absent from an older generator treats it as undeclared.
 2. **Every harness is archived and content-addressed.** Serving an old harness
    is a permanent obligation.
 3. **Version fields are ids where the value comes from a catalog.** Bytes on
@@ -195,14 +195,14 @@ Established Tezos NFT behaviour, not invented here. The artist controls the supp
 
 | | |
 |---|---|
-| Pause / unpause the sale | Any time. Never affects transfers, a paused collection still trades on secondary. |
-| Start paused | Chosen at deploy, so a collection can be deployed, checked, announced, then opened. |
+| Pause / unpause the sale | Any time. Never affects transfers, a paused generator still trades on secondary. |
+| Start paused | Chosen at deploy, so a generator can be deployed, checked, announced, then opened. |
 | Change price | Any time, for future mints only. Never retroactive. |
 | Reduce the edition | Any time, never below what is already minted. Reducing supply only makes existing pieces scarcer, so no holder is harmed. |
 | Increase the edition | **Never.** No entrypoint exists. |
 | Close the edition | Set the edition size to the number already minted. One-way, and it replaces a separate `retire`. |
 | Switch render provider | Any time. |
-| Hand over the collection | Two-step propose/accept. |
+| Hand over the generator | Two-step propose/accept. |
 | Burn a piece | The holder's own, by transfer to the burn address, as everywhere else on Tezos. There is no admin burn entrypoint. |
 | Touch a collector's token | Never. No entrypoint exists for it. |
 
@@ -228,7 +228,7 @@ If any address may write a token's URIs, then anyone can point a token at any CI
 
 Modelled on `zolturd_nft.py` in tezoshitcoin.xyz, which already solves this and is in production.
 
-Only an authorised address may call `set_token_metadata`. Authorisation is the collection's provider, asked live, so rotating a leaked key revokes it everywhere at once, or an address the artist authorised locally, or one the Resolver contract (§2) vouches for while `trust_resolver` is on. Such an address cannot pause, cannot reprice, cannot change the edition, and cannot mint anything: minting happens in `mint`, by the collector.
+Only an authorised address may call `set_token_metadata`. Authorisation is the generator's provider, asked live, so rotating a leaked key revokes it everywhere at once, or an address the artist authorised locally, or one the Resolver contract (§2) vouches for while `trust_resolver` is on. Such an address cannot pause, cannot reprice, cannot change the edition, and cannot mint anything: minting happens in `mint`, by the collector.
 
 Because no open URI-writing entrypoint exists, the arbitrary-CID hole never exists to be defended against.
 
@@ -238,8 +238,8 @@ Because no open URI-writing entrypoint exists, the arbitrary-CID hole never exis
 
 | | Who signs | What happens |
 |---|---|---|
-| 1. **`mint`** | the collector, once | Pays `price + render_gas`, split in that same operation, price to the artist, render gas to the provider. **Mints the token**: code, parameters, royalties, owner and name, showing the collection's placeholder image. **This operation's hash is the seed.** |
-| 2. **`set_token_metadata`** | a render provider | Publishes that piece's metadata URI, once, replacing the collection's pending document. |
+| 1. **`mint`** | the collector, once | Pays `price + render_gas`, split in that same operation, price to the artist, render gas to the provider. **Mints the token**: code, parameters, royalties, owner and name, showing the generator's placeholder image. **This operation's hash is the seed.** |
+| 2. **`set_token_metadata`** | a render provider | Publishes that piece's metadata URI, once, replacing the generator's pending document. |
 
 **The token is minted in the collector's own operation.** An unrevealed piece is a complete artwork with a pending thumbnail, not a promise of a future token, which is why there is no reservation to strand, no refund to argue about, and nothing a failed provider can take away. It is also why the seed needs no extra record: a token's seed derives from the hash of the operation that created it.
 
@@ -255,7 +255,7 @@ It is the only entrypoint in the contract that modifies an existing token, and i
 
 That is the conventional Tezos arrangement, and the same trust every generative platform here already extends. It is bounded by being artist-authorised, revocable at any time, and reproducible after the fact by anyone.
 
-Authorised means the collection's provider, an address the artist authorised directly (`set_local_writer`), or one the resolver vouches for. The resolver is consulted through a view that may fail: if it is gone or broken the call falls through to the artist's local set rather than reverting, so a dead resolver cannot freeze every collection that trusted it.
+Authorised means the generator's provider, an address the artist authorised directly (`set_local_writer`), or one the resolver vouches for. The resolver is consulted through a view that may fail: if it is gone or broken the call falls through to the artist's local set rather than reverting, so a dead resolver cannot freeze every generator that trusted it.
 
 **Collectors cannot self-reveal.** Pinning requires an account, and the only ways to give a collector one are lending them ours or asking every buyer to configure their own IPFS provider. Neither is acceptable, so only providers write images, which also means an artist's grid is protected by default with no flag needed.
 
@@ -263,7 +263,7 @@ Writing an image that does not match the piece is possible and not preventable o
 
 ### The artwork is on chain; the metadata is a description of it
 
-`code_uri` and `code_hash` are immutable collection storage, the seed is the mint operation's hash, and the parameters are in that same operation. So a piece is fully determined by chain state, before any metadata is published and regardless of what is published.
+`code_uri` and `code_hash` are immutable generator storage, the seed is the mint operation's hash, and the parameters are in that same operation. So a piece is fully determined by chain state, before any metadata is published and regardless of what is published.
 
 The metadata JSON is where a marketplace reads *about* the piece: its name, its `displayUri`, its royalties. Useful, and not the artwork.
 
@@ -279,7 +279,7 @@ Royalties live in the token's metadata JSON and are built off chain, like every 
 
 The UI works in relative terms, a total percentage, then recipients splitting it, and converts to absolute shares before encoding. Mistaking one for the other pays out wrong forever, so the deploy preview shows the decoded result the way objkt will read it before anything is signed. Conventions kept in the UI: total at most 25%, shares summing to 100%, remainder to the first recipient.
 
-An optional platform share is a recipient row that starts absent, an explicit, unchecked ask, never a default. Because royalties are immutable, that choice is permanent for every piece the collection will ever mint, and the UI has to say so at the moment of asking.
+An optional platform share is a recipient row that starts absent, an explicit, unchecked ask, never a default. Because royalties are immutable, that choice is permanent for every piece the generator will ever mint, and the UI has to say so at the moment of asking.
 
 ### Implementation status
 
@@ -309,10 +309,10 @@ trust involved. It is not readable inside Michelson, which is why the binding
 happens at the render layer rather than in contract storage.
 
 One seed policy, and no field selecting it. A record with a choice of policies
-would let a collection be published under one nobody else implements.
+would let a generator be published under one nobody else implements.
 
 **Never parse it as a number.** A base58 hash read as base 16 is `NaN`, and
-`NaN` coerced by an unsigned shift is 0, so every piece in the collection draws
+`NaN` coerced by an unsigned shift is 0, so every piece in the generator draws
 from one identical stream. This has happened here. Seed the PRNG from the
 string, as every harness in this repository does.
 
@@ -337,13 +337,13 @@ Storage burn is 0.00025 ꜩ/byte (250 mutez), and a single operation is capped a
 | p5 1.5.0, gzipped, bundled into a generator | 215 KB | ~54 ꜩ |
 
 So an artist publishes a generator for a few tez, and bundling a library costs
-about 54 ꜩ on top, per collection, every time. That is the number that settles
+about 54 ꜩ on top, per generator, every time. That is the number that settles
 the library question: on a chain without ETH-scale prices, a library that has
 to be paid for again by every artist who uses it is a library nobody uses.
 
 **Libraries are declared, not stored, and nobody is the authority for them.**
 A generator carries `<meta name="alea:library" content="p5@1.5.0">`, the
-collection records npm coordinates and a blake2b digest under
+generator records npm coordinates and a blake2b digest under
 `aleatory:libraries`, and any renderer fetches those bytes from anywhere and
 refuses them unless they hash to the recorded value. See
 [ALEATORY-001](interface.md) §1.
@@ -462,7 +462,7 @@ Every one of these is a decision rather than a gap.
   2.5%, the way objkt does.
 - **No fee to deploy.** The artist's own storage burn is already a real floor
   against spam.
-- **No escrow.** A collection holds no funds between operations, so there is
+- **No escrow.** A generator holds no funds between operations, so there is
   nothing in it to drain. A marketplace holds its own fee and live offers, and
   nobody else's royalties: a sale pays every recipient in the same operation.
 - **No collector self-reveal, and no commit-reveal seed.** The seed is the mint
@@ -483,13 +483,13 @@ per byte, 32,768 bytes per operation.
 | | cost | bytes |
 |---|---|---|
 | Factory origination, once, ours | 4.22 ꜩ | 16,792 |
-| Collection deploy, per artist | 3.56 ꜩ | 14,237 |
+| Generator deploy, per artist | 3.56 ꜩ | 14,237 |
 | Mint, per collector | 0.052 ꜩ | 208 |
 
-The factory carries a copy of the collection template, and that whole
+The factory carries a copy of the generator template, and that whole
 operation is 16,792 bytes against the 32,768 cap.
 
-**The collection deploy is the number to watch.** It is real money charged to
+**The generator deploy is the number to watch.** It is real money charged to
 the people this is built for, and it comes almost entirely from the template's
 size, which is why the template stays small on purpose.
 

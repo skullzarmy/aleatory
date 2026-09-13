@@ -37,15 +37,15 @@ const SMALL: Limits = { gas: 30_000, storage: 400 };
 const TRANSFER: Limits = { gas: 60_000, storage: 500 };
 /**
  * Escrowing a token into the marketplace: a listing row here, and an
- * inter-contract transfer that writes the collection's ledger and clears an
+ * inter-contract transfer that writes the generator's ledger and clears an
  * operator.
  */
 const LIST: Limits = { gas: 120_000, storage: 1_000 };
 
 /**
- * Storage a collection origination needs, beyond the generator itself.
+ * Storage a generator origination needs, beyond the source itself.
  *
- * Measured: a deploy carrying a 12,378-byte generator consumed 27,297 bytes, so
+ * Measured: a deploy carrying 12,378 bytes of source consumed 27,297 bytes, so
  * the contract's own code, its metadata and its initial storage account for
  * roughly 15,000. Getting it wrong surfaces as a wallet error, which this app
  * cannot catch.
@@ -125,25 +125,25 @@ export function utf8ToHex(s: string): string {
  */
 export function mint(
     client: DAppClient,
-    collection: string,
+    generator: string,
     params: string,
     totalMutez: bigint,
 ): Promise<OpResult> {
-    return send(client, collection, "mint", bytes(utf8ToHex(params)), totalMutez, MINT);
+    return send(client, generator, "mint", bytes(utf8ToHex(params)), totalMutez, MINT);
 }
 
 /** Grant the marketplace the right to move one token, which listing needs. */
 export async function addOperator(
     client: DAppClient,
-    collection: string,
+    generator: string,
     owner: string,
     operator: string,
     tokenId: string,
 ): Promise<OpResult> {
-    const p = await encode(collection, "update_operators", [
+    const p = await encode(generator, "update_operators", [
         { add_operator: { owner, operator, token_id: tokenId } },
     ]);
-    return send(client, collection, p.entrypoint, p.value, 0, TRANSFER);
+    return send(client, generator, p.entrypoint, p.value, 0, TRANSFER);
 }
 
 /**
@@ -185,36 +185,36 @@ async function encode(
  */
 export async function listToken(
     client: DAppClient,
-    collection: string,
+    generator: string,
     owner: string,
     tokenId: string,
     priceMutez: bigint,
 ): Promise<OpResult> {
     const market = await marketplace();
     const [grant, list, revoke] = await Promise.all([
-        encode(collection, "update_operators", [
+        encode(generator, "update_operators", [
             { add_operator: { owner, operator: market, token_id: tokenId } },
         ]),
         encode(market, "list_token", {
-            collection,
+            collection: generator,
             token_id: tokenId,
             price: priceMutez.toString(),
         }),
-        encode(collection, "update_operators", [
+        encode(generator, "update_operators", [
             { remove_operator: { owner, operator: market, token_id: tokenId } },
         ]),
     ]);
 
     return sendBatch(client, [
         {
-            destination: collection,
+            destination: generator,
             entrypoint: grant.entrypoint,
             value: grant.value,
             limits: TRANSFER,
         },
         { destination: market, entrypoint: list.entrypoint, value: list.value, limits: LIST },
         {
-            destination: collection,
+            destination: generator,
             entrypoint: revoke.entrypoint,
             value: revoke.value,
             limits: TRANSFER,
@@ -225,7 +225,7 @@ export async function listToken(
 /** Accept an offer, in one operation, for the same reasons as listing. */
 export async function acceptOfferFor(
     client: DAppClient,
-    collection: string,
+    generator: string,
     owner: string,
     tokenId: string,
     offerId: number,
@@ -233,25 +233,25 @@ export async function acceptOfferFor(
     market: string,
 ): Promise<OpResult> {
     const [grant, accept, revoke] = await Promise.all([
-        encode(collection, "update_operators", [
+        encode(generator, "update_operators", [
             { add_operator: { owner, operator: market, token_id: tokenId } },
         ]),
         Promise.resolve({ entrypoint: "accept_offer", value: int(offerId) }),
-        encode(collection, "update_operators", [
+        encode(generator, "update_operators", [
             { remove_operator: { owner, operator: market, token_id: tokenId } },
         ]),
     ]);
 
     return sendBatch(client, [
         {
-            destination: collection,
+            destination: generator,
             entrypoint: grant.entrypoint,
             value: grant.value,
             limits: TRANSFER,
         },
         { destination: market, entrypoint: accept.entrypoint, value: accept.value, limits: LIST },
         {
-            destination: collection,
+            destination: generator,
             entrypoint: revoke.entrypoint,
             value: revoke.value,
             limits: TRANSFER,
@@ -275,7 +275,7 @@ export async function acceptOfferFor(
  */
 export async function delistAndAcceptOffer(
     client: DAppClient,
-    collection: string,
+    generator: string,
     owner: string,
     tokenId: string,
     listingId: number,
@@ -286,10 +286,10 @@ export async function delistAndAcceptOffer(
     offerMarket: string,
 ): Promise<OpResult> {
     const [grant, revoke] = await Promise.all([
-        encode(collection, "update_operators", [
+        encode(generator, "update_operators", [
             { add_operator: { owner, operator: offerMarket, token_id: tokenId } },
         ]),
-        encode(collection, "update_operators", [
+        encode(generator, "update_operators", [
             { remove_operator: { owner, operator: offerMarket, token_id: tokenId } },
         ]),
     ]);
@@ -297,7 +297,7 @@ export async function delistAndAcceptOffer(
     return sendBatch(client, [
         { destination: listingMarket, entrypoint: "delist", value: int(listingId), limits: LIST },
         {
-            destination: collection,
+            destination: generator,
             entrypoint: grant.entrypoint,
             value: grant.value,
             limits: TRANSFER,
@@ -309,7 +309,7 @@ export async function delistAndAcceptOffer(
             limits: LIST,
         },
         {
-            destination: collection,
+            destination: generator,
             entrypoint: revoke.entrypoint,
             value: revoke.value,
             limits: TRANSFER,
@@ -338,12 +338,14 @@ export async function buyListing(
 
 export async function makeOffer(
     client: DAppClient,
-    collection: string,
+    generator: string,
     tokenId: string,
     amountMutez: bigint,
 ): Promise<OpResult> {
     const market = await marketplace();
-    const p = await encode(market, "make_offer", { collection, token_id: tokenId });
+    // `collection` is the entrypoint's own parameter name, so it is spelled out
+    // rather than shorthanded: the key goes on chain.
+    const p = await encode(market, "make_offer", { collection: generator, token_id: tokenId });
     return send(client, market, p.entrypoint, p.value, amountMutez, TRANSFER);
 }
 
@@ -365,33 +367,33 @@ export async function acceptOffer(
     return send(client, marketplaceAddress, "accept_offer", int(offerId), 0, TRANSFER);
 }
 
-/** Artist controls on their own collection. */
+/** Artist controls on their own generator. */
 export function setPaused(
     client: DAppClient,
-    collection: string,
+    generator: string,
     paused: boolean,
 ): Promise<OpResult> {
-    return send(client, collection, "set_paused", { prim: paused ? "True" : "False" });
+    return send(client, generator, "set_paused", { prim: paused ? "True" : "False" });
 }
 
 export function setPrice(
     client: DAppClient,
-    collection: string,
+    generator: string,
     priceMutez: bigint,
 ): Promise<OpResult> {
-    return send(client, collection, "set_price", int(priceMutez));
+    return send(client, generator, "set_price", int(priceMutez));
 }
 
 export function setEditionSize(
     client: DAppClient,
-    collection: string,
+    generator: string,
     size: number,
 ): Promise<OpResult> {
-    return send(client, collection, "set_edition_size", int(size));
+    return send(client, generator, "set_edition_size", int(size));
 }
 
 /**
- * Switch who renders this collection's images.
+ * Switch who renders this generator's images.
  *
  * `maxPriceMutez` is the artist's ceiling. The contract reads the provider's
  * live price and fails if it exceeds this, so a provider that raises their
@@ -400,24 +402,24 @@ export function setEditionSize(
  */
 export async function setProvider(
     client: DAppClient,
-    collection: string,
+    generator: string,
     provider: string,
     maxPriceMutez: bigint,
 ): Promise<OpResult> {
-    const p = await encode(collection, "set_provider", {
+    const p = await encode(generator, "set_provider", {
         provider,
         max_price: maxPriceMutez.toString(),
     });
-    return send(client, collection, p.entrypoint, p.value);
+    return send(client, generator, p.entrypoint, p.value);
 }
 
 /** Let Aleatory's keys publish metadata for unrevealed pieces, or stop them. */
 export function setTrustResolver(
     client: DAppClient,
-    collection: string,
+    generator: string,
     trusted: boolean,
 ): Promise<OpResult> {
-    return send(client, collection, "set_trust_resolver", {
+    return send(client, generator, "set_trust_resolver", {
         prim: trusted ? "True" : "False",
     });
 }
@@ -448,7 +450,7 @@ export interface DeployParams {
 }
 
 /**
- * Originate a collection through the factory. The artist's one signature.
+ * Originate a generator through the factory. The artist's one signature.
  *
  * Taquito encodes the parameter against the factory's own type, read from the
  * chain. A record's Michelson layout sorts its fields, and a map's keys go in
@@ -456,14 +458,11 @@ export interface DeployParams {
  * and not their text. Both are invisible until an artist's signature is
  * rejected.
  *
- * The caller is written in as administrator in the collection's initial
+ * The caller is written in as administrator in the generator's initial
  * storage, so nothing passes through us and the storage burn is charged to the
  * artist's own wallet.
  */
-export async function deployCollection(
-    client: DAppClient,
-    params: DeployParams,
-): Promise<OpResult> {
+export async function deployGenerator(client: DAppClient, params: DeployParams): Promise<OpResult> {
     const factory = await currentFactory();
     if (!factory) throw new Error("No factory is configured for this network.");
 

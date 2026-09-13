@@ -1,14 +1,10 @@
-import { Suspense } from "react";
-import { fetchRecentFeed } from "@/lib/feed";
-import { FeedGrid, FeedGridSkeleton } from "@/components/feed/FeedGrid";
+import type { Metadata } from "next";
+import { fetchAllGenerators } from "@/lib/generator";
 import { EmptyFeed } from "@/components/feed/EmptyFeed";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { SiteJsonLd } from "@/components/JsonLd";
-import type { Metadata } from "next";
+import { GeneratorGrid } from "@/components/generator/GeneratorCard";
 import { BRAND } from "@/lib/config";
-
-// A fresh mint should appear within about half a minute.
-export const revalidate = 30;
 
 export const metadata: Metadata = {
     // The root layout's title is a template; `absolute` opts the home page out of it.
@@ -22,35 +18,34 @@ export const metadata: Metadata = {
         description: BRAND.description,
     },
 };
+export const revalidate = 60;
 
-async function Recent() {
-    // An indexer that doesn't answer shows an empty feed rather than the error screen;
-    // the read typically works again within seconds.
-    const feed = await fetchRecentFeed().catch(() => null);
-    if (!feed) return <EmptyFeed reason="unreachable" />;
+// TzKT's alias is set only for contracts it recognizes, never ours, so the display
+// name comes from the generator's own metadata instead.
+export default async function HomePage() {
+    const generators = await fetchAllGenerators();
 
-    if (feed.unconfigured) return <EmptyFeed reason="unconfigured" />;
-    if (feed.collectionCount === 0) return <EmptyFeed reason="no-collections" />;
-    if (feed.pieces.length === 0) return <EmptyFeed reason="no-pieces" />;
+    if (generators.length === 0) {
+        return (
+            <div className="mx-auto max-w-7xl px-4 py-8">
+                <LiveRefresh seconds={60} />
+                <EmptyFeed reason="unconfigured" />
+            </div>
+        );
+    }
 
-    return <FeedGrid pieces={feed.pieces} />;
-}
-
-export default function HomePage() {
     return (
         <div className="mx-auto max-w-7xl px-4 py-8">
-            <LiveRefresh seconds={30} />
+            <LiveRefresh seconds={60} />
             <SiteJsonLd />
             <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-                <h1 className="text-xl font-semibold tracking-tight">Recent</h1>
+                <h1 className="text-xl font-semibold tracking-tight">Generators</h1>
                 <p className="text-sm text-muted-foreground">
-                    Newest pieces across every collection
+                    Every generator on {BRAND.name}, newest first
                 </p>
             </div>
 
-            <Suspense fallback={<FeedGridSkeleton />}>
-                <Recent />
-            </Suspense>
+            <GeneratorGrid generators={generators} />
         </div>
     );
 }

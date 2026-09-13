@@ -12,7 +12,7 @@ import { AccountLink } from "@/components/account/AccountLink";
 /**
  * Buying, listing and offers for one piece.
  *
- * Listing takes two operations: the collection has to make the marketplace an
+ * Listing takes two operations: the generator has to make the marketplace an
  * operator before the marketplace can escrow the token. The UI says so up
  * front, so the second wallet prompt is expected.
  */

@@ -7,7 +7,7 @@ import { indexerFetch } from "./tzkt";
  * site pointing at a contract that is gone.
  *
  * Both lists hold every address the router has ever named, newest first. A
- * retired factory's collections are still owned by real artists, and a retired
+ * retired factory's generators are still owned by real artists, and a retired
  * marketplace still holds live listings and escrowed offers.
  *
  * The environment wins where it names something, so a fork can point at its own
@@ -97,7 +97,7 @@ export async function addresses(): Promise<Addresses> {
     const chain = await fromChain();
 
     // An env address goes to the front of its list and does not replace it, or
-    // overriding one would hide every collection the others made.
+    // overriding one would hide every generator the others made.
     const envFactory = CONTRACTS.factory;
     const value: Addresses = {
         factories: envFactory
@@ -117,7 +117,7 @@ export async function addresses(): Promise<Addresses> {
     return value;
 }
 
-/** Where a new collection is deployed. */
+/** Where a new generator is deployed. */
 export async function currentFactory(): Promise<string> {
     return (await addresses()).factories[0] ?? "";
 }

@@ -30,7 +30,7 @@ const ask = (cid: string) =>
 
 /** A render this provider pinned, still on chain. */
 const RENDER = "QmWm6cmzx2uVxiTBkegpg34QKrnyE3EKmKuFzJ7BVkMZu5";
-/** The same collection's metadata document: a real CID that is not an image. */
+/** The same generator's metadata document: a real CID that is not an image. */
 const DOCUMENT = "QmPWrK7MmSGt7w8yj4mjwXR67C8YSskUBB6XSZdg1ZRmkL";
 
 async function run() {

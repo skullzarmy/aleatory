@@ -22,7 +22,7 @@ isolate has a host bakes `localhost` into the policy and needs a rebuild, not
 just an environment change.
 
 The daemon can go up any time. Nothing waits on it: pieces sit holding their
-collection's pending document until it appears, and it renders whatever
+generator's pending document until it appears, and it renders whatever
 accumulated.
 
 ---
@@ -77,7 +77,7 @@ NEXT_PUBLIC_SITE_URL=https://…         this site's own URL
 
 `NEXT_PUBLIC_ROUTER_ADDRESS` is the only contract address needed. The router
 holds the current factory, marketplace, registry and resolver, and every
-retired factory, so collections from an old one stay visible.
+retired factory, so generators from an old one stay visible.
 
 Security headers live in `next.config.ts`, not in `netlify.toml`, because they
 name hosts that are environment variables. A browser enforces the intersection
@@ -112,7 +112,7 @@ Nothing is corrupted by it. Renders are deterministic and
 `set_token_metadata` is a plain rewrite. It is waste and noise.
 
 For redundancy use failover, not parallelism. A daemon that has been down
-loses nothing: the queue is "does this piece still hold its collection's
+loses nothing: the queue is "does this piece still hold its generator's
 pending document", computed from chain state every pass, so whichever process
 comes up next picks up everything missed.
 
@@ -158,9 +158,9 @@ The push endpoint is optional and off until `ALEA_PROVIDER_PUSH=on`. It is an
 unauthenticated shoulder tap that shortens one poll interval.
 [provider.md](provider.md) has the wiring and the implications.
 
-`ALEA_ROUTER_ADDRESS` is how the daemon finds the factories whose collections
+`ALEA_ROUTER_ADDRESS` is how the daemon finds the factories whose generators
 it should look at. Without it, it scans nothing and reports serving no
-collections while otherwise looking perfectly configured.
+generators while otherwise looking perfectly configured.
 
 The agent key is a secret and belongs on this box only. It signs
 `set_token_metadata` and nothing else, so a leak costs the tez in it and

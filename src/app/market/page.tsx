@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { fetchListings } from "@/lib/market";
-import { fetchAllCollections } from "@/lib/collection";
+import { fetchAllGenerators } from "@/lib/generator";
 import { piecesFor } from "@/lib/feed";
 import { ListingCard } from "@/components/feed/ListingCard";
 import { addresses } from "@/lib/router";
@@ -13,12 +13,12 @@ export const metadata: Metadata = {
     openGraph: {
         type: "website",
         title: "Market",
-        description: "Pieces listed for sale, with royalties paid from the collection.",
+        description: "Pieces listed for sale, with royalties paid from the generator.",
     },
 };
 export const revalidate = 15;
 
-// A listing carries only a collection, token id and price; images and names come
+// A listing carries only a generator, token id and price; images and names come
 // from a second, batched read rather than one query per row.
 export default async function MarketPage() {
     const [marketplace, listings] = await Promise.all([
@@ -27,10 +27,10 @@ export default async function MarketPage() {
     ]);
 
     // TzKT's alias is null for every contract we deploy, so the display name comes
-    // from the collection's own metadata instead.
-    const collections = await fetchAllCollections().catch(() => []);
+    // from the generator's own metadata instead.
+    const generators = await fetchAllGenerators().catch(() => []);
     const names = new Map(
-        collections.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])),
+        generators.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])),
     );
     const pieces = await piecesFor(listings, names).catch(() => new Map());
 
@@ -47,7 +47,7 @@ export default async function MarketPage() {
                 <p className="text-sm text-muted-foreground">
                     {listings.length > 0 && cheapest !== null
                         ? `${listings.length} for sale, from ${formatTez(cheapest)} ꜩ`
-                        : "2.5% of each sale, royalties paid from the collection"}
+                        : "2.5% of each sale, royalties paid from the generator"}
                 </p>
             </div>
 
@@ -64,9 +64,11 @@ export default async function MarketPage() {
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                     {listings.map((l) => (
                         <ListingCard
-                            key={l.id}
+                            // Ids are per marketplace, and listings from all of
+                            // them are merged here, so two can both be id 1.
+                            key={`${l.marketplace}:${l.id}`}
                             listing={l}
-                            piece={pieces.get(`${l.collection}:${l.tokenId}`)}
+                            piece={pieces.get(`${l.generator}:${l.tokenId}`)}
                         />
                     ))}
                 </div>

@@ -359,7 +359,7 @@ function normalizeRawParam(p: unknown, at: number): Reading {
         };
         // The declared default goes through the same clamp every renderer uses,
         // and a move is reported, because a default is where a collector finds
-        // the control and the schema is immutable once the collection exists.
+        // the control and the schema is immutable once the generator exists.
         // The snap onto the step grid is not reported: it moves a value by less
         // than the control can hold.
         const resolved = resolveParam(spec, obj.default);

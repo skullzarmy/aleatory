@@ -7,10 +7,10 @@
  */
 import { NETWORK, type Network } from "./config";
 
-const COLLECTIONS: Record<Network, readonly string[]> = {
+const GENERATORS: Record<Network, readonly string[]> = {
     shadownet: [
-        // Deployed during testing with a generator that had a syntax error, so
-        // it renders as an empty square and always will: the code is immutable.
+        // Deployed during testing with source that had a syntax error, so it
+        // renders as an empty square and always will: the code is immutable.
         "KT1Q9PqMtkiwFxhofbb2mAbP1UFoLYaHsg2s",
     ],
     mainnet: [],
@@ -21,14 +21,14 @@ const PROVIDERS: Record<Network, readonly string[]> = {
     mainnet: [],
 };
 
-/** Collections hidden from feeds, market rows and collection lists. */
-export const BLOCKED_COLLECTIONS: ReadonlySet<string> = new Set(COLLECTIONS[NETWORK]);
+/** Generators hidden from feeds, market rows and the generators wall. */
+export const BLOCKED_GENERATORS: ReadonlySet<string> = new Set(GENERATORS[NETWORK]);
 
 /** Providers hidden from the picker and the providers page. */
 export const BLOCKED_PROVIDERS: ReadonlySet<string> = new Set(PROVIDERS[NETWORK]);
 
-export function isBlockedCollection(address: string): boolean {
-    return BLOCKED_COLLECTIONS.has(address);
+export function isBlockedGenerator(address: string): boolean {
+    return BLOCKED_GENERATORS.has(address);
 }
 
 export function isBlockedProvider(address: string): boolean {

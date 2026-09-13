@@ -12,7 +12,7 @@ import { shortAddress } from "@/lib/utils";
  * connection they control.
  *
  * Retired contracts are listed beside current ones because they are still real:
- * a retired factory's collections belong to real artists, and a retired
+ * a retired factory's generators belong to real artists, and a retired
  * marketplace still holds listings and escrowed offers.
  */
 
@@ -20,7 +20,7 @@ const ROLES = [
     {
         key: "factories" as const,
         title: "Factories",
-        blurb: "Originates collections. A new one is added to the router, and every collection an earlier one made keeps working.",
+        blurb: "Originates generators. A new one is added to the router, and every generator an earlier one made keeps working.",
     },
     {
         key: "marketplaces" as const,
