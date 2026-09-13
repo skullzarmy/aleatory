@@ -43,7 +43,13 @@ export const DEP_PATH = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/;
 /** The whole resolution's budget, under the ten seconds an invocation gets. */
 export const BUDGET_MS = 5_000;
 
-/** What searching older versions may take of it. The verdict comes first. */
+/**
+ * The least searching older versions may take. The verdict comes first, so the
+ * walk gets half of what is left and never less than this.
+ *
+ * A flat cap would mean a caller who has a minute to spend still gets 2.5
+ * seconds, which is six sequential CDN reads on a machine that may be cold.
+ */
 const WALK_MS = 2_500;
 
 /**
@@ -425,6 +431,12 @@ export interface Resolution {
     bytes: number;
     /** One line saying what had to change, when anything did. */
     note: string | null;
+    /**
+     * The search for an older version ran out of time, so a null coordinate
+     * here means "not found yet" rather than "does not exist". Asking again
+     * with more time can still answer.
+     */
+    timedOut: boolean;
 }
 
 /**
@@ -445,6 +457,7 @@ export async function resolve(
             global: inspection.global,
             bytes: inspection.bytes,
             note: null,
+            timedOut: false,
         };
     }
 
@@ -457,6 +470,7 @@ export async function resolve(
             global: inspection.alternate.global,
             bytes: inspection.alternate.bytes,
             note: `${version}'s default build cannot be loaded from a script tag, so this names ${inspection.alternate.path} instead.`,
+            timedOut: false,
         };
     }
 
@@ -464,11 +478,15 @@ export async function resolve(
     // not spend the whole of it proving that: `remotion` is CommonJS in 323ms
     // and has 1,256 versions, none with a browser build. The catch wraps the
     // version list too, since awaited as an argument its failure would pass by.
+    let walkRanOut = false;
     const older = await (async () => {
-        const walk = new Budget(Math.min(WALK_MS, budget.left));
+        const walk = new Budget(Math.min(Math.max(WALK_MS, budget.left / 2), budget.left));
         try {
             return await newestLoadable(id, await versionsOf(id, walk), walk);
-        } catch {
+        } catch (e) {
+            // Running out of time is not an answer about the package. Kept
+            // apart so the note does not report a slow CDN as a verdict.
+            walkRanOut = e instanceof OutOfTime || walk.spent;
             return null;
         }
     })();
@@ -479,6 +497,21 @@ export async function resolve(
             global: older.inspection.global,
             bytes: older.inspection.bytes,
             note: `${version} cannot be loaded from a script tag. ${older.version} is the newest that can.`,
+            timedOut: false,
+        };
+    }
+
+    // A walk that ran out has not decided anything, so it is reported as the
+    // unfinished search it is. Saying no older version loads would be a verdict
+    // this call never reached.
+    if (walkRanOut) {
+        return {
+            coordinate: null,
+            inspection,
+            global: null,
+            bytes: 0,
+            note: `${inspection.why ?? `${version} cannot be loaded from a script tag.`} Searching older versions ran out of time, so try again before bundling it into your file.`,
+            timedOut: true,
         };
     }
 
@@ -490,6 +523,7 @@ export async function resolve(
         note: `${inspection.why ?? `No build of ${id} can be loaded from a script tag.`}${
             budget.spent ? " No older version was found in time." : ""
         } Bundle it into your file instead.`,
+        timedOut: false,
     };
 }
 
