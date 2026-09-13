@@ -17,7 +17,7 @@ const COLUMNS = [
         ],
     },
     {
-        heading: "Build on it",
+        heading: "Build",
         links: [
             { href: "/templates", label: "Starter kits" },
             { href: "/docs/interface", label: "ALEATORY-001" },
@@ -36,7 +36,7 @@ const LEGAL = [
 //
 // The labels are read now, not only announced, so they are the plain names
 // rather than the sentences an icon on its own needed.
-const ELSEWHERE = [
+const CONNECT = [
     { href: BRAND.repo, label: "GitHub", Icon: SiGithub },
     { href: BRAND.discord, label: "Discord", Icon: SiDiscord },
     { href: BRAND.x, label: "X", Icon: SiX },
@@ -70,10 +70,10 @@ export function Footer() {
 
                     <div className="col-span-2 sm:col-span-1">
                         <h2 className="text-xs font-medium uppercase tracking-wide text-foreground">
-                            Elsewhere
+                            Connect
                         </h2>
                         <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-1">
-                            {ELSEWHERE.map(({ href, label, Icon }) => (
+                            {CONNECT.map(({ href, label, Icon }) => (
                                 <li key={href}>
                                     <a
                                         href={href}
