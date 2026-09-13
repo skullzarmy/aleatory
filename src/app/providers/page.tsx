@@ -24,7 +24,11 @@ export default async function ProvidersPage() {
             <h1 className="text-xl font-semibold tracking-tight">Render providers</h1>
             <p className="mt-2 text-sm text-muted-foreground">
                 A provider draws the images for minted pieces. Anyone can run one, list it here for
-                free, and set their own price.
+                free, and set their own price.{" "}
+                <Link href="/providers/mine" className="underline hover:text-foreground">
+                    Run one
+                </Link>
+                .
             </p>
 
             {providers.length === 0 ? (

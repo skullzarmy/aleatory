@@ -113,6 +113,56 @@ async function marketplace(): Promise<string> {
     return a;
 }
 
+async function registry(): Promise<string> {
+    const a = (await addresses()).registry;
+    if (!a) throw new Error("No registry is configured for this network.");
+    return a;
+}
+
+/**
+ * List a provider contract, or take it off the list.
+ *
+ * Permissionless, and free: `register` refuses tez and asks nobody's
+ * permission. It calls `get_render_gas`, `get_agent` and `get_operator` on the
+ * contract and fails with NOT_A_PROVIDER when any of them does not answer, so
+ * an address that could never be used cannot be listed. That is a type check
+ * and not an endorsement, which the page says too.
+ */
+export async function registerProvider(client: DAppClient, provider: string): Promise<OpResult> {
+    return send(client, await registry(), "register", str(provider), 0, SMALL);
+}
+
+export async function deregisterProvider(client: DAppClient, provider: string): Promise<OpResult> {
+    return send(client, await registry(), "deregister", str(provider), 0, SMALL);
+}
+
+/** The operator's own controls, on a provider contract they administer. */
+export function setRenderGas(
+    client: DAppClient,
+    provider: string,
+    priceMutez: bigint,
+): Promise<OpResult> {
+    return send(client, provider, "set_render_gas", int(priceMutez));
+}
+
+export function setAgent(client: DAppClient, provider: string, agent: string): Promise<OpResult> {
+    return send(client, provider, "set_agent", str(agent));
+}
+
+/**
+ * Take earned tez out. The contract is paid per render and holds the balance
+ * until the operator moves it, so this is the only way money leaves.
+ */
+export async function withdrawFromProvider(
+    client: DAppClient,
+    provider: string,
+    amountMutez: bigint,
+    to: string,
+): Promise<OpResult> {
+    const p = await encode(provider, "withdraw", { amount: amountMutez.toString(), to_: to });
+    return send(client, provider, p.entrypoint, p.value, 0, TRANSFER);
+}
+
 export function utf8ToHex(s: string): string {
     return Array.from(new TextEncoder().encode(s))
         .map((b) => b.toString(16).padStart(2, "0"))
