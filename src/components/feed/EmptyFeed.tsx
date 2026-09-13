@@ -3,7 +3,7 @@ import { BRAND, NETWORK } from "@/lib/config";
 export function EmptyFeed({
     reason,
 }: {
-    reason: "unreachable" | "unconfigured" | "no-generators" | "no-pieces";
+    reason: "unreachable" | "unconfigured" | "no-generators" | "no-pieces" | "past-the-end";
 }) {
     const copy = {
         unreachable: {
@@ -21,6 +21,10 @@ export function EmptyFeed({
         "no-pieces": {
             title: "No pieces minted yet",
             body: "Generators are open. The first mint shows up here.",
+        },
+        "past-the-end": {
+            title: "Nothing on this page",
+            body: "There were fewer pieces than this page needed. Step back to the last one with something on it.",
         },
     }[reason];
 

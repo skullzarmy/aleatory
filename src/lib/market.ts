@@ -108,21 +108,55 @@ async function acrossMarketplaces<T>(read: (marketplace: string) => Promise<T[]>
     return results.flat();
 }
 
-export async function fetchListings(limit = 48): Promise<Listing[]> {
+export type ListingSort = "recent" | "price";
+
+export interface ListingPage {
+    listings: Listing[];
+    /** Live listings matching the scope, before the page is cut. */
+    total: number;
+    /** The lowest price in scope, which is not always on this page. */
+    floorMutez: bigint | null;
+}
+
+/**
+ * Ordering and paging happen here rather than in the query: ids are per
+ * marketplace, so neither price nor recency can be asked of three bigmaps
+ * separately and merged.
+ */
+export async function fetchListingPage(
+    options: { sort?: ListingSort; generator?: string; limit?: number; offset?: number } = {},
+): Promise<ListingPage> {
+    const { sort = "recent", generator, limit = 48, offset = 0 } = options;
+
     const all = await acrossMarketplaces(async (m) => {
         const rows = await bigmap<RawListing>(bigmapPath(m, "listings"), {
             active: "true",
             "sort.desc": "id",
-            limit,
+            limit: 500,
         });
         return rows.map((r) => toListing(r, m));
     });
-    // Newest first across all of them, then trimmed, so a retired marketplace
-    // with old ids cannot crowd out the current one.
-    return all
+
+    const scoped = all
         .filter((l) => !isBlockedGenerator(l.generator))
-        .sort((a, b) => b.id - a.id)
-        .slice(0, limit);
+        .filter((l) => !generator || l.generator === generator);
+
+    const ordered = [...scoped].sort((a, b) =>
+        sort === "price" ? Number(a.priceMutez - b.priceMutez) : b.id - a.id,
+    );
+
+    return {
+        listings: ordered.slice(offset, offset + limit),
+        total: scoped.length,
+        floorMutez: scoped.reduce<bigint | null>(
+            (low, l) => (low === null || l.priceMutez < low ? l.priceMutez : low),
+            null,
+        ),
+    };
+}
+
+export async function fetchListings(limit = 48): Promise<Listing[]> {
+    return (await fetchListingPage({ limit })).listings;
 }
 
 /** The live listing for one token, wherever it lives. */
