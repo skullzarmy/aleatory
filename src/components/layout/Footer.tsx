@@ -13,14 +13,14 @@ const COLUMNS = [
         links: [
             { href: "/about", label: "About" },
             { href: "/tezos", label: "New to Tezos" },
-            { href: "/templates", label: "Starter kits" },
+            { href: "/contracts", label: "Contracts" },
         ],
     },
     {
         heading: "Build on it",
         links: [
+            { href: "/templates", label: "Starter kits" },
             { href: "/docs/interface", label: "ALEATORY-001" },
-            { href: "/contracts", label: "Contracts" },
             { href: "/providers", label: "Render providers" },
         ],
     },
