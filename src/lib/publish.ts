@@ -15,7 +15,8 @@ import { deployGenerator } from "./ops";
 import { buildPendingDocument, royaltiesToBps, type RoyaltySplit } from "@provider/metadata";
 import { detectParams } from "./detect";
 import { schemaForRecord } from "./params";
-import { getKind } from "./runtimes";
+import { recordFor } from "./libraries";
+import type { DepSpec } from "./kinds";
 import type { Draft } from "./draft";
 
 export type PublishStage = "encoding" | "pinning-metadata" | "signing";
@@ -63,13 +64,21 @@ export interface PublishInput {
     /**
      * The generator cover: a flat PNG captured in the studio and pinned.
      * Goes into TZIP-016 metadata, which is what an external marketplace
-     * reads, and the artist can replace it later with `set_metadata`.
+     * reads. `set_metadata` replaces it later; what a renderer reads to decide
+     * what runs is fixed here and has no setter.
      */
     coverUri?: string;
     /** A downscaled copy of the same capture, for grids and marketplace cards. */
     coverThumbUri?: string;
     /** The seed that cover was drawn from, recorded so it can be reproduced. */
     coverSeed?: string;
+    /**
+     * The document's declarations as they actually resolved in this session,
+     * which is also what the cover was drawn with, so the digest recorded on
+     * chain names the bytes that ran. Required: an optional field here is how
+     * a record that disagrees with its document gets written.
+     */
+    resolvedLibraries: DepSpec[];
 }
 
 export interface PublishResult {
@@ -110,6 +119,13 @@ export async function publishGenerator(
     onStage?: (stage: PublishStage) => void,
 ): Promise<PublishResult> {
     const { draft } = input;
+
+    // First, before anything is pinned and before a wallet is asked for
+    // anything. The record has no setter and a renderer must refuse to draw
+    // without it, so a declaration that cannot be recorded stops here rather
+    // than becoming a generator nobody can ever render.
+    const record = recordFor(draft.html, input.resolvedLibraries);
+    if (!record.ok) throw new Error(record.problems.join(" "));
 
     onStage?.("encoding");
     // The hash always covers the decoded source, so it verifies what actually
@@ -159,16 +175,6 @@ export async function publishGenerator(
     onStage?.("signing");
     const schema = schemaForRecord(detectParams(draft.html)?.params ?? []);
 
-    // What this source expects a renderer to load, recorded on chain because
-    // a renderer knows nothing about our catalog. Id, version and package path
-    // resolve it from any registry mirror; the hash makes the answer checkable.
-    const libraries = getKind(draft.kindId).deps.map((d) => ({
-        id: d.id,
-        version: d.version,
-        path: d.registry.path,
-        hash: d.hash,
-    }));
-
     const result = await deployGenerator(client, {
         codeHex: tooLarge ? "" : toHex(codeBytes),
         codeEncoding,
@@ -203,7 +209,9 @@ export async function publishGenerator(
             // Under its own key, so a mint UI reads one value and not the whole
             // record. docs/params.md §4.
             ...(schema ? { "aleatory:params": JSON.stringify(schema) } : {}),
-            ...(libraries.length > 0 ? { "aleatory:libraries": JSON.stringify(libraries) } : {}),
+            ...(record.libraries.length > 0
+                ? { "aleatory:libraries": JSON.stringify(record.libraries) }
+                : {}),
         },
     });
 

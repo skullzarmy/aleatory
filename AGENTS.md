@@ -84,9 +84,11 @@ Seven, in `contract/aleatory.py` and `contract/marketplace.py`.
 | **Resolver** | Which keys may write resolution entries. |
 
 **The artist holds every authority a generator has**: pause the sale, reprice
-the unsold remainder, reduce or close the edition, switch render provider, and
-hand the contract on in two steps. `code`, `code_uri`, `code_hash` and
-`royalties` are written at origination and stand for the life of the contract.
+the unsold remainder, reduce or close the edition, switch render provider, edit
+display metadata, and hand the contract on in two steps. `code`, `code_uri`,
+`code_hash` and `royalties` are written at origination and stand for the life of
+the contract, and so do `aleatory:libraries` and `aleatory:params`, which
+`set_metadata` refuses: everything deciding what a piece runs is fixed.
 A bug in the template is therefore frozen into every generator made from it,
 which is why the template is small and is audited before it ships.
 

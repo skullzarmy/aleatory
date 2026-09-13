@@ -52,9 +52,17 @@ export function LibraryPicker({
                                         {d.label} {d.version}
                                     </span>
                                     <span className="block text-xs text-muted-foreground">
-                                        {(d.approxBytes / 1024).toFixed(0)} KB, loaded at render and
-                                        checked against{" "}
-                                        <code className="font-mono">{d.hash.slice(0, 12)}…</code>
+                                        {d.hash ? (
+                                            <>
+                                                {(d.approxBytes / 1024).toFixed(0)} KB, loaded at
+                                                render and checked against{" "}
+                                                <code className="font-mono">
+                                                    {d.hash.slice(0, 12)}…
+                                                </code>
+                                            </>
+                                        ) : (
+                                            "fetched from npm, hashed, and checked before it runs"
+                                        )}
                                     </span>
                                 </span>
                             </label>

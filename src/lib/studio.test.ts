@@ -9,10 +9,15 @@ import { templateFor, templateParamsFor } from "./templates";
 import { resolveParams, validateSchema } from "./params";
 import { newDraft, seedAt } from "./draft";
 import { packageFromHtml, packageFromZip } from "./project";
-import { declaredIn, librariesIn, withLibraries } from "./libraries";
+import { declaredIn, librariesIn, recordFor, specFor, withLibraries } from "./libraries";
+import { P5_DEP, THREE_DEP } from "./kinds";
 import { detectParams } from "./detect";
 import { MAX_PARAMS } from "./params";
 import { strToU8, zipSync } from "fflate";
+import { readFileSync } from "node:fs";
+import blakejs from "blakejs";
+
+const { blake2bHex } = blakejs;
 
 let failures = 0;
 
@@ -549,6 +554,73 @@ console.log("\nDrafts");
     const grid = Array.from({ length: 16 }, (_, i) => seedAt(draft.seed, i));
     check("grid seeds are distinct", new Set(grid).size === 16);
     check("grid seeds are reproducible", seedAt(draft.seed, 7) === seedAt(draft.seed, 7));
+}
+
+console.log("\nDeclared libraries");
+{
+    // The record is the document's. A kind cannot add to it or take from it,
+    // and there is no setter once the generator exists.
+    const three = recordFor(withLibraries(templateFor(1), ["three@0.160.1"]), [THREE_DEP]);
+    check(
+        "a document declaring three records three",
+        three.ok && three.libraries.length === 1 && three.libraries[0].id === "three",
+    );
+    check(
+        "and records the file and the digest a renderer checks",
+        three.ok &&
+            three.libraries[0].path === THREE_DEP.registry.path &&
+            /^[0-9a-f]{64}$/.test(three.libraries[0].hash),
+    );
+
+    // The case that was wrong: the catalog said p5 and the document did not.
+    const stripped = recordFor(withLibraries(templateFor(3), []), []);
+    check(
+        "a p5 draft that declares nothing records nothing",
+        stripped.ok && stripped.libraries.length === 0,
+    );
+
+    const both = recordFor(withLibraries(templateFor(1), ["p5@1.5.0", "three@0.160.1"]), [
+        THREE_DEP,
+        P5_DEP,
+    ]);
+    check(
+        "the record is in declaration order, because that is load order",
+        both.ok && both.libraries.map((l) => l.id).join(",") === "p5,three",
+    );
+
+    const declaredP5 = withLibraries(templateFor(1), ["p5@1.5.0"]);
+    check("an unresolved declaration blocks the record", !recordFor(declaredP5, []).ok);
+    check(
+        "a declaration resolved to another version blocks the record",
+        !recordFor(withLibraries(templateFor(1), ["p5@2.0.0"]), [P5_DEP]).ok,
+    );
+    check(
+        "an empty digest blocks the record",
+        !recordFor(declaredP5, [{ ...P5_DEP, hash: "" }]).ok,
+        "a renderer must refuse to draw without one",
+    );
+    check(
+        "an empty path blocks the record",
+        !recordFor(declaredP5, [{ ...P5_DEP, registry: { ...P5_DEP.registry, path: "" } }]).ok,
+        "a renderer builds its URL from the path, so an empty one resolves nowhere",
+    );
+    check(
+        "a malformed coordinate blocks the record",
+        !recordFor(withLibraries(templateFor(1), ["p5"]), [P5_DEP]).ok,
+    );
+
+    // The pinned half: a digest checked by hand against npm, and the copy we
+    // serve. A wrong value here makes the package unresolvable everywhere.
+    const vendored = readFileSync("public/vendor/p5-1.5.0.min.js");
+    check(
+        "the vendored p5 is the file its recorded digest names",
+        blake2bHex(vendored, undefined, 32) === P5_DEP.hash,
+    );
+    check("and the size the picker quotes is its size", vendored.length === P5_DEP.approxBytes);
+    check(
+        "a declared p5 resolves to the pinned spec, not an empty one",
+        specFor("p5@1.5.0")?.hash === P5_DEP.hash,
+    );
 }
 
 console.log(

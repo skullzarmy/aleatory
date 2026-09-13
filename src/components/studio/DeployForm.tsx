@@ -20,6 +20,8 @@ import { getKind } from "@/lib/runtimes";
 import { detectParams } from "@/lib/detect";
 import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
+import { useDeps } from "./useDeps";
+import { declaredIn, recordFor } from "@/lib/libraries";
 import { publishGenerator, type PublishResult, type PublishStage } from "@/lib/publish";
 
 /**
@@ -107,6 +109,16 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         [draft],
     );
 
+    // Resolved once, and used for both halves of the job: the cover is drawn
+    // with these bytes and their digests are what goes on chain, so the record
+    // names the file the artist actually looked at.
+    const {
+        deps,
+        resolved: resolvedDeps,
+        ready: depsReady,
+        error: depsError,
+    } = useDeps(draft?.html ?? "");
+
     // A new set of recipients is a new question, or acknowledging a warning
     // about one address deploys past an unchecked different one.
     const recipientKey = split.recipients.map((r) => r.address).join(",");
@@ -126,6 +138,17 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             return "Point at your source with an ipfs:// URI.";
         }
         if (!provider) return "Choose a render provider.";
+        // Before the cover, which cannot be captured correctly without them,
+        // and long before a signature. The record has no setter.
+        if (draft) {
+            if (depsError) return depsError;
+            if (!depsReady) return "The libraries this generator declares are still loading.";
+            const record = recordFor(
+                draft.html,
+                resolvedDeps.map((r) => r.spec),
+            );
+            if (!record.ok) return record.problems.join(" ");
+        }
         if (draft && !cover) {
             return "Pick a cover. It is what your generator looks like everywhere it is listed.";
         }
@@ -246,6 +269,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     split,
                     provider: provider!.address,
                     maxRenderGasMutez: BigInt(provider!.renderGasMutez),
+                    resolvedLibraries: resolvedDeps.map((r) => r.spec),
                     startPaused,
                     trustResolver,
                     coverUri: cover?.uri,
@@ -339,12 +363,26 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
             {draft && (
                 <Field label="Cover" hint="Shown wherever your generator is listed.">
-                    <CoverPicker
-                        html={draft.html}
-                        params={declared}
-                        baseSeed={draft.seed}
-                        onCaptured={setCover}
-                    />
+                    {/* A gate, not a prop that arrives late. A p5 sketch with no
+                        p5 still fills a canvas, so a cover captured early is a
+                        valid PNG of nothing and nothing downstream can tell. */}
+                    {depsError ? (
+                        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                            {depsError}
+                        </p>
+                    ) : !depsReady ? (
+                        <p className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
+                            Loading {declaredIn(draft.html).join(", ") || "libraries"}…
+                        </p>
+                    ) : (
+                        <CoverPicker
+                            html={draft.html}
+                            params={declared}
+                            deps={deps}
+                            baseSeed={draft.seed}
+                            onCaptured={setCover}
+                        />
+                    )}
                 </Field>
             )}
 

@@ -12,7 +12,24 @@ const source = ["contract/aleatory.py", "contract/marketplace.py"]
     .join("\n");
 
 const classes = [...source.matchAll(/class Aleatory(\w+)\s*\(/g)].map((m) => m[1]);
-const entrypoints = new Set([...source.matchAll(/def\s+([a-z_]+)\s*\(self/g)].map((m) => m[1]));
+
+/**
+ * Entrypoints per contract, not pooled across all of them. Pooled, a doc could
+ * claim the generator has `set_metadata` and pass on the provider's, which is
+ * how a comment promising an entrypoint the generator did not have survived.
+ */
+const byContract = new Map();
+{
+    const bounds = [...source.matchAll(/class Aleatory(\w+)\s*\(/g)];
+    for (const [i, m] of bounds.entries()) {
+        const body = source.slice(m.index, bounds[i + 1]?.index ?? source.length);
+        byContract.set(
+            m[1],
+            new Set([...body.matchAll(/def\s+([a-z_]+)\s*\(self/g)].map((d) => d[1])),
+        );
+    }
+}
+const entrypoints = new Set([...byContract.values()].flatMap((s) => [...s]));
 
 const WORDS = [
     "zero",

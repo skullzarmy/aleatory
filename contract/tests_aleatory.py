@@ -208,6 +208,33 @@ def test_start_paused():
 
 
 @sp.add_test()
+def test_set_metadata_is_display_only():
+    """The artist may edit the cover. Nothing may edit what a piece runs."""
+    scenario = sp.test_scenario("Display metadata only", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    c = _collection(scenario, artist, resolver, provider, minter)
+
+    body = sp.utils.bytes_of_string('{"name":"Renamed"}')
+
+    c.set_metadata(key="content", value=body, _sender=artist)
+    c.set_metadata(key="content", value=body, _sender=alice, _valid=False)
+    c.set_metadata(key="content", value=body, _sender=artist,
+                   _amount=sp.mutez(1), _valid=False)
+
+    # The two that matter. A renderer is told to trust this record absolutely,
+    # so a setter that could reach it could change what a minted piece runs.
+    c.set_metadata(key="aleatory:libraries", value=body, _sender=artist,
+                   _valid=False)
+    c.set_metadata(key="aleatory:params", value=body, _sender=artist,
+                   _valid=False)
+
+
+@sp.add_test()
 def test_metadata_publishing():
     scenario = sp.test_scenario("Publish metadata", aleatory)
     admin = sp.test_account("Admin")

@@ -15,6 +15,13 @@ export function useDeps(html: string): {
     deps: string[];
     resolved: ResolvedDep[];
     loading: boolean;
+    /**
+     * Every declaration is resolved and none failed. `loading` starts false
+     * with nothing resolved, so the first render of a document that declares
+     * something reports neither loading nor ready, and a frame mounted on
+     * `!loading` draws without its libraries.
+     */
+    ready: boolean;
     error: string | null;
 } {
     const [resolved, setResolved] = useState<ResolvedDep[]>([]);
@@ -63,5 +70,10 @@ export function useDeps(html: string): {
     // unstable, and one that remounts a frame on change never stops.
     const deps = useMemo(() => resolved.map((r) => r.source), [resolved]);
 
-    return { deps, resolved, loading, error };
+    const ready = useMemo(
+        () => !loading && error === null && resolved.length === librariesIn(html).specs.length,
+        [loading, error, resolved, html],
+    );
+
+    return { deps, resolved, loading, ready, error };
 }

@@ -521,6 +521,6 @@ function PickRow({
  */
 function kindPreamble(kindId: number): string {
     return getKind(kindId)
-        .deps.map((d) => `<meta name="alea:library" content="${d.id}@${d.version}">`)
+        .suggests.map((c) => `<meta name="alea:library" content="${c}">`)
         .join("\n");
 }

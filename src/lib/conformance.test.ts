@@ -152,6 +152,30 @@ function auditLibraries() {
         !/unpkg\.com|cdn\.jsdelivr\.net\/npm/.test(studio),
         "connect-src is 'self'; a CDN in the page is a third party watching visitors",
     );
+
+    // The other half of §1. Everything above checks that a library is verified
+    // before it runs; these check that the record a renderer verifies against
+    // says what the document said. That half went unchecked, and for a while
+    // the record came from the kind catalog and only p5 could ever be right.
+    const publish = read("src/lib/publish.ts");
+    const deploy = read("src/components/studio/DeployForm.tsx");
+
+    check("the record is built from the document", /recordFor\(\s*draft\.html/.test(publish));
+    check(
+        "the record is not built from the kind catalog",
+        !/getKind\([^)]*\)\.(deps|suggests)/.test(publish),
+        "a kind selects a harness; only the document declares libraries",
+    );
+    check(
+        "publishing stops when a declaration cannot be recorded",
+        /if\s*\(!record\.ok\)/.test(publish),
+        "the record has no setter, so a wrong one is a generator nobody can render",
+    );
+    check(
+        "the cover is captured with the libraries the document declares",
+        /<CoverPicker[\s\S]{0,400}?deps=/.test(deploy),
+        "a p5 cover drawn without p5 is a blank frame pinned as displayUri",
+    );
 }
 
 /** The documentation, against what is actually declarable. */
