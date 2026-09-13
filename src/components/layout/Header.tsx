@@ -11,12 +11,16 @@ import { BRAND, NETWORK } from "@/lib/config";
 
 // Manage lives in the account menu, not here: it's an account-scoped
 // concern (generators this wallet administers), not site navigation.
+//
+// Providers is in the footer. The header is the paths people take, and the
+// directory is reference: a piece links to the provider that rendered it, and
+// an artist picks one inside the deploy form, so nobody arrives at the list on
+// their way somewhere.
 const NAV = [
     { href: "/", label: "Generators" },
     { href: "/mints", label: "Mints" },
     { href: "/market", label: "Market" },
     { href: "/studio", label: "Studio" },
-    { href: "/providers", label: "Providers" },
 ];
 
 function isHere(pathname: string, href: string) {
