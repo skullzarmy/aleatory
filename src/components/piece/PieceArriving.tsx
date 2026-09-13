@@ -49,10 +49,10 @@ export function PieceArriving({ contract, tokenId }: { contract: string; tokenId
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <Link
-                    href={`/collection/${contract}`}
+                    href={`/generator/${contract}`}
                     className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
                 >
-                    The collection
+                    The generator
                 </Link>
                 <Link
                     href="/mine"

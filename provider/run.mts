@@ -18,9 +18,7 @@ import dotenv from "dotenv";
 // above this call, and the daemon would read an unfilled process.env.
 dotenv.config();
 
-const { collectionsServed, collectionsFactories, pendingIn, handle } = await import(
-    "./provider.mts"
-);
+const { generatorsServed, generatorsFactories, pendingIn, handle } = await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
 
 /** Same flag as every other script here, and as `contract/deploy.ts`. */
@@ -49,7 +47,7 @@ const ready = [
     check("pinning", Boolean(process.env.PINATA_JWT)),
     check("rendering", Boolean(renderConfigFromEnv())),
     // Where the daemon looks for work. Unset, it scans nothing and reports
-    // serving no collections, which reads like nobody having named it.
+    // serving no generators, which reads like nobody having named it.
     check("router", Boolean(router || override), override ? `overridden: ${override}` : router),
 ].every(Boolean);
 
@@ -58,7 +56,7 @@ if (!ready) {
     process.exit(1);
 }
 
-const factories = await collectionsFactories();
+const factories = await generatorsFactories();
 console.log(
     `\nFactories watched (${factories.length})` +
         (override ? ", from ALEA_FACTORIES" : ", from the router"),
@@ -68,28 +66,28 @@ if (factories.length === 0) {
     console.log("  none. Nothing will be found, whoever names this provider.");
 }
 
-console.log("\nCollections this provider serves");
-const collections = await collectionsServed();
-if (collections.length === 0) {
-    console.log("  none. A collection names its provider at deploy, or through set_provider.\n");
+console.log("\nGenerators this provider serves");
+const generators = await generatorsServed();
+if (generators.length === 0) {
+    console.log("  none. A generator names its provider at deploy, or through set_provider.\n");
     process.exit(0);
 }
-for (const c of collections) console.log(`  ${c}`);
+for (const c of generators) console.log(`  ${c}`);
 
 console.log("\nPieces waiting");
 let total = 0;
-for (const collection of collections) {
-    const waiting = await pendingIn(collection).catch((e: unknown) => {
-        console.log(`  ${collection}  scan failed: ${e instanceof Error ? e.message : e}`);
+for (const generator of generators) {
+    const waiting = await pendingIn(generator).catch((e: unknown) => {
+        console.log(`  ${generator}  scan failed: ${e instanceof Error ? e.message : e}`);
         return [];
     });
     if (waiting.length === 0) {
-        console.log(`  ${collection}  nothing waiting`);
+        console.log(`  ${generator}  nothing waiting`);
         continue;
     }
     for (const piece of waiting) {
         total++;
-        console.log(`  ${piece.collection} #${piece.tokenId}  seed ${piece.seed.slice(0, 12)}…`);
+        console.log(`  ${piece.generator} #${piece.tokenId}  seed ${piece.seed.slice(0, 12)}…`);
         if (DRY) continue;
         try {
             const hash = await handle(piece);

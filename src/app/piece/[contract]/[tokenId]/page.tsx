@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { ArtifactFrame } from "@/components/piece/ArtifactFrame";
 import { PieceArriving } from "@/components/piece/PieceArriving";
 import { JustMinted } from "@/components/piece/JustMinted";
-import { fetchCollection } from "@/lib/collection";
+import { fetchGenerator } from "@/lib/generator";
 import { PieceFacts } from "@/components/piece/PieceFacts";
 import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
@@ -57,8 +57,8 @@ export default async function PiecePage({ params }: { params: Params }) {
     // The indexer may not have caught up yet; check the contract's next_token_id
     // (the count it has issued) before treating a token as not existing.
     if (!piece?.seed) {
-        const collection = await fetchCollection(contract).catch(() => null);
-        const minted = collection ? Number(tokenId) < collection.minted : false;
+        const generator = await fetchGenerator(contract).catch(() => null);
+        const minted = generator ? Number(tokenId) < generator.minted : false;
         if (!minted) return notFound();
         return <PieceArriving contract={contract} tokenId={tokenId} />;
     }
@@ -81,7 +81,7 @@ export default async function PiecePage({ params }: { params: Params }) {
                 imageUrl={piece.imageUrl}
                 creator={piece.artist}
                 mintedAt={piece.mintedAt}
-                collectionName={piece.collectionName}
+                generatorName={piece.generatorName}
                 url={`${BRAND.url}/piece/${contract}/${tokenId}`}
             />
             {/* Only for whoever arrived here from the mint; a shared link gets the plain page. */}
@@ -137,7 +137,7 @@ export default async function PiecePage({ params }: { params: Params }) {
                     <div className="mt-4">
                         <ShareButtons
                             url={`${BRAND.url}/piece/${contract}/${tokenId}`}
-                            text={`${piece.name}${piece.collectionName ? `, from ${piece.collectionName}` : ""}`}
+                            text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
                         />
                     </div>
                 </div>

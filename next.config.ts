@@ -115,6 +115,23 @@ function csp(): string {
 
 const config: NextConfig = {
     reactStrictMode: true,
+    /**
+     * What collections were called before they were called generators.
+     *
+     * A published piece links back to the contract that made it, and those
+     * links are on chain, in other people's metadata and in search results, so
+     * the old paths have to keep resolving. Permanent, because the new name is.
+     */
+    async redirects() {
+        return [
+            { source: "/collections", destination: "/", permanent: true },
+            {
+                source: "/collection/:address",
+                destination: "/generator/:address",
+                permanent: true,
+            },
+        ];
+    },
     // Images come from IPFS gateways through plain <img>, and the hosts that
     // may be reached are set by img-src above. Adding a next/image allowlist
     // would describe a control the code does not use.

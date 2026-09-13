@@ -10,11 +10,11 @@ export const metadata: Metadata = {
         type: "website",
         title: "ALEATORY-001",
         description:
-            "The interface a collection conforms to so any provider renders it and any front end can list it.",
+            "The interface a generator conforms to so any provider renders it and any front end can list it.",
     },
     title: "ALEATORY-001",
     description:
-        "The interface a collection conforms to so any provider renders it and any front end can list it.",
+        "The interface a generator conforms to so any provider renders it and any front end can list it.",
 };
 
 // Renders docs/interface.md directly, so there's one copy of the spec and it can't

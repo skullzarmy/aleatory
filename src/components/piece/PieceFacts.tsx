@@ -21,9 +21,9 @@ export function PieceFacts({ piece }: { piece: Piece }) {
 
     return (
         <div className="divide-y divide-border">
-            <Row label="Collection">
-                <Link href={`/collection/${piece.contract}`} className="hover:underline">
-                    {piece.collectionName || shortAddress(piece.contract)}
+            <Row label="Generator">
+                <Link href={`/generator/${piece.contract}`} className="hover:underline">
+                    {piece.generatorName || shortAddress(piece.contract)}
                 </Link>
             </Row>
             <Row label="Edition">

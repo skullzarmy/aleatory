@@ -4,35 +4,35 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { allFactories } from "@/lib/router";
-import { fetchCollection, type Collection } from "@/lib/collection";
-import { fetchCollectionsDeployedBy } from "@/lib/tzkt";
+import { fetchGenerator, type Generator } from "@/lib/generator";
+import { fetchGeneratorsDeployedBy } from "@/lib/tzkt";
 import { formatTez, shortAddress } from "@/lib/utils";
 
 // Ownership here is the contract's `administrator`; connecting a different wallet
 // shows a different list.
 export default function ManagePage() {
     const { address, connect, restoring } = useWallet();
-    const [collections, setCollections] = useState<Collection[] | null>(null);
+    const [generators, setGenerators] = useState<Generator[] | null>(null);
 
     useEffect(() => {
         if (!address) {
-            setCollections(null);
+            setGenerators(null);
             return;
         }
         let cancelled = false;
         void (async () => {
-            // Every factory, so a collection deployed before a redeploy still
+            // Every factory, so a generator deployed before a redeploy still
             // appears under the wallet that made it.
             const factories = await allFactories().catch(() => []);
             const lists = await Promise.all(
-                factories.map((f) => fetchCollectionsDeployedBy(address, f).catch(() => [])),
+                factories.map((f) => fetchGeneratorsDeployedBy(address, f).catch(() => [])),
             );
             const addresses = [...new Set(lists.flat())];
             const rows = await Promise.all(
-                addresses.map((a) => fetchCollection(a).catch(() => null)),
+                addresses.map((a) => fetchGenerator(a).catch(() => null)),
             );
             if (!cancelled) {
-                setCollections(rows.filter((c): c is Collection => c !== null));
+                setGenerators(rows.filter((c): c is Generator => c !== null));
             }
         })();
         return () => {
@@ -65,7 +65,7 @@ export default function ManagePage() {
         );
     }
 
-    if (collections === null) {
+    if (generators === null) {
         return (
             <Shell>
                 <p className="text-sm text-muted-foreground">Loading…</p>
@@ -73,7 +73,7 @@ export default function ManagePage() {
         );
     }
 
-    if (collections.length === 0) {
+    if (generators.length === 0) {
         return (
             <Shell>
                 <p className="text-sm text-muted-foreground">
@@ -92,7 +92,7 @@ export default function ManagePage() {
     return (
         <Shell>
             <ul className="divide-y divide-border rounded-lg border border-border">
-                {collections.map((c) => (
+                {generators.map((c) => (
                     <li key={c.address}>
                         <Link
                             href={`/manage/${c.address}`}
@@ -109,7 +109,7 @@ export default function ManagePage() {
                                     {formatTez(Number(c.totalMutez))} ꜩ to mint
                                 </span>
                             </span>
-                            <Status collection={c} />
+                            <Status generator={c} />
                         </Link>
                     </li>
                 ))}
@@ -118,10 +118,10 @@ export default function ManagePage() {
     );
 }
 
-function Status({ collection }: { collection: Collection }) {
-    const [label, tone] = collection.soldOut
+function Status({ generator }: { generator: Generator }) {
+    const [label, tone] = generator.soldOut
         ? ["Sold out", "text-muted-foreground"]
-        : collection.paused
+        : generator.paused
           ? ["Paused", "text-warning"]
           : ["Selling", "text-success"];
     return <span className={`shrink-0 text-xs font-medium ${tone}`}>{label}</span>;
@@ -130,7 +130,7 @@ function Status({ collection }: { collection: Collection }) {
 function Shell({ children }: { children: React.ReactNode }) {
     return (
         <div className="mx-auto max-w-3xl px-4 py-8">
-            <h1 className="text-xl font-semibold tracking-tight">Your collections</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Your generators</h1>
             <p className="mb-6 mt-2 text-sm text-muted-foreground">
                 Change the price, pause sales, shrink an edition, or switch who renders your images.
             </p>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArtifactFrame } from "@/components/piece/ArtifactFrame";
 import { MintPanel } from "./MintPanel";
-import type { Collection } from "@/lib/collection";
+import type { Generator } from "@/lib/generator";
 import type { ParamsSchema } from "@/lib/params";
 
 /**
@@ -15,22 +15,22 @@ import type { ParamsSchema } from "@/lib/params";
  * they are buying into and not the draw they will get.
  */
 export function MintView({
-    collection,
+    generator,
     schema,
 }: {
-    collection: Collection;
+    generator: Generator;
     schema?: ParamsSchema | null;
 }) {
-    // Starts on the collection's own address, so every visitor sees the same
+    // Starts on the generator's own address, so every visitor sees the same
     // first draw and the page is stable rather than reshuffling on load.
-    const [previewSeed, setPreviewSeed] = useState(collection.address);
+    const [previewSeed, setPreviewSeed] = useState(generator.address);
     const [values, setValues] = useState<Record<string, unknown>>({});
 
     return (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
             <div className="min-w-0">
                 <ArtifactFrame
-                    code={collection.code}
+                    code={generator.code}
                     seed={previewSeed}
                     params={values}
                     name="Generator preview"
@@ -43,7 +43,7 @@ export function MintView({
 
             <div className="min-w-0 space-y-4">
                 <MintPanel
-                    collection={collection}
+                    generator={generator}
                     schema={schema}
                     onPreview={(next, seed) => {
                         setValues(next);

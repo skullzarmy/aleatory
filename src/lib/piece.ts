@@ -1,7 +1,7 @@
 /**
  * One piece, assembled from chain state: the seed is the hash of the operation
  * that minted it, the parameters are in that same operation, and the code is
- * immutable in the collection's storage.
+ * immutable in the generator's storage.
  */
 import { CONTRACTS, ISOLATE_ORIGIN } from "./config";
 import {
@@ -19,8 +19,8 @@ import {
     ipfsImageUrl,
 } from "@/utils/ipfs";
 
-/** The shape of a collection's storage that this page reads. */
-interface CollectionStorage {
+/** The shape of a generator's storage that this page reads. */
+interface GeneratorStorage {
     administrator: string;
     art: {
         code: string;
@@ -39,7 +39,7 @@ export interface Piece {
     tokenId: string;
     name: string;
     description?: string;
-    collectionName?: string;
+    generatorName?: string;
     artist: string;
     owner?: string;
     /** The buy operation hash. This is the seed. */
@@ -47,7 +47,7 @@ export interface Piece {
     mintedAt?: string;
     /** Canonical JSON of the collector's chosen parameters. */
     params?: string;
-    /** The generator source, decoded from storage. Empty when it is a pointer. */
+    /** The source, decoded from storage. Empty when it is a pointer. */
     code: string;
     codeUri: string;
     codeHash: string;
@@ -94,7 +94,7 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
     const [owner, mint, storage] = await Promise.all([
         fetchOwner(contract, tokenId).catch(() => null),
         fetchMintOperation(contract, tokenId).catch(() => null),
-        fetchStorage<CollectionStorage>(contract).catch(() => null),
+        fetchStorage<GeneratorStorage>(contract).catch(() => null),
     ]);
 
     // The token's own metadata pointer, off chain state, which is what decides
@@ -134,16 +134,16 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         : [];
 
     // "Has no image" is not the test: a pending document carries the
-    // collection's cover as its displayUri.
+    // generator's cover as its displayUri.
     const pending = pendingDoc.length > 0 && tokenUri ? tokenUri === pendingDoc : !display;
     const edition = `#${Number(tokenId) + 1}`;
 
     // The pending document is one CID shared by every unrevealed token, so its
-    // `name` is the collection's. Built here in the form the real document
+    // `name` is the generator's. Built here in the form the real document
     // uses, so the name does not change when the render lands.
-    const collectionName = (pending ? m?.name : undefined) ?? token.contract.alias;
+    const generatorName = (pending ? m?.name : undefined) ?? token.contract.alias;
     const name = pending
-        ? `${collectionName ?? "Untitled collection"} ${edition}`
+        ? `${generatorName ?? "Untitled generator"} ${edition}`
         : m?.name || edition;
 
     return {
@@ -151,7 +151,7 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         tokenId,
         name,
         description: m?.description,
-        collectionName,
+        generatorName,
         artist: storage?.administrator || token.firstMinter?.address || "",
         owner: owner ?? undefined,
         seed: mint?.hash,

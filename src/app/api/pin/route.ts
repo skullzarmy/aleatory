@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 /**
- * Pin an artist's generator, and the documents that go with it. Publishing
+ * Pin an artist's source, and the documents that go with it. Publishing
  * needs an `ipfs://` pointer before the deploy operation is built, and pinning
  * needs a credential that cannot be in a browser.
  *
@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
  * studio is for, which makes this an open pinning endpoint on our account. The
  * limits are the whole defence:
  *
- *   - one operation's worth of bytes, since a larger generator cannot be
+ *   - one operation's worth of bytes, since larger source cannot be
  *     deployed anyway
  *   - JSON documents capped far below that
  *   - `content-type` fixed here, so nothing decides its own media type
@@ -21,14 +21,14 @@ import { NextResponse } from "next/server";
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
 /**
- * The protocol's operation ceiling. A generator above it cannot be carried by
+ * The protocol's operation ceiling. Source above it cannot be carried by
  * the deploy, so pinning one produces a pointer that fails at signature.
  */
-const MAX_GENERATOR_BYTES = 32_768;
+const MAX_SOURCE_BYTES = 32_768;
 const MAX_DOCUMENT_BYTES = 8_192;
 
 type Body =
-    | { kind: "generator"; content: string; name?: string }
+    | { kind: "source"; content: string; name?: string }
     | { kind: "document"; content: unknown; name?: string }
     | { kind: "image"; content: string; name?: string };
 
@@ -48,15 +48,15 @@ export async function POST(request: Request) {
     }
 
     try {
-        if (body.kind === "generator") {
+        if (body.kind === "source") {
             if (typeof body.content !== "string") {
                 return NextResponse.json({ error: "Expected a string." }, { status: 400 });
             }
             const bytes = new TextEncoder().encode(body.content);
-            if (bytes.length > MAX_GENERATOR_BYTES) {
+            if (bytes.length > MAX_SOURCE_BYTES) {
                 return NextResponse.json(
                     {
-                        error: `That generator is ${bytes.length.toLocaleString()} bytes. One operation carries ${MAX_GENERATOR_BYTES.toLocaleString()}, so it could not be deployed even if it were pinned.`,
+                        error: `That source is ${bytes.length.toLocaleString()} bytes. One operation carries ${MAX_SOURCE_BYTES.toLocaleString()}, so it could not be deployed even if it were pinned.`,
                     },
                     { status: 413 },
                 );
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
         }
 
         if (body.kind === "image") {
-            // A collection cover, captured in the artist's own browser.
+            // A generator cover, captured in the artist's own browser.
             const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(body.content ?? "");
             if (!match) {
                 return NextResponse.json(
@@ -109,7 +109,7 @@ async function pinFile(bytes: Uint8Array, name?: string, type = "text/html"): Pr
     form.append(
         "file",
         new Blob([bytes.buffer as ArrayBuffer], { type }),
-        safeName(name) || (type === "image/png" ? "cover.png" : "generator.html"),
+        safeName(name) || (type === "image/png" ? "cover.png" : "source.html"),
     );
     const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
         method: "POST",

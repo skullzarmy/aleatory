@@ -10,7 +10,7 @@
  *   2. A ping from the mint UI carrying a shared secret, which turns a polling
  *      interval into a couple of seconds.
  *
- * A candidate collection is checked against its own storage before anything it
+ * A candidate generator is checked against its own storage before anything it
  * asserts is used. An event payload is written by the contract that emits it,
  * so it is a hint about where to look and not evidence.
  */
@@ -49,17 +49,17 @@ const ROUTER = (
 let factoryCache: { at: number; addresses: string[] } | null = null;
 
 /**
- * Factories whose collections this provider will look at.
+ * Factories whose generators this provider will look at.
  *
  * From the router, which holds the current factory and every retired one, so a
- * collection deployed by an old factory keeps being served. An environment list
+ * generator deployed by an old factory keeps being served. An environment list
  * written before a later factory existed serves that one alone and ignores the
  * rest in silence.
  *
- * This only decides where to look. Storage is the authority, and a collection
+ * This only decides where to look. Storage is the authority, and a generator
  * is served because its own storage names this provider.
  */
-export async function collectionsFactories(): Promise<string[]> {
+export async function generatorsFactories(): Promise<string[]> {
     if (FACTORY_OVERRIDE.length > 0) return FACTORY_OVERRIDE;
     if (!ROUTER) return [];
 
@@ -84,11 +84,13 @@ const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xy
 );
 
 /**
- * Collections this provider declines to render for. One operator saying no; the
- * collection keeps working and another provider can pick it up.
+ * Generators this provider declines to render for. One operator saying no; the
+ * generator keeps working and another provider can pick it up.
  */
-const BLOCKED_COLLECTIONS = new Set(
-    (process.env.ALEA_BLOCKED_COLLECTIONS || "")
+const BLOCKED_GENERATORS = new Set(
+    // The old name is still read: an operator who set it chose to decline those
+    // contracts, and dropping it would quietly start rendering for them again.
+    (process.env.ALEA_BLOCKED_GENERATORS || process.env.ALEA_BLOCKED_COLLECTIONS || "")
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
@@ -105,7 +107,7 @@ const ADDRESS = /^(tz[123]|KT1)[A-Za-z0-9]{33}$/;
 const CID = /^[A-Za-z0-9]{46,64}$/;
 
 interface PendingPiece {
-    collection: string;
+    generator: string;
     tokenId: string;
     /** The buy operation hash. This is the seed. */
     seed: string;
@@ -113,13 +115,13 @@ interface PendingPiece {
     /** The generator source, out of contract storage. */
     code: string;
     codeUri: string;
-    /** Libraries the collection says its generator expects to be loaded. */
+    /** Libraries the generator says its source expects to be loaded. */
     libraries: DeclaredLibrary[];
     artist: string;
-    /** For the document. A piece is "<collection> #<n>", never a bare number. */
-    collectionName: string;
+    /** For the document. A piece is "<generator> #<n>", never a bare number. */
+    generatorName: string;
     description: string;
-    /** Address to basis points, straight from the collection's storage. */
+    /** Address to basis points, straight from the generator's storage. */
     royalties: Record<string, number>;
     codeHash: string;
 }
@@ -146,7 +148,7 @@ function hexToUtf8(hex: string): string {
     return new TextDecoder().decode(new Uint8Array(bytes.map((b) => parseInt(b, 16))));
 }
 
-interface CollectionStorage {
+interface GeneratorStorage {
     administrator: string;
     art: {
         code: string;
@@ -161,17 +163,17 @@ interface CollectionStorage {
 }
 
 /**
- * Collections this provider actually serves. Candidates come from contracts a
+ * Generators this provider actually serves. Candidates come from contracts a
  * trusted factory originated and from `set_provider` events naming us, and each
  * one is confirmed against its own storage.
  */
-export async function collectionsServed(): Promise<string[]> {
+export async function generatorsServed(): Promise<string[]> {
     const candidates = new Set<string>();
 
-    // A collection deployed by a factory names its provider in its initial
+    // A generator deployed by a factory names its provider in its initial
     // storage and never emits `set_provider`, so an event scan alone never sees
-    // a new collection until its artist happens to switch provider.
-    for (const factory of await collectionsFactories()) {
+    // a new generator until its artist happens to switch provider.
+    for (const factory of await generatorsFactories()) {
         const originated = await tzkt<{ address: string }[]>("/v1/contracts", {
             creator: factory,
             limit: 500,
@@ -183,7 +185,7 @@ export async function collectionsServed(): Promise<string[]> {
         }
     }
 
-    // And a collection that switched to us after deploy, from a factory we do
+    // And a generator that switched to us after deploy, from a factory we do
     // not watch.
     const events = await tzkt<{ contract: { address: string } }[]>("/v1/contracts/events", {
         tag: "set_provider",
@@ -195,12 +197,12 @@ export async function collectionsServed(): Promise<string[]> {
         if (addr && ADDRESS.test(addr)) candidates.add(addr);
     }
 
-    // Storage is the authority. A collection that no longer names us has
+    // Storage is the authority. A generator that no longer names us has
     // switched away, and its old event is still in the stream.
     const served: string[] = [];
     for (const address of candidates) {
-        if (BLOCKED_COLLECTIONS.has(address)) continue;
-        const storage = await tzkt<CollectionStorage>(`/v1/contracts/${address}/storage`).catch(
+        if (BLOCKED_GENERATORS.has(address)) continue;
+        const storage = await tzkt<GeneratorStorage>(`/v1/contracts/${address}/storage`).catch(
             () => null,
         );
         if (storage?.render?.provider === PROVIDER_ADDRESS) served.push(address);
@@ -208,9 +210,9 @@ export async function collectionsServed(): Promise<string[]> {
     return served;
 }
 
-/** Name and description from the collection's own TZIP-16 document. */
-async function collectionFacts(collection: string): Promise<{ name: string; description: string }> {
-    const raw = await metadataKey(collection, "content").catch(() => undefined);
+/** Name and description from the generator's own TZIP-16 document. */
+async function generatorFacts(generator: string): Promise<{ name: string; description: string }> {
+    const raw = await metadataKey(generator, "content").catch(() => undefined);
     if (!raw) return { name: "", description: "" };
     try {
         const doc = JSON.parse(raw) as { name?: string; description?: string };
@@ -220,32 +222,32 @@ async function collectionFacts(collection: string): Promise<{ name: string; desc
     }
 }
 
-function royaltiesOf(storage: CollectionStorage): Record<string, number> {
+function royaltiesOf(storage: GeneratorStorage): Record<string, number> {
     return Object.fromEntries(
         Object.entries(storage.art.royalties ?? {}).map(([a, bps]) => [a, Number(bps)]),
     );
 }
 
-/** One key out of a collection's metadata big_map, decoded. */
-async function metadataKey(collection: string, key: string): Promise<string | undefined> {
+/** One key out of a generator's metadata big_map, decoded. */
+async function metadataKey(generator: string, key: string): Promise<string | undefined> {
     const row = await tzkt<{ value?: string } | null>(
-        `/v1/contracts/${collection}/bigmaps/metadata/keys/${encodeURIComponent(key)}`,
+        `/v1/contracts/${generator}/bigmaps/metadata/keys/${encodeURIComponent(key)}`,
     ).catch(() => null);
     const value = row?.value;
     return value ? hexToUtf8(value) : undefined;
 }
 
 /**
- * Every token id in a collection, oldest first, for a retry that covers the
- * whole collection. The queue treats a piece that already got a write as
+ * Every token id in a generator, oldest first, for a retry that covers the
+ * whole generator. The queue treats a piece that already got a write as
  * finished, which is exactly when a rebuild is wanted.
  */
-export async function tokenIdsIn(collection: string): Promise<string[]> {
+export async function tokenIdsIn(generator: string): Promise<string[]> {
     const out: string[] = [];
     let offset = 0;
     for (;;) {
         const rows = await tzkt<{ tokenId: string }[]>("/v1/tokens", {
-            contract: collection,
+            contract: generator,
             "sort.asc": "tokenId",
             limit: 200,
             offset,
@@ -259,11 +261,11 @@ export async function tokenIdsIn(collection: string): Promise<string[]> {
     return out;
 }
 
-export async function pendingIn(collection: string): Promise<PendingPiece[]> {
-    const storage = await tzkt<CollectionStorage>(`/v1/contracts/${collection}/storage`);
+export async function pendingIn(generator: string): Promise<PendingPiece[]> {
+    const storage = await tzkt<GeneratorStorage>(`/v1/contracts/${generator}/storage`);
     const pendingUri = hexToUtf8(storage.art.pending_metadata);
     // `code_uri` is sp.string on chain, not sp.bytes, so decoding it as hex
-    // throws "not hex" on every collection published by pointer.
+    // throws "not hex" on every generator published by pointer.
     const codeUri = storage.art.code_uri ?? "";
     requireAddress(storage.administrator, "administrator");
 
@@ -272,27 +274,27 @@ export async function pendingIn(collection: string): Promise<PendingPiece[]> {
         code = await decodeCode(storage.art.code, storage.art.code_encoding ?? "identity");
     } else if (codeUri.startsWith("ipfs://") && CID.test(codeUri.slice(7).split(/[/?#]/)[0])) {
         // Only for a generator too large to carry on chain. A pointer is
-        // written by whoever deployed the collection, so it is IPFS only and a
+        // written by whoever deployed the generator, so it is IPFS only and a
         // CID shape only.
         code = await fetchGenerator(codeUri);
     }
     if (!code) return [];
 
-    // Read from the collection's own metadata: a provider does not need to know
-    // what a "p5 collection" is, only how to resolve what it was told.
+    // Read from the generator's own metadata: a provider does not need to know
+    // what a "p5 sketch" is, only how to resolve what it was told.
     const libraries = parseLibraries(
-        await metadataKey(collection, "aleatory:libraries").catch(() => undefined),
+        await metadataKey(generator, "aleatory:libraries").catch(() => undefined),
     );
-    const facts = await collectionFacts(collection);
+    const facts = await generatorFacts(generator);
     const royalties = royaltiesOf(storage);
 
     const waiting: PendingPiece[] = [];
     let offset = 0;
 
-    // Paginated, or a collection past one page has pieces that never reveal.
+    // Paginated, or a generator past one page has pieces that never reveal.
     for (;;) {
         const tokens = await tzkt<{ tokenId: string }[]>("/v1/tokens", {
-            contract: collection,
+            contract: generator,
             limit: 200,
             offset,
             "sort.asc": "tokenId",
@@ -302,13 +304,13 @@ export async function pendingIn(collection: string): Promise<PendingPiece[]> {
 
         for (const t of tokens) {
             const tokenId = typeof t === "string" ? t : t.tokenId;
-            if ((await tokenMetadataUri(collection, tokenId)) !== pendingUri) continue;
+            if ((await tokenMetadataUri(generator, tokenId)) !== pendingUri) continue;
 
-            const buy = await buyEvent(collection, tokenId);
+            const buy = await buyEvent(generator, tokenId);
             if (!buy) continue;
 
             waiting.push({
-                collection,
+                generator,
                 tokenId,
                 seed: buy.hash,
                 params: buy.params,
@@ -316,7 +318,7 @@ export async function pendingIn(collection: string): Promise<PendingPiece[]> {
                 codeUri,
                 libraries,
                 artist: storage.administrator,
-                collectionName: facts.name,
+                generatorName: facts.name,
                 description: facts.description,
                 royalties,
                 codeHash: storage.art.code_hash ?? "",
@@ -541,8 +543,8 @@ async function ensureRevealed(tezos: TezosToolkit, s: InMemorySigner): Promise<v
 
 async function publish(piece: PendingPiece, metadataUri: string): Promise<string> {
     const tezos = await signer();
-    const collection = await tezos.contract.at(piece.collection);
-    const call = collection.methodsObject.set_token_metadata({
+    const generator = await tezos.contract.at(piece.generator);
+    const call = generator.methodsObject.set_token_metadata({
         token_id: piece.tokenId,
         metadata_uri: Buffer.from(metadataUri, "utf-8").toString("hex"),
     });
@@ -574,8 +576,8 @@ async function publish(piece: PendingPiece, metadataUri: string): Promise<string
  * holding the pending document, which excludes one that got a write and needs a
  * better one.
  */
-export async function pieceAt(collection: string, tokenId: string): Promise<PendingPiece> {
-    const storage = await tzkt<CollectionStorage>(`/v1/contracts/${collection}/storage`);
+export async function pieceAt(generator: string, tokenId: string): Promise<PendingPiece> {
+    const storage = await tzkt<GeneratorStorage>(`/v1/contracts/${generator}/storage`);
     requireAddress(storage.administrator, "administrator");
 
     let code = "";
@@ -588,25 +590,25 @@ export async function pieceAt(collection: string, tokenId: string): Promise<Pend
             code = await fetchGenerator(codeUri);
         }
     }
-    if (!code) throw new Error(`${collection} has no generator`);
+    if (!code) throw new Error(`${generator} has no source`);
 
-    const mint = await buyEvent(collection, tokenId);
-    if (!mint) throw new Error(`${collection} #${tokenId} has no mint event`);
+    const mint = await buyEvent(generator, tokenId);
+    if (!mint) throw new Error(`${generator} #${tokenId} has no mint event`);
 
-    const facts = await collectionFacts(collection);
+    const facts = await generatorFacts(generator);
 
     return {
-        collection,
+        generator,
         tokenId,
         seed: mint.hash,
         params: mint.params,
         code,
         codeUri: storage.art.code_uri ?? "",
         libraries: parseLibraries(
-            await metadataKey(collection, "aleatory:libraries").catch(() => undefined),
+            await metadataKey(generator, "aleatory:libraries").catch(() => undefined),
         ),
         artist: storage.administrator,
-        collectionName: facts.name,
+        generatorName: facts.name,
         description: facts.description,
         royalties: royaltiesOf(storage),
         codeHash: storage.art.code_hash ?? "",
@@ -615,13 +617,13 @@ export async function pieceAt(collection: string, tokenId: string): Promise<Pend
 
 export async function handle(piece: PendingPiece): Promise<string> {
     const image = await render(piece);
-    const imageUri = await pin(image, `${piece.collection}-${piece.tokenId}.png`);
+    const imageUri = await pin(image, `${piece.generator}-${piece.tokenId}.png`);
 
     const params = safeParse(piece.params);
     // Shared with the studio and covered by the golden tests. A document
     // assembled here instead is how a provider ships pieces with no royalties.
     const doc = buildPieceDocument({
-        collectionName: piece.collectionName,
+        generatorName: piece.generatorName,
         description: piece.description,
         artist: piece.artist,
         tokenId: Number(piece.tokenId),
@@ -638,7 +640,7 @@ export async function handle(piece: PendingPiece): Promise<string> {
     // agents rotate, so the provider contract is the durable answer.
     const withProvider = { ...doc, aleaProvider: PROVIDER_ADDRESS };
 
-    const metadataUri = await pinJson(withProvider, `${piece.collection}-${piece.tokenId}.json`);
+    const metadataUri = await pinJson(withProvider, `${piece.generator}-${piece.tokenId}.json`);
 
     // Started before the write lands so the two requests overlap the operation.
     const warmed = Promise.all([warmGateway(imageUri), warmGateway(metadataUri)]);

@@ -1,14 +1,14 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { fetchCollection, fetchCollectionPieces } from "@/lib/collection";
-import { MintView } from "@/components/collection/MintView";
+import { fetchGenerator, fetchGeneratorPieces } from "@/lib/generator";
+import { MintView } from "@/components/generator/MintView";
 import { FeedGrid } from "@/components/feed/FeedGrid";
 import { shortAddress } from "@/lib/utils";
 import { BRAND, tzktLink } from "@/lib/config";
 import { coversFor } from "@/lib/feed";
 import { AccountLink } from "@/components/account/AccountLink";
 import { LiveRefresh } from "@/components/LiveRefresh";
-import { CollectionJsonLd } from "@/components/JsonLd";
+import { GeneratorJsonLd } from "@/components/JsonLd";
 
 export const revalidate = 30;
 
@@ -17,21 +17,21 @@ type Params = Promise<{ address: string }>;
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
     const { address } = await params;
     const [c, covers] = await Promise.all([
-        fetchCollection(address).catch(() => null),
+        fetchGenerator(address).catch(() => null),
         coversFor([address]).catch(() => new Map<string, string>()),
     ]);
     const name = c?.name || shortAddress(address);
-    // The collection's newest rendered piece, which is what it looks like.
+    // The generator's newest rendered piece, which is what it looks like.
     const cover = covers.get(address);
     return {
         title: name,
         description: c?.description,
-        alternates: { canonical: `/collection/${address}` },
+        alternates: { canonical: `/generator/${address}` },
         openGraph: {
             type: "website",
             title: name,
             description: c?.description,
-            url: `${BRAND.url}/collection/${address}`,
+            url: `${BRAND.url}/generator/${address}`,
             images: cover ? [{ url: cover }] : undefined,
         },
         twitter: {
@@ -43,23 +43,23 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     };
 }
 
-export default async function CollectionPage({ params }: { params: Params }) {
+export default async function GeneratorPage({ params }: { params: Params }) {
     const { address } = await params;
-    const [collection, pieces] = await Promise.all([
-        fetchCollection(address),
-        fetchCollectionPieces(address),
+    const [generator, pieces] = await Promise.all([
+        fetchGenerator(address),
+        fetchGeneratorPieces(address),
     ]);
-    if (!collection) return notFound();
+    if (!generator) return notFound();
 
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
             <LiveRefresh seconds={30} />
-            <CollectionJsonLd
-                name={collection.name || shortAddress(collection.address)}
-                description={collection.description}
-                creator={collection.artist}
-                size={collection.editionSize || undefined}
-                url={`${BRAND.url}/collection/${address}`}
+            <GeneratorJsonLd
+                name={generator.name || shortAddress(generator.address)}
+                description={generator.description}
+                creator={generator.artist}
+                size={generator.editionSize || undefined}
+                url={`${BRAND.url}/generator/${address}`}
             />
             <header className="mb-6">
                 {/* The artist's name for it. They typed it, it is on chain, and
@@ -67,7 +67,7 @@ export default async function CollectionPage({ params }: { params: Params }) {
                     here too, because this is the page somebody checks, but it
                     is not the title. */}
                 <h1 className="break-words text-xl font-semibold tracking-tight">
-                    {collection.name || shortAddress(collection.address)}
+                    {generator.name || shortAddress(generator.address)}
                 </h1>
 
                 {/* A row rather than a paragraph with an inline-flex dropped
@@ -76,31 +76,31 @@ export default async function CollectionPage({ params }: { params: Params }) {
                     picture goes reads as a hole. */}
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                     <span>by</span>
-                    <AccountLink address={collection.artist} withAvatar />
+                    <AccountLink address={generator.artist} withAvatar />
                     <span aria-hidden>·</span>
                     <a
-                        href={tzktLink(collection.address)}
+                        href={tzktLink(generator.address)}
                         target="_blank"
                         rel="noreferrer"
                         className="font-mono text-xs hover:text-foreground hover:underline"
                     >
-                        {shortAddress(collection.address)}
+                        {shortAddress(generator.address)}
                     </a>
                 </div>
 
-                {collection.description && (
+                {generator.description && (
                     <p className="mt-3 max-w-prose whitespace-pre-line break-words text-sm text-muted-foreground">
-                        {collection.description}
+                        {generator.description}
                     </p>
                 )}
             </header>
 
-            <MintView collection={collection} schema={collection.paramsSchema} />
+            <MintView generator={generator} schema={generator.paramsSchema} />
 
-            {collection.royalties.length > 0 && (
+            {generator.royalties.length > 0 && (
                 <div className="mt-6 max-w-sm rounded-lg border border-border p-4">
                     <p className="pb-2 text-sm text-muted-foreground">Royalties</p>
-                    {collection.royalties.map((r) => (
+                    {generator.royalties.map((r) => (
                         <div key={r.address} className="flex justify-between gap-4 text-sm">
                             <span className="min-w-0 text-muted-foreground">
                                 <AccountLink address={r.address} />
@@ -116,7 +116,7 @@ export default async function CollectionPage({ params }: { params: Params }) {
             {pieces.length > 0 && (
                 <div className="mt-12">
                     <h2 className="mb-4 text-lg font-semibold tracking-tight">
-                        Pieces ({collection.minted})
+                        Pieces ({generator.minted})
                     </h2>
                     <FeedGrid pieces={pieces} />
                 </div>

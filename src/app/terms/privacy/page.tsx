@@ -115,9 +115,9 @@ export default function PrivacyPage() {
             <H>4. What is public forever</H>
             <P>
                 This part matters more than the rest and cannot be undone by us or by you. Deploying
-                a collection, minting a piece, listing, buying and making an offer are all Tezos
+                a generator, minting a piece, listing, buying and making an offer are all Tezos
                 transactions. They are public, permanent, and readable by anyone, including your
-                wallet address and everything you chose to publish: a collection&rsquo;s name and
+                wallet address and everything you chose to publish: a generator&rsquo;s name and
                 description, and the generator&rsquo;s source code.
             </P>
             <P>There is no delete. Not by us, not by anyone. Publish accordingly.</P>

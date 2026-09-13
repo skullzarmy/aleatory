@@ -1,22 +1,22 @@
-/** Pieces minted across every Aleatory collection, newest first. */
+/** Pieces minted across every Aleatory generator, newest first. */
 import { allFactories } from "./router";
 import {
-    fetchCollections,
-    fetchCollectionsDeployedBy,
+    fetchGenerators,
+    fetchGeneratorsDeployedBy,
     fetchRecentTokens,
     fetchTokensIn,
     fetchStorage,
-    fetchCollectionMeta,
-    type CollectionMeta,
+    fetchGeneratorMeta,
+    type GeneratorMeta,
     fetchTokensHeldBy,
     fetchTokenUris,
     fetchEditionSizes,
     type TzktToken,
 } from "./tzkt";
-import { isBlockedCollection } from "./blocklist";
-// Type only, so the cycle with collection.ts (which imports coversFor from
+import { isBlockedGenerator } from "./blocklist";
+// Type only, so the cycle with generator.ts (which imports coversFor from
 // here) is erased at compile time and never exists at runtime.
-import type { CollectionSummary } from "./collection";
+import type { GeneratorSummary } from "./generator";
 import {
     bytesToString,
     convertIpfsToGatewayUrl,
@@ -32,13 +32,13 @@ interface TokenDoc {
 }
 
 /**
- * Collection names, from each collection's own metadata document. TzKT's
+ * Generator names, from each generator's own metadata document. TzKT's
  * `alias` is set only for contracts it happens to know, never for one of ours.
  */
 async function namesFor(addresses: string[]): Promise<Map<string, string>> {
     const entries = await Promise.all(
         addresses.map(async (a) => {
-            const meta = await fetchCollectionMeta(a).catch((): CollectionMeta => ({}));
+            const meta = await fetchGeneratorMeta(a).catch((): GeneratorMeta => ({}));
             return [a, meta.name ?? ""] as const;
         }),
     );
@@ -46,15 +46,15 @@ async function namesFor(addresses: string[]): Promise<Map<string, string>> {
 }
 
 /**
- * For each token, its own metadata pointer and its collection's pending one.
- * Two reads per collection, not per token.
+ * For each token, its own metadata pointer and its generator's pending one.
+ * Two reads per generator, not per token.
  */
 async function pendingState(
     tokens: TzktToken[],
 ): Promise<Map<string, { pendingUri: string; tokenUri?: string }>> {
-    const collections = [...new Set(tokens.map((t) => t.contract.address))];
+    const generators = [...new Set(tokens.map((t) => t.contract.address))];
     const entries = await Promise.all(
-        collections.map(
+        generators.map(
             async (c) =>
                 [
                     c,
@@ -65,29 +65,29 @@ async function pendingState(
                 ] as const,
         ),
     );
-    const byCollection = new Map(entries);
+    const byGenerator = new Map(entries);
     const out = new Map<string, { pendingUri: string; tokenUri?: string }>();
     for (const t of tokens) {
-        const c = byCollection.get(t.contract.address);
+        const c = byGenerator.get(t.contract.address);
         if (c) out.set(key(t), { pendingUri: c.pending, tokenUri: c.uris.get(t.tokenId) });
     }
     return out;
 }
 
-/** A collection's pending pointer. */
-async function pendingUriOf(collection: string): Promise<string> {
-    const s = await fetchStorage<{ art?: { pending_metadata?: string } }>(collection).catch(
+/** A generator's pending pointer. */
+async function pendingUriOf(generator: string): Promise<string> {
+    const s = await fetchStorage<{ art?: { pending_metadata?: string } }>(generator).catch(
         () => null,
     );
     const raw = s?.art?.pending_metadata;
     return raw ? bytesToString(raw) : "";
 }
 
-async function resolveDocs(collection: string, tokenIds: string[]): Promise<Map<string, TokenDoc>> {
+async function resolveDocs(generator: string, tokenIds: string[]): Promise<Map<string, TokenDoc>> {
     const out = new Map<string, TokenDoc>();
     if (tokenIds.length === 0) return out;
 
-    const uris = await fetchTokenUris(collection).catch(() => new Map<string, string>());
+    const uris = await fetchTokenUris(generator).catch(() => new Map<string, string>());
 
     // A document that misses its deadline leaves its piece looking unrendered,
     // which the next request recovers. A page that never returns does not.
@@ -119,9 +119,9 @@ async function resolveDocs(collection: string, tokenIds: string[]): Promise<Map<
 
 const key = (t: TzktToken) => `${t.contract.address}:${t.tokenId}`;
 
-/** Every collection from every factory, deduplicated. */
-async function collectionsFrom(factories: string[]) {
-    const lists = await Promise.all(factories.map((f) => fetchCollections(f).catch(() => [])));
+/** Every generator from every factory, deduplicated. */
+async function generatorsFrom(factories: string[]) {
+    const lists = await Promise.all(factories.map((f) => fetchGenerators(f).catch(() => [])));
     const seen = new Set<string>();
     return lists.flat().filter((c) => {
         if (seen.has(c.address)) return false;
@@ -132,46 +132,45 @@ async function collectionsFrom(factories: string[]) {
 
 /**
  * Documents for whatever TzKT left unresolved, grouped so it is one big_map
- * read per collection rather than one per token.
+ * read per generator rather than one per token.
  */
 async function docsFor(tokens: TzktToken[]): Promise<Map<string, TokenDoc>> {
     const missing = tokens.filter((t) => !t.metadata?.displayUri && !t.metadata?.thumbnailUri);
     if (missing.length === 0) return new Map();
 
-    const byCollection = new Map<string, string[]>();
+    const byGenerator = new Map<string, string[]>();
     for (const t of missing) {
-        const list = byCollection.get(t.contract.address) ?? [];
+        const list = byGenerator.get(t.contract.address) ?? [];
         list.push(t.tokenId);
-        byCollection.set(t.contract.address, list);
+        byGenerator.set(t.contract.address, list);
     }
 
     const out = new Map<string, TokenDoc>();
     await Promise.all(
-        [...byCollection].map(async ([collection, ids]) => {
-            const docs = await resolveDocs(collection, ids);
-            for (const [id, doc] of docs) out.set(`${collection}:${id}`, doc);
+        [...byGenerator].map(async ([generator, ids]) => {
+            const docs = await resolveDocs(generator, ids);
+            for (const [id, doc] of docs) out.set(`${generator}:${id}`, doc);
         }),
     );
     return out;
 }
 
 /**
- * The newest piece with an image, per collection, in one request:
- * `contract.in` returns tokens across every collection at once, newest first,
- * and the first hit per collection wins.
+ * The newest piece with an image, per generator, in one request:
+ * `contract.in` returns tokens across every generator at once, newest first,
+ * and the first hit per generator wins.
  *
- * A collection whose pieces are all still rendering has no cover, and the
- * caller shows the generator instead.
+ * A generator whose pieces are all still rendering has no cover, and the
+ * caller shows its source instead.
  */
-export async function coversFor(collections: string[]): Promise<Map<string, string>> {
-    if (collections.length === 0) return new Map();
+export async function coversFor(generators: string[]): Promise<Map<string, string>> {
+    if (generators.length === 0) return new Map();
 
-    // Enough rows that a busy collection at the front cannot crowd a quiet one
-    // off the end before every collection has been seen once.
-    const tokens = await fetchRecentTokens(
-        collections,
-        Math.min(collections.length * 8, 400),
-    ).catch(() => []);
+    // Enough rows that a busy generator at the front cannot crowd a quiet one
+    // off the end before every generator has been seen once.
+    const tokens = await fetchRecentTokens(generators, Math.min(generators.length * 8, 400)).catch(
+        () => [],
+    );
     const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
 
     const out = new Map<string, string>();
@@ -190,22 +189,22 @@ export interface FeedPiece {
     contract: string;
     tokenId: string;
     name: string;
-    collectionName: string;
+    generatorName: string;
     artist?: string;
     mintedAt?: string;
     /** Rendered image, once a provider has published one. */
     imageUrl?: string;
-    /** The generator itself, framed live when there is no image yet. */
+    /** The source itself, framed live when there is no image yet. */
     artifactUrl?: string;
-    /** True while the piece still carries its collection's "not revealed yet" document. */
+    /** True while the piece still carries its generator's "not revealed yet" document. */
     pending: boolean;
 }
 
 function toPiece(
     t: TzktToken,
-    collectionAlias?: string,
+    generatorAlias?: string,
     resolved?: TokenDoc,
-    /** The collection's pending pointer, and this token's, when known. */
+    /** The generator's pending pointer, and this token's, when known. */
     pendingState?: { pendingUri: string; tokenUri?: string },
 ): FeedPiece {
     // TzKT resolves `ipfs://` metadata on its own schedule and on some networks
@@ -214,25 +213,25 @@ function toPiece(
     const display = m?.displayUri || m?.thumbnailUri;
     // The pointer comparison, which is the provider's own queue rule, so the
     // site and the daemon cannot disagree. "Has no image" is not the test: a
-    // pending document carries the collection cover as its displayUri.
+    // pending document carries the generator cover as its displayUri.
     const pending =
         pendingState?.pendingUri && pendingState.tokenUri
             ? pendingState.tokenUri === pendingState.pendingUri
             : !display;
-    const collectionName = collectionAlias || t.contract.alias || "Untitled collection";
+    const generatorName = generatorAlias || t.contract.alias || "Untitled generator";
     const edition = `#${Number(t.tokenId) + 1}`;
 
     // The pending document is one CID shared by every unrevealed token, so it
     // cannot name any of them. Derived in the form the real document uses, so
     // the name does not change when the render lands.
-    const name = pending ? `${collectionName} ${edition}` : m?.name || edition;
+    const name = pending ? `${generatorName} ${edition}` : m?.name || edition;
 
     return {
         key: `${t.contract.address}:${t.tokenId}`,
         contract: t.contract.address,
         tokenId: t.tokenId,
         name,
-        collectionName,
+        generatorName,
         artist: t.firstMinter?.address,
         mintedAt: t.firstTime,
         imageUrl: display ? ipfsImageUrl(display) : undefined,
@@ -242,8 +241,8 @@ function toPiece(
 }
 
 /**
- * Turn a set of (collection, token) pairs into real pieces. A listing carries a
- * collection, a token id and a price, so the image, the name and the artist are
+ * Turn a set of (generator, token) pairs into real pieces. A listing carries a
+ * generator, a token id and a price, so the image, the name and the artist are
  * a separate read.
  *
  * One query for the whole page. `contract.in` and `tokenId.in` filter
@@ -251,17 +250,17 @@ function toPiece(
  * asked for.
  */
 export async function piecesFor(
-    pairs: { collection: string; tokenId: string }[],
-    /** Collection names, when the caller already has them. */
+    pairs: { generator: string; tokenId: string }[],
+    /** Generator names, when the caller already has them. */
     names?: Map<string, string>,
 ): Promise<Map<string, FeedPiece>> {
     if (pairs.length === 0) return new Map();
 
-    const wanted = new Set(pairs.map((p) => `${p.collection}:${p.tokenId}`));
-    const collections = [...new Set(pairs.map((p) => p.collection))];
+    const wanted = new Set(pairs.map((p) => `${p.generator}:${p.tokenId}`));
+    const generators = [...new Set(pairs.map((p) => p.generator))];
     const tokenIds = [...new Set(pairs.map((p) => p.tokenId))];
 
-    const tokens = (await fetchTokensIn(collections, tokenIds).catch(() => [])).filter((t) =>
+    const tokens = (await fetchTokensIn(generators, tokenIds).catch(() => [])).filter((t) =>
         wanted.has(key(t)),
     );
 
@@ -277,7 +276,7 @@ export async function piecesFor(
 
 export interface RecentFeed {
     pieces: FeedPiece[];
-    collectionCount: number;
+    generatorCount: number;
     /** True when no factory address is set. Distinct from a quiet feed. */
     unconfigured: boolean;
 }
@@ -285,19 +284,19 @@ export interface RecentFeed {
 export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
     const factories = await allFactories();
     if (factories.length === 0) {
-        return { pieces: [], collectionCount: 0, unconfigured: true };
+        return { pieces: [], generatorCount: 0, unconfigured: true };
     }
     // Every factory, not only the current one: a redeploy retires a factory and
-    // the collections it made stay real.
-    const collections = (await collectionsFrom(factories)).filter(
-        (c) => !isBlockedCollection(c.address),
+    // the generators it made stay real.
+    const generators = (await generatorsFrom(factories)).filter(
+        (c) => !isBlockedGenerator(c.address),
     );
-    if (collections.length === 0) {
-        return { pieces: [], collectionCount: 0, unconfigured: false };
+    if (generators.length === 0) {
+        return { pieces: [], generatorCount: 0, unconfigured: false };
     }
-    const aliasByAddress = await namesFor(collections.map((c) => c.address));
+    const aliasByAddress = await namesFor(generators.map((c) => c.address));
     const tokens = await fetchRecentTokens(
-        collections.map((c) => c.address),
+        generators.map((c) => c.address),
         limit,
     );
     const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
@@ -305,7 +304,7 @@ export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
         pieces: tokens.map((t) =>
             toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
         ),
-        collectionCount: collections.length,
+        generatorCount: generators.length,
         unconfigured: false,
     };
 }
@@ -313,8 +312,8 @@ export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
 export interface WalletView {
     /** Pieces this account holds now. */
     held: FeedPiece[];
-    /** Collections this account deployed, as the collections wall shows them. */
-    made: CollectionSummary[];
+    /** Generators this account deployed, as the generators wall shows them. */
+    made: GeneratorSummary[];
     unconfigured: boolean;
 }
 
@@ -324,31 +323,31 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
     if (factories.length === 0) {
         return { held: [], made: [], unconfigured: true };
     }
-    const collections = (await collectionsFrom(factories)).filter(
-        (c) => !isBlockedCollection(c.address),
+    const generators = (await generatorsFrom(factories)).filter(
+        (c) => !isBlockedGenerator(c.address),
     );
-    const aliasByAddress = await namesFor(collections.map((c) => c.address));
-    const addresses = collections.map((c) => c.address);
+    const aliasByAddress = await namesFor(generators.map((c) => c.address));
+    const addresses = generators.map((c) => c.address);
 
     const [tokens, deployed] = await Promise.all([
         fetchTokensHeldBy(account, addresses, limit).catch(() => []),
         Promise.all(
-            factories.map((f) => fetchCollectionsDeployedBy(account, f).catch(() => [])),
+            factories.map((f) => fetchGeneratorsDeployedBy(account, f).catch(() => [])),
         ).then((lists) => lists.flat()),
     ]);
 
     const madeSet = new Set(deployed);
-    const mine = collections.filter((c) => madeSet.has(c.address));
+    const mine = generators.filter((c) => madeSet.has(c.address));
     const madeAddresses = mine.map((c) => c.address);
 
-    // The made side is a handful of collections, so the cover, the edition size
+    // The made side is a handful of generators, so the cover, the edition size
     // and the artist's own name are worth the extra reads.
     const [docs, state, metas, covers, editions] = await Promise.all([
         docsFor(tokens),
         pendingState(tokens),
         Promise.all(
             madeAddresses.map(
-                (a): Promise<CollectionMeta> => fetchCollectionMeta(a).catch(() => ({})),
+                (a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({})),
             ),
         ),
         coversFor(madeAddresses).catch(() => new Map<string, string>()),

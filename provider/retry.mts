@@ -3,7 +3,7 @@
  *
  *   npm run provider:retry -- KT1… 3
  *
- * The queue finds pieces still holding the collection's pending document, so it
+ * The queue finds pieces still holding the generator's pending document, so it
  * cannot see one that already got a write: a publish whose confirmation was
  * missed, a render that came out wrong, a metadata document that went away.
  *
@@ -13,14 +13,14 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const { pieceAt, handle, collectionsServed, tokenIdsIn } = await import("./provider.mts");
+const { pieceAt, handle, generatorsServed, tokenIdsIn } = await import("./provider.mts");
 
 const [target, tokenId] = process.argv.slice(2);
 
 if (!target) {
     console.log(`
-  npm run provider:retry -- <collection> <tokenId>   one piece
-  npm run provider:retry -- <collection>             a whole collection
+  npm run provider:retry -- <generator> <tokenId>   one piece
+  npm run provider:retry -- <generator>             a whole generator
   npm run provider:retry -- --all                    everything served
 `);
     process.exit(1);
@@ -35,14 +35,14 @@ if (tokenId !== undefined && !/^\d+$/.test(tokenId)) {
 }
 
 /** Every piece the run will touch, in order. */
-async function targets(): Promise<{ collection: string; tokenId: string }[]> {
+async function targets(): Promise<{ generator: string; tokenId: string }[]> {
     if (target !== "--all" && tokenId !== undefined) {
-        return [{ collection: target, tokenId }];
+        return [{ generator: target, tokenId }];
     }
-    const collections = target === "--all" ? await collectionsServed() : [target];
-    const out: { collection: string; tokenId: string }[] = [];
-    for (const c of collections) {
-        for (const t of await tokenIdsIn(c)) out.push({ collection: c, tokenId: t });
+    const generators = target === "--all" ? await generatorsServed() : [target];
+    const out: { generator: string; tokenId: string }[] = [];
+    for (const c of generators) {
+        for (const t of await tokenIdsIn(c)) out.push({ generator: c, tokenId: t });
     }
     return out;
 }
@@ -57,10 +57,10 @@ console.log(`\nRebuilding ${work.length} piece${work.length === 1 ? "" : "s"}`);
 
 let done = 0;
 let failed = 0;
-for (const { collection, tokenId } of work) {
-    process.stdout.write(`  ${collection} #${tokenId}  `);
+for (const { generator, tokenId } of work) {
+    process.stdout.write(`  ${generator} #${tokenId}  `);
     try {
-        const piece = await pieceAt(collection, tokenId);
+        const piece = await pieceAt(generator, tokenId);
         const hash = await handle(piece);
         done++;
         console.log(`published ${hash}`);

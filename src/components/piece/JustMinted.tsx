@@ -29,7 +29,7 @@ export function JustMinted({
             <div className="mt-3 flex flex-wrap gap-2">
                 {remaining !== 0 && (
                     <Link
-                        href={`/collection/${contract}`}
+                        href={`/generator/${contract}`}
                         className="rounded-md bg-alea-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-alea-700"
                     >
                         Mint another
@@ -43,10 +43,10 @@ export function JustMinted({
                     What you own
                 </Link>
                 <Link
-                    href="/collections"
+                    href="/"
                     className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
                 >
-                    Other collections
+                    Other generators
                 </Link>
             </div>
         </div>

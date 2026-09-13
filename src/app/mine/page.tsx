@@ -27,7 +27,7 @@ export default function MinePage() {
         <div className="mx-auto max-w-2xl px-4 py-16">
             <h1 className="text-xl font-semibold tracking-tight">What you own</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-                Connect and this goes to your wallet page: the pieces you hold and the collections
+                Connect and this goes to your wallet page: the pieces you hold and the generators
                 you made.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
@@ -40,10 +40,10 @@ export default function MinePage() {
                     {connecting ? "Connecting" : "Connect"}
                 </button>
                 <Link
-                    href="/collections"
+                    href="/"
                     className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
                 >
-                    Browse collections
+                    Browse generators
                 </Link>
             </div>
             <p className="mt-6 text-xs text-muted-foreground">

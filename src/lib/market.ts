@@ -1,6 +1,6 @@
 /** Marketplace state, read from the contract's storage through TzKT. */
 import { CONTRACTS, tzktApi } from "./config";
-import { isBlockedCollection } from "./blocklist";
+import { isBlockedGenerator } from "./blocklist";
 import { addresses } from "./router";
 import { fetchHeldAmong, indexerFetch } from "./tzkt";
 
@@ -12,7 +12,7 @@ export interface Listing {
      */
     marketplace: string;
     seller: string;
-    collection: string;
+    generator: string;
     tokenId: string;
     /** Mutez. Chain amounts are arbitrary precision, so they stay bigint. */
     priceMutez: bigint;
@@ -24,7 +24,7 @@ export interface Offer {
     /** The marketplace holding the escrowed tez. See Listing. */
     marketplace: string;
     buyer: string;
-    collection: string;
+    generator: string;
     tokenId: string;
     amountMutez: bigint;
     /**
@@ -51,6 +51,8 @@ async function bigmap<V>(
     return (await res.json()) as BigMapRow<V>[];
 }
 
+// The marketplace's own storage shape. Its field is `collection`, so that name
+// stays here and is mapped to ours on the way in.
 type RawListing = {
     seller: string;
     collection: string;
@@ -72,7 +74,7 @@ function toListing(r: BigMapRow<RawListing>, marketplace: string): Listing {
         id: parseInt(r.key, 10),
         marketplace,
         seller: r.value.seller,
-        collection: r.value.collection,
+        generator: r.value.collection,
         tokenId: r.value.token_id,
         priceMutez: BigInt(r.value.price),
         feeBps: parseInt(r.value.fee_bps, 10),
@@ -84,7 +86,7 @@ function toOffer(r: BigMapRow<RawOffer>, marketplace: string): Offer {
         marketplace,
         id: parseInt(r.key, 10),
         buyer: r.value.buyer,
-        collection: r.value.collection,
+        generator: r.value.collection,
         tokenId: r.value.token_id,
         amountMutez: BigInt(r.value.amount),
         feeBps: parseInt(r.value.fee_bps, 10),
@@ -118,21 +120,18 @@ export async function fetchListings(limit = 48): Promise<Listing[]> {
     // Newest first across all of them, then trimmed, so a retired marketplace
     // with old ids cannot crowd out the current one.
     return all
-        .filter((l) => !isBlockedCollection(l.collection))
+        .filter((l) => !isBlockedGenerator(l.generator))
         .sort((a, b) => b.id - a.id)
         .slice(0, limit);
 }
 
 /** The live listing for one token, wherever it lives. */
-export async function fetchListingFor(
-    collection: string,
-    tokenId: string,
-): Promise<Listing | null> {
-    if (isBlockedCollection(collection)) return null;
+export async function fetchListingFor(generator: string, tokenId: string): Promise<Listing | null> {
+    if (isBlockedGenerator(generator)) return null;
     const found = await acrossMarketplaces(async (m) => {
         const rows = await bigmap<RawListing>(bigmapPath(m, "listings"), {
             active: "true",
-            "value.collection": collection,
+            "value.collection": generator,
             "value.token_id": tokenId,
             limit: 1,
         });
@@ -143,11 +142,11 @@ export async function fetchListingFor(
     return found.sort((a, b) => b.id - a.id)[0] ?? null;
 }
 
-export async function fetchOffersFor(collection: string, tokenId: string): Promise<Offer[]> {
+export async function fetchOffersFor(generator: string, tokenId: string): Promise<Offer[]> {
     const all = await acrossMarketplaces(async (m) => {
         const rows = await bigmap<RawOffer>(bigmapPath(m, "offers"), {
             active: "true",
-            "value.collection": collection,
+            "value.collection": generator,
             "value.token_id": tokenId,
             "sort.desc": "id",
             limit: 20,
@@ -168,7 +167,7 @@ export async function fetchListingsBy(seller: string): Promise<Listing[]> {
         });
         return rows.map((r) => toListing(r, m));
     });
-    return all.filter((l) => !isBlockedCollection(l.collection)).sort((a, b) => b.id - a.id);
+    return all.filter((l) => !isBlockedGenerator(l.generator)).sort((a, b) => b.id - a.id);
 }
 
 /** Every standing offer, newest first. Capped: see fetchAccountOffers. */
@@ -182,7 +181,7 @@ async function fetchAllOffers(limit = 200): Promise<Offer[]> {
         return rows.map((r) => toOffer(r, m));
     });
     return all
-        .filter((o) => !isBlockedCollection(o.collection))
+        .filter((o) => !isBlockedGenerator(o.generator))
         .sort((a, b) => b.id - a.id)
         .slice(0, limit);
 }
@@ -229,10 +228,10 @@ export async function fetchAccountOffers(account: string): Promise<AccountOffers
         fetchHeldAmong(account, candidates).catch(() => new Set<string>()),
         fetchListingsBy(account).catch(() => [] as Listing[]),
     ]);
-    const listed = new Map(listings.map((l) => [`${l.collection}:${l.tokenId}`, l]));
+    const listed = new Map(listings.map((l) => [`${l.generator}:${l.tokenId}`, l]));
 
     const incoming = candidates.flatMap((o): IncomingOffer[] => {
-        const key = `${o.collection}:${o.tokenId}`;
+        const key = `${o.generator}:${o.tokenId}`;
         const listing = listed.get(key);
         if (!held.has(key) && !listing) return [];
         return [

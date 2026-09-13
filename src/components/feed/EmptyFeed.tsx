@@ -3,7 +3,7 @@ import { BRAND, NETWORK } from "@/lib/config";
 export function EmptyFeed({
     reason,
 }: {
-    reason: "unreachable" | "unconfigured" | "no-collections" | "no-pieces";
+    reason: "unreachable" | "unconfigured" | "no-generators" | "no-pieces";
 }) {
     const copy = {
         unreachable: {
@@ -14,13 +14,13 @@ export function EmptyFeed({
             title: "Nothing deployed yet",
             body: `${BRAND.name}'s contracts are waiting to be originated on ${NETWORK}. The feed turns on once they are.`,
         },
-        "no-collections": {
-            title: "No collections yet",
-            body: "The factory is live and waiting for its first collection.",
+        "no-generators": {
+            title: "No generators yet",
+            body: "The factory is live and waiting for its first generator.",
         },
         "no-pieces": {
             title: "No pieces minted yet",
-            body: "Collections are open. The first mint shows up here.",
+            body: "Generators are open. The first mint shows up here.",
         },
     }[reason];
 

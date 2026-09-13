@@ -97,7 +97,7 @@ export async function fetchProviders(): Promise<Provider[]> {
 }
 
 /**
- * One provider, by address, whether or not it is in the registry. A collection
+ * One provider, by address, whether or not it is in the registry. A generator
  * names the provider it pays, and the registry is a directory somebody has to
  * add themselves to.
  */
@@ -145,14 +145,14 @@ async function fetchProviderMetadata(address: string): Promise<ProviderMeta | nu
 interface Publish {
     level: number;
     timestamp: string;
-    collection: string;
+    generator: string;
     tokenId: string;
 }
 
 /** How many publishes to pair with their buys. Each pairing costs a request. */
 const PAIRING_SAMPLE = 50;
 
-/** Collections to scan for unrendered pieces. */
+/** Generators to scan for unrendered pieces. */
 const OUTSTANDING_SCAN = 20;
 
 /** A piece older than this and still unrendered counts against a provider. */
@@ -184,15 +184,15 @@ async function publishes(agent: string, since: string): Promise<Publish[]> {
         .map((r) => ({
             level: r.level,
             timestamp: r.timestamp,
-            collection: r.target.address,
+            generator: r.target.address,
             tokenId: String(r.parameter.value.token_id),
         }));
 }
 
 /** The block a piece was minted at, which is when its clock started. */
-async function mintLevel(collection: string, tokenId: string): Promise<number | null> {
+async function mintLevel(generator: string, tokenId: string): Promise<number | null> {
     const rows = await tzkt<{ level: number }[]>("/v1/contracts/events", {
-        contract: collection,
+        contract: generator,
         tag: "mint",
         "payload.token_id": tokenId,
         limit: 1,
@@ -209,8 +209,8 @@ function median(xs: number[]): number | null {
     return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
 }
 
-/** Collections whose storage names this provider. */
-async function collectionsNaming(provider: string): Promise<string[]> {
+/** Generators whose storage names this provider. */
+async function generatorsNaming(provider: string): Promise<string[]> {
     const events = await tzkt<{ contract: { address: string } }[]>("/v1/contracts/events", {
         tag: "set_provider",
         "sort.desc": "id",
@@ -232,24 +232,24 @@ async function collectionsNaming(provider: string): Promise<string[]> {
 }
 
 /**
- * Pieces still carrying their collection's pending document, bought long enough
+ * Pieces still carrying their generator's pending document, bought long enough
  * ago that a working provider would have got to them.
  */
 async function outstandingFor(provider: string): Promise<number> {
-    const collections = await collectionsNaming(provider);
+    const generators = await generatorsNaming(provider);
     const cutoff = Date.now() - OUTSTANDING_AFTER_MINUTES * 60 * 1000;
     let waiting = 0;
 
-    for (const collection of collections) {
+    for (const generator of generators) {
         const storage = await tzkt<{ art?: { pending_metadata?: string } }>(
-            `/v1/contracts/${collection}/storage`,
+            `/v1/contracts/${generator}/storage`,
         ).catch(() => null);
         const pending = storage?.art?.pending_metadata;
         if (!pending) continue;
 
         const rows = await tzkt<
             { value: { token_info: Record<string, string> }; firstTime: string }[]
-        >(`/v1/contracts/${collection}/bigmaps/token_metadata/keys`, {
+        >(`/v1/contracts/${generator}/bigmaps/token_metadata/keys`, {
             active: "true",
             limit: 200,
         }).catch(() => []);
@@ -283,7 +283,7 @@ export async function fetchProviderStats(address: string): Promise<ProviderStats
     const sample = done.slice(0, PAIRING_SAMPLE);
     const gaps: number[] = [];
     for (const p of sample) {
-        const minted = await mintLevel(p.collection, p.tokenId);
+        const minted = await mintLevel(p.generator, p.tokenId);
         if (minted !== null && p.level >= minted) gaps.push(p.level - minted);
     }
 

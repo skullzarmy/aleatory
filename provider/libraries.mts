@@ -1,5 +1,5 @@
 /**
- * Resolving the libraries a piece declared. A collection records them in its
+ * Resolving the libraries a piece declared. A generator records them in its
  * own metadata:
  *
  *   [{ "id": "p5", "version": "1.5.0", "path": "lib/p5.min.js", "hash": "…" }]

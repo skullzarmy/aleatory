@@ -153,6 +153,6 @@ console.log("\nThe agent is ready. Put this in .env, and nowhere a browser can r
 console.log(`ALEA_AGENT_ADDRESS=${agentAddress}`);
 console.log(`ALEA_AGENT_SK=${agentSk}`);
 console.log("\nIt signs set_token_metadata and nothing else. It cannot pause a");
-console.log("collection, move a token, change a price, or touch the provider");
+console.log("generator, move a token, change a price, or touch the provider");
 console.log("contract's balance. Losing it costs you the gas in it and nothing more.");
 console.log("Top it up when it runs low; a publish costs about 0.0015 tez.\n");

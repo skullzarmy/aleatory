@@ -21,7 +21,7 @@ export function ListingCard({
 }) {
     return (
         <Link
-            href={`/piece/${listing.collection}/${listing.tokenId}`}
+            href={`/piece/${listing.generator}/${listing.tokenId}`}
             className="group block overflow-hidden rounded-lg border border-border bg-card-background transition-shadow hover:shadow-lg"
         >
             {/* The plate matters: an image that fails to load collapses to it
@@ -55,7 +55,7 @@ export function ListingCard({
                     {piece?.name || `#${Number(listing.tokenId) + 1}`}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                    {piece?.collectionName || shortAddress(listing.collection)}
+                    {piece?.generatorName || shortAddress(listing.generator)}
                 </p>
                 <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
                     <span className="min-w-0 truncate">

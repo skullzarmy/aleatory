@@ -109,10 +109,10 @@ async function get<T>(path: string, params: Record<string, string | number> = {}
 }
 
 /**
- * Every collection a factory has originated. TzKT attributes an internal
+ * Every generator a factory has originated. TzKT attributes an internal
  * origination to the contract that made it, so one query returns the set.
  */
-export async function fetchCollections(factory: string): Promise<TzktContract[]> {
+export async function fetchGenerators(factory: string): Promise<TzktContract[]> {
     if (!factory) return [];
     return get<TzktContract[]>("/v1/contracts", {
         creator: factory,
@@ -123,11 +123,11 @@ export async function fetchCollections(factory: string): Promise<TzktContract[]>
 }
 
 /**
- * How large each collection's edition is. Zero is an open edition.
+ * How large each generator's edition is. Zero is an open edition.
  *
- * Off the events, because storage carries the generator: `includeStorage=true`
- * over thirteen collections is 266kB against 2kB, and it grows with the size of
- * the artists' code. A bare `select=payload` pulls the generator back the same
+ * Off the events, because storage carries the source: `includeStorage=true`
+ * over thirteen generators is 266kB against 2kB, and it grows with the size of
+ * the artists' code. A bare `select=payload` pulls the source back the same
  * way, so the payload fields are named.
  *
  * `deploy` states the size published with, `set_edition_size` states every
@@ -135,7 +135,7 @@ export async function fetchCollections(factory: string): Promise<TzktContract[]>
  */
 export async function fetchEditionSizes(
     factories: string[],
-    collections: string[],
+    generators: string[],
 ): Promise<Map<string, number>> {
     const sizes = new Map<string, number>();
     if (factories.length === 0) return sizes;
@@ -151,12 +151,12 @@ export async function fetchEditionSizes(
                 select: "payload.address,payload.edition_size",
             },
         ).catch(() => []),
-        collections.length === 0
+        generators.length === 0
             ? Promise.resolve([])
             : get<{ contract?: { address?: string }; "payload.edition_size"?: string }[]>(
                   "/v1/contracts/events",
                   {
-                      "contract.in": collections.join(","),
+                      "contract.in": generators.join(","),
                       tag: "set_edition_size",
                       "sort.asc": "id",
                       limit: 1000,
@@ -178,9 +178,9 @@ export async function fetchEditionSizes(
 }
 
 /**
- * Every collection one artist deployed.
+ * Every generator one artist deployed.
  *
- * The factory originates a collection, so `creator` is the factory. The artist
+ * The factory originates a generator, so `creator` is the factory. The artist
  * is `initiator`, the account whose operation caused the internal origination.
  * TzKT cannot filter on storage and ignores unknown query parameters, answering
  * with an unfiltered page that reads as success.
@@ -188,7 +188,7 @@ export async function fetchEditionSizes(
  * A single-field `select` is flattened: the answer is the field's own value per
  * row, not a row containing that field.
  */
-export async function fetchCollectionsDeployedBy(
+export async function fetchGeneratorsDeployedBy(
     artist: string,
     factory: string,
 ): Promise<string[]> {
@@ -204,15 +204,15 @@ export async function fetchCollectionsDeployedBy(
     return rows.map((r) => r?.address).filter((a): a is string => Boolean(a));
 }
 
-/** Tokens across a set of collections, newest first. */
+/** Tokens across a set of generators, newest first. */
 export async function fetchRecentTokens(
-    collections: string[],
+    generators: string[],
     limit = 48,
     offset = 0,
 ): Promise<TzktToken[]> {
-    if (collections.length === 0) return [];
+    if (generators.length === 0) return [];
     return get<TzktToken[]>("/v1/tokens", {
-        "contract.in": collections.join(","),
+        "contract.in": generators.join(","),
         "sort.desc": "firstTime",
         limit,
         offset,
@@ -220,39 +220,39 @@ export async function fetchRecentTokens(
 }
 
 /**
- * Specific tokens, across collections, in one query.
+ * Specific tokens, across generators, in one query.
  *
  * `contract.in` and `tokenId.in` filter independently rather than as a set of
  * pairs, so this returns the cross product and the caller keeps only what it
  * asked for. For a page of listings that is one request instead of forty.
  */
 export async function fetchTokensIn(
-    collections: string[],
+    generators: string[],
     tokenIds: string[],
 ): Promise<TzktToken[]> {
-    if (collections.length === 0 || tokenIds.length === 0) return [];
+    if (generators.length === 0 || tokenIds.length === 0) return [];
     return get<TzktToken[]>("/v1/tokens", {
-        "contract.in": collections.join(","),
+        "contract.in": generators.join(","),
         "tokenId.in": tokenIds.join(","),
-        limit: Math.min(collections.length * tokenIds.length, 1000),
+        limit: Math.min(generators.length * tokenIds.length, 1000),
     });
 }
 
 /**
- * What one account holds, across a set of collections.
+ * What one account holds, across a set of generators.
  *
  * Balance zero rows are excluded, so a piece someone sold stops appearing the
  * moment the transfer settles rather than lingering as something they own.
  */
 export async function fetchTokensHeldBy(
     account: string,
-    collections: string[],
+    generators: string[],
     limit = 48,
 ): Promise<TzktToken[]> {
-    if (collections.length === 0 || !isAddress(account)) return [];
+    if (generators.length === 0 || !isAddress(account)) return [];
     const rows = await get<{ token: TzktToken }[]>("/v1/tokens/balances", {
         account: requireAddress(account),
-        "token.contract.in": collections.join(","),
+        "token.contract.in": generators.join(","),
         "balance.gt": 0,
         "sort.desc": "lastLevel",
         limit,
@@ -261,30 +261,30 @@ export async function fetchTokensHeldBy(
 }
 
 /**
- * Which of a specific set of tokens an account holds, as `collection:tokenId`
+ * Which of a specific set of tokens an account holds, as `generator:tokenId`
  * keys.
  *
- * `fetchTokensHeldBy` filters by collection alone and caps at a page, so a
+ * `fetchTokensHeldBy` filters by generator alone and caps at a page, so a
  * piece somebody offered on can sit outside the window and read as not held.
  * Both sides are filtered here, independently and not as pairs, so the caller's
  * set decides.
  */
 export async function fetchHeldAmong(
     account: string,
-    pairs: { collection: string; tokenId: string }[],
+    pairs: { generator: string; tokenId: string }[],
 ): Promise<Set<string>> {
     if (pairs.length === 0 || !isAddress(account)) return new Set();
 
-    const wanted = new Set(pairs.map((p) => `${p.collection}:${p.tokenId}`));
-    const collections = [...new Set(pairs.map((p) => p.collection))];
+    const wanted = new Set(pairs.map((p) => `${p.generator}:${p.tokenId}`));
+    const generators = [...new Set(pairs.map((p) => p.generator))];
     const tokenIds = [...new Set(pairs.map((p) => p.tokenId))];
 
     const rows = await get<{ token: TzktToken }[]>("/v1/tokens/balances", {
         account: requireAddress(account),
-        "token.contract.in": collections.join(","),
+        "token.contract.in": generators.join(","),
         "token.tokenId.in": tokenIds.join(","),
         "balance.gt": 0,
-        limit: Math.min(collections.length * tokenIds.length, 1000),
+        limit: Math.min(generators.length * tokenIds.length, 1000),
     });
 
     const held = new Set<string>();
@@ -361,15 +361,15 @@ export async function fetchMintOperation(
 }
 
 /**
- * A collection's own name and description, from the `content` key of its
+ * A generator's own name and description, from the `content` key of its
  * metadata big_map.
  *
  * TzKT resolves TZIP-16 documents into a `metadata` field on its own schedule,
  * it is null on this network today, and it cannot be asked for in a `select`,
- * so waiting for it leaves every collection showing as a KT1 address. The
+ * so waiting for it leaves every generator showing as a KT1 address. The
  * big_map is the same request count and never lags.
  */
-export interface CollectionMeta {
+export interface GeneratorMeta {
     name?: string;
     description?: string;
     /** The cover the artist picked at deploy. What to show before any piece renders. */
@@ -377,7 +377,7 @@ export interface CollectionMeta {
     thumbnailUri?: string;
 }
 
-export async function fetchCollectionMeta(address: string): Promise<CollectionMeta> {
+export async function fetchGeneratorMeta(address: string): Promise<GeneratorMeta> {
     const row = await fetch(`${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/content`, {
         next: { revalidate: 300 },
     })
@@ -387,7 +387,7 @@ export async function fetchCollectionMeta(address: string): Promise<CollectionMe
     const raw = (row as { value?: string } | null)?.value;
     if (!raw) return {};
     try {
-        const doc = JSON.parse(bytesToString(raw)) as CollectionMeta;
+        const doc = JSON.parse(bytesToString(raw)) as GeneratorMeta;
         return {
             name: doc.name,
             description: doc.description,
@@ -441,16 +441,16 @@ export async function fetchMintedTokenId(
 }
 
 /**
- * A token's metadata document, from `token_info[""]` in the collection's own
- * big_map. One call covers a whole collection.
+ * A token's metadata document, from `token_info[""]` in the generator's own
+ * big_map. One call covers a whole generator.
  *
  * TzKT resolves `ipfs://` metadata into its `metadata` field on its own
  * schedule, and on some networks not at all, so waiting for it shows a piece
  * that is finished on chain as unrendered.
  */
-export async function fetchTokenUris(collection: string): Promise<Map<string, string>> {
+export async function fetchTokenUris(generator: string): Promise<Map<string, string>> {
     const rows = await get<{ key: string; value: { token_info: Record<string, string> } }[]>(
-        `/v1/contracts/${requireAddress(collection)}/bigmaps/token_metadata/keys`,
+        `/v1/contracts/${requireAddress(generator)}/bigmaps/token_metadata/keys`,
         { active: "true", limit: 400 },
     ).catch(() => []);
 

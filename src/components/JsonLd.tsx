@@ -5,8 +5,11 @@ import { BRAND } from "@/lib/config";
  * `VisualArtwork` with a creator, an image and a date.
  *
  * A script tag rather than `metadata`, which has no field for it. `<` is
- * escaped, because the values come from chain state and a collection named
+ * escaped, because the values come from chain state and a generator named
  * `</script>` would otherwise close this one.
+ *
+ * `Collection` and `collectionSize` are schema.org's vocabulary, not ours, so
+ * they keep that spelling whatever we call the thing on screen.
  */
 function Ld({ data }: { data: Record<string, unknown> }) {
     return (
@@ -26,7 +29,7 @@ export function PieceJsonLd({
     creator,
     mintedAt,
     url,
-    collectionName,
+    generatorName,
 }: {
     name: string;
     description?: string;
@@ -34,7 +37,7 @@ export function PieceJsonLd({
     creator?: string;
     mintedAt?: string;
     url: string;
-    collectionName?: string;
+    generatorName?: string;
 }) {
     return (
         <Ld
@@ -47,8 +50,8 @@ export function PieceJsonLd({
                 ...(imageUrl ? { image: imageUrl } : {}),
                 ...(mintedAt ? { dateCreated: mintedAt } : {}),
                 ...(creator ? { creator: { "@type": "Person", identifier: creator } } : {}),
-                ...(collectionName
-                    ? { isPartOf: { "@type": "Collection", name: collectionName } }
+                ...(generatorName
+                    ? { isPartOf: { "@type": "Collection", name: generatorName } }
                     : {}),
                 artform: "Generative art",
                 artMedium: "Code",
@@ -58,7 +61,7 @@ export function PieceJsonLd({
     );
 }
 
-export function CollectionJsonLd({
+export function GeneratorJsonLd({
     name,
     description,
     imageUrl,

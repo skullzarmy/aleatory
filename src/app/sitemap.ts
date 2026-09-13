@@ -1,8 +1,8 @@
 import type { MetadataRoute } from "next";
 import { BRAND } from "@/lib/config";
 import { allFactories } from "@/lib/router";
-import { fetchCollections, fetchRecentTokens } from "@/lib/tzkt";
-import { isBlockedCollection } from "@/lib/blocklist";
+import { fetchGenerators, fetchRecentTokens } from "@/lib/tzkt";
+import { isBlockedGenerator } from "@/lib/blocklist";
 
 /**
  * Rebuilt hourly, on request. `revalidate` is stale-while-revalidate: the first
@@ -14,7 +14,7 @@ export const revalidate = 3600;
 export const dynamic = "force-static";
 
 /**
- * The cap on pieces. Past it they are still reachable from their collection,
+ * The cap on pieces. Past it they are still reachable from their generator,
  * which is where a crawler finds them.
  */
 const MAX_PIECES = 5_000;
@@ -25,7 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const stat: MetadataRoute.Sitemap = (
         [
             [BRAND.url, "hourly", 1],
-            [`${BRAND.url}/collections`, "hourly", 0.9],
+            [`${BRAND.url}/mints`, "hourly", 0.9],
             [`${BRAND.url}/market`, "hourly", 0.8],
             [`${BRAND.url}/providers`, "weekly", 0.5],
             [`${BRAND.url}/contracts`, "weekly", 0.5],
@@ -47,29 +47,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // A partial sitemap is worth more than a 500, so every read degrades to
     // empty.
     //
-    // Straight from TzKT, not through the feed or `fetchAllCollections`: both
+    // Straight from TzKT, not through the feed or `fetchAllGenerators`: both
     // resolve an IPFS document per piece, which for five thousand of them is
     // thousands of gateway fetches to produce a list of URLs and dates.
-    const collections = await allFactories()
-        .then((f) => Promise.all(f.map((x) => fetchCollections(x).catch(() => []))))
+    const generators = await allFactories()
+        .then((f) => Promise.all(f.map((x) => fetchGenerators(x).catch(() => []))))
         .then((lists) => {
             const seen = new Set<string>();
             return lists
                 .flat()
                 .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
-                .filter((c) => !isBlockedCollection(c.address));
+                .filter((c) => !isBlockedGenerator(c.address));
         })
         .catch(() => []);
 
     const tokens = await fetchRecentTokens(
-        collections.map((c) => c.address),
+        generators.map((c) => c.address),
         MAX_PIECES,
     ).catch(() => []);
 
     return [
         ...stat,
-        ...collections.map((c) => ({
-            url: `${BRAND.url}/collection/${c.address}`,
+        ...generators.map((c) => ({
+            url: `${BRAND.url}/generator/${c.address}`,
             lastModified: c.firstActivityTime ? new Date(c.firstActivityTime) : now,
             changeFrequency: "daily" as const,
             priority: 0.8,

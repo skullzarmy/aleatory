@@ -76,19 +76,19 @@ Seven, in `contract/aleatory.py` and `contract/marketplace.py`.
 | | |
 |---|---|
 | **Router** | Names the current factory, marketplace, registry and resolver. One address in the environment, the rest read from it. |
-| **Factory** | Originates collections, and records what it deployed. |
-| **Collection** | One generator, one edition, its tokens. |
+| **Factory** | Originates generators, and records what it deployed. |
+| **Collection** | One generator, one edition, its tokens. The UI calls this a generator; `AleatoryCollection` is its on-chain name and does not change. |
 | **Marketplace** | Listings, offers, fees. |
 | **Provider** | One renderer's price and working key. |
 | **Registry** | The list of providers. Permissionless. |
 | **Resolver** | Which keys may write resolution entries. |
 
-**The artist holds every authority a collection has**: pause the sale, reprice
+**The artist holds every authority a generator has**: pause the sale, reprice
 the unsold remainder, reduce or close the edition, switch render provider, and
 hand the contract on in two steps. `code`, `code_uri`, `code_hash` and
 `royalties` are written at origination and stand for the life of the contract.
-A bug in the collection template is therefore frozen into every collection made
-from it, which is why the template is small and is audited before it ships.
+A bug in the template is therefore frozen into every generator made from it,
+which is why the template is small and is audited before it ships.
 
 ### Things that have cost real time
 
@@ -110,9 +110,9 @@ from it, which is why the template is small and is audited before it ships.
   `default` entrypoint of type unit.** The marketplace asks
   `sp.contract(sp.unit, recipient)` before paying a royalty and pays the seller
   when the answer is None, because `royalties` is immutable and one bad address
-  would otherwise revert every sale of that collection forever.
+  would otherwise revert every sale of that generator forever.
 - **32,768 bytes** is the operation ceiling, code included. The factory embeds
-  the collection template, which makes it the largest contract here.
+  the generator template, which makes it the largest contract here.
 - **On shadownet the per-operation gas cap equals the per-block cap**, so an
   operation at the per-operation maximum consumes the whole block budget and is
   rejected. `contract/deploy.ts` reads both and stays under.

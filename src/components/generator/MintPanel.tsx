@@ -7,7 +7,7 @@ import { useWallet } from "@/context/WalletContext";
 import { fetchMintedTokenId } from "@/lib/tzkt";
 import { tzktLink } from "@/lib/config";
 import { formatTez } from "@/lib/utils";
-import type { Collection } from "@/lib/collection";
+import type { Generator } from "@/lib/generator";
 import {
     resolveParams,
     encodeParams,
@@ -24,11 +24,11 @@ import { IsolateFrame } from "@/components/IsolateFrame";
  * own signature and known to nobody beforehand.
  */
 export function MintPanel({
-    collection,
+    generator,
     schema,
     onPreview,
 }: {
-    collection: Collection;
+    generator: Generator;
     /** The generator's declared parameters, when it has any. */
     schema?: ParamsSchema | null;
     /**
@@ -56,8 +56,7 @@ export function MintPanel({
         onPreview?.(values, randomPreviewSeed());
     }
 
-    const remaining =
-        collection.editionSize > 0 ? collection.editionSize - collection.minted : null;
+    const remaining = generator.editionSize > 0 ? generator.editionSize - generator.minted : null;
 
     async function mint() {
         setBusy(true);
@@ -69,19 +68,19 @@ export function MintPanel({
             const params = schema
                 ? encodeParams(schema.params, resolveParams(schema.params, chosen))
                 : "";
-            const res = await ops.mint(client, collection.address, params, collection.totalMutez);
+            const res = await ops.mint(client, generator.address, params, generator.totalMutez);
             setHash(res.hash);
             // The provider polls regardless, so this only shortens the wait.
             void fetch("/api/render-ping", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({ provider: collection.provider }),
+                body: JSON.stringify({ provider: generator.provider }),
             }).catch(() => {});
             // The contract decides the token id, so it is knowable only once
             // the operation is indexed.
-            const tokenId = await waitForToken(collection.address, address!, res.hash);
+            const tokenId = await waitForToken(generator.address, address!, res.hash);
             if (tokenId !== null) {
-                router.push(`/piece/${collection.address}/${tokenId}?minted`);
+                router.push(`/piece/${generator.address}/${tokenId}?minted`);
                 return;
             }
         } catch (e) {
@@ -98,11 +97,11 @@ export function MintPanel({
     if (hash) {
         return (
             <div className="space-y-3 rounded-lg border border-border p-4">
-                {collection.code && (
+                {generator.code && (
                     <div className="overflow-hidden rounded-lg border border-border">
                         <div className="aspect-square">
                             <IsolateFrame
-                                code={collection.code}
+                                code={generator.code}
                                 seed={hash}
                                 params={resolveParams(schema?.params ?? [], chosen)}
                                 paramsSchema={schema?.params ?? []}
@@ -140,22 +139,22 @@ export function MintPanel({
         <div className="space-y-3 rounded-lg border border-border p-4">
             <div className="flex items-baseline justify-between">
                 <span className="text-sm text-muted-foreground">Price</span>
-                <span className="text-lg font-semibold">{formatTez(collection.priceMutez)} ꜩ</span>
+                <span className="text-lg font-semibold">{formatTez(generator.priceMutez)} ꜩ</span>
             </div>
 
             <div className="flex items-baseline justify-between text-xs text-muted-foreground">
                 <span>Render gas</span>
-                <span>{formatTez(collection.renderGasMutez)} ꜩ</span>
+                <span>{formatTez(generator.renderGasMutez)} ꜩ</span>
             </div>
             <div className="flex items-baseline justify-between border-t border-border pt-2 text-sm">
                 <span>You pay</span>
-                <span className="font-medium">{formatTez(collection.totalMutez)} ꜩ</span>
+                <span className="font-medium">{formatTez(generator.totalMutez)} ꜩ</span>
             </div>
 
             <p className="text-xs text-muted-foreground">
                 {remaining === null
-                    ? `${collection.minted} minted, open edition`
-                    : `${remaining} of ${collection.editionSize} remaining`}
+                    ? `${generator.minted} minted, open edition`
+                    : `${remaining} of ${generator.editionSize} remaining`}
             </p>
 
             <div className="space-y-3 border-t border-border pt-3">
@@ -196,16 +195,16 @@ export function MintPanel({
                 </div>
             )}
 
-            {collection.soldOut ? (
+            {generator.soldOut ? (
                 <p className="rounded-md bg-muted px-3 py-2 text-sm">Sold out</p>
-            ) : collection.paused ? (
+            ) : generator.paused ? (
                 <p className="rounded-md bg-muted px-3 py-2 text-sm">Sales are paused</p>
-            ) : !collection.providerReachable ? (
+            ) : !generator.providerReachable ? (
                 /* A mint asks the provider what they charge, so one that has
                    stopped answering fails the sale. Said here, because the
                    wallet reports it as a wrong price. */
                 <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-                    This collection&apos;s render provider is not answering, so minting is stopped
+                    This generator&apos;s render provider is not answering, so minting is stopped
                     until its artist picks another.
                 </p>
             ) : (
@@ -309,13 +308,13 @@ function ParamControl({
  * says where to find the piece.
  */
 async function waitForToken(
-    collection: string,
+    generator: string,
     buyer: string,
     hash: string,
 ): Promise<string | null> {
     const deadline = Date.now() + 40_000;
     while (Date.now() < deadline) {
-        const id = await fetchMintedTokenId(collection, buyer, hash).catch(() => null);
+        const id = await fetchMintedTokenId(generator, buyer, hash).catch(() => null);
         if (id !== null) return id;
         await new Promise((r) => setTimeout(r, 2_000));
     }

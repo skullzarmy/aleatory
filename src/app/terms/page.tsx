@@ -137,10 +137,10 @@ export default function TermsPage() {
 
             <H>6. Fees</H>
             <P>
-                We currently charge nothing to publish a collection and nothing to mint. When a
-                piece is minted, the artist&rsquo;s price goes to the artist and the rendering fee
-                goes to the render provider the artist chose. Both are paid in the same transaction
-                and neither passes through us.
+                We currently charge nothing to publish a generator and nothing to mint. When a piece
+                is minted, the artist&rsquo;s price goes to the artist and the rendering fee goes to
+                the render provider the artist chose. Both are paid in the same transaction and
+                neither passes through us.
             </P>
             <P>
                 We take 2.5% of sales made through our marketplace. That is a fee on resales, not on

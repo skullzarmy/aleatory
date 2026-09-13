@@ -20,15 +20,15 @@ import { getKind } from "@/lib/runtimes";
 import { detectParams } from "@/lib/detect";
 import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
-import { publishCollection, type PublishResult, type PublishStage } from "@/lib/publish";
+import { publishGenerator, type PublishResult, type PublishStage } from "@/lib/publish";
 
 /**
- * Deploy a collection. Everything here except the price and the edition size is
- * permanent from the moment the collection exists, and the fields say so.
+ * Deploy a generator. Everything here except the price and the edition size is
+ * permanent from the moment the generator exists, and the fields say so.
  *
- * Given a draft, the generator comes from the studio, so the bytes that were
+ * Given a draft, the source comes from the studio, so the bytes that were
  * checked are the bytes that get pinned. Without one the form takes an
- * `ipfs://` pointer, so a generator built outside this site can be published
+ * `ipfs://` pointer, so work built outside this site can be published
  * through it.
  */
 export function DeployForm({ providers, draft }: { providers: Provider[]; draft?: Draft }) {
@@ -44,7 +44,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [platformPercent, setPlatformPercent] = useState("10");
     const [providerAddress, setProviderAddress] = useState(providers[0]?.address ?? "");
     const [trustResolver, setTrustResolver] = useState(false);
-    // Deploy, look at it, announce it, then open it. A collection that opens
+    // Deploy, look at it, announce it, then open it. A generator that opens
     // the instant it exists cannot be checked before someone mints from it.
     const [startPaused, setStartPaused] = useState(true);
     const [cover, setCover] = useState<{
@@ -121,13 +121,13 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
      */
     function problem(): string | null {
         if (!address) return "Connect a wallet first.";
-        if (!name.trim()) return "The collection needs a name.";
+        if (!name.trim()) return "The generator needs a name.";
         if (!draft && !/^ipfs:\/\/.+/.test(codeUri.trim())) {
-            return "Point at a generator with an ipfs:// URI.";
+            return "Point at your source with an ipfs:// URI.";
         }
         if (!provider) return "Choose a render provider.";
         if (draft && !cover) {
-            return "Pick a cover. It is what your collection looks like everywhere it is listed.";
+            return "Pick a cover. It is what your generator looks like everywhere it is listed.";
         }
         const size = Number.parseInt(editionSize, 10);
         if (!Number.isFinite(size) || size < 0) return "Edition size must be 0 or more.";
@@ -159,7 +159,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
      * plain transfer is skipped and its share goes to the seller. `royalties`
      * has no setter, so this form is the last moment the address is editable.
      *
-     * ALEATORY-001 §1 puts this on any front end that originates collections. A
+     * ALEATORY-001 §1 puts this on any front end that originates generators. A
      * recipient whose entrypoint accepts the transfer and then throws is the
      * case the contract cannot survive, and what the simulation catches.
      */
@@ -179,11 +179,11 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 const body = (await res.json()) as { verdict?: string; why?: string };
                 if (body.verdict === "reverts") {
                     fatal.push(
-                        `${where} accepts a transfer and then fails (${body.why}). Every sale of this collection would revert, permanently. Use a different address.`,
+                        `${where} accepts a transfer and then fails (${body.why}). Every sale of this generator would revert, permanently. Use a different address.`,
                     );
                 } else if (body.verdict === "skipped") {
                     warnings.push(
-                        `${where} cannot be paid, because ${body.why}. Its share will go to the seller on every sale, and this cannot be changed after the collection exists.`,
+                        `${where} cannot be paid, because ${body.why}. Its share will go to the seller on every sale, and this cannot be changed after the generator exists.`,
                     );
                 } else if (body.verdict !== "payable") {
                     warnings.push(
@@ -227,14 +227,14 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         if (!draft) {
             // No bytes here to hash, so chain state cannot be tied to the
             // document from this page.
-            setError("Open your generator in the studio to publish it.");
+            setError("Open your draft in the studio to publish it.");
             return;
         }
 
         setError(null);
         setStage("encoding");
         try {
-            const result = await publishCollection(
+            const result = await publishGenerator(
                 await getClient(),
                 {
                     draft,
@@ -274,7 +274,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 <dl className="space-y-1 text-xs">
                     <Fact label="Operation" value={done.hash} href={tzktLink(done.hash)} />
                     <Fact
-                        label="Generator"
+                        label="Source"
                         value={
                             done.codeBytes > 0
                                 ? `${done.codeBytes.toLocaleString("en-US")} bytes in contract storage` +
@@ -287,7 +287,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 </dl>
                 {done.codeBytes > 0 && (
                     <p className="text-xs text-muted-foreground">
-                        Your generator is stored in the contract itself, so the piece will always
+                        Your source is stored in the contract itself, so the piece will always
                         render.
                     </p>
                 )}
@@ -300,9 +300,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     Watch it settle
                 </a>
                 <p className="text-xs text-muted-foreground">
-                    Once it settles, the collection appears under{" "}
+                    Once it settles, the generator appears under{" "}
                     <a href="/manage" className="underline hover:text-foreground">
-                        your collections
+                        your generators
                     </a>
                     .
                 </p>
@@ -318,7 +318,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 void submit();
             }}
         >
-            <Field label="Collection name" permanent>
+            <Field label="Generator name" permanent>
                 <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -327,11 +327,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 />
             </Field>
 
-            <Field
-                label="Description"
-                permanent
-                hint="Shown on your collection and on every piece."
-            >
+            <Field label="Description" permanent hint="Shown on your generator and on every piece.">
                 <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -342,7 +338,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             </Field>
 
             {draft && (
-                <Field label="Cover" hint="Shown wherever your collection is listed.">
+                <Field label="Cover" hint="Shown wherever your generator is listed.">
                     <CoverPicker
                         html={draft.html}
                         params={declared}
@@ -353,7 +349,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             )}
 
             {draft ? (
-                <Field label="Generator" permanent hint="Stored in the contract when you publish.">
+                <Field label="Source" permanent hint="Stored in the contract when you publish.">
                     <div className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm">
                         <p className="font-medium">{getKind(draft.kindId).label}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -367,7 +363,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     </div>
                 </Field>
             ) : (
-                <Field label="Generator" permanent hint="ipfs:// pointer to your code">
+                <Field label="Source" permanent hint="ipfs:// pointer to your code">
                     <input
                         value={codeUri}
                         onChange={(e) => setCodeUri(e.target.value)}
@@ -596,18 +592,18 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                         ? "Checking royalty recipients…"
                         : royaltyWarnings.length > 0
                           ? "Deploy anyway"
-                          : "Deploy collection"}
+                          : "Deploy generator"}
             </button>
 
             <p className="text-xs text-muted-foreground">
-                One signature. The collection is yours, and we have no control over it.
+                One signature. The generator is yours, and we have no control over it.
             </p>
         </form>
     );
 }
 
 const STAGE_LABEL: Record<PublishStage, string> = {
-    encoding: "Preparing the generator…",
+    encoding: "Preparing the source…",
     "pinning-metadata": "Pinning the metadata…",
     signing: "Waiting for your signature…",
 };

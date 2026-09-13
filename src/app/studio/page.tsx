@@ -59,7 +59,7 @@ export default function StudioPage() {
                 <p className="mt-2 text-sm text-muted-foreground">
                     Change the price, pause sales, or shrink an edition on{" "}
                     <Link href="/manage" className="underline hover:text-foreground">
-                        collections you own
+                        generators you own
                     </Link>
                     .
                 </p>

@@ -23,8 +23,8 @@ not.
 ## What is in scope
 
 **The contracts**, in `contract/`. Anything that lets somebody take tez or a
-token that is not theirs, mint outside the rules a collection set, write
-metadata they are not authorised to write, or permanently prevent a collection
+token that is not theirs, mint outside the rules a generator set, write
+metadata they are not authorised to write, or permanently prevent a generator
 from selling or a piece from being rendered.
 
 **The site**, in `src/`. Anything that reaches wallet state or another origin's
@@ -61,7 +61,7 @@ data and are cached.
 Everything is on **shadownet**, a test network. The tez has no value and
 nothing lost there is real. That makes the reporting easier, not less useful:
 the contracts being examined now are the ones that will hold real money later,
-and a bug in the collection template is frozen into every collection made from
+and a bug in the generator template is frozen into every generator made from
 it, forever, with no upgrade path.
 
 The template is audited before it reaches mainnet. Anything found before then

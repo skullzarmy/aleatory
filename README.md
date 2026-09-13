@@ -8,7 +8,7 @@ it: not the artist, not us. The token points into a possibility space, and the
 possibility space is on chain.
 
 **Running on shadownet** at [shadownet.aleatory.art](https://shadownet.aleatory.art).
-Contracts deployed, collections made, pieces minted and rendered, marketplace
+Contracts deployed, generators made, pieces minted and rendered, marketplace
 taking listings and offers. Not on mainnet yet.
 
 Every contract it runs on, current and retired, is listed at `/contracts` on
@@ -44,9 +44,9 @@ contract storage. A piece is that code and a seed. No server of ours is between
 a collector and what they own, and if this site disappears the pieces still
 render.
 
-**Nothing here needs our permission.** Anyone can publish a collection, run a
+**Nothing here needs our permission.** Anyone can publish a generator, run a
 [render provider](docs/provider.md), trade, or run the whole system themselves.
-A collection belongs to its artist from origination and we cannot touch it.
+A generator belongs to its artist from origination and we cannot touch it.
 
 **We are never the authority.** A generator declares the libraries it needs by
 npm coordinates and a hash, so any mirror will do and none is trusted. The
@@ -59,7 +59,7 @@ short list of what it hides is one file in the open:
 from our interface and from nowhere else.
 
 **Anyone can rebuild it.** [ALEATORY-001](docs/interface.md) is the interface a
-conforming collection implements. Build against it and every piece made here
+conforming generator implements. Build against it and every piece made here
 renders on your site, with no cooperation from us.
 
 ---

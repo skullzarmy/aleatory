@@ -1,5 +1,5 @@
 /**
- * The two documents that get pinned and pointed at from chain: a collection's
+ * The two documents that get pinned and pointed at from chain: a generator's
  * pending document, which every piece carries until a provider publishes its
  * own, and a piece's own document once it is rendered.
  *
@@ -52,7 +52,7 @@ export function encodeRoyalties(split: RoyaltySplit): {
     return { decimals: ROYALTY_DECIMALS, shares };
 }
 
-/** Basis points per recipient, which is what the collection stores on chain. */
+/** Basis points per recipient, which is what the generator stores on chain. */
 export function royaltiesToBps(split: RoyaltySplit): Record<string, number> {
     const { shares } = encodeRoyalties(split);
     // decimals 4 means the share is already in basis points.
@@ -69,7 +69,7 @@ export function royaltyPreview(split: RoyaltySplit): { address: string; percentO
 }
 
 export interface PendingDocInput {
-    collectionName: string;
+    generatorName: string;
     description?: string;
     artist: string;
     placeholderImageUri: string;
@@ -78,7 +78,7 @@ export interface PendingDocInput {
 
 export function buildPendingDocument(input: PendingDocInput) {
     return {
-        name: `${input.collectionName}`,
+        name: `${input.generatorName}`,
         description:
             input.description ||
             "This piece is awaiting its render. It is owned and tradeable now.",
@@ -95,12 +95,12 @@ export function buildPendingDocument(input: PendingDocInput) {
 export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placeholderImageUri"> {
     tokenId: number;
     /**
-     * Already encoded, `{ decimals, shares }`. A collection stores its royalties
+     * Already encoded, `{ decimals, shares }`. A generator stores its royalties
      * as basis points and TZIP-21 with `decimals: 4` is the same unit, so a
      * provider publishes what the contract holds.
      */
     royalties: { decimals: number; shares: Record<string, number> };
-    /** The generator, with the seed and parameters applied. */
+    /** The source, with the seed and parameters applied. */
     artifactUri: string;
     imageUri: string;
     seed: string;
@@ -116,7 +116,7 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
 export function buildPieceDocument(input: PieceDocInput) {
     return {
         // Token ids are 0-based and displayed edition numbers are 1-based.
-        name: `${input.collectionName} #${input.tokenId + 1}`,
+        name: `${input.generatorName} #${input.tokenId + 1}`,
         description: input.description || "",
         decimals: 0,
         isBooleanAmount: false,

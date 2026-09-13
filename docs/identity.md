@@ -110,7 +110,7 @@ places to go and edit. `sourceFor()` returns it, and costs nothing after
 they have a hack.tez name, else their initial. A grid of identical blank discs
 reads as broken rather than as absent.
 
-Contracts are not accounts. A collection and a provider carry their own name and
+Contracts are not accounts. A generator and a provider carry their own name and
 logo in their metadata, so they pass `src` explicitly and use `shape="square"`.
 Hashes are hashes and stay truncated.
 

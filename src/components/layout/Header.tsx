@@ -10,10 +10,10 @@ import { ConnectButton } from "./ConnectButton";
 import { BRAND, NETWORK } from "@/lib/config";
 
 // Manage lives in the account menu, not here: it's an account-scoped
-// concern (collections this wallet administers), not site navigation.
+// concern (generators this wallet administers), not site navigation.
 const NAV = [
-    { href: "/", label: "Recent" },
-    { href: "/collections", label: "Collections" },
+    { href: "/", label: "Generators" },
+    { href: "/mints", label: "Mints" },
     { href: "/market", label: "Market" },
     { href: "/studio", label: "Studio" },
     { href: "/providers", label: "Providers" },

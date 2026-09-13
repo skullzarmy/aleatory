@@ -3,12 +3,12 @@ import { isIP } from "node:net";
 import { fetchProvider } from "@/lib/providers";
 
 /**
- * Tell the provider a collection names that a piece is waiting.
+ * Tell the provider a generator names that a piece is waiting.
  *
  * ALEATORY-001 §5: a provider may advertise a push endpoint in its TZIP-016
- * metadata. The address comes from the collection and the URL from that
+ * metadata. The address comes from the generator and the URL from that
  * provider's own contract, so somebody else's provider gets notified for
- * somebody else's collection. Every provider polls regardless, so this only
+ * somebody else's generator. Every provider polls regardless, so this only
  * shortens a wait.
  *
  * The destination is chosen by a stranger: anyone can originate a contract
