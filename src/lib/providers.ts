@@ -96,6 +96,82 @@ export async function fetchProviders(): Promise<Provider[]> {
     return providers.filter((p) => !isBlockedProvider(p.address)).sort(compareProviders);
 }
 
+/** A provider contract as its operator sees it: the controls, and the money. */
+export interface OwnedProvider {
+    address: string;
+    name?: string;
+    renderGasMutez: number;
+    agent: string;
+    operator: string;
+    /** Mutez sitting in the contract, which only `withdraw` moves. */
+    balanceMutez: number;
+    registered: boolean;
+}
+
+/**
+ * What one provider contract holds and who runs it, read straight from
+ * storage. Answers for a contract that was never registered, which is the
+ * state an operator is in between deploying and listing.
+ *
+ * Null when the address is not a provider at all, so a pasted address is
+ * refused here rather than at the wallet.
+ */
+export async function fetchOwnedProvider(address: string): Promise<OwnedProvider | null> {
+    if (!/^KT1[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) return null;
+
+    const [account, storage, meta, registryAddress] = await Promise.all([
+        tzkt<{ balance?: number }>(`/v1/accounts/${address}`).catch(() => null),
+        tzkt<{ render_gas?: string; agent?: string; operator?: string }>(
+            `/v1/contracts/${address}/storage`,
+        ).catch(() => null),
+        fetchProviderMetadata(address),
+        addresses().then((a) => a.registry),
+    ]);
+
+    // The three fields the registry's own views are built on. A contract
+    // missing any of them would be refused by `register`, so it is refused
+    // here too rather than sending the operator to a wallet that will fail.
+    if (!storage?.operator || !storage.agent || storage.render_gas === undefined) return null;
+
+    const listed = registryAddress
+        ? await tzkt<{ key: string }[]>(`/v1/contracts/${registryAddress}/bigmaps/providers/keys`, {
+              active: "true",
+              key: address,
+              limit: 1,
+          })
+              .then((rows) => rows.length > 0)
+              .catch(() => false)
+        : false;
+
+    return {
+        address,
+        name: meta?.name,
+        renderGasMutez: parseInt(storage.render_gas, 10) || 0,
+        agent: storage.agent,
+        operator: storage.operator,
+        balanceMutez: account?.balance ?? 0,
+        registered: listed,
+    };
+}
+
+/**
+ * Provider contracts this account operates. Only the registered ones can be
+ * found this way, since nothing indexes a contract nobody has listed: an
+ * operator reaches an unregistered one by pasting its address.
+ */
+export async function fetchProvidersOperatedBy(account: string): Promise<OwnedProvider[]> {
+    const registry = (await addresses()).registry;
+    if (!registry || !account) return [];
+
+    const rows = await tzkt<RegistryRow[]>(`/v1/contracts/${registry}/bigmaps/providers/keys`, {
+        active: "true",
+        limit: 100,
+    }).catch(() => []);
+
+    const owned = await Promise.all(rows.map((r) => fetchOwnedProvider(r.key).catch(() => null)));
+    return owned.filter((p): p is OwnedProvider => p !== null && p.operator === account);
+}
+
 /**
  * One provider, by address, whether or not it is in the registry. A generator
  * names the provider it pays, and the registry is a directory somebody has to

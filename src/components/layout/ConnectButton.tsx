@@ -6,7 +6,17 @@ import { useWallet } from "@/context/WalletContext";
 import { useOffers } from "@/context/OffersContext";
 import { AccountName } from "@/components/account/AccountName";
 import { shortAddress } from "@/lib/utils";
-import { Check, ChevronDown, Copy, LogOut, Settings2, Tag, User, Wallet } from "lucide-react";
+import {
+    Check,
+    ChevronDown,
+    Copy,
+    LogOut,
+    Server,
+    Settings2,
+    Tag,
+    User,
+    Wallet,
+} from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -102,6 +112,16 @@ export function ConnectButton() {
                         <Link href="/manage">
                             <Settings2 />
                             Manage generators
+                        </Link>
+                    </DropdownMenuItem>
+
+                    {/* Always offered, not only to operators: listing a provider
+                        is how somebody becomes one, so the page has to be
+                        reachable before there is anything to manage. */}
+                    <DropdownMenuItem asChild>
+                        <Link href="/providers/mine">
+                            <Server />
+                            Your render provider
                         </Link>
                     </DropdownMenuItem>
 
