@@ -253,7 +253,10 @@ export async function fetchAllGenerators(): Promise<GeneratorSummary[]> {
     const rows = lists
         .flat()
         .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
-        .filter((c) => !isBlockedGenerator(c.address));
+        .filter((c) => !isBlockedGenerator(c.address))
+        // Each factory's list is newest first, so flattening leaves one run per
+        // factory rather than one order.
+        .sort((a, b) => (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""));
     const addresses = rows.map((c) => c.address);
     const [metas, covers, editions] = await Promise.all([
         Promise.all(

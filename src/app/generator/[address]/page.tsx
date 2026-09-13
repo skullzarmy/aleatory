@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { fetchGenerator, fetchGeneratorPieces } from "@/lib/generator";
+import { fetchListingPage } from "@/lib/market";
 import { MintView } from "@/components/generator/MintView";
 import { FeedGrid } from "@/components/feed/FeedGrid";
 import { shortAddress } from "@/lib/utils";
@@ -45,11 +47,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function GeneratorPage({ params }: { params: Params }) {
     const { address } = await params;
-    const [generator, pieces] = await Promise.all([
+    const [generator, pieces, market] = await Promise.all([
         fetchGenerator(address),
         fetchGeneratorPieces(address),
+        fetchListingPage({ generator: address, limit: 1 }).catch(() => ({ total: 0 })),
     ]);
     if (!generator) return notFound();
+    const listed = market.total;
 
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
@@ -115,9 +119,19 @@ export default async function GeneratorPage({ params }: { params: Params }) {
 
             {pieces.length > 0 && (
                 <div className="mt-12">
-                    <h2 className="mb-4 text-lg font-semibold tracking-tight">
-                        Pieces ({generator.minted})
-                    </h2>
+                    <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                        <h2 className="text-lg font-semibold tracking-tight">
+                            Pieces ({generator.minted})
+                        </h2>
+                        {listed > 0 && (
+                            <Link
+                                href={`/market?generator=${address}`}
+                                className="text-sm text-muted-foreground underline hover:text-foreground"
+                            >
+                                {listed} for sale
+                            </Link>
+                        )}
+                    </div>
                     <FeedGrid pieces={pieces} />
                 </div>
             )}

@@ -274,38 +274,113 @@ export async function piecesFor(
     );
 }
 
+/** How many generators the scope offers before it stops being scannable. */
+const PICKER_MAX = 12;
+
+/**
+ * Names are the artist's and nothing stops two of them matching: three
+ * generators here are called Drift. A repeated name carries its address so the
+ * choice is between two distinguishable things.
+ */
+function pickerFor(
+    all: { address: string; alias?: string; tokensCount?: number; lastActivityTime?: string }[],
+    names: Map<string, string>,
+): { address: string; name: string }[] {
+    const active = all
+        .filter((c) => (c.tokensCount ?? 0) > 0)
+        .sort((a, b) => (b.lastActivityTime ?? "").localeCompare(a.lastActivityTime ?? ""))
+        .slice(0, PICKER_MAX);
+
+    const counts = new Map<string, number>();
+    for (const c of active) {
+        const n = names.get(c.address) || c.alias || "";
+        if (n) counts.set(n, (counts.get(n) ?? 0) + 1);
+    }
+
+    return active.map((c) => {
+        const n = names.get(c.address) || c.alias;
+        if (!n) return { address: c.address, name: shortish(c.address) };
+        return {
+            address: c.address,
+            name: (counts.get(n) ?? 0) > 1 ? `${n} ${shortish(c.address)}` : n,
+        };
+    });
+}
+
+const shortish = (a: string) => `${a.slice(0, 5)}…${a.slice(-4)}`;
+
 export interface RecentFeed {
     pieces: FeedPiece[];
     generatorCount: number;
     /** True when no factory address is set. Distinct from a quiet feed. */
     unconfigured: boolean;
+    /** Read by asking for one row past the page, not by counting. */
+    hasMore: boolean;
+    /** The most recently active generators, capped at PICKER_MAX. */
+    generators: { address: string; name: string }[];
+    /** How many have anything minted, so a capped picker can say so. */
+    mintingGeneratorCount: number;
 }
 
-export async function fetchRecentFeed(limit = 48): Promise<RecentFeed> {
+export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Promise<RecentFeed> {
     const factories = await allFactories();
     if (factories.length === 0) {
-        return { pieces: [], generatorCount: 0, unconfigured: true };
+        return {
+            pieces: [],
+            generatorCount: 0,
+            unconfigured: true,
+            hasMore: false,
+            generators: [],
+            mintingGeneratorCount: 0,
+        };
     }
     // Every factory, not only the current one: a redeploy retires a factory and
     // the generators it made stay real.
-    const generators = (await generatorsFrom(factories)).filter(
-        (c) => !isBlockedGenerator(c.address),
-    );
-    if (generators.length === 0) {
-        return { pieces: [], generatorCount: 0, unconfigured: false };
+    const all = (await generatorsFrom(factories)).filter((c) => !isBlockedGenerator(c.address));
+    if (all.length === 0) {
+        return {
+            pieces: [],
+            generatorCount: 0,
+            unconfigured: false,
+            hasMore: false,
+            generators: [],
+            mintingGeneratorCount: 0,
+        };
     }
-    const aliasByAddress = await namesFor(generators.map((c) => c.address));
-    const tokens = await fetchRecentTokens(
-        generators.map((c) => c.address),
-        limit,
+    const aliasByAddress = await namesFor(all.map((c) => c.address));
+    const picker = pickerFor(all, aliasByAddress);
+    const minting = all.filter((c) => (c.tokensCount ?? 0) > 0).length;
+
+    // An unknown address scopes to nothing rather than falling back to
+    // everything, which would show a feed that quietly ignored the request.
+    const scoped = only ? all.filter((c) => c.address === only) : all;
+    if (scoped.length === 0) {
+        return {
+            pieces: [],
+            generatorCount: all.length,
+            unconfigured: false,
+            hasMore: false,
+            generators: picker,
+            mintingGeneratorCount: minting,
+        };
+    }
+
+    const window = await fetchRecentTokens(
+        scoped.map((c) => c.address),
+        limit + 1,
+        offset,
     );
+    const tokens = window.slice(0, limit);
     const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
     return {
         pieces: tokens.map((t) =>
             toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
         ),
-        generatorCount: generators.length,
+        generatorCount: all.length,
         unconfigured: false,
+        hasMore: window.length > limit,
+        generators: picker,
+        mintingGeneratorCount: minting,
     };
 }
 
