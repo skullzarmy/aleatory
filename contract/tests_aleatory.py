@@ -18,10 +18,11 @@ from aleatory import aleatory
 _META = sp.big_map(
     {
         "": sp.bytes("0x74657a6f732d73746f726167653a636f6e74656e74"),
-        # {"name":"Aleatory","interfaces":["TZIP-012","TZIP-016"]}
+        # {"name":"Aleatory","interfaces":["TZIP-012","TZIP-016","ALEATORY-001"]}
         "content": sp.bytes(
             "0x7b226e616d65223a22416c6561746f7279222c22696e74657266616365"
-            "73223a5b22545a49502d303132222c22545a49502d303136225d7d"
+            "73223a5b22545a49502d303132222c22545a49502d303136222c22414c"
+            "4541544f52592d303031225d7d"
         ),
     }
 )

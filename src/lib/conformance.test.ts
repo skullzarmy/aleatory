@@ -176,6 +176,16 @@ function auditLibraries() {
         /<CoverPicker[\s\S]{0,400}?deps=/.test(deploy),
         "a p5 cover drawn without p5 is a blank frame pinned as displayUri",
     );
+
+    for (const path of ["src/lib/publish.ts", "contract/deploy-collection.ts"]) {
+        const source = read(path);
+        check(
+            `${path} declares ALEATORY-001 conformance`,
+            !/interfaces:\s*\[[^\]]*\]/.test(source) ||
+                /interfaces:\s*\[[^\]]*"ALEATORY-001"/.test(source),
+            "an indexer finds a generator by the interfaces it names",
+        );
+    }
 }
 
 /** The documentation, against what is actually declarable. */
