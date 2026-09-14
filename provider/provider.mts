@@ -171,6 +171,7 @@ interface GeneratorStorage {
         code: string;
         code_encoding: string;
         code_uri: string;
+        code_sealed: boolean;
         code_hash: string;
         pending_metadata: string;
         /** Address to basis points. Published in the document, per TZIP-21. */
@@ -295,6 +296,8 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
         // CID shape only.
         code = await fetchGenerator(codeUri);
     }
+    // Still arriving in chunks, so nothing can have minted from it yet.
+    if (!storage.art.code_sealed) return [];
     if (!code) return [];
     verifySource(code, storage.art.code_hash ?? "", generator);
 

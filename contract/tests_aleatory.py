@@ -44,7 +44,8 @@ _TOTAL = _PRICE + _GAS
 
 def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
                      price=_PRICE, edition_size=10, start_paused=False,
-                     agent=None, royalties=None, trust_resolver=True):
+                     agent=None, royalties=None, trust_resolver=True,
+                     code=_CODE, code_hash=sp.bytes("0xaa")):
     royalties = (
         sp.cast({}, sp.map[sp.address, sp.nat])
         if royalties is None
@@ -56,9 +57,9 @@ def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
         provider=provider.address,
         provider_agent=(minter if agent is None else agent).address,
         render_gas=sp.mutez(render_gas),
-        code=_CODE,
+        code=code,
         code_encoding="identity",
-        code_hash=sp.bytes("0xaa"),
+        code_hash=code_hash,
         code_uri="",
         edition_size=edition_size,
         price=sp.mutez(price),
@@ -205,6 +206,48 @@ def test_start_paused():
     c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
     c.set_paused(False, _sender=alice, _valid=False)
     c.set_paused(False, _sender=artist)
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+
+
+@sp.add_test()
+def test_code_arrives_in_chunks():
+    """A generator larger than one operation, built up and closed."""
+    scenario = sp.test_scenario("Chunked code", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    # <html></html> split in two, and the sha256 of the whole.
+    head = sp.bytes("0x3c68746d6c3e")
+    tail = sp.bytes("0x3c2f68746d6c3e")
+    whole = sp.bytes("0x3c68746d6c3e3c2f68746d6c3e")
+    c = _collection(scenario, artist, resolver, provider, minter,
+                    code=sp.bytes("0x"), code_hash=sp.sha256(whole))
+
+    # Nothing mints against half a generator.
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
+
+    c.append_code(head, _sender=alice, _valid=False)
+    c.append_code(head, _sender=artist, _amount=sp.mutez(1), _valid=False)
+    c.append_code(sp.bytes("0x"), _sender=artist, _valid=False)
+    c.append_code(head, _sender=artist)
+
+    # Sealing half of it is a hash that does not match.
+    c.seal_code(_sender=artist, _valid=False)
+
+    c.append_code(tail, _sender=artist)
+    c.seal_code(_sender=alice, _valid=False)
+    c.seal_code(_sender=artist)
+    scenario.verify(c.data.art.code == whole)
+    scenario.verify(c.data.art.code_sealed)
+
+    # Sealed is sealed.
+    c.append_code(tail, _sender=artist, _valid=False)
+    c.seal_code(_sender=artist, _valid=False)
+
     c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
 
@@ -1061,10 +1104,11 @@ def test_the_generator_is_on_chain():
         _sender=artist,
     )
 
-    # Neither is a collection with no art in it.
+    # Neither is a generator too large for one operation, waiting for its
+    # chunks. It exists, it is unsealed, and it cannot mint yet.
     factory.deploy(
         _deploy_params(provider, code=sp.bytes("0x"), code_uri=""),
-        _sender=artist, _valid=False,
+        _sender=artist,
     )
     # Both is two sources that can disagree about what the art is.
     factory.deploy(

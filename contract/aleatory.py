@@ -140,6 +140,11 @@ def aleatory():
         # Escape hatch for a generator past the operation cap. Empty
         # whenever `code` is populated, and exactly one of the two is.
         code_uri=sp.string,
+        # Whether `code` is complete. An operation is capped at 32,768 bytes;
+        # storage is not, so a generator larger than one operation arrives
+        # across several `append_code` calls and `seal_code` closes it.
+        # Nothing mints before this is true and nothing writes `code` after.
+        code_sealed=sp.bool,
         # Royalty shares in basis points of the sale price, by recipient.
         # 1250 = 12.5%. Kept on chain *as well as* in the metadata JSON:
         # a marketplace contract cannot read IPFS, so without this it would
@@ -292,6 +297,7 @@ def aleatory():
                 code_encoding=init.code_encoding,
                 code_hash=init.code_hash,
                 code_uri=init.code_uri,
+                code_sealed=sp.len(init.code) > 0 or sp.len(init.code_uri) > 0,
                 royalties=init.royalties,
                 pending_metadata=init.pending_metadata,
             )
@@ -477,6 +483,42 @@ def aleatory():
             )
 
         @sp.entrypoint
+        def append_code(self, chunk):
+            """(Artist only) Add bytes to the generator, before it is sealed.
+
+            An operation is capped at 32,768 bytes. Storage is not, so a
+            generator larger than that is deployed empty and arrives here a
+            chunk at a time, in order.
+            """
+            sp.cast(chunk, sp.bytes)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.is_artist_(), "NOT_ARTIST"
+            assert not self.data.art.code_sealed, "CODE_SEALED"
+            assert self.data.art.code_uri == "", "CODE_IS_POINTER"
+            assert sp.len(chunk) > 0, "EMPTY_CHUNK"
+            self.data.art.code = sp.concat([self.data.art.code, chunk])
+            sp.emit(sp.record(added=sp.len(chunk)), tag="append_code")
+
+        @sp.entrypoint
+        def seal_code(self):
+            """(Artist only) Close the generator. Nothing writes it afterwards.
+
+            `code_hash` covers the decoded source, so it can only be checked
+            here when nothing was compressed. A gzipped generator seals on its
+            length alone, and the hash is checked by whoever decodes it.
+            """
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.is_artist_(), "NOT_ARTIST"
+            assert not self.data.art.code_sealed, "CODE_SEALED"
+            assert sp.len(self.data.art.code) > 0, "NO_CODE"
+            if self.data.art.code_encoding == "identity":
+                assert (
+                    sp.sha256(self.data.art.code) == self.data.art.code_hash
+                ), "CODE_HASH_MISMATCH"
+            self.data.art.code_sealed = True
+            sp.emit(sp.record(size=sp.len(self.data.art.code)), tag="seal_code")
+
+        @sp.entrypoint
         def set_metadata(self, key, value):
             """(Artist only) Edit display metadata: the name, the description,
             the cover.
@@ -548,6 +590,9 @@ def aleatory():
             """
             sp.cast(params, sp.bytes)
             assert not self.data.sale.paused, "PAUSED"
+            # A piece minted against half a generator could never be rendered,
+            # and the token would be real.
+            assert self.data.art.code_sealed, "CODE_NOT_SEALED"
 
             # What the provider charges right now, asked of them at the
             # moment of the sale. The collector pays the artist's price and
@@ -1167,7 +1212,7 @@ def aleatory():
             # because none of this is changeable afterwards.
             on_chain = sp.len(params.code) > 0
             by_pointer = sp.len(params.code_uri) > 0
-            assert on_chain or by_pointer, "NO_CODE"
+            # Neither is a generator arriving through `append_code`.
             assert not (on_chain and by_pointer), "CODE_AMBIGUOUS"
 
             # A reader has to know how to decode the bytes before it can run
@@ -1224,6 +1269,8 @@ def aleatory():
                         code_encoding=params.code_encoding,
                         code_hash=params.code_hash,
                         code_uri=params.code_uri,
+                        code_sealed=sp.len(params.code) > 0
+                        or sp.len(params.code_uri) > 0,
                         royalties=params.royalties,
                         pending_metadata=params.pending_metadata,
                     ),

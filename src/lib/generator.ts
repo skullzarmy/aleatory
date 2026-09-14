@@ -36,6 +36,7 @@ interface RawStorage {
         code: string;
         code_encoding: string;
         code_uri: string;
+        code_sealed: boolean;
         code_hash: string;
         royalties: Record<string, string>;
         pending_metadata: string;
@@ -59,6 +60,8 @@ export interface Generator {
     description?: string;
     /** The source, decoded from storage. Empty when it is a pointer. */
     code: string;
+    /** False while the source is still arriving in chunks. Nothing mints. */
+    sealed: boolean;
     codeUri: string;
     codeHash: string;
     priceMutez: bigint;
@@ -124,6 +127,7 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
         paramsSchema: await fetchParamsSchema(address),
         artist: s.administrator,
         code: await decodeCode(s.art.code, s.art.code_encoding).catch(() => ""),
+        sealed: s.art.code_sealed ?? true,
         // sp.string on chain, not sp.bytes, so it needs no decoding. Set only
         // for source too large to carry on chain.
         codeUri: s.art.code_uri,

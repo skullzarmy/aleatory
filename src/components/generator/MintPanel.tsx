@@ -195,7 +195,12 @@ export function MintPanel({
                 </div>
             )}
 
-            {generator.soldOut ? (
+            {!generator.sealed ? (
+                <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                    This generator is still being written to the chain. Minting opens once its
+                    artist seals it.
+                </p>
+            ) : generator.soldOut ? (
                 <p className="rounded-md bg-muted px-3 py-2 text-sm">Sold out</p>
             ) : generator.paused ? (
                 <p className="rounded-md bg-muted px-3 py-2 text-sm">Sales are paused</p>
