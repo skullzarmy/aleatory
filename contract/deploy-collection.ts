@@ -92,7 +92,7 @@ async function main() {
             JSON.stringify({
                 name: process.env.ALEA_COLLECTION_NAME || "Aleatory Test Collection",
                 description: "Deployed by contract/deploy-collection.ts",
-                interfaces: ["TZIP-012", "TZIP-016"],
+                interfaces: ["TZIP-012", "TZIP-016", "ALEATORY-001"],
             }),
         ),
     );
