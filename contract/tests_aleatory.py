@@ -219,7 +219,8 @@ def test_set_metadata_is_display_only():
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
     c = _collection(scenario, artist, resolver, provider, minter)
 
-    body = sp.utils.bytes_of_string('{"name":"Renamed"}')
+    # {"name":"Renamed"}
+    body = sp.bytes("0x7b226e616d65223a2252656e616d6564227d")
 
     c.set_metadata(key="content", value=body, _sender=artist)
     c.set_metadata(key="content", value=body, _sender=alice, _valid=False)
