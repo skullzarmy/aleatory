@@ -148,11 +148,12 @@ spending is what a dry run saves.
 Tests here run the code they are about: a template is parsed, a zip is
 packaged, a schema is resolved, an API route is called.
 
-Three source scans survive, and each earns it. `hooks.test.ts` is a lint rule
+Four source scans survive, and each earns it. `hooks.test.ts` is a lint rule
 for React hook order. `check-contracts.mjs` counts contracts and compares
 `deploy.ts` storage against what each contract declares.
-`conformance.test.ts` checks the harness implementations agree. Each caught a
-bug that had shipped.
+`conformance.test.ts` checks the harness implementations agree. `check-env.mjs`
+reads every `process.env` in the repo and holds the two `.env.example` files to
+it, both ways. Each caught a bug that had shipped.
 
 ---
 
