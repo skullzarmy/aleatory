@@ -14,6 +14,7 @@ import {
     fetchEditionSizes,
     type GeneratorMeta,
     indexerFetch,
+    isAddress,
 } from "./tzkt";
 
 export { fetchGeneratorMeta, type GeneratorMeta };
@@ -158,6 +159,7 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
  * what the figure means.
  */
 export async function fetchRoyaltyBps(address: string): Promise<number> {
+    if (!isAddress(address)) return 0;
     const shares = await indexerFetch(
         `${tzktApi()}/v1/contracts/${address}/storage?path=art.royalties`,
         { next: { revalidate: 300 } } as RequestInit,
@@ -175,6 +177,7 @@ export async function fetchRoyaltyBps(address: string): Promise<number> {
  * docs/params.md §4.
  */
 async function fetchParamsSchema(address: string): Promise<ParamsSchema | null> {
+    if (!isAddress(address)) return null;
     const rows = await indexerFetch(
         `${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/aleatory%3Aparams`,
         { next: { revalidate: 300 } } as RequestInit,

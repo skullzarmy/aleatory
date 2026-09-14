@@ -1130,6 +1130,14 @@ def test_the_generator_is_on_chain():
         _sender=artist, _valid=False,
     )
 
+    # Every mint pays the artist directly. A deployer that cannot receive tez
+    # would be a generator nobody could ever buy from, and `administrator` has
+    # no setter, so this is the last moment it is correctable. The resolver has
+    # entrypoints but no unit default, which is exactly the shape that fails.
+    factory.deploy(
+        _deploy_params(provider), _sender=resolver.address, _valid=False,
+    )
+
 
 @sp.add_test()
 def test_router_keeps_every_factory():

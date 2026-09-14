@@ -1235,6 +1235,12 @@ def aleatory():
                 total_royalty += share
             assert total_royalty <= 2500, "ROYALTY_TOO_HIGH"
 
+            # Every mint pays the artist directly, so an artist who cannot be
+            # sent tez is a generator no piece can ever be bought from. The
+            # same reason royalty recipients are checked before a generator
+            # exists, and the only moment this one is still correctable.
+            assert sp.contract(sp.unit, sp.sender).is_some(), "ARTIST_NOT_PAYABLE"
+
             # The provider quotes its own price through a view it exposes;
             # that view is the entire membership test for being a provider.
             # `max_render_gas` is the artist's ceiling, so a provider
