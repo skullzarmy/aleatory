@@ -69,6 +69,11 @@ export function PieceFacts({ piece }: { piece: Piece }) {
                     <span className="font-mono text-xs" title={piece.codeHash}>
                         {shortAddress(piece.codeHash, 8, 6)}
                     </span>
+                    {piece.code && !piece.codeVerified && (
+                        <span className="ml-2 text-xs text-destructive">
+                            does not match the source shown
+                        </span>
+                    )}
                 </Row>
             )}
 
