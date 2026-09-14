@@ -86,7 +86,10 @@ arrived is right.
 
 The generator repeats the declaration in its metadata, under
 `aleatory:libraries`, so a renderer can resolve a piece without parsing the
-source first:
+source first. **It is written at origination and a conforming generator does not
+let it be edited afterwards**: a renderer is told below to trust this record
+absolutely, so a record that can change is one that can change what an
+already-minted piece executes.
 
 ```json
 [{ "id": "p5", "version": "1.5.0", "path": "lib/p5.min.js", "hash": "16f48a…" }]

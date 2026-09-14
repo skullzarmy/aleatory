@@ -476,6 +476,28 @@ def aleatory():
                 tag="set_local_writer",
             )
 
+        @sp.entrypoint
+        def set_metadata(self, key, value):
+            """(Artist only) Edit display metadata: the name, the description,
+            the cover.
+
+            Display only. `aleatory:libraries` and `aleatory:params` are what a
+            renderer reads to decide what a piece runs, and ALEATORY-001 tells
+            it to trust that record absolutely, so a key that could change them
+            would let an administrator change what an already-minted piece
+            executes. They are written at origination and refused here, as are
+            `code`, `code_uri`, `code_hash` and `royalties`, which live in
+            storage and have no setter at all.
+            """
+            sp.cast(key, sp.string)
+            sp.cast(value, sp.bytes)
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.is_artist_(), "NOT_ARTIST"
+            assert key != "aleatory:libraries", "KEY_IMMUTABLE"
+            assert key != "aleatory:params", "KEY_IMMUTABLE"
+            self.data.metadata[key] = value
+            sp.emit(sp.record(key=key), tag="set_metadata")
+
         # --- sale ---
 
         @sp.entrypoint

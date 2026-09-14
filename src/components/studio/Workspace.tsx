@@ -10,6 +10,7 @@ import { Cost } from "./Cost";
 import { ParamsPanel } from "./ParamsPanel";
 import { LibraryPicker } from "./LibraryPicker";
 import { useDeps } from "./useDeps";
+import { declaredIn } from "@/lib/libraries";
 import { getKind } from "@/lib/runtimes";
 import { saveDraft, randomSeed, type Draft } from "@/lib/draft";
 import { downloadText } from "@/lib/project";
@@ -58,7 +59,7 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
     // Libraries the document declares, resolved once for the whole workspace
     // and handed to every frame. A p5 sketch with no p5 draws nothing and says
     // nothing about why, so the failure is surfaced rather than swallowed.
-    const { deps, loading: depsLoading, error: depsError } = useDeps(draft.html);
+    const { deps, ready: depsReady, error: depsError } = useDeps(draft.html);
     const kind = getKind(draft.kindId);
 
     // Autosave. A draft that only survives an explicit save is a draft that
@@ -231,12 +232,10 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                             : "max-w-[min(100%,70vh)]"
                                     }`}
                                 >
-                                    {depsLoading ? (
+                                    {!depsReady ? (
                                         <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
                                             Loading{" "}
-                                            {kind.deps.map((d) => d.label).join(", ") ||
-                                                "libraries"}
-                                            …
+                                            {declaredIn(draft.html).join(", ") || "libraries"}…
                                         </p>
                                     ) : (
                                         <Frame

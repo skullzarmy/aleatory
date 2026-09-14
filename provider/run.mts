@@ -18,7 +18,9 @@ import dotenv from "dotenv";
 // above this call, and the daemon would read an unfilled process.env.
 dotenv.config();
 
-const { generatorsServed, generatorsFactories, pendingIn, handle } = await import("./provider.mts");
+const { generatorsServed, generatorsFactories, factoriesIgnored, pendingIn, handle } = await import(
+    "./provider.mts"
+);
 const { renderConfigFromEnv } = await import("./render.mts");
 
 /** Same flag as every other script here, and as `contract/deploy.ts`. */
@@ -64,6 +66,15 @@ console.log(
 for (const f of factories) console.log(`  ${f}`);
 if (factories.length === 0) {
     console.log("  none. Nothing will be found, whoever names this provider.");
+}
+
+const ignored = await factoriesIgnored();
+if (ignored.length > 0) {
+    console.log(
+        `\n  ! ALEA_FACTORIES hides ${ignored.length} factor${ignored.length === 1 ? "y" : "ies"} the router lists:`,
+    );
+    for (const f of ignored) console.log(`      ${f}`);
+    console.log("    Nothing they deploy will ever be rendered. Unset it to follow the router.");
 }
 
 console.log("\nGenerators this provider serves");

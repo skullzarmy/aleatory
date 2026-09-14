@@ -7,7 +7,7 @@
  * back still says what it needs. One tag per library, and they load in the
  * order they appear.
  */
-import { type DepSpec } from "./kinds";
+import { LIBRARIES, type DepSpec } from "./kinds";
 
 const TAG = /<meta\s+[^>]*name\s*=\s*["']alea:library["'][^>]*>/gi;
 const CONTENT = /content\s*=\s*["']([^"']+)["']/i;
@@ -42,6 +42,15 @@ export function specFor(coordinate: string): DepSpec | null {
     if (!m) return null;
     const [, scope = "", name, version, path = ""] = m;
     const id = `${scope}${name}`;
+
+    // A package we carry a checked digest and a local copy for. The proxy would
+    // arrive at the same bytes, but this digest is one somebody verified against
+    // npm rather than one a mirror taught us. Shared, so nothing may mutate it.
+    const pinned = LIBRARIES.find(
+        (l) => l.id === id && l.version === version && (path === "" || l.registry.path === path),
+    );
+    if (pinned) return pinned;
+
     return {
         id,
         label: id,
@@ -102,4 +111,88 @@ export function withLibraries(html: string, coordinates: string[]): string {
         return stripped.replace(/<html[^>]*>/i, (m) => `${m}\n<head>\n${tags}\n</head>`);
     }
     return `${tags}\n${stripped}`;
+}
+
+/** One entry of `aleatory:libraries`. ALEATORY-001 §1. */
+export interface RecordedLibrary {
+    id: string;
+    version: string;
+    path: string;
+    hash: string;
+}
+
+/**
+ * A record, or the reasons there is none. A union rather than a pair, so half a
+ * record is not something a caller can reach for.
+ */
+export type LibraryRecord =
+    | { ok: true; libraries: RecordedLibrary[] }
+    | { ok: false; problems: string[] };
+
+const DIGEST = /^[0-9a-f]{64}$/;
+
+/**
+ * What goes on chain for a document, built from what that document declares and
+ * from the specs those declarations actually resolved to.
+ *
+ * The record is written at origination and has no setter, and a renderer must
+ * refuse to draw without it, so anything short of a complete answer is a refusal
+ * here rather than a generator nobody can ever render.
+ */
+export function recordFor(html: string, resolved: DepSpec[]): LibraryRecord {
+    const libraries: RecordedLibrary[] = [];
+    const problems: string[] = [];
+    const seen = new Map<string, string>();
+
+    // Declaration order, because that is load order.
+    for (const coordinate of declaredIn(html)) {
+        const want = specFor(coordinate);
+        if (!want) {
+            problems.push(
+                `${coordinate} is not a package and a version, so nothing can resolve it.`,
+            );
+            continue;
+        }
+
+        const got = resolved.find(
+            (s) =>
+                s.id === want.id &&
+                s.version === want.version &&
+                // A bare coordinate takes whichever file the package defaults to.
+                (want.registry.path === "" || s.registry.path === want.registry.path),
+        );
+        if (!got) {
+            problems.push(`${coordinate} has not been loaded, so there is nothing to record.`);
+            continue;
+        }
+        if (!DIGEST.test(got.hash)) {
+            problems.push(
+                `${coordinate} resolved without a digest, and a renderer must refuse to draw without one.`,
+            );
+            continue;
+        }
+        // The renderer builds its URL from this, so an empty one resolves nowhere.
+        if (got.registry.path === "") {
+            problems.push(`${coordinate} resolved without naming a file inside the package.`);
+            continue;
+        }
+
+        const already = seen.get(got.id);
+        if (already && already !== got.version) {
+            problems.push(
+                `${got.id} is declared at ${already} and at ${got.version}. Only one can load.`,
+            );
+            continue;
+        }
+        seen.set(got.id, got.version);
+
+        libraries.push({
+            id: got.id,
+            version: got.version,
+            path: got.registry.path,
+            hash: got.hash,
+        });
+    }
+
+    return problems.length > 0 ? { ok: false, problems } : { ok: true, libraries };
 }

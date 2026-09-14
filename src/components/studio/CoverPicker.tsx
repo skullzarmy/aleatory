@@ -13,7 +13,8 @@ import { resolveParams } from "@/lib/params";
  *
  * Flat, and not a stored seed, because objkt will not run our isolate and a
  * list of generators cannot afford a live render per row. `set_metadata`
- * replaces it later, so the choice is not permanent.
+ * replaces it later, so the choice is not permanent. What a renderer reads to
+ * decide what runs is written at origination and has no setter.
  */
 
 /** Long edge of the full cover, and of the thumbnail. */

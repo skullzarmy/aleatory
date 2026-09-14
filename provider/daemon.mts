@@ -15,7 +15,7 @@ import dotenv from "dotenv";
 import { createServer } from "node:http";
 dotenv.config();
 
-const { generatorsServed, pendingIn, handle } = await import("./provider.mts");
+const { generatorsServed, factoriesIgnored, pendingIn, handle } = await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
 
 /** How often to look when there is nothing to do. */
@@ -45,6 +45,10 @@ if (missing.length > 0) {
 }
 
 log(`provider ${process.env.ALEA_PROVIDER_ADDRESS}`);
+
+for (const f of await factoriesIgnored()) {
+    log(`! ALEA_FACTORIES hides ${f}, which the router lists. Nothing it deploys will render.`);
+}
 
 let stopping = false;
 for (const sig of ["SIGINT", "SIGTERM"] as const) {

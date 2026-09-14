@@ -53,8 +53,13 @@ async function fromChain(): Promise<Addresses> {
         const previous = await marketplaceHistory();
 
         return {
-            factories: Array.isArray(s.factories) ? s.factories : [],
-            marketplaces: [current, ...previous.filter((m) => m !== current)].filter(Boolean),
+            // `add_factory` conses on, so re-pointing at an earlier factory
+            // leaves it in the list twice and every read that fans out over
+            // factories queries it twice. Shadownet names one twice today.
+            factories: [...new Set(Array.isArray(s.factories) ? s.factories : [])],
+            marketplaces: [
+                ...new Set([current, ...previous.filter((m) => m !== current)].filter(Boolean)),
+            ],
             registry: s.registry ?? "",
             resolver: s.resolver ?? "",
         };

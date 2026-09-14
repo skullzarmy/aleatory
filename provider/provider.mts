@@ -61,6 +61,11 @@ let factoryCache: { at: number; addresses: string[] } | null = null;
  */
 export async function generatorsFactories(): Promise<string[]> {
     if (FACTORY_OVERRIDE.length > 0) return FACTORY_OVERRIDE;
+    return await routerFactories();
+}
+
+/** What the router lists, whatever the environment overrides it with. */
+export async function routerFactories(): Promise<string[]> {
     if (!ROUTER) return [];
 
     // Rarely changes, and a scan every fifteen seconds should not re-read it.
@@ -77,6 +82,17 @@ export async function generatorsFactories(): Promise<string[]> {
     const addresses = [...new Set(addressList((storage?.factories ?? []).join(",")))];
     if (addresses.length > 0) factoryCache = { at: Date.now(), addresses };
     return addresses;
+}
+
+/**
+ * What an override hides. A factory-deployed generator names its provider in
+ * initial storage and never emits `set_provider`, so the event scan below
+ * cannot find it either: an override is the only thing deciding.
+ */
+export async function factoriesIgnored(): Promise<string[]> {
+    if (FACTORY_OVERRIDE.length === 0) return [];
+    const listed = await routerFactories();
+    return listed.filter((f) => !FACTORY_OVERRIDE.includes(f));
 }
 const IPFS_GATEWAY = (process.env.ALEA_IPFS_GATEWAY || "https://ipfs.fileship.xyz").replace(
     /\/+$/,

@@ -62,7 +62,7 @@ scan silently loses it. Acting on a listing or an offer means calling the
 contract that holds it, which is why a listing carries its own marketplace
 address rather than being assumed to live at the current one.
 
-**A generator has no escape hatch at all.** No `admin_lambda`, no upgrade path, no platform fee, and no authority retained by us. `code`, `code_uri`, `code_hash` and `royalties` have no setter anywhere in it. The artist administers only what established Tezos NFT contracts let an artist administer: pause the sale, reprice the unsold remainder, reduce or close the edition, switch render provider, and hand the contract to another address in two steps (§4).
+**A generator has no escape hatch at all.** No `admin_lambda`, no upgrade path, no platform fee, and no authority retained by us. `code`, `code_uri`, `code_hash` and `royalties` have no setter anywhere in it, and neither do `aleatory:libraries` and `aleatory:params`: everything that decides what a piece runs is fixed at origination. The artist administers only what established Tezos NFT contracts let an artist administer: pause the sale, reprice the unsold remainder, reduce or close the edition, switch render provider, edit display metadata such as the cover, and hand the contract to another address in two steps (§4).
 
 The price of that guarantee is real: a bug in the template is frozen into every generator already deployed, with no remedy. Which is why the generator stays boring, and why it needs to be audited before the first one ships.
 

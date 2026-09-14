@@ -84,9 +84,11 @@ Seven, in `contract/aleatory.py` and `contract/marketplace.py`.
 | **Resolver** | Which keys may write resolution entries. |
 
 **The artist holds every authority a generator has**: pause the sale, reprice
-the unsold remainder, reduce or close the edition, switch render provider, and
-hand the contract on in two steps. `code`, `code_uri`, `code_hash` and
-`royalties` are written at origination and stand for the life of the contract.
+the unsold remainder, reduce or close the edition, switch render provider, edit
+display metadata, and hand the contract on in two steps. `code`, `code_uri`,
+`code_hash` and `royalties` are written at origination and stand for the life of
+the contract, and so do `aleatory:libraries` and `aleatory:params`, which
+`set_metadata` refuses: everything deciding what a piece runs is fixed.
 A bug in the template is therefore frozen into every generator made from it,
 which is why the template is small and is audited before it ships.
 
@@ -146,11 +148,12 @@ spending is what a dry run saves.
 Tests here run the code they are about: a template is parsed, a zip is
 packaged, a schema is resolved, an API route is called.
 
-Three source scans survive, and each earns it. `hooks.test.ts` is a lint rule
+Four source scans survive, and each earns it. `hooks.test.ts` is a lint rule
 for React hook order. `check-contracts.mjs` counts contracts and compares
 `deploy.ts` storage against what each contract declares.
-`conformance.test.ts` checks the harness implementations agree. Each caught a
-bug that had shipped.
+`conformance.test.ts` checks the harness implementations agree. `check-env.mjs`
+reads every `process.env` in the repo and holds the two `.env.example` files to
+it, both ways. Each caught a bug that had shipped.
 
 ---
 

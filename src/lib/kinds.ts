@@ -66,8 +66,12 @@ export interface RuntimeKind {
     kindVersion: string;
     /** Human statement of the lifecycle contract this kind expects. */
     entrySpec: string;
-    /** Libraries this kind needs resolved before boot. */
-    deps: DepSpec[];
+    /**
+     * Coordinates a new project of this kind starts with, for the kit builder
+     * and the template. Not a record of anything: a generator's libraries are
+     * what its own document declares, and only that.
+     */
+    suggests: string[];
     /** Shown in the picker. */
     blurb: string;
 }
@@ -120,9 +124,12 @@ export const THREE_DEP: DepSpec = {
 };
 
 /**
- * Every library a generator may declare, separate from the runtime kinds. A
- * kind says which harness a piece boots under; any kind can ask for any of
- * these.
+ * The libraries carrying a digest somebody checked by hand against npm, and a
+ * copy we serve. A declaration matching one of these resolves against it; any
+ * other package is fetched, hashed and checked the same way, with the digest
+ * learned rather than known in advance.
+ *
+ * Not a list of what may be declared: any package on npm may be.
  */
 export const LIBRARIES: DepSpec[] = [P5_DEP, THREE_DEP];
 
@@ -134,7 +141,7 @@ export const RUNTIME_KINDS: RuntimeKind[] = [
         kindVersion: "1",
         entrySpec:
             "Script runs on load; draws to a <canvas>; calls $alea.ready() at the capture point.",
-        deps: [],
+        suggests: [],
         blurb: "No dependencies. Fully on-chain.",
     },
     {
@@ -143,7 +150,7 @@ export const RUNTIME_KINDS: RuntimeKind[] = [
         label: "SVG",
         kindVersion: "1",
         entrySpec: "Script builds an <svg> in the document; calls $alea.ready() when complete.",
-        deps: [],
+        suggests: [],
         blurb: "No dependencies, and the output is text. Fully on-chain.",
     },
     {
@@ -152,7 +159,7 @@ export const RUNTIME_KINDS: RuntimeKind[] = [
         label: "p5.js",
         kindVersion: "1.5.0",
         entrySpec: "Standard p5 sketch (setup/draw). Call $alea.ready() at the capture point.",
-        deps: [P5_DEP],
+        suggests: [`${P5_DEP.id}@${P5_DEP.version}`],
         blurb: "p5 is loaded for you, so your bytes go to your art.",
     },
     {
@@ -162,7 +169,7 @@ export const RUNTIME_KINDS: RuntimeKind[] = [
         kindVersion: "1",
         entrySpec:
             "Export window.ALEA_MAIN = { boot(ctx), render(ctx), features()?, resize(w,h)? } and call ctx.ready() at the capture point.",
-        deps: [],
+        suggests: [],
         blurb: "Any engine. Implement the lifecycle entry points.",
     },
 ];
