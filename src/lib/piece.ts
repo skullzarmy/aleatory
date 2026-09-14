@@ -76,6 +76,9 @@ export interface Piece {
 export async function decodeCode(hex: string, encoding: string): Promise<string> {
     const clean = hex.replace(/^0x/, "");
     if (clean.length === 0) return "";
+    // parseInt("ip", 16) is NaN and Uint8Array turns NaN into 0, so unchecked
+    // input decodes to zero-filled garbage rather than failing.
+    if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(clean)) return "";
     const bytes = new Uint8Array((clean.match(/.{2}/g) ?? []).map((b) => parseInt(b, 16)));
     if (encoding !== "gzip") return new TextDecoder().decode(bytes);
     const stream = new Blob([bytes as unknown as BlobPart])

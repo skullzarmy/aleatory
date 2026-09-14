@@ -1,6 +1,6 @@
 /**
  * What the contracts said happened: `deploy` from the factory, `mint` from
- * every collection. An event is part of a contract's interface and carries the
+ * every generator. An event is part of a contract's interface and carries the
  * figures it published; an origination or token row is the indexer's record of
  * a side effect.
  *
@@ -8,7 +8,7 @@
  * an event id, ids only go up, and `id.gt` is the whole of it.
  */
 import { addresses, tzkt } from "./chain";
-import { collectionsOf } from "./stats";
+import { generatorsOf } from "./stats";
 
 /** Nothing sensible produces this many in a minute; it is a runaway guard. */
 const LIMIT = 50;
@@ -33,7 +33,7 @@ interface DeployPayload {
     edition_size?: string;
 }
 
-/** `mint` and `set_token_metadata`, both from a collection. */
+/** `mint` and `set_token_metadata`, both from a generator. */
 interface PiecePayload {
     token_id?: string;
     /** `mint` only. */
@@ -52,7 +52,7 @@ export interface NewGenerator {
     artist: string;
     editionSize: number;
     codeHash: string;
-    /** From the collection's own metadata, which the event does not carry. */
+    /** From the generator's own metadata, which the event does not carry. */
     name: string;
     description: string;
     coverUri: string;
@@ -74,8 +74,8 @@ export interface NewMint {
     /** From the token's own metadata, which the event does not carry. */
     name: string;
     imageUri: string;
-    /** The collection this belongs to, so a mint can name it rather than a KT1. */
-    collectionName: string;
+    /** The generator this belongs to, so a mint can name it rather than a KT1. */
+    generatorName: string;
     artist: string;
     editionSize: number;
     at: string;
@@ -84,11 +84,12 @@ export interface NewMint {
 /** Hex bytes, as TzKT carries `sp.bytes` and big map values. */
 function bytesToString(hex: string): string {
     const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
-    let out = "";
-    for (let i = 0; i < clean.length; i += 2) {
-        out += String.fromCharCode(parseInt(clean.slice(i, i + 2), 16));
-    }
-    return decodeURIComponent(escape(out));
+    if (clean.length === 0) return "";
+    // parseInt("ip", 16) is NaN and Uint8Array turns NaN into 0, so unchecked
+    // input decodes to zero-filled garbage, and garbage is truthy.
+    if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(clean)) return "";
+    const bytes = clean.match(/.{2}/g) ?? [];
+    return new TextDecoder().decode(new Uint8Array(bytes.map((b) => parseInt(b, 16))));
 }
 
 interface Meta {
@@ -101,10 +102,10 @@ interface Meta {
 }
 
 /**
- * A collection's own metadata document. The `deploy` event carries who, what
+ * A generator's own metadata document. The `deploy` event carries who, what
  * code and how many; the name the artist typed is TZIP-16 in a big map.
  */
-async function collectionMeta(address: string): Promise<Meta> {
+async function generatorMeta(address: string): Promise<Meta> {
     try {
         const row = await tzkt<{ value?: string }>(
             `/v1/contracts/${address}/bigmaps/metadata/keys/content`,
@@ -162,18 +163,18 @@ interface Facts {
 }
 
 /**
- * What a collection is, looked up once and held for the life of the process. An
+ * What a generator is, looked up once and held for the life of the process. An
  * announcement wants the name and the edition size, neither of which is in the
  * `mint` event and neither of which changes per mint.
  */
 const known = new Map<string, Facts>();
 
-async function collectionFacts(address: string): Promise<Facts> {
+async function generatorFacts(address: string): Promise<Facts> {
     const hit = known.get(address);
     if (hit) return hit;
 
     const [meta, storage] = await Promise.all([
-        collectionMeta(address),
+        generatorMeta(address),
         tzkt<{ administrator?: string; sale?: { edition_size?: string } }>(
             `/v1/contracts/${address}/storage`,
         ).catch(() => ({}) as { administrator?: string; sale?: { edition_size?: string } }),
@@ -200,16 +201,16 @@ function asRecord(json: string): Record<string, unknown> {
 /** The parameters the collector picked, as the event carries them. */
 const decodeParams = (hex?: string) => (hex ? asRecord(bytesToString(hex)) : {});
 
-async function watched(): Promise<{ factories: string[]; collections: string[] }> {
+async function watched(): Promise<{ factories: string[]; generators: string[] }> {
     const where = await addresses();
     const factories = [...new Set(where.factories.filter(Boolean))];
-    if (factories.length === 0) return { factories: [], collections: [] };
-    return { factories, collections: await collectionsOf(factories) };
+    if (factories.length === 0) return { factories: [], generators: [] };
+    return { factories, generators: await generatorsOf(factories) };
 }
 
 /** The newest event id on each feed. What a start records and goes on from. */
 export async function highWaterMark(): Promise<{ generators: number; mints: number }> {
-    const { factories, collections } = await watched();
+    const { factories, generators: served } = await watched();
     if (factories.length === 0) return { generators: 0, mints: 0 };
 
     const newest = async (contracts: string[], tags: string): Promise<number> => {
@@ -224,7 +225,7 @@ export async function highWaterMark(): Promise<{ generators: number; mints: numb
     const [generators, mints] = await Promise.all([
         newest(factories, "deploy"),
         // One mark over both tags, because one cursor reads both.
-        newest(collections, "mint,set_token_metadata"),
+        newest(served, "mint,set_token_metadata"),
     ]);
     return { generators, mints };
 }
@@ -243,7 +244,7 @@ export async function newGenerators(since: number): Promise<NewGenerator[]> {
     for (const row of rows) {
         const address = row.payload?.address ?? "";
         if (!address) continue;
-        const meta = await collectionMeta(address);
+        const meta = await generatorMeta(address);
         out.push({
             cursor: row.id,
             address,
@@ -268,7 +269,7 @@ interface Sale {
 /**
  * Mints whose piece has not been rendered yet. The sale is in the `mint` event
  * and the picture arrives with a later one. Keyed on contract and token
- * together, because every collection numbers from zero.
+ * together, because every generator numbers from zero.
  */
 const waiting = new Map<string, Sale>();
 
@@ -282,7 +283,7 @@ const announced = new Set<string>();
  * Pieces ready to announce, and how far the feed was read.
  *
  * The trigger is the render, not the mint. At mint time `token_info[""]` still
- * holds the collection's pending document, so a message sent then has no
+ * holds the generator's pending document, so a message sent then has no
  * picture in it. `set_token_metadata` refuses the pending document, so it fires
  * only when there is something to show.
  *
@@ -291,11 +292,11 @@ const announced = new Set<string>();
  * those rows are re-read until they fill the page.
  */
 export async function newMints(since: number): Promise<{ items: NewMint[]; consumed: number }> {
-    const { collections } = await watched();
-    if (collections.length === 0) return { items: [], consumed: since };
+    const { generators } = await watched();
+    if (generators.length === 0) return { items: [], consumed: since };
 
     const rows = await tzkt<EventRow<PiecePayload>[]>(
-        `/v1/contracts/events?contract.in=${collections.join(",")}` +
+        `/v1/contracts/events?contract.in=${generators.join(",")}` +
             `&tag.in=mint,set_token_metadata&id.gt=${since}&sort.asc=id&limit=${LIMIT}`,
     );
 
@@ -334,7 +335,7 @@ export async function newMints(since: number): Promise<{ items: NewMint[]; consu
             needIndexer
                 ? tokenMeta(contract, tokenId)
                 : Promise.resolve({} as Meta & { firstMinter?: string }),
-            collectionFacts(contract),
+            generatorFacts(contract),
         ]);
         const meta = { ...indexed, ...published };
 
@@ -349,7 +350,7 @@ export async function newMints(since: number): Promise<{ items: NewMint[]; consu
             params: sale?.params ?? asRecord(meta.aleaParams ?? ""),
             name: meta.name || "",
             imageUri: meta.displayUri || meta.thumbnailUri || "",
-            collectionName: facts.name,
+            generatorName: facts.name,
             artist: facts.artist,
             editionSize: facts.editionSize,
             at: row.timestamp,

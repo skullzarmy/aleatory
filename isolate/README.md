@@ -20,7 +20,7 @@ caller already has its own way of getting the code:
 | caller | where the code is |
 |---|---|
 | the studio | a draft in IndexedDB, never on chain |
-| `/piece/*`, `/collection/*` | `art.code` in contract storage |
+| `/piece/*`, `/generator/*` | `art.code` in contract storage |
 | the render worker | headless, no frame, its own chain reads |
 | a third party | [ALEATORY-001](../docs/interface.md), however they like |
 

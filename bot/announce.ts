@@ -73,7 +73,7 @@ export function generatorEmbed(g: {
 }): Embed {
     const embed: Embed = {
         title: g.name || short(g.address),
-        url: `${site()}/collection/${g.address}`,
+        url: `${site()}/generator/${g.address}`,
         color: GOLD,
         timestamp: g.at,
         author: by(g.artist),
@@ -95,7 +95,7 @@ export function mintEmbed(m: {
     collector: string;
     paidMutez: number | null;
     params: Record<string, unknown>;
-    collectionName: string;
+    generatorName: string;
     artist: string;
     editionSize: number;
     at: string;
@@ -115,15 +115,15 @@ export function mintEmbed(m: {
             },
             { name: "Collector", value: short(m.collector) || "unknown", inline: true },
             {
-                name: "Collection",
-                value: `[${m.collectionName || short(m.contract)}](${site()}/collection/${m.contract})`,
+                name: "Generator",
+                value: `[${m.generatorName || short(m.contract)}](${site()}/generator/${m.contract})`,
                 inline: true,
             },
         ],
     };
 
     // Absent when only the render was seen, for a piece minted just before this
-    // process started. The collection's current price is not what was paid.
+    // process started. The generator's current price is not what was paid.
     if (m.paidMutez !== null) {
         embed.fields?.push({ name: "Paid", value: tez(m.paidMutez), inline: true });
     }

@@ -7,7 +7,7 @@
  *   node scripts/dev-isolate.mjs [port]
  *   NEXT_PUBLIC_ISOLATE_ORIGIN=http://localhost:4321
  *
- * For `/piece/*` and `/collection/*`, which frame the deployed host. The
+ * For `/piece/*` and `/generator/*`, which frame the deployed host. The
  * studio's own previews are `srcdoc` frames in an opaque origin already.
  */
 import { createServer } from "node:http";
