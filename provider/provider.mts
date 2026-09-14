@@ -14,6 +14,7 @@
  * asserts is used. An event payload is written by the contract that emits it,
  * so it is a hint about where to look and not evidence.
  */
+import { createHash } from "node:crypto";
 import { TezosToolkit } from "@taquito/taquito";
 import { InMemorySigner } from "@taquito/signer";
 
@@ -170,6 +171,7 @@ interface GeneratorStorage {
         code: string;
         code_encoding: string;
         code_uri: string;
+        code_sealed: boolean;
         code_hash: string;
         pending_metadata: string;
         /** Address to basis points. Published in the document, per TZIP-21. */
@@ -294,7 +296,10 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
         // CID shape only.
         code = await fetchGenerator(codeUri);
     }
+    // Still arriving in chunks, so nothing can have minted from it yet.
+    if (!storage.art.code_sealed) return [];
     if (!code) return [];
+    verifySource(code, storage.art.code_hash ?? "", generator);
 
     // Read from the generator's own metadata: a provider does not need to know
     // what a "p5 sketch" is, only how to resolve what it was told.
@@ -396,6 +401,21 @@ async function buyEvent(
 }
 
 /** Fetch a generator, with a ceiling and a clock on it. */
+/**
+ * ALEATORY-001 §9.2. For a generator published by pointer this is the only
+ * thing standing between a gateway and what gets drawn.
+ */
+function verifySource(code: string, codeHashHex: string, generator: string): void {
+    const want = codeHashHex.replace(/^0x/, "").toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(want)) {
+        throw new Error(`${generator} records no usable code_hash`);
+    }
+    const got = createHash("sha256").update(code, "utf8").digest("hex");
+    if (got !== want) {
+        throw new Error(`${generator} source is ${got}, storage records ${want}`);
+    }
+}
+
 async function fetchGenerator(codeUri: string): Promise<string> {
     const cid = codeUri.slice(7).split(/[/?#]/)[0];
     const res = await fetch(`${IPFS_GATEWAY}/${cid}`, {
@@ -607,6 +627,7 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
         }
     }
     if (!code) throw new Error(`${generator} has no source`);
+    verifySource(code, storage.art.code_hash ?? "", generator);
 
     const mint = await buyEvent(generator, tokenId);
     if (!mint) throw new Error(`${generator} #${tokenId} has no mint event`);

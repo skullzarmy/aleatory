@@ -177,6 +177,18 @@ function auditLibraries() {
         "a p5 cover drawn without p5 is a blank frame pinned as displayUri",
     );
 
+    check(
+        "the renderer checks the source against code_hash",
+        /verifySource\(/.test(read("provider/provider.mts")) &&
+            /createHash\("sha256"\)/.test(read("provider/provider.mts")),
+        "art.code_hash is republished into the token, so it has to mean something",
+    );
+    check(
+        "the viewer checks it too",
+        /sourceMatches\(/.test(read("src/lib/piece.ts")),
+        "§10 is §9 steps 2 to 6, and step 2 is the check",
+    );
+
     for (const path of ["src/lib/publish.ts", "contract/deploy-collection.ts"]) {
         const source = read(path);
         check(

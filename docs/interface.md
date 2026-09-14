@@ -43,23 +43,30 @@ token that already exists, and a generator that names its creation path
 
 ### The source
 
-Four immutable fields, and none has a setter anywhere:
+Five fields. `code` is written until it is sealed and never after; the rest
+have no setter anywhere:
 
 | field | meaning |
 |---|---|
 | `code` | the source itself, a self-contained HTML document, as `bytes` |
 | `code_encoding` | `identity` or `gzip` |
 | `code_hash` | **SHA-256** of the DECODED source, raw, as `bytes` |
-| `code_uri` | `ipfs://` pointer, only for source past the operation cap |
+| `code_uri` | `ipfs://` pointer, when the source is not in storage |
+| `code_sealed` | whether `code` is complete |
 
-**Exactly one of `code` and `code_uri` is set.** The source belongs in
+**Never both `code` and `code_uri`.** The source belongs in
 storage: a typical one is well under 10KB, which is about half a dollar of
 storage burn paid once by the artist, and a pointer costs less while being
 worth less. A gateway's content policy can change and the art stops resolving.
 
-`code_uri` exists because a protocol operation is capped at 32,768 bytes and
-source larger than that cannot be carried on chain. `gzip` buys roughly
-2.5x before that limit bites.
+A protocol operation is capped at 32,768 bytes. Storage is not, so source
+larger than one operation is deployed empty and built up with `append_code`,
+then closed with `seal_code`. Nothing mints before it is sealed and nothing
+writes it after. `gzip` buys roughly 2.5x and fits most generators in one.
+
+`code_uri` is for source an artist would rather not pay to store at all. It is
+the weaker option: a gateway's content policy can change and the art stops
+resolving, which is why the hash matters more there than anywhere.
 
 The hash covers the decoded source either way, so it verifies what actually
 runs. For a pointer it is the only defence against a gateway handing back

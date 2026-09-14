@@ -51,6 +51,11 @@ export interface Piece {
     code: string;
     codeUri: string;
     codeHash: string;
+    /**
+     * Whether `code` hashes to `codeHash`. False means the bytes here are not
+     * the bytes the artist published, which for a pointer means the gateway.
+     */
+    codeVerified: boolean;
     editionSize: number;
     minted: number;
     /** Rendered image, once a provider has published one. */
@@ -77,6 +82,16 @@ export async function decodeCode(hex: string, encoding: string): Promise<string>
         .stream()
         .pipeThrough(new DecompressionStream("gzip"));
     return await new Response(stream).text();
+}
+
+/** ALEATORY-001 §9.2, the check a viewer makes for the same reason a renderer does. */
+export async function sourceMatches(code: string, codeHashHex: string): Promise<boolean> {
+    const want = codeHashHex.replace(/^0x/, "").toLowerCase();
+    if (!code || !/^[0-9a-f]{64}$/.test(want)) return false;
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
+    return (
+        [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("") === want
+    );
 }
 
 export function renderUrl(codeUri: string, seed?: string, params?: string): string {
@@ -163,6 +178,7 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         code,
         codeUri,
         codeHash: storage?.art.code_hash ?? "",
+        codeVerified: await sourceMatches(code, storage?.art.code_hash ?? ""),
         editionSize: storage ? parseInt(storage.sale.edition_size, 10) : 0,
         minted: storage ? parseInt(storage.next_token_id, 10) : 0,
         imageUrl: display ? ipfsImageUrl(display) : undefined,

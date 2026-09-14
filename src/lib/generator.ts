@@ -14,6 +14,7 @@ import {
     fetchEditionSizes,
     type GeneratorMeta,
     indexerFetch,
+    isAddress,
 } from "./tzkt";
 
 export { fetchGeneratorMeta, type GeneratorMeta };
@@ -36,6 +37,7 @@ interface RawStorage {
         code: string;
         code_encoding: string;
         code_uri: string;
+        code_sealed: boolean;
         code_hash: string;
         royalties: Record<string, string>;
         pending_metadata: string;
@@ -59,6 +61,8 @@ export interface Generator {
     description?: string;
     /** The source, decoded from storage. Empty when it is a pointer. */
     code: string;
+    /** False while the source is still arriving in chunks. Nothing mints. */
+    sealed: boolean;
     codeUri: string;
     codeHash: string;
     priceMutez: bigint;
@@ -124,6 +128,7 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
         paramsSchema: await fetchParamsSchema(address),
         artist: s.administrator,
         code: await decodeCode(s.art.code, s.art.code_encoding).catch(() => ""),
+        sealed: s.art.code_sealed ?? true,
         // sp.string on chain, not sp.bytes, so it needs no decoding. Set only
         // for source too large to carry on chain.
         codeUri: s.art.code_uri,
@@ -154,6 +159,7 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
  * what the figure means.
  */
 export async function fetchRoyaltyBps(address: string): Promise<number> {
+    if (!isAddress(address)) return 0;
     const shares = await indexerFetch(
         `${tzktApi()}/v1/contracts/${address}/storage?path=art.royalties`,
         { next: { revalidate: 300 } } as RequestInit,
@@ -171,6 +177,7 @@ export async function fetchRoyaltyBps(address: string): Promise<number> {
  * docs/params.md §4.
  */
 async function fetchParamsSchema(address: string): Promise<ParamsSchema | null> {
+    if (!isAddress(address)) return null;
     const rows = await indexerFetch(
         `${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/aleatory%3Aparams`,
         { next: { revalidate: 300 } } as RequestInit,
