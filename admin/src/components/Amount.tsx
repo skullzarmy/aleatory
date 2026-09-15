@@ -74,8 +74,8 @@ export function Amount(
             <div className="space-y-2">
                 <p className="label">Render gas per mint</p>
                 <p className="text-xs text-dim">
-                    Currently {tez(props.current)}. Collections snapshot this when the artist
-                    picks the provider, so a change reaches new collections only.
+                    Currently {tez(props.current)}. Generators snapshot this when the artist
+                    picks the provider, so a change reaches new generators only.
                 </p>
                 <label className="flex items-center gap-2 text-sm">
                     <input
@@ -99,9 +99,9 @@ export function Amount(
         <div className="space-y-2">
             <p className="label">Rotate the agent key</p>
             <p className="text-xs text-dim">
-                One operation revokes the current key everywhere. Collections ask this
+                One operation revokes the current key everywhere. Generators ask this
                 contract for the live agent rather than trusting what they snapshotted, so
-                every collection using this provider follows immediately and no artist has to
+                every generator using this provider follows immediately and no artist has to
                 act. This is the control to reach for if the daemon key leaks.
             </p>
             <label className="flex flex-wrap items-center gap-2 text-sm">

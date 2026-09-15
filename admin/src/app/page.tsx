@@ -211,7 +211,7 @@ export default async function Dashboard() {
             )}
 
             {factory && (
-                <Card title="Factory" subtitle="Deploy fees, and the collections it has made.">
+                <Card title="Factory" subtitle="Deploy fees, and the generators it has made.">
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div>
                             <Row label="Address">
@@ -228,7 +228,7 @@ export default async function Dashboard() {
                         </div>
                         <div>
                             <Row label="Deploy price">{tez(factory.deployPrice)}</Row>
-                            <Row label="Collections deployed">{factory.collections}</Row>
+                            <Row label="Generators deployed">{factory.generators}</Row>
                             <Row label="Treasury">
                                 <Addr address={factory.treasury} />
                             </Row>
@@ -264,7 +264,7 @@ export default async function Dashboard() {
                         />
                         <Setting
                             label="Deploy price"
-                            help="What an artist pays to deploy a collection, on top of the storage the chain charges them."
+                            help="What an artist pays to deploy a generator, on top of the storage the chain charges them."
                             kind="mutez"
                             current={factory.deployPrice}
                             holder={factory.administrator}
@@ -273,7 +273,7 @@ export default async function Dashboard() {
                         />
                         <Setting
                             label="Resolver"
-                            help="The resolver new collections are given. Existing ones keep the one they were deployed with."
+                            help="The resolver new generators are given. Existing ones keep the one they were deployed with."
                             kind="address"
                             current={factory.resolver}
                             holder={factory.administrator}
@@ -316,14 +316,14 @@ export default async function Dashboard() {
                     )}
                     <p className="text-xs text-dim">
                         {router.factories.length} factories registered, newest first. Only
-                        the first is live; the rest stay so collections they deployed
+                        the first is live; the rest stay so generators they deployed
                         remain resolvable.
                     </p>
 
                     <div className="space-y-4 border-t border-line pt-4">
                         <AddToList
                             label="Add a factory"
-                            help="Appends, and the newest becomes the one new deploys use. Nothing is removed, so collections keep resolving through the factory that made them."
+                            help="Appends, and the newest becomes the one new deploys use. Nothing is removed, so generators keep resolving through the factory that made them."
                             holder={router.administrator}
                             setter="addFactory"
                             contract={router.address}
