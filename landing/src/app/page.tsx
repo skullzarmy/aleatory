@@ -77,6 +77,22 @@ export default function LandingPage() {
                     </dl>
                 </section>
 
+                <section className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border p-5">
+                    <div>
+                        <h2 className="font-semibold tracking-tight">Try it now</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            The whole thing already runs on shadownet, a Tezos test network.
+                            Publish, mint, collect. None of it costs real tez.
+                        </p>
+                    </div>
+                    <Out
+                        href={BRAND.shadownet}
+                        className="inline-flex shrink-0 items-center rounded-md border border-alea-600 px-4 py-2 text-sm font-medium text-alea-700 transition-colors hover:bg-alea-600 hover:text-white dark:text-alea-300 dark:hover:text-white"
+                    >
+                        Open shadownet
+                    </Out>
+                </section>
+
                 <section>
                     <h2 className="text-lg font-semibold tracking-tight">Start from a kit</h2>
                     <p className="mt-2 text-sm text-muted-foreground">
