@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { unstable_cache } from "next/cache";
 import { BRAND } from "@/lib/config";
 import { allFactories } from "@/lib/router";
 import { fetchGenerators, fetchRecentTokens } from "@/lib/tzkt";
@@ -12,6 +13,37 @@ import { isBlockedGenerator } from "@/lib/blocklist";
  */
 export const revalidate = 3600;
 export const dynamic = "force-static";
+
+/**
+ * The indexer reads are uncached, because every page that shows chain state
+ * wants the truth now. This is the one caller that does not: a crawler is
+ * served a file, and the hour above is the promise being kept. Without this the
+ * uncached reads inside drag the whole route down to a minute, and every crawl
+ * walks the chain again.
+ */
+const crawl = unstable_cache(
+    async () => {
+        const generators = await allFactories()
+            .then((f) => Promise.all(f.map((x) => fetchGenerators(x).catch(() => []))))
+            .then((lists) => {
+                const seen = new Set<string>();
+                return lists
+                    .flat()
+                    .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
+                    .filter((c) => !isBlockedGenerator(c.address));
+            })
+            .catch(() => []);
+
+        const tokens = await fetchRecentTokens(
+            generators.map((c) => c.address),
+            MAX_PIECES,
+        ).catch(() => []);
+
+        return { generators, tokens };
+    },
+    ["sitemap"],
+    { revalidate: 3600 },
+);
 
 /**
  * The cap on pieces. Past it they are still reachable from their generator,
@@ -44,27 +76,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: now,
     }));
 
-    // A partial sitemap is worth more than a 500, so every read degrades to
-    // empty.
+    // A partial sitemap is worth more than a 500, so every read inside degrades
+    // to empty.
     //
     // Straight from TzKT, not through the feed or `fetchAllGenerators`: both
     // resolve an IPFS document per piece, which for five thousand of them is
     // thousands of gateway fetches to produce a list of URLs and dates.
-    const generators = await allFactories()
-        .then((f) => Promise.all(f.map((x) => fetchGenerators(x).catch(() => []))))
-        .then((lists) => {
-            const seen = new Set<string>();
-            return lists
-                .flat()
-                .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
-                .filter((c) => !isBlockedGenerator(c.address));
-        })
-        .catch(() => []);
-
-    const tokens = await fetchRecentTokens(
-        generators.map((c) => c.address),
-        MAX_PIECES,
-    ).catch(() => []);
+    const { generators, tokens } = await crawl();
 
     return [
         ...stat,

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { fetchGenerator, type Generator } from "@/lib/generator";
 import { fetchProviders, type Provider } from "@/lib/providers";
+import { useLive } from "@/components/LiveRefresh";
 import { tzktLink } from "@/lib/config";
 import { AccountLink } from "@/components/account/AccountLink";
 import { formatTez, parseTez, shortAddress } from "@/lib/utils";
@@ -31,6 +32,10 @@ export default function ManageGeneratorPage({ params }: { params: Promise<{ addr
             .then(setProviders)
             .catch(() => setProviders([]));
     }, [reload]);
+
+    // A write from another tab, or a provider finishing a render, changes what
+    // the controls below should say.
+    useLive(() => void reload(), 30);
 
     /** Send one write, then re-read the chain. */
     async function run(

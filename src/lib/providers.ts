@@ -44,7 +44,9 @@ export const RANKING_WINDOW_DAYS = 30;
 async function tzkt<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
     const url = new URL(`${tzktApi()}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-    const res = await indexerFetch(url.toString(), { next: { revalidate: 300 } } as RequestInit);
+    // Uncached: the page ranks providers on what they have rendered lately, and
+    // a five minute cache put a stale leaderboard behind a live refresh.
+    const res = await indexerFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) throw new Error(`TzKT ${res.status}`);
     return (await res.json()) as T;
 }

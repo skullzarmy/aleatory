@@ -1,13 +1,18 @@
 import { PieceCard, PieceCardSkeleton } from "./PieceCard";
+import { Arrivals, Arriving } from "./Arrivals";
 import type { FeedPiece } from "@/lib/feed";
 
 export function FeedGrid({ pieces }: { pieces: FeedPiece[] }) {
     return (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {pieces.map((p) => (
-                <PieceCard key={p.key} piece={p} />
-            ))}
-        </div>
+        <Arrivals>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {pieces.map((p) => (
+                    <Arriving key={p.key} id={p.key}>
+                        <PieceCard piece={p} />
+                    </Arriving>
+                ))}
+            </div>
+        </Arrivals>
     );
 }
 

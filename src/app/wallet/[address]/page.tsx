@@ -10,7 +10,11 @@ import { resolveName, fetchProfile, avatarUrl, sourceFor } from "@/lib/identity"
 import { ipfsImageUrl } from "@/utils/ipfs";
 import { LiveRefresh } from "@/components/LiveRefresh";
 
-export const revalidate = 60;
+/**
+ * Rendered per request. `revalidate` here made this a prerendered document, and
+ * the refresh below re-fetched that same document rather than the chain.
+ */
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
     params,

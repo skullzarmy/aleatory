@@ -98,10 +98,20 @@ export async function indexerFetch(url: string, init: RequestInit = {}): Promise
     throw last instanceof Error ? last : new Error("TzKT did not answer");
 }
 
+/**
+ * Every read here is a question about chain state right now, so none of them are
+ * cached. A shared server-side cache here is invisible from the browser and
+ * outlives the thing it describes: a page asking again a minute later was told
+ * the same answer, and the piece somebody just minted stayed missing until they
+ * reloaded by hand.
+ *
+ * The reads that genuinely do not change — a generator's metadata, a document
+ * behind a CID — set their own `revalidate` at the call site.
+ */
 async function get<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
     const url = new URL(`${tzktApi()}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-    const res = await indexerFetch(url.toString(), { next: { revalidate: 30 } } as RequestInit);
+    const res = await indexerFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) {
         throw new Error(`TzKT ${res.status} on ${path}`);
     }

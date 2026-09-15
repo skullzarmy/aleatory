@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Arrivals, Arriving } from "@/components/feed/Arrivals";
 import { shortAddress, timeAgoShort } from "@/lib/utils";
 import type { GeneratorSummary } from "@/lib/generator";
 
@@ -53,12 +54,16 @@ export function GeneratorCard({ generator: c }: { generator: GeneratorSummary })
 // Grid layout matches FeedGrid, so the two tabs line up.
 export function GeneratorGrid({ generators }: { generators: GeneratorSummary[] }) {
     return (
-        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {generators.map((c) => (
-                <li key={c.address}>
-                    <GeneratorCard generator={c} />
-                </li>
-            ))}
-        </ul>
+        <Arrivals>
+            <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {generators.map((c) => (
+                    <li key={c.address}>
+                        <Arriving id={c.address}>
+                            <GeneratorCard generator={c} />
+                        </Arriving>
+                    </li>
+                ))}
+            </ul>
+        </Arrivals>
     );
 }

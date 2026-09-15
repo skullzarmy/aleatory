@@ -134,4 +134,21 @@ body {
             transform: translateX(100%);
         }
     }
+
+    /* Something a refresh brought in while the page was being looked at. Short,
+       and it settles rather than bounces: this is a piece arriving, not a
+       notification asking to be dealt with. */
+    .arriving {
+        animation: arrive 420ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes arrive {
+        from {
+            opacity: 0;
+            transform: translateY(6px) scale(0.98);
+        }
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
 }
