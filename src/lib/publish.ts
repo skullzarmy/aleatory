@@ -3,29 +3,59 @@
  *
  * The generator goes into contract storage. A typical one is well under 10KB,
  * which at 250 mutez per byte is around half a dollar of storage burn paid once
- * by the artist. A generator too large for one operation falls back to
- * `codeUri`, and the contract accepts exactly one of the two.
+ * by the artist.
+ *
+ * The 32,768 byte ceiling is on an operation, not on storage. A generator past
+ * it is deployed empty and then walks on chain a chunk at a time through
+ * `append_code`, closing with `seal_code`. So size decides how many signatures
+ * a publish costs, not whether the art lives on chain.
+ *
+ * `codeUri` remains for a generator that cannot be carried at all, and the
+ * contract still accepts exactly one of the two.
  *
  * Ordered so nothing irreversible happens until everything reversible has
  * succeeded: pinning is free to retry, so it all happens before a wallet is
  * asked to sign.
  */
 import type { DAppClient } from "@tezos-x/octez.connect-sdk";
-import { deployGenerator } from "./ops";
+import { appendCode, deployGenerator, generatorFromDeploy, readCode, sealCode } from "./ops";
 import { buildPendingDocument, royaltiesToBps, type RoyaltySplit } from "@provider/metadata";
 import { detectParams } from "./detect";
 import { schemaForRecord } from "./params";
 import { recordFor } from "./libraries";
 import type { DepSpec } from "./kinds";
-import type { Draft } from "./draft";
+import { saveDraft, type Draft } from "./draft";
 
-export type PublishStage = "encoding" | "pinning-metadata" | "signing";
+export type PublishStage = "encoding" | "pinning-metadata" | "signing" | "uploading" | "sealing";
+
+/** Progress through a chunked upload, so the form can say which signature this is. */
+export interface UploadProgress {
+    chunk: number;
+    of: number;
+    bytesOnChain: number;
+    totalBytes: number;
+}
 
 /**
  * The protocol's operation ceiling, less measured room for everything else the
  * deploy carries: metadata, royalties, the pending pointer.
  */
 const MAX_INLINE_CODE_BYTES = 32_768 - 700;
+
+/**
+ * One chunk of a walked generator. The same ceiling applies, less room for the
+ * call around the bytes, which is far smaller than a deploy's: an entrypoint
+ * name, a contract address and the signature.
+ */
+const MAX_CHUNK_BYTES = 32_768 - 1_200;
+
+/**
+ * How many signatures a publish may ask for before the generator goes behind a
+ * pointer instead. Every chunk is a separate wallet prompt, and there is a
+ * count past which walking it on chain stops being a reasonable thing to ask
+ * of an artist.
+ */
+const MAX_WALK_CHUNKS = 8;
 
 /** Storage burn per byte, fixed here so a publish can quote a cost with no
  *  round trip. */
@@ -83,6 +113,14 @@ export interface PublishInput {
 
 export interface PublishResult {
     hash: string;
+    /**
+     * Set when the generator was walked on chain: the chunks needed its
+     * address, so by then it is known. Empty otherwise, where the deploy
+     * operation is all a caller has.
+     */
+    generator: string;
+    /** Signatures the code itself cost, beyond the deploy. Zero when inline. */
+    chunks: number;
     /** Bytes of generator written into storage. Zero when a pointer was used. */
     codeBytes: number;
     codeEncoding: "identity" | "gzip";
@@ -113,10 +151,154 @@ async function pin(body: unknown): Promise<string> {
     return json.uri;
 }
 
+/**
+ * Walk a generator's bytes on chain and close it.
+ *
+ * Safe to call again. It reads what is already there first, so an interrupted
+ * publish continues from the byte it stopped at instead of starting over or
+ * appending a second copy, and a generator already sealed is left alone.
+ *
+ * It refuses to append to bytes that are not the beginning of what it is
+ * sending. Nothing can rewrite `code` once written, so appending to the wrong
+ * prefix would be a generator permanently holding two halves of different
+ * drafts.
+ */
+/**
+ * How many signatures publishing this draft will ask for, decided the same way
+ * the publish itself decides it. Exported so the form can say so beforehand
+ * rather than keeping its own copy of these thresholds, which would drift.
+ */
+export async function estimateSignatures(html: string): Promise<number> {
+    const raw = new TextEncoder().encode(html);
+    const codeBytes = raw.length > MAX_INLINE_CODE_BYTES ? await gzip(raw) : raw;
+    if (codeBytes.length <= MAX_INLINE_CODE_BYTES) return 1;
+    const chunks = Math.ceil(codeBytes.length / MAX_CHUNK_BYTES);
+    // Past the walk budget it goes behind a pointer, which is one deploy again.
+    if (chunks > MAX_WALK_CHUNKS) return 1;
+    // The deploy, a signature per chunk, and the seal.
+    return 1 + chunks + 1;
+}
+
+/** Wait for the chain to hold at least `expected` bytes of code. */
+async function confirmBytes(generator: string, expected: number, timeoutMs = 180_000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 3_000));
+        const { hex } = await readCode(generator).catch(() => ({ hex: "" }));
+        const have = hex.length / 2;
+        if (have >= expected) return have;
+    }
+    throw new Error("A chunk was signed but has not been included yet. Resume to continue.");
+}
+
+export async function uploadCode(
+    client: DAppClient,
+    generator: string,
+    codeBytes: Uint8Array,
+    onProgress?: (p: UploadProgress) => void,
+): Promise<{ chunks: number; sealHash: string | null }> {
+    const wanted = toHex(codeBytes);
+    const current = await readCode(generator);
+
+    if (current.sealed) return { chunks: 0, sealHash: null };
+    if (!wanted.startsWith(current.hex)) {
+        throw new Error(
+            "This generator already holds bytes that are not the start of this draft. It cannot be continued from here.",
+        );
+    }
+
+    const done = current.hex.length / 2;
+    const remaining = codeBytes.slice(done);
+    const total = Math.ceil(remaining.length / MAX_CHUNK_BYTES);
+
+    let onChain = done;
+    for (let i = 0; i < total; i++) {
+        const slice = remaining.slice(i * MAX_CHUNK_BYTES, (i + 1) * MAX_CHUNK_BYTES);
+        onProgress?.({
+            chunk: i + 1,
+            of: total,
+            bytesOnChain: onChain,
+            totalBytes: codeBytes.length,
+        });
+        await appendCode(client, generator, toHex(slice));
+
+        // Each chunk waits to be included before the next is signed. Two
+        // operations from one wallet in flight at once collide on the account
+        // counter, and `code` is append-only, so a chunk that lands twice or
+        // out of order cannot be taken back.
+        onChain = await confirmBytes(generator, onChain + slice.length);
+    }
+
+    const { hash } = await sealCode(client, generator);
+    return { chunks: total, sealHash: hash };
+}
+
+/**
+ * Finish a generator a previous attempt left open.
+ *
+ * Returns null when the recorded address turns out to need nothing, which
+ * covers the case where it sealed and the note outlived it, so the caller
+ * carries on and deploys normally.
+ */
+async function resumePublish(
+    client: DAppClient,
+    draft: Draft,
+    codeHashHex: string,
+    onStage?: (stage: PublishStage) => void,
+    onUpload?: (p: UploadProgress) => void,
+): Promise<PublishResult | null> {
+    const generator = draft.pendingUpload as string;
+    const state = await readCode(generator).catch(() => null);
+    if (!state || state.sealed) {
+        await saveDraft({ ...draft, pendingUpload: undefined, updatedAt: Date.now() });
+        return null;
+    }
+
+    // Whatever it already holds decides the encoding: the bytes on chain are
+    // the start of one of these two and appending the other would splice a
+    // gzip stream onto plain text.
+    const raw = new TextEncoder().encode(draft.html);
+    const zipped = await gzip(raw);
+    const rawHex = toHex(raw);
+    const zippedHex = toHex(zipped);
+
+    let codeBytes: Uint8Array;
+    let codeEncoding: "identity" | "gzip";
+    if (rawHex.startsWith(state.hex)) {
+        codeBytes = raw;
+        codeEncoding = "identity";
+    } else if (zippedHex.startsWith(state.hex)) {
+        codeBytes = zipped;
+        codeEncoding = "gzip";
+    } else {
+        throw new Error(
+            "The unfinished generator on chain does not hold the start of this draft, so it cannot be finished from here.",
+        );
+    }
+
+    onStage?.("uploading");
+    await uploadCode(client, generator, codeBytes, onUpload);
+    onStage?.("sealing");
+    await saveDraft({ ...draft, pendingUpload: undefined, updatedAt: Date.now() });
+
+    return {
+        hash: "",
+        generator,
+        chunks: Math.ceil(codeBytes.length / MAX_CHUNK_BYTES),
+        codeBytes: codeBytes.length,
+        codeEncoding,
+        codeHashHex,
+        codeUri: "",
+        pendingMetadataUri: "",
+        codeBurnMutez: codeBytes.length * COST_PER_BYTE,
+    };
+}
+
 export async function publishGenerator(
     client: DAppClient,
     input: PublishInput,
     onStage?: (stage: PublishStage) => void,
+    onUpload?: (p: UploadProgress) => void,
 ): Promise<PublishResult> {
     const { draft } = input;
 
@@ -132,6 +314,14 @@ export async function publishGenerator(
     // runs whatever encoding the bytes travelled in.
     const codeHashHex = await sha256Hex(draft.html);
 
+    // A previous attempt originated a contract and stopped part way through
+    // sending it. Deploying again would leave that one stranded holding half a
+    // generator, so this finishes it rather than making a second.
+    if (draft.pendingUpload) {
+        const resumed = await resumePublish(client, draft, codeHashHex, onStage, onUpload);
+        if (resumed) return resumed;
+    }
+
     const raw = new TextEncoder().encode(draft.html);
     let codeBytes: Uint8Array<ArrayBufferLike> = raw;
     let codeEncoding: "identity" | "gzip" = "identity";
@@ -143,11 +333,17 @@ export async function publishGenerator(
         codeEncoding = "gzip";
     }
 
-    const tooLarge = codeBytes.length > MAX_INLINE_CODE_BYTES;
+    // Three ways in, decided by size alone. Inline is one signature and the
+    // bytes ride inside the deploy. Walked is a deploy carrying nothing
+    // followed by a chunk per signature. A pointer is the last resort, and the
+    // only one where the art is not on chain.
+    const inline = codeBytes.length <= MAX_INLINE_CODE_BYTES;
+    const chunks = Math.ceil(codeBytes.length / MAX_CHUNK_BYTES);
+    const walked = !inline && chunks <= MAX_WALK_CHUNKS;
+    const byPointer = !inline && !walked;
+
     let codeUri = "";
-    if (tooLarge) {
-        // Past the operation cap even compressed, so it publishes as a pointer
-        // and carries the dependency a smaller one does not.
+    if (byPointer) {
         onStage?.("pinning-metadata");
         codeUri = await pin({
             kind: "source",
@@ -176,7 +372,11 @@ export async function publishGenerator(
     const schema = schemaForRecord(detectParams(draft.html)?.params ?? []);
 
     const result = await deployGenerator(client, {
-        codeHex: tooLarge ? "" : toHex(codeBytes),
+        // A walked generator is deployed holding neither its code nor a
+        // pointer. The factory allows exactly that and leaves it unsealed,
+        // which is what `append_code` requires and what stops it minting
+        // before the last chunk lands.
+        codeHex: inline ? toHex(codeBytes) : "",
         codeEncoding,
         codeHashHex,
         codeUri,
@@ -215,13 +415,32 @@ export async function publishGenerator(
         },
     });
 
+    let generator = "";
+    if (walked) {
+        // The address is the protocol's to decide, so the chunks have nowhere
+        // to go until the origination is visible.
+        onStage?.("uploading");
+        generator = await generatorFromDeploy(result.hash);
+
+        // Written down before a single chunk is sent. Everything after this is
+        // interruptible, and an address only the wallet saw is a contract
+        // nobody can ever finish.
+        await saveDraft({ ...draft, pendingUpload: generator, updatedAt: Date.now() });
+
+        await uploadCode(client, generator, codeBytes, onUpload);
+        onStage?.("sealing");
+        await saveDraft({ ...draft, pendingUpload: undefined, updatedAt: Date.now() });
+    }
+
     return {
         hash: result.hash,
-        codeBytes: tooLarge ? 0 : codeBytes.length,
+        generator,
+        codeBytes: byPointer ? 0 : codeBytes.length,
         codeEncoding,
         codeHashHex,
         codeUri,
+        chunks: walked ? chunks : 0,
         pendingMetadataUri,
-        codeBurnMutez: tooLarge ? 0 : codeBytes.length * COST_PER_BYTE,
+        codeBurnMutez: byPointer ? 0 : codeBytes.length * COST_PER_BYTE,
     };
 }

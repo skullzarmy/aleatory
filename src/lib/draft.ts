@@ -27,6 +27,18 @@ export interface Draft {
     seed: string;
     createdAt: number;
     updatedAt: number;
+    /**
+     * A generator this draft deployed that is not finished yet.
+     *
+     * Written the moment a large generator's contract is originated, before
+     * any of its code has been sent. Code is append-only and a contract with
+     * part of its art cannot mint, so an interrupted publish has to be
+     * finishable: without this the only record of that address is a wallet the
+     * artist closed, and the generator is stranded for good.
+     *
+     * Cleared when it seals.
+     */
+    pendingUpload?: string;
 }
 
 /**

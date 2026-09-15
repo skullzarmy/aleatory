@@ -171,6 +171,32 @@ function auditLibraries() {
         /if\s*\(!record\.ok\)/.test(publish),
         "the record has no setter, so a wrong one is a generator nobody can render",
     );
+    // A generator past the operation ceiling. The contract grew `append_code`
+    // and `seal_code`, a factory carrying them was deployed, and for a while
+    // nothing in the app called either: every large generator still went to a
+    // pointer, off chain, which is the thing they were added to prevent.
+    const ops = read("src/lib/ops.ts");
+    check(
+        "the app can write code in chunks",
+        /"append_code"/.test(ops) && /"seal_code"/.test(ops),
+        "the entrypoints exist on chain; they are only useful if something calls them",
+    );
+    check(
+        "publishing walks a large generator on chain",
+        /uploadCode\(/.test(publish),
+        "past one operation the art still belongs in storage, a chunk at a time",
+    );
+    check(
+        "an unfinished upload is remembered",
+        /pendingUpload/.test(publish) && /pendingUpload/.test(read("src/lib/draft.ts")),
+        "code is append-only and an unsealed generator cannot mint, so it has to be finishable",
+    );
+    check(
+        "a resumed upload checks what is already on chain is its own prefix",
+        /startsWith\(\s*(current|state)\.hex/.test(publish),
+        "appending to a different draft's bytes cannot be undone",
+    );
+
     check(
         "the cover is captured with the libraries the document declares",
         /<CoverPicker[\s\S]{0,400}?deps=/.test(deploy),

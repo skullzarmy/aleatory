@@ -1,7 +1,8 @@
 /** Every write this app makes, and so every signature it can ask for. */
 import type { DAppClient, TezosOperationType } from "@tezos-x/octez.connect-sdk";
-import { rpcUrl } from "./config";
+import { rpcUrl, tzktApi } from "./config";
 import { addresses, currentFactory } from "./router";
+import { indexerFetch } from "./tzkt";
 
 interface OpResult {
     hash: string;
@@ -512,6 +513,84 @@ export interface DeployParams {
  * storage, so nothing passes through us and the storage burn is charged to the
  * artist's own wallet.
  */
+/**
+ * What a generator currently holds, and whether it is closed.
+ *
+ * A chunked publish is several signatures, and a wallet closed between two of
+ * them leaves a real contract holding part of its own art. Resuming asks the
+ * chain what arrived rather than trusting anything the browser kept, so a
+ * reload, another machine or another day all continue from the same place.
+ *
+ * The bytes come back, not just their length, because appending is blind: the
+ * caller has to prove what is there is the beginning of what it is sending
+ * before it adds to it.
+ */
+export async function readCode(generator: string): Promise<{ hex: string; sealed: boolean }> {
+    const res = await indexerFetch(`${tzktApi()}/v1/contracts/${generator}/storage`, {
+        cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`Could not read ${generator}.`);
+    const s = (await res.json()) as { art?: { code?: string; code_sealed?: boolean } };
+    return {
+        hex: (s.art?.code ?? "").replace(/^0x/, "").toLowerCase(),
+        sealed: s.art?.code_sealed === true,
+    };
+}
+
+/**
+ * The generator a deploy originated, once the chain has it.
+ *
+ * The deploy returns an operation hash and the address is decided by the
+ * protocol, so the chunks that follow have nowhere to go until the indexer has
+ * seen the origination.
+ */
+export async function generatorFromDeploy(hash: string, timeoutMs = 120_000): Promise<string> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        const res = await indexerFetch(
+            `${tzktApi()}/v1/operations/originations?hash=${hash}&select=originatedContract`,
+            { cache: "no-store" },
+        ).catch(() => null);
+        if (res?.ok) {
+            const rows = (await res.json()) as ({ address?: string } | null)[];
+            const address = rows.find((r) => r?.address)?.address;
+            if (address) return address;
+        }
+        await new Promise((r) => setTimeout(r, 3_000));
+    }
+    throw new Error("The generator was deployed but has not appeared on the indexer yet.");
+}
+
+/**
+ * Add one chunk to the end of a generator's code. Artist only, and refused
+ * once sealed.
+ *
+ * The storage limit is the chunk itself: these bytes land in the contract's
+ * storage and the artist pays the burn on them, the same way the inline path
+ * pays it inside the deploy.
+ */
+export async function appendCode(
+    client: DAppClient,
+    generator: string,
+    chunkHex: string,
+): Promise<OpResult> {
+    const hex = chunkHex.replace(/^0x/, "");
+    const size = Math.ceil(hex.length / 2);
+    return send(client, generator, "append_code", bytes(hex), 0, {
+        gas: 30_000,
+        storage: size + 100,
+        bytes: size + 500,
+    });
+}
+
+/**
+ * Close the generator. Nothing writes the code afterwards and minting is
+ * refused until this lands.
+ */
+export async function sealCode(client: DAppClient, generator: string): Promise<OpResult> {
+    return send(client, generator, "seal_code", { prim: "Unit" }, 0, SMALL);
+}
+
 export async function deployGenerator(client: DAppClient, params: DeployParams): Promise<OpResult> {
     const factory = await currentFactory();
     if (!factory) throw new Error("No factory is configured for this network.");

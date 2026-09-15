@@ -399,9 +399,11 @@ new mints, pieces missed while you were down, and pieces inherited from a
 provider an artist switched away from. It needs no state of your own.
 
 **2. Read the source.** From the generator's storage: `art.code`, decoded
-per `art.code_encoding`, which is `identity` or `gzip`. A generator past the
-operation cap has `art.code_uri` instead and empty `art.code`. Check the bytes
-against `art.code_hash`, which is SHA-256 of the decoded source.
+per `art.code_encoding`, which is `identity` or `gzip`. Size does not change
+this: source larger than one operation was appended a chunk at a time and is in
+`art.code` like any other. Only a generator published as a pointer has
+`art.code_uri` set and `art.code` empty. Check the bytes against
+`art.code_hash`, which is SHA-256 of the decoded source.
 
 **3. Resolve declared libraries.** Read `aleatory:libraries` from the
 generator's metadata. Fetch each by its coordinates from any mirror, check
