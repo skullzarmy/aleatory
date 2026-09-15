@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { DAppClient } from "@tezos-x/octez.connect-sdk";
 import { useWallet } from "@/context/WalletContext";
 import { fetchOwnedProvider, fetchProvidersOperatedBy, type OwnedProvider } from "@/lib/providers";
+import { useLive } from "@/components/LiveRefresh";
 import {
     deregisterProvider,
     registerProvider,
@@ -34,6 +35,8 @@ export default function YourProviderPage() {
         if (!address) return;
         setOwned(await fetchProvidersOperatedBy(address).catch(() => []));
     }, [address]);
+
+    useLive(() => void reload(), 30);
 
     useEffect(() => {
         if (!address) {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { allFactories } from "@/lib/router";
 import { fetchGenerator, type Generator } from "@/lib/generator";
 import { fetchGeneratorsDeployedBy } from "@/lib/tzkt";
 import { formatTez, shortAddress } from "@/lib/utils";
+import { useLive } from "@/components/LiveRefresh";
 
 // Ownership here is the contract's `administrator`; connecting a different wallet
 // shows a different list.
@@ -14,31 +15,36 @@ export default function ManagePage() {
     const { address, connect, restoring } = useWallet();
     const [generators, setGenerators] = useState<Generator[] | null>(null);
 
+    const load = useCallback(async () => {
+        if (!address) return null;
+        // Every factory, so a generator deployed before a redeploy still
+        // appears under the wallet that made it.
+        const factories = await allFactories().catch(() => []);
+        const lists = await Promise.all(
+            factories.map((f) => fetchGeneratorsDeployedBy(address, f).catch(() => [])),
+        );
+        const addresses = [...new Set(lists.flat())];
+        const rows = await Promise.all(addresses.map((a) => fetchGenerator(a).catch(() => null)));
+        return rows.filter((c): c is Generator => c !== null);
+    }, [address]);
+
     useEffect(() => {
         if (!address) {
             setGenerators(null);
             return;
         }
         let cancelled = false;
-        void (async () => {
-            // Every factory, so a generator deployed before a redeploy still
-            // appears under the wallet that made it.
-            const factories = await allFactories().catch(() => []);
-            const lists = await Promise.all(
-                factories.map((f) => fetchGeneratorsDeployedBy(address, f).catch(() => [])),
-            );
-            const addresses = [...new Set(lists.flat())];
-            const rows = await Promise.all(
-                addresses.map((a) => fetchGenerator(a).catch(() => null)),
-            );
-            if (!cancelled) {
-                setGenerators(rows.filter((c): c is Generator => c !== null));
-            }
-        })();
+        void load().then((rows) => {
+            if (!cancelled && rows) setGenerators(rows);
+        });
         return () => {
             cancelled = true;
         };
-    }, [address]);
+    }, [address, load]);
+
+    // A generator published in the studio, in another tab, belongs in this list
+    // without being asked for again.
+    useLive(() => void load().then((rows) => rows && setGenerators(rows)), 30);
 
     if (restoring) {
         return (

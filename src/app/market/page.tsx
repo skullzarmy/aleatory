@@ -4,6 +4,7 @@ import { fetchListingPage, type ListingSort } from "@/lib/market";
 import { fetchAllGenerators } from "@/lib/generator";
 import { piecesFor } from "@/lib/feed";
 import { ListingCard } from "@/components/feed/ListingCard";
+import { Arrivals, Arriving } from "@/components/feed/Arrivals";
 import { Pager } from "@/components/feed/Pager";
 import { addresses } from "@/lib/router";
 import { formatTez } from "@/lib/utils";
@@ -133,17 +134,23 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
                 </div>
             ) : (
                 <>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                        {listings.map((l) => (
-                            <ListingCard
+                    <Arrivals>
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                            {listings.map((l) => (
                                 // Ids are per marketplace, and listings from all of
                                 // them are merged here, so two can both be id 1.
-                                key={`${l.marketplace}:${l.id}`}
-                                listing={l}
-                                piece={pieces.get(`${l.generator}:${l.tokenId}`)}
-                            />
-                        ))}
-                    </div>
+                                <Arriving
+                                    key={`${l.marketplace}:${l.id}`}
+                                    id={`${l.marketplace}:${l.id}`}
+                                >
+                                    <ListingCard
+                                        listing={l}
+                                        piece={pieces.get(`${l.generator}:${l.tokenId}`)}
+                                    />
+                                </Arriving>
+                            ))}
+                        </div>
+                    </Arrivals>
                     <Pager
                         page={page}
                         hasMore={hasMore}

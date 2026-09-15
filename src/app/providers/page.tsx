@@ -4,6 +4,7 @@ import { fetchProviders, RANKING_WINDOW_DAYS, type Provider } from "@/lib/provid
 import { formatTez, shortAddress } from "@/lib/utils";
 import { BRAND } from "@/lib/config";
 import { Avatar } from "@/components/account/Avatar";
+import { LiveRefresh } from "@/components/LiveRefresh";
 
 export const metadata: Metadata = {
     title: "Render providers",
@@ -14,13 +15,14 @@ export const metadata: Metadata = {
         description: "Anyone can run one. The membership test is three views on a contract.",
     },
 };
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function ProvidersPage() {
     const providers = await fetchProviders().catch(() => []);
 
     return (
         <div className="mx-auto max-w-3xl px-4 py-8">
+            <LiveRefresh seconds={60} />
             <h1 className="text-xl font-semibold tracking-tight">Render providers</h1>
             <p className="mt-2 text-sm text-muted-foreground">
                 A provider draws the images for minted pieces. Anyone can run one, list it here for

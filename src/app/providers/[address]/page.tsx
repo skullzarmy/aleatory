@@ -8,8 +8,9 @@ import { formatTez, shortAddress, timeAgo } from "@/lib/utils";
 import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
 import { Avatar } from "@/components/account/Avatar";
 import { AccountLink } from "@/components/account/AccountLink";
+import { LiveRefresh } from "@/components/LiveRefresh";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
     params,
@@ -52,6 +53,7 @@ export default async function ProviderPage({ params }: { params: Promise<{ addre
 
     return (
         <div className="mx-auto max-w-2xl px-4 py-8">
+            <LiveRefresh seconds={60} />
             <Link
                 href="/providers"
                 className="text-xs text-muted-foreground underline hover:text-foreground"

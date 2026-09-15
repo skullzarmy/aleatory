@@ -46,7 +46,9 @@ async function bigmap<V>(
 ): Promise<BigMapRow<V>[]> {
     const url = new URL(`${tzktApi()}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-    const res = await indexerFetch(url.toString(), { next: { revalidate: 15 } } as RequestInit);
+    // Uncached. A listing appearing or being taken is the whole point of the
+    // page, and the cache stacked on top of the refresh interval below it.
+    const res = await indexerFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return [];
     return (await res.json()) as BigMapRow<V>[];
 }

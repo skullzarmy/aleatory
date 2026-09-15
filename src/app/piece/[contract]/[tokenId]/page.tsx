@@ -16,7 +16,11 @@ import { shortAddress } from "@/lib/utils";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { PieceJsonLd } from "@/components/JsonLd";
 
-export const revalidate = 30;
+/**
+ * Rendered per request. `revalidate` here made this a prerendered document, and
+ * the refresh below re-fetched that same document rather than the chain.
+ */
+export const dynamic = "force-dynamic";
 
 type Params = Promise<{ contract: string; tokenId: string }>;
 

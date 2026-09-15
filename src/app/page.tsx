@@ -18,7 +18,13 @@ export const metadata: Metadata = {
         description: BRAND.description,
     },
 };
-export const revalidate = 60;
+/**
+ * Rendered per request, not prerendered on a timer. With `revalidate` this page
+ * was a CDN document, and `router.refresh()` re-fetched that same document:
+ * the timer below fired all day against a copy that was minutes old, so a
+ * generator published now did not appear until somebody reloaded by hand.
+ */
+export const dynamic = "force-dynamic";
 
 // TzKT's alias is set only for contracts it recognizes, never ours, so the display
 // name comes from the generator's own metadata instead.
