@@ -42,6 +42,7 @@
         "contract",
         "worker",
         "sandbox",
-        "admin"
+        "admin",
+        "landing"
     ]
 }

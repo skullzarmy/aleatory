@@ -179,7 +179,7 @@ export const setFactoryTreasury = (factory: string, treasury: string): AdminOp =
 
 export const setFactoryPaused = (factory: string, paused: boolean): AdminOp => ({
     label: paused
-        ? "Pause the factory: no new collections can be deployed"
+        ? "Pause the factory: no new generators can be deployed"
         : "Resume the factory",
     to: factory,
     entrypoint: "set_paused",
@@ -188,7 +188,7 @@ export const setFactoryPaused = (factory: string, paused: boolean): AdminOp => (
 });
 
 export const setDeployPrice = (factory: string, mutez: number): AdminOp => ({
-    label: `Charge ${mutez} mutez to deploy a collection`,
+    label: `Charge ${mutez} mutez to deploy a generator`,
     to: factory,
     entrypoint: "set_deploy_price",
     args: mutez,

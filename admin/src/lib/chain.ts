@@ -117,13 +117,13 @@ export interface FactoryState {
     administrator: string;
     proposedAdmin: string | null;
     treasury: string;
-    /** Handed to each new collection. Existing ones keep what they were given. */
+    /** Handed to each new generator. Existing ones keep what they were given. */
     resolver: string;
     paused: boolean;
     deployPrice: number;
     feesAccrued: number;
     balance: number;
-    collections: number;
+    generators: number;
     unaccounted: number;
 }
 
@@ -144,7 +144,7 @@ export async function fetchFactory(address: string): Promise<FactoryState | null
         deployPrice: Number(storage.deploy_price),
         feesAccrued,
         balance,
-        collections: Number(storage.next_collection_id),
+        generators: Number(storage.next_collection_id),
         unaccounted: balance - feesAccrued,
     };
 }
@@ -173,7 +173,7 @@ export interface RouterState {
     marketplaces: string[];
     /**
      * The factory a deploy goes to now. `add_factory` conses onto the front, so
-     * `factories` runs newest first and nothing is ever removed: a collection
+     * `factories` runs newest first and nothing is ever removed: a generator
      * keeps pointing at the factory that made it.
      */
     currentFactory: string;

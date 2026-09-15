@@ -1,0 +1,24 @@
+# The fourth site in this repo, after the public app at the root, the isolate
+# and the admin console. Create it on Netlify pointed at this repository with
+# the base directory set to `landing`, which builds from here and ignores the
+# root config.
+#
+# This is what the mainnet address serves until the app itself does. Swapping
+# is a base-directory change on that site and nothing here.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Off the defaults so this runs beside the other two rather than instead of
+# them. The root site uses 3000 and 8888, the console 3100 and 8890.
+[dev]
+  command = "npm run dev"
+  targetPort = 3200
+  port = 8892
+
+# Headers live in next.config.ts. A browser enforces the intersection of two
+# CSPs, so a second source here wins silently wherever it is stricter.

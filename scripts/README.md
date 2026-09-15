@@ -16,7 +16,7 @@ npm run bot:daemon                    writes chain figures into Discord
 
 ```
 npm run deploy                        originate the platform contracts
-npm run deploy:collection             one collection, for testing
+npm run deploy:collection             one generator, for testing
 ```
 
 [deploying.md](../docs/deploying.md) is the guide.

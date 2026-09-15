@@ -18,7 +18,7 @@ import { addresses, tzkt, provider } from "./chain";
  */
 
 export interface PlatformStats {
-    /** Collections originated by any factory the router has ever pointed at. */
+    /** Generators originated by any factory the router has ever pointed at. */
     generators: number;
     /** Tokens minted across all of them. */
     pieces: number;
@@ -102,7 +102,7 @@ async function sumOf(path: string): Promise<number> {
 }
 
 /** Contracts a list of factories originated, which is every generator. */
-export async function collectionsOf(factories: string[]): Promise<string[]> {
+export async function generatorsOf(factories: string[]): Promise<string[]> {
     // The router's list can name one twice: `add_factory` conses on, so
     // re-pointing at an earlier factory adds a second entry.
     const unique = [...new Set(factories.filter(Boolean))];
@@ -135,7 +135,7 @@ export async function platformStats(): Promise<PlatformStats> {
         return { ...EMPTY_STATS, problems: ["the router answered with nothing"] };
     }
 
-    const collections = await collectionsOf(where.factories);
+    const generators = await generatorsOf(where.factories);
 
     // Each figure on its own, so one failure costs one number.
     const attempt = async <T>(label: string, read: () => Promise<T>, fallback: T): Promise<T> => {
@@ -147,13 +147,13 @@ export async function platformStats(): Promise<PlatformStats> {
         }
     };
 
-    const inList = collections.join(",");
+    const inList = generators.join(",");
 
     const [pieces, mintedMutez, renderGasMutez, treasury] = await Promise.all([
         attempt(
             "pieces",
             async () =>
-                collections.length === 0
+                generators.length === 0
                     ? 0
                     : await tzkt<number>(`/v1/tokens/count?contract.in=${inList}`),
             0,
@@ -161,7 +161,7 @@ export async function platformStats(): Promise<PlatformStats> {
         attempt(
             "minted",
             async () =>
-                collections.length === 0
+                generators.length === 0
                     ? 0
                     : await sumOf(
                           `/v1/operations/transactions?entrypoint=mint&status=applied&target.in=${inList}`,
@@ -189,7 +189,7 @@ export async function platformStats(): Promise<PlatformStats> {
     const earnedMutez = treasury.arrived + treasury.unswept + renderGasMutez;
 
     return {
-        generators: collections.length,
+        generators: generators.length,
         pieces,
         mintedMutez,
         treasuryMutez: treasury.arrived,
