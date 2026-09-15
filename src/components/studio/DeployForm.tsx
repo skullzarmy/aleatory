@@ -22,7 +22,13 @@ import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
 import { useDeps } from "./useDeps";
 import { declaredIn, recordFor } from "@/lib/libraries";
-import { publishGenerator, type PublishResult, type PublishStage } from "@/lib/publish";
+import {
+    estimateSignatures,
+    publishGenerator,
+    type PublishResult,
+    type PublishStage,
+    type UploadProgress,
+} from "@/lib/publish";
 
 /**
  * Deploy a generator. Everything here except the price and the edition size is
@@ -56,6 +62,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     } | null>(null);
 
     const [stage, setStage] = useState<PublishStage | null>(null);
+    const [upload, setUpload] = useState<UploadProgress | null>(null);
+    const [signatures, setSignatures] = useState(1);
     const [error, setError] = useState<string | null>(null);
     // Recipients that will never be paid, shown once and deployed past on a
     // second click.
@@ -63,6 +71,17 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [acknowledged, setAcknowledged] = useState(false);
     const [checking, setChecking] = useState(false);
     const [done, setDone] = useState<PublishResult | null>(null);
+
+    // What the wallet will ask for, said before it starts asking.
+    useEffect(() => {
+        let cancelled = false;
+        void estimateSignatures(draft?.html ?? "").then((n) => {
+            if (!cancelled) setSignatures(n);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [draft?.html]);
 
     const provider = providers.find((p) => p.address === providerAddress);
     /**
@@ -277,12 +296,14 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     coverSeed: cover?.seed,
                 },
                 setStage,
+                setUpload,
             );
             setDone(result);
         } catch (e) {
             setError(e instanceof Error ? e.message : "The wallet refused it.");
         } finally {
             setStage(null);
+            setUpload(null);
         }
     }
 
@@ -296,15 +317,27 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                         : "It is open for minting."}
                 </p>
                 <dl className="space-y-1 text-xs">
-                    <Fact label="Operation" value={done.hash} href={tzktLink(done.hash)} />
+                    {/* Empty when this run only finished an upload a previous
+                        one started, where the deploy belongs to that attempt. */}
+                    {done.hash && (
+                        <Fact label="Operation" value={done.hash} href={tzktLink(done.hash)} />
+                    )}
+                    {done.generator && (
+                        <Fact
+                            label="Generator"
+                            value={done.generator}
+                            href={tzktLink(done.generator)}
+                        />
+                    )}
                     <Fact
                         label="Source"
                         value={
                             done.codeBytes > 0
                                 ? `${done.codeBytes.toLocaleString("en-US")} bytes in contract storage` +
                                   (done.codeEncoding === "gzip" ? ", gzipped" : "") +
+                                  (done.chunks > 0 ? `, sent in ${done.chunks} parts` : "") +
                                   `, ${(done.codeBurnMutez / 1e6).toFixed(3)} \u2721 of storage`
-                                : `too large for one operation, stored at ${done.codeUri}`
+                                : `too large to carry on chain, stored at ${done.codeUri}`
                         }
                     />
                     <Fact label="SHA-256" value={done.codeHashHex} />
@@ -316,7 +349,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     </p>
                 )}
                 <a
-                    href={tzktLink(done.hash)}
+                    href={tzktLink(done.hash || done.generator)}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-block rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
@@ -625,7 +658,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 {!address
                     ? "Connect to deploy"
                     : stage
-                      ? STAGE_LABEL[stage]
+                      ? upload
+                          ? `Signing chunk ${upload.chunk} of ${upload.of}…`
+                          : STAGE_LABEL[stage]
                       : checking
                         ? "Checking royalty recipients…"
                         : royaltyWarnings.length > 0
@@ -634,7 +669,10 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             </button>
 
             <p className="text-xs text-muted-foreground">
-                One signature. The generator is yours, and we have no control over it.
+                {signatures > 1
+                    ? `Around ${signatures} signatures: this generator is past what one operation carries, so it is written to the chain a piece at a time. Stopping part way is safe, and publishing again continues where it left off.`
+                    : "One signature."}{" "}
+                The generator is yours, and we have no control over it.
             </p>
         </form>
     );
@@ -644,6 +682,8 @@ const STAGE_LABEL: Record<PublishStage, string> = {
     encoding: "Preparing the source…",
     "pinning-metadata": "Pinning the metadata…",
     signing: "Waiting for your signature…",
+    uploading: "Writing the generator to the chain…",
+    sealing: "Closing the generator…",
 };
 
 function Fact({ label, value, href }: { label: string; value: string; href?: string }) {
