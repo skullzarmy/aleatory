@@ -77,24 +77,11 @@ export default {
                 md: "calc(var(--radius) - 2px)",
                 sm: "calc(var(--radius) - 4px)",
             },
-            keyframes: {
-                "accordion-down": {
-                    from: { height: "0" },
-                    to: { height: "var(--radix-accordion-content-height)" },
-                },
-                "accordion-up": {
-                    from: { height: "var(--radix-accordion-content-height)" },
-                    to: { height: "0" },
-                },
-                shimmer: {
-                    "100%": { transform: "translateX(100%)" },
-                },
-            },
-            animation: {
-                "accordion-down": "accordion-down 0.2s ease-out",
-                "accordion-up": "accordion-up 0.2s ease-out",
-            },
         },
     },
-    plugins: [require("tailwindcss-animate")],
+    // The app's copy carries accordion and shimmer keyframes and the
+    // `tailwindcss-animate` plugin for them. There is nothing here that opens,
+    // closes or loads, and a dependency this page never uses is one it should
+    // not have to install.
+    plugins: [],
 } satisfies Config;
