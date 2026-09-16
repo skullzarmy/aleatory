@@ -60,13 +60,15 @@
       // be found after publishing, which is the wrong time. Matches
       // isolate/index.html.
       Math.random = rand;
-      var FIXED = 0;
-      var RealDate = Date;
-      Date = class extends RealDate {
-        constructor() { if (arguments.length === 0) super(FIXED); else super(...arguments); }
-        static now() { return FIXED; }
-      };
-      performance.now = function () { return 0; };
+      // The clock is left alone, because this is the view a collector gets and
+      // a viewer lets it run. An animated piece needs it to know how far
+      // through it is. What a renderer freezes instead is the capture, so the
+      // still it publishes is the same every time.
+      //
+      // The composition still has to be reproducible. If it reads the date to
+      // decide what to draw rather than how to move, that is a piece which
+      // renders differently on a different day, and the studio's determinism
+      // check is what catches it before publishing.
       window.$alea = {
         seed: seed, hash: seed, params: {}, rand: rand, random: rand,
         randInt: function (lo, hi) { return Math.floor(rand() * (hi - lo + 1)) + lo; },

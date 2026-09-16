@@ -25,7 +25,7 @@
  * Run: npm test
  */
 
-import { readFileSync } from "node:fs";
+import { globSync, readFileSync } from "node:fs";
 import { SUGGESTED, specFor } from "./libraries";
 
 let failures = 0;
@@ -82,17 +82,31 @@ function auditHarnesses() {
             `missing ${missing.join(", ")}`,
         );
 
-        // The two substitutions §7 requires of anything that renders, and
-        // that a dev harness needs for local work to mean anything.
+        // The seeded stream is required of everything. Without it a piece
+        // that reaches for Math.random looks random locally and renders
+        // deterministically, and the artist finds out after publishing.
         check(
             `${h.name}: replaces Math.random with the seeded stream`,
             /Math\.random\s*=/.test(src),
         );
+
+        // The clock belongs to capture. A renderer freezes it so two captures
+        // of one seed agree. A viewer and a dev harness let it run, because an
+        // animated piece reads it to know how far through it is and a frozen
+        // clock leaves it on its first frame.
+        const freezes =
+            /RealDate\s*=\s*Date/.test(src) &&
+            /static now\(\)/.test(src) &&
+            /performance\.now\s*=\s*function/.test(src);
         check(
-            `${h.name}: freezes Date`,
-            /RealDate\s*=\s*Date/.test(src) && /static now\(\)/.test(src),
+            h.renderer
+                ? `${h.name}: can freeze the clock for a capture`
+                : `${h.name}: leaves the clock running`,
+            h.renderer ? freezes : !freezes,
+            h.renderer
+                ? "two captures of one seed have to agree"
+                : "a frozen clock shows an animated piece's first frame and nothing after it",
         );
-        check(`${h.name}: freezes performance.now`, /performance\.now\s*=\s*function/.test(src));
 
         // The seed is a base58 operation hash. parseInt of it in base 16 is
         // NaN, an unsigned shift coerces that to 0, and every piece draws the
@@ -268,6 +282,20 @@ function auditLibraries() {
             !/\.send\(\)/.test(text),
             "an estimated fee is refused on this chain, silently",
         );
+    }
+
+    // The isolate runs under `connect-src 'none'` and a `script-src` naming no
+    // host, so it can neither fetch a library nor load one by URL. Whatever
+    // mounts it has to resolve the declarations and hand over the source.
+    // Every frame that did not was a generator drawing without its libraries:
+    // the studio's cover was one, and the piece page and the mint preview were
+    // two more that outlived the fix.
+    const mounts = globSync("src/**/*.tsx").filter(
+        (f) => /<IsolateFrame/.test(read(f)) && !f.endsWith("IsolateFrame.tsx"),
+    );
+    check("every isolate mount was found", mounts.length >= 4, mounts.join(", "));
+    for (const f of mounts) {
+        check(`${f} hands the isolate its libraries`, /deps=\{/.test(read(f)));
     }
 
     check(

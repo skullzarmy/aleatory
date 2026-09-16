@@ -17,6 +17,7 @@ import {
 } from "@/lib/params";
 import * as ops from "@/lib/ops";
 import { IsolateFrame } from "@/components/IsolateFrame";
+import { useDeps } from "@/components/useDeps";
 
 /**
  * Buy one piece. One signature covers the price and the render gas, and the
@@ -43,6 +44,10 @@ export function MintPanel({
     const [hash, setHash] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [chosen, setChosen] = useState<Record<string, unknown>>({});
+
+    // Same as the piece page: the isolate cannot fetch a library or load one by
+    // URL, so the declared ones are resolved here and handed over as source.
+    const { deps } = useDeps(generator.code ?? "");
 
     /**
      * Reroll the parameters, and the seed the preview is drawn from. The
@@ -105,6 +110,8 @@ export function MintPanel({
                                 seed={hash}
                                 params={resolveParams(schema?.params ?? [], chosen)}
                                 paramsSchema={schema?.params ?? []}
+                                deps={deps}
+                                liveClock
                                 title="Your piece"
                             />
                         </div>

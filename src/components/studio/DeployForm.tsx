@@ -20,7 +20,7 @@ import { getKind } from "@/lib/runtimes";
 import { detectParams } from "@/lib/detect";
 import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
-import { useDeps } from "./useDeps";
+import { useDeps } from "@/components/useDeps";
 import { declaredIn, recordFor } from "@/lib/libraries";
 import {
     estimateSignatures,

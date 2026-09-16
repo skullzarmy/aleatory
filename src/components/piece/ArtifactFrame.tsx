@@ -3,14 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import { ImageIcon, Play } from "lucide-react";
 import { IsolateFrame } from "@/components/IsolateFrame";
+import { useDeps } from "@/components/useDeps";
 
 /**
- * The artwork, drawn from the chain first, with the published image fading in
- * over it once it has loaded.
+ * The artwork, run from the chain.
+ *
+ * The code is the piece and the image is a photograph of it, so the code is
+ * what plays here and the image is what stands in when it cannot. That is the
+ * claim this whole project makes, and a page that quietly preferred the
+ * cheaper thing would be making it dishonestly.
  *
  * A piece is a pure function of its code and its seed, both already in this
- * page, so nothing here waits on a gateway: the image is a background upgrade
- * and one that 404s costs the viewer nothing.
+ * page, so nothing here waits on a gateway. The image is still fetched: it is
+ * what a viewer gets when the generator has no code to run, and what they can
+ * ask for when they would rather have a still.
  */
 export function ArtifactFrame({
     code,
@@ -42,10 +48,15 @@ export function ArtifactFrame({
     }, [imageUrl]);
     useEffect(() => () => window.clearTimeout(timer.current), []);
 
-    // The image when it is there and wanted, the live render whenever it is
-    // not: still loading, failed, or switched away from.
-    const showImage = ready && prefer !== "live";
-    const showLive = runnable && !showImage;
+    // The code runs unless it cannot, or unless the viewer asked for the still.
+    const showLive = runnable && prefer !== "image";
+    const showImage = !showLive && ready;
+
+    // The libraries the generator declares, fetched and handed over as source.
+    // The isolate runs under `connect-src 'none'` and a `script-src` naming no
+    // host, so it can neither fetch a library nor load one by URL: whatever it
+    // is not given, it cannot have.
+    const { deps } = useDeps(code ?? "");
 
     return (
         <div className="relative aspect-square overflow-hidden rounded-lg border border-border bg-card-background">
@@ -54,6 +65,8 @@ export function ArtifactFrame({
                     code={code as string}
                     seed={seed as string}
                     params={params}
+                    deps={deps}
+                    liveClock
                     title={name}
                     className="h-full w-full border-0"
                 />
@@ -90,7 +103,7 @@ export function ArtifactFrame({
             {runnable && ready && (
                 <button
                     type="button"
-                    onClick={() => setPrefer(showImage ? "live" : "image")}
+                    onClick={() => setPrefer(showLive ? "image" : "live")}
                     className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-md border border-border bg-background/90 px-2.5 py-1.5 text-xs font-medium backdrop-blur transition-colors hover:bg-accent"
                 >
                     {showImage ? (

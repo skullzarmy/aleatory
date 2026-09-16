@@ -444,6 +444,14 @@ Read the source and its libraries exactly as a renderer does, install
 `$alea` with the same seed and parameters, make the same substitutions, and
 show the result live instead of capturing it.
 
+**One substitution is a renderer's and not a viewer's: the clock.** A renderer
+freezes it because two captures of one seed have to agree. A piece that animates
+reads the clock to know how far through it is, so a viewer that freezes it
+shows the first frame and calls it the work. Let the clock run and keep the
+seeded stream, and what varies is the motion rather than the composition. A
+viewer that also captures, for a cover or a determinism check, freezes it for
+that and says so.
+
 **Run it in an origin of its own.** Artist code is untrusted and it executes in
 your visitors' browsers. Same-origin gives it reach into wallet state and
 session storage, so serve artwork from a separate host in a sandboxed frame

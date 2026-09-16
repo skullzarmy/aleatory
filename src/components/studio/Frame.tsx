@@ -46,6 +46,7 @@ export function Frame({
             params={resolved}
             paramsSchema={params}
             deps={deps}
+            liveClock
             className={className}
             title="Preview"
             onReady={() => onReady?.()}
