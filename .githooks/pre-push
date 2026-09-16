@@ -1,0 +1,25 @@
+#!/bin/sh
+# The checks that are fast and offline, before anything leaves the machine.
+#
+# Not the whole suite. `npm test` reaches npm, jsDelivr and the indexer, which
+# makes it slow and makes it fail on a train, and a hook people turn off is
+# worse than no hook. These four are seconds and they are the ones that have
+# actually caught things: a type error, a stale path in a document, a variable
+# read but never documented.
+#
+# CI still runs everything. This only moves the cheap half earlier.
+#
+# Skip with: git push --no-verify
+set -e
+
+echo "pre-push: formatting"
+npm run --silent lint
+
+echo "pre-push: types"
+npx --no-install tsc --noEmit
+
+echo "pre-push: references"
+node scripts/check-refs.mjs
+
+echo "pre-push: environment"
+node scripts/check-env.mjs

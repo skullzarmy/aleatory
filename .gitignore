@@ -18,6 +18,7 @@ contract/__pycache__/
 contract/output/
 /*/
 !/.github/
+!/.githooks/
 !/admin/
 !/bot/
 !/contract/

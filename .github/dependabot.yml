@@ -1,0 +1,51 @@
+# Nothing was watching dependencies. GitHub had twelve open advisories and no
+# one was reading them, which for a project that executes untrusted code in
+# visitors' browsers and holds signing keys is not a state to be in.
+#
+# Grouped on purpose. Ungrouped updates open a pull request per package per
+# week, which is how a bot teaches you to ignore it.
+version: 2
+updates:
+  # The app, the provider daemon, the bot and the deploy scripts.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      production:
+        dependency-type: production
+        update-types: [minor, patch]
+      development:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # Both build alone, with their own lockfiles, so neither is covered above.
+  - package-ecosystem: npm
+    directory: /admin
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      admin:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /landing
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      landing:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # The workflows pin actions by major version, which still drifts.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
