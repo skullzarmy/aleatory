@@ -211,6 +211,27 @@ function auditLibraries() {
         /isOurGenerator\(/.test(publish) && /allFactories\(\)\)\.includes\(creator\)/.test(ops),
         "append_code takes bytes and a signature, and the wrong contract keeps both",
     );
+    // The agent-facing copies drift silently: nothing imports them, so a change
+    // to how publishing works leaves them stating the old rule to whoever asks.
+    // They told agents a generator had to fit in one operation long after that
+    // stopped being true.
+    for (const path of [
+        "public/skill/SKILL.md",
+        "public/skill/aleatory-generator/SKILL.md",
+        "public/skill/aleatory-interface/SKILL.md",
+        "public/llms.txt",
+    ]) {
+        const text = read(path);
+        // Asserted positively. The stale versions of these files each said the
+        // wrong thing in different words, so looking for the wrong phrasing
+        // caught only some of them; requiring the right one catches an
+        // omission too.
+        check(
+            `${path} describes how a large generator reaches the chain`,
+            /append_code|a chunk at a time/.test(text),
+            "storage is not capped, and a file saying otherwise sends agents to a pointer",
+        );
+    }
 
     check(
         "the cover is captured with the libraries the document declares",

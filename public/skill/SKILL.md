@@ -54,12 +54,18 @@ Three parties, and only the first is required for a piece to exist.
 - **The seed is the mint operation's hash.** Nobody picks it and nobody can
   predict it, including the collector who caused it.
 - **A generator is immutable.** `code`, `code_hash`, `code_uri` and
-  `royalties` have no setter anywhere. A mistake in a published piece is
-  permanent, which is why the checks happen before minting.
+  `royalties` have no setter anywhere. `code` is appended to until `seal_code`
+  closes it, which must happen before anything can mint, and nothing writes it
+  afterwards. A mistake in a published piece is permanent, which is why the
+  checks happen before minting.
+- **Display metadata is the exception.** `set_metadata` lets the artist edit
+  the name, description and cover. It refuses `aleatory:libraries` and
+  `aleatory:params`, so nothing deciding what a piece runs is ever editable.
 - **A piece renders with no network.** Libraries it declared are supplied by
   whoever draws it, verified by hash, before its first line runs.
-- **32,768 bytes** is the Tezos operation ceiling, and therefore the size of
-  the largest generator that can be stored directly.
+- **32,768 bytes** is the Tezos operation ceiling. It bounds an operation, not
+  a generator: a larger one is deployed empty and appended a chunk at a time,
+  so size costs signatures rather than deciding whether the art is on chain.
 
 ## Where the source is
 

@@ -53,8 +53,39 @@ const LIST: Limits = { gas: 120_000, storage: 1_000 };
  */
 const ORIGINATION_OVERHEAD_BYTES = 20_000;
 
+/**
+ * Branch, source, counter, the three limits, destination, entrypoint tag and
+ * the signature. None of it is in the parameter, and all of it is charged.
+ */
+const ENVELOPE_BYTES = 512;
+
+/**
+ * Over the floor on purpose.
+ *
+ * Paying under it is silent in the worst way: the operation injects, the wallet
+ * returns a hash, and it sits in the mempool as `fees_too_low` until it is
+ * dropped. Nothing in the app can see that, so the artist watches a hash that
+ * will never settle. A deploy carrying 21KB was refused sixty mutez short
+ * because the byte term guessed the payload and forgot the envelope.
+ *
+ * The margin costs a fraction of a millitez. Being under costs a publish.
+ */
 function feeFor(limits: Limits): number {
-    return 100 + Math.ceil(limits.gas * 0.1) + (limits.bytes ?? 500);
+    const bytes = (limits.bytes ?? 500) + ENVELOPE_BYTES;
+    return Math.ceil((100 + limits.gas * 0.1 + bytes) * 1.1);
+}
+
+/**
+ * The parameter's real serialized length, rather than a guess at it.
+ *
+ * The fee floor is charged per byte of the operation, and a generator's deploy
+ * carries the artist's own metadata: a description they typed, a cover URI, a
+ * params schema, a libraries record. A fixed allowance for all that is a number
+ * that is right until somebody writes a long description.
+ */
+async function packedBytes(value: unknown): Promise<number> {
+    const { packDataBytes } = await import("@taquito/michel-codec");
+    return packDataBytes(value as never).bytes.length / 2;
 }
 
 interface Call {
@@ -678,7 +709,7 @@ export async function deployGenerator(client: DAppClient, params: DeployParams):
     const limits: Limits = {
         gas: 60_000,
         storage: codeBytes + ORIGINATION_OVERHEAD_BYTES,
-        bytes: codeBytes + 2_000,
+        bytes: await packedBytes(parameter.value),
     };
 
     return send(
