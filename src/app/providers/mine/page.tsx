@@ -385,12 +385,7 @@ function Guides() {
             </p>
             <ul className="mt-3 space-y-2 text-sm">
                 <li>
-                    <a
-                        href={`${BRAND.repo}/blob/main/docs/provider.md`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:text-foreground hover:underline"
-                    >
+                    <a href="/docs/provider" className="hover:text-foreground hover:underline">
                         Running a render provider
                     </a>
                     <span className="text-xs text-muted-foreground">

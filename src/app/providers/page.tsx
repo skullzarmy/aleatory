@@ -141,9 +141,7 @@ function RunOne() {
 
             <div className="mt-5 flex flex-wrap gap-3">
                 <a
-                    href={`${BRAND.repo}/blob/main/docs/provider.md`}
-                    target="_blank"
-                    rel="noreferrer"
+                    href="/docs/provider"
                     className="rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700"
                 >
                     Running a render provider

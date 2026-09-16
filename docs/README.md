@@ -3,6 +3,11 @@
 Specifications and guides. Start with the one for what you are doing; each says
 where to go next.
 
+Four are published at <https://aleatory.art/docs>: the interface, libraries,
+params and provider. They are the ones a stranger needs, and the page renders
+these files rather than a copy of them. The rest are for whoever is working on
+Aleatory and live here only.
+
 The repository map, and what Aleatory is for, are in the
 [root README](../README.md).
 
