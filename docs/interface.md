@@ -61,7 +61,10 @@ worth less. A gateway's content policy can change and the art stops resolving.
 
 A protocol operation is capped at 32,768 bytes. Storage is not, so source
 larger than one operation is deployed empty and built up with `append_code`,
-then closed with `seal_code`. Nothing mints before it is sealed and nothing
+then closed with `seal_code`. `append_code` takes the offset it expects to be
+writing at and refuses anything else, because a sender cannot know whether an
+operation still in flight has landed, and a chunk applied twice cannot be taken
+back. Nothing mints before it is sealed and nothing
 writes it after. `gzip` buys roughly 2.5x and fits most generators in one.
 
 `code_uri` is for source an artist would rather not pay to store at all. It is

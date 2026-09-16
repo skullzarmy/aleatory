@@ -45,7 +45,8 @@ _TOTAL = _PRICE + _GAS
 def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
                      price=_PRICE, edition_size=10, start_paused=False,
                      agent=None, royalties=None, trust_resolver=True,
-                     code=_CODE, code_hash=sp.bytes("0xaa")):
+                     code=_CODE, code_hash=sp.bytes("0xaa"),
+                     code_encoding="identity"):
     royalties = (
         sp.cast({}, sp.map[sp.address, sp.nat])
         if royalties is None
@@ -58,7 +59,7 @@ def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
         provider_agent=(minter if agent is None else agent).address,
         render_gas=sp.mutez(render_gas),
         code=code,
-        code_encoding="identity",
+        code_encoding=code_encoding,
         code_hash=code_hash,
         code_uri="",
         edition_size=edition_size,
@@ -230,24 +231,74 @@ def test_code_arrives_in_chunks():
     # Nothing mints against half a generator.
     c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL), _valid=False)
 
-    c.append_code(head, _sender=alice, _valid=False)
-    c.append_code(head, _sender=artist, _amount=sp.mutez(1), _valid=False)
-    c.append_code(sp.bytes("0x"), _sender=artist, _valid=False)
-    c.append_code(head, _sender=artist)
+    c.append_code(sp.record(chunk=head, at=0), _sender=alice, _valid=False)
+    c.append_code(sp.record(chunk=head, at=0), _sender=artist, _amount=sp.mutez(1),
+                  _valid=False)
+    c.append_code(sp.record(chunk=sp.bytes("0x"), at=0), _sender=artist, _valid=False)
+    c.append_code(sp.record(chunk=head, at=0), _sender=artist)
 
     # Sealing half of it is a hash that does not match.
     c.seal_code(_sender=artist, _valid=False)
 
-    c.append_code(tail, _sender=artist)
+    c.append_code(sp.record(chunk=tail, at=6), _sender=artist)
     c.seal_code(_sender=alice, _valid=False)
     c.seal_code(_sender=artist)
     scenario.verify(c.data.art.code == whole)
     scenario.verify(c.data.art.code_sealed)
 
     # Sealed is sealed.
-    c.append_code(tail, _sender=artist, _valid=False)
+    c.append_code(sp.record(chunk=tail, at=13), _sender=artist, _valid=False)
     c.seal_code(_sender=artist, _valid=False)
 
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+
+
+@sp.add_test()
+def test_a_chunk_cannot_be_applied_twice():
+    """A chunk that arrives twice must not be written twice.
+
+    Reported from outside: a retry that re-sends an already applied chunk seals
+    a corrupt generator with no way to fix it. It is reachable. An artist whose
+    confirmation times out publishes again, the operation still in flight lands
+    after the offset was read, and the same bytes are appended a second time.
+
+    `seal_code` cannot catch it here. It compares the hash only when the code is
+    `identity`, because Michelson cannot decompress, and everything large enough
+    to arrive in chunks was compressed on the way. So the encoding below is the
+    one the studio actually uses for this path, not the convenient one.
+
+    `code` has no setter and cannot be shortened, so the only defence is to
+    refuse the write.
+    """
+    scenario = sp.test_scenario("Duplicate chunk", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    head = sp.bytes("0x3c68746d6c3e")
+    tail = sp.bytes("0x3c2f68746d6c3e")
+    whole = sp.bytes("0x3c68746d6c3e3c2f68746d6c3e")
+    c = _collection(scenario, artist, resolver, provider, minter,
+                    code=sp.bytes("0x"), code_hash=sp.sha256(whole),
+                    code_encoding="gzip")
+
+    c.append_code(sp.record(chunk=head, at=0), _sender=artist)
+
+    # The same chunk again, from a retry. It is writing at 6 and says 0.
+    c.append_code(sp.record(chunk=head, at=0), _sender=artist, _valid=False)
+
+    # An offset past the end is the same refusal from the other side.
+    c.append_code(sp.record(chunk=tail, at=99), _sender=artist, _valid=False)
+
+    c.append_code(sp.record(chunk=tail, at=6), _sender=artist)
+    c.seal_code(_sender=artist)
+
+    # What sealed is the generator, and nothing else.
+    scenario.verify(c.data.art.code == whole)
+    scenario.verify(c.data.art.code_sealed)
     c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
 
 
