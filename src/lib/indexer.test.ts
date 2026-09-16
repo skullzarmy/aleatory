@@ -22,9 +22,16 @@
  * Run: npx tsx src/lib/indexer.test.ts
  */
 
+import { CONTRACTS, tzktApi } from "./config";
+
 async function main() {
-    const API = process.env.NEXT_PUBLIC_TZKT_API ?? "https://api.shadownet.tzkt.io";
-    const ROUTER = process.env.NEXT_PUBLIC_ROUTER_ADDRESS ?? "KT1LWD8kiuyVzkSUAHKVovw6ymsjHcKykADc";
+    // The app's own indexer, so this follows wherever it is pointed.
+    const API = tzktApi();
+
+    // The router comes from the environment, and CI has none. Falling back to
+    // the shadownet one keeps this running with no configuration, which is the
+    // only way a check like this actually runs.
+    const ROUTER = CONTRACTS.router || "KT1LWD8kiuyVzkSUAHKVovw6ymsjHcKykADc";
 
     let failed = 0;
     function check(what: string, ok: boolean, why = "") {
