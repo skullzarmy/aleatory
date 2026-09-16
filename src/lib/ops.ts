@@ -1,7 +1,7 @@
 /** Every write this app makes, and so every signature it can ask for. */
 import type { DAppClient, TezosOperationType } from "@tezos-x/octez.connect-sdk";
 import { rpcUrl, tzktApi } from "./config";
-import { addresses, currentFactory } from "./router";
+import { addresses, allFactories, currentFactory } from "./router";
 import { indexerFetch } from "./tzkt";
 
 interface OpResult {
@@ -562,9 +562,15 @@ export async function readCode(generator: string): Promise<{ hex: string; sealed
     });
     if (!res.ok) throw new Error(`Could not read ${generator}.`);
     const s = (await res.json()) as { art?: { code?: string; code_sealed?: boolean } };
+    // An unrelated contract has no `art` at all, and reading that as an empty
+    // generator makes every unrelated contract look like one waiting for its
+    // first chunk.
+    if (!s.art || typeof s.art.code_sealed !== "boolean") {
+        throw new Error(`${generator} is not an Aleatory generator.`);
+    }
     return {
-        hex: (s.art?.code ?? "").replace(/^0x/, "").toLowerCase(),
-        sealed: s.art?.code_sealed === true,
+        hex: (s.art.code ?? "").replace(/^0x/, "").toLowerCase(),
+        sealed: s.art.code_sealed === true,
     };
 }
 
@@ -572,19 +578,27 @@ export async function readCode(generator: string): Promise<{ hex: string; sealed
  * The generator a deploy originated, once the chain has it.
  *
  * The deploy returns an operation hash and the address is decided by the
- * protocol, so the chunks that follow have nowhere to go until the indexer has
- * seen the origination.
+ * protocol, so the chunks that follow have nowhere to go until the origination
+ * is visible.
+ *
+ * Read from the operation group itself. `/operations/originations` has no
+ * `hash` filter: TzKT ignores query parameters it does not recognise, so
+ * passing one returns the whole table, and taking the first row of that is how
+ * chunks of somebody's generator were offered to an unrelated counter
+ * contract.
  */
 export async function generatorFromDeploy(hash: string, timeoutMs = 120_000): Promise<string> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-        const res = await indexerFetch(
-            `${tzktApi()}/v1/operations/originations?hash=${hash}&select=originatedContract`,
-            { cache: "no-store" },
-        ).catch(() => null);
+        const res = await indexerFetch(`${tzktApi()}/v1/operations/${hash}`, {
+            cache: "no-store",
+        }).catch(() => null);
         if (res?.ok) {
-            const rows = (await res.json()) as ({ address?: string } | null)[];
-            const address = rows.find((r) => r?.address)?.address;
+            const rows = (await res.json()) as {
+                type?: string;
+                originatedContract?: { address?: string };
+            }[];
+            const address = rows.find((r) => r.type === "origination")?.originatedContract?.address;
             if (address) return address;
         }
         await new Promise((r) => setTimeout(r, 3_000));
@@ -596,6 +610,29 @@ export async function generatorFromDeploy(hash: string, timeoutMs = 120_000): Pr
     throw new Error(
         "The deploy was signed but no contract has appeared. It may not have been included in a block. Check the operation hash on the explorer; if it is not there, it was dropped and can be published again.",
     );
+}
+
+/**
+ * That this address is a generator one of our factories made.
+ *
+ * Checked before anything is appended to it. `append_code` takes bytes and the
+ * artist's signature, and the cost of sending those to the wrong contract is
+ * not recoverable, so the address is confirmed against the router rather than
+ * trusted because a lookup returned it.
+ */
+export async function isOurGenerator(generator: string): Promise<boolean> {
+    // No `select`. TzKT ignores parameters it does not support rather than
+    // refusing them, and `select=creator` here returns the whole record, whose
+    // own `address` is the contract asked about. Reading that as the creator
+    // compares a generator to the factory list and finds it foreign.
+    const res = await indexerFetch(`${tzktApi()}/v1/contracts/${generator}`, {
+        cache: "no-store",
+    }).catch(() => null);
+    if (!res?.ok) return false;
+    const row = (await res.json()) as { creator?: { address?: string } };
+    const creator = row.creator?.address ?? "";
+    if (!creator) return false;
+    return (await allFactories()).includes(creator);
 }
 
 /**

@@ -197,6 +197,20 @@ function auditLibraries() {
         "appending to a different draft's bytes cannot be undone",
     );
 
+    // TzKT ignores query parameters it does not support instead of refusing
+    // them. `/operations/originations?hash=` returned the whole table, and the
+    // first row of it was offered an artist's chunks: an unrelated counter
+    // contract. The endpoint that carries a hash is `/operations/{hash}`.
+    check(
+        "the originated generator is read from the operation group",
+        /\/v1\/operations\/\$\{hash\}/.test(ops) && !/operations\/originations\?hash=/.test(ops),
+        "originations has no hash filter, and an ignored filter returns everything",
+    );
+    check(
+        "nothing is appended before the address is confirmed as ours",
+        /isOurGenerator\(/.test(publish) && /allFactories\(\)\)\.includes\(creator\)/.test(ops),
+        "append_code takes bytes and a signature, and the wrong contract keeps both",
+    );
     // The agent-facing copies drift silently: nothing imports them, so a change
     // to how publishing works leaves them stating the old rule to whoever asks.
     // They told agents a generator had to fit in one operation long after that
