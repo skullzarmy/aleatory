@@ -31,6 +31,9 @@ const COLUMNS = [
 const LEGAL = [
     { href: "/terms", label: "Terms" },
     { href: "/terms/privacy", label: "Privacy" },
+    // Somewhere else entirely, on purpose: a status page hosted on the thing
+    // it reports on says "up" right until the moment anyone needs it.
+    { href: "https://big-brother.fafolab.xyz/status/aleatory", label: "Status", away: true },
 ];
 
 // Lucide (used elsewhere in the app) has no Discord icon, so all four marks
@@ -101,11 +104,23 @@ export function Footer() {
                 <div className="mt-10 flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-baseline sm:justify-between">
                     <p>{BRAND.tagline}</p>
                     <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2 text-xs">
-                        {LEGAL.map((l) => (
-                            <Link key={l.href} href={l.href} className="hover:text-foreground">
-                                {l.label}
-                            </Link>
-                        ))}
+                        {LEGAL.map((l) =>
+                            "away" in l && l.away ? (
+                                <a
+                                    key={l.href}
+                                    href={l.href}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="hover:text-foreground"
+                                >
+                                    {l.label}
+                                </a>
+                            ) : (
+                                <Link key={l.href} href={l.href} className="hover:text-foreground">
+                                    {l.label}
+                                </Link>
+                            ),
+                        )}
                         <p>
                             Created by{" "}
                             <a

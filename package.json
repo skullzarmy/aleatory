@@ -49,7 +49,8 @@
         "test:img": "npx tsx src/lib/img.test.ts",
         "test:npm": "npx tsx src/lib/npm.test.ts",
         "test:env": "node scripts/check-env.mjs",
-        "test:indexer": "npx tsx src/lib/indexer.test.ts"
+        "test:indexer": "npx tsx src/lib/indexer.test.ts",
+        "prepare": "git config core.hooksPath .githooks || true"
     },
     "dependencies": {
         "@codemirror/lang-html": "^6.4.12",
