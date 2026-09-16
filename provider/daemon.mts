@@ -17,6 +17,7 @@ dotenv.config();
 
 const { generatorsServed, factoriesIgnored, pendingIn, handle } = await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
+const { heartbeat } = await import("./heartbeat.ts");
 
 /** How often to look when there is nothing to do. */
 const IDLE_MS = Number(process.env.ALEA_POLL_MS || 15_000);
@@ -145,6 +146,17 @@ let backoff = BACKOFF_MIN_MS;
 let served: string[] = [];
 let servedAt = 0;
 
+/**
+ * Beaten on every piece of progress rather than once per pass.
+ *
+ * A pass is unbounded: it walks every pending piece across every generator it
+ * serves, and one piece allows a twenty second capture, a gateway warm and a
+ * publish that waits for a block. A drop of thirty mints is one pass that runs
+ * for minutes and is perfectly healthy, so a beat only at the end would go
+ * quiet exactly when the daemon is working hardest.
+ */
+const beat = heartbeat(process.env.ALEA_HEARTBEAT_URL);
+
 if (PUSH_ON) listen(PUSH_BIND, PUSH_PORT);
 else log(`polling every ${IDLE_MS / 1000}s, no push endpoint`);
 
@@ -156,10 +168,16 @@ while (!stopping) {
             servedAt = Date.now();
         }
 
+        const startedAt = Date.now();
         let published = 0;
+        let failed = 0;
+        let scanned = 0;
+        let scanFailed = 0;
         for (const generator of served) {
             if (stopping) break;
+            scanned++;
             const waiting = await pendingIn(generator).catch((e: unknown) => {
+                scanFailed++;
                 log(`scan ${generator}: ${e instanceof Error ? e.message : e}`);
                 return [];
             });
@@ -167,17 +185,34 @@ while (!stopping) {
             for (const piece of waiting) {
                 if (stopping) break;
                 log(`rendering ${piece.generator} #${piece.tokenId}`);
+                // Before the work, not only after it: a capture that takes
+                // twenty seconds is progress and should sound like it.
+                beat({ status: "up", msg: `rendering #${piece.tokenId}` });
                 try {
                     const hash = await handle(piece);
                     published++;
                     log(`  published ${hash}`);
+                    beat({ status: "up", msg: `published #${piece.tokenId}` });
                 } catch (e) {
                     // One bad piece must not stop the queue. It stays pending
                     // and the next pass tries again.
+                    failed++;
                     log(`  FAILED: ${e instanceof Error ? e.message : e}`);
                 }
             }
         }
+
+        // Every generator refusing to be read looks exactly like an empty
+        // queue from in here: the scan is caught, the count stays zero and the
+        // loop sleeps. That is the state worth waking somebody for.
+        const blind = scanned > 0 && scanFailed === scanned;
+        beat({
+            status: blind ? "down" : "up",
+            msg: blind
+                ? `every scan failed (${scanned} generators)`
+                : `${scanned} scanned, ${scanFailed} scan failed, ${published} published, ${failed} failed`,
+            ping: Date.now() - startedAt,
+        });
 
         backoff = BACKOFF_MIN_MS;
         // Straight back round when there was work, so a busy generator does
@@ -187,6 +222,7 @@ while (!stopping) {
         // Not one piece, so back off rather than spin.
         log(`cycle failed: ${e instanceof Error ? e.message : e}`);
         log(`  retrying in ${backoff / 1000}s`);
+        beat({ status: "down", msg: `cycle failed: ${e instanceof Error ? e.message : e}` });
         await sleep(backoff);
         backoff = Math.min(backoff * 2, BACKOFF_MAX_MS);
     }

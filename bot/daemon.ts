@@ -19,6 +19,7 @@ import { channelsFromEnv, writeAll } from "./discord";
 import { network, router, provider } from "./chain";
 import { announce, generatorsChannel, mintsChannel, type Marks } from "./announce";
 import { highWaterMark } from "./feed";
+import { heartbeat } from "../provider/heartbeat";
 
 dotenv.config();
 
@@ -99,6 +100,10 @@ async function main() {
         });
 
     let backoff = BACKOFF_MIN_MS;
+    // Its own monitor, because this fails the same quiet way the daemon does:
+    // a pass that announces nothing and a pass that is dead look identical
+    // from outside the process.
+    const beat = heartbeat(process.env.ALEA_BOT_HEARTBEAT_URL);
     // Renames are on the slow clock and announcements on the fast one, so the
     // loop runs at the fast rate and the slow half checks whether it is due.
     let statsDue = 0;
@@ -135,10 +140,13 @@ async function main() {
                 if (pass.posted > 0) log(`announced ${pass.posted}`);
             }
 
+            beat({ status: "up", msg: announcing ? "pass ok" : "pass ok, stats only" });
+
             if (stopping) break;
             await wait(loopMs);
         } catch (e) {
             log(`pass failed: ${e instanceof Error ? e.message : e}`);
+            beat({ status: "down", msg: `pass failed: ${e instanceof Error ? e.message : e}` });
             if (stopping) break;
             await wait(backoff);
             backoff = Math.min(BACKOFF_MAX_MS, backoff * 2);
