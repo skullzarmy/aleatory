@@ -9,7 +9,7 @@ import { Checks } from "./Checks";
 import { Cost } from "./Cost";
 import { ParamsPanel } from "./ParamsPanel";
 import { LibraryPicker } from "./LibraryPicker";
-import { useDeps } from "./useDeps";
+import { useDeps } from "@/components/useDeps";
 import { declaredIn } from "@/lib/libraries";
 import { getKind } from "@/lib/runtimes";
 import { saveDraft, randomSeed, type Draft } from "@/lib/draft";

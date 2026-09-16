@@ -18,6 +18,7 @@ export function IsolateFrame({
     paramsSchema,
     deps,
     wantImage,
+    liveClock,
     className,
     title = "Piece",
     onReady,
@@ -31,6 +32,13 @@ export function IsolateFrame({
     paramsSchema?: unknown[];
     /** Library sources, inlined ahead of the artist's code. */
     deps?: string[];
+    /**
+     * Let the clock run. Off by default, because a capture and the studio's
+     * determinism check both need the same seed to draw the same picture. A
+     * viewer turns it on: an animated piece with a frozen clock sits on its
+     * first frame forever.
+     */
+    liveClock?: boolean;
     /** Ask for the pixels back, not just a digest. Used to capture a cover. */
     wantImage?: boolean;
     className?: string;
@@ -55,8 +63,9 @@ export function IsolateFrame({
                 paramsSchema: paramsSchema ?? [],
                 deps: deps ?? [],
                 wantImage: Boolean(wantImage),
+                freezeClock: !liveClock,
             }),
-        [code, seed, params, paramsSchema, deps, wantImage],
+        [code, seed, params, paramsSchema, deps, wantImage, liveClock],
     );
 
     // A fresh document per change. Swapping the source under a piece that has

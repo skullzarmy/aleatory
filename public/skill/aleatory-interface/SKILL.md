@@ -134,11 +134,16 @@ $alea.ready()           the capture point
 
 Aliases borrowed from other platforms are not part of this interface.
 
-Two substitutions, both required: `Math.random` is replaced by the seeded
-stream, and the clock is frozen so `Date.now()` and `performance.now()` return
-a fixed value. Network access is blocked for the duration. Artist code runs
-afterwards and can undo them, so a generator that varies will vary; a provider
-renders once, and that render is the piece.
+Two substitutions: `Math.random` is replaced by the seeded stream, always, and
+the clock is frozen so `Date.now()` and `performance.now()` return a fixed
+value. Network access is blocked for the duration. Artist code runs afterwards
+and can undo them, so a generator that varies will vary; a provider renders
+once, and that render is the piece.
+
+Freezing the clock belongs to capture. A viewer showing the piece live lets it
+run, because an animated generator reads the clock to know how far through it
+is and a frozen one sits on its first frame. The seeded stream stays either
+way, so motion varies and the composition does not.
 
 Capture when the piece calls `$alea.ready()`.
 

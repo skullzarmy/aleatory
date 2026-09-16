@@ -19,7 +19,8 @@
  * Artist code runs here, on its own origin, and nowhere else. It executes and
  * it does not fetch: the code arrives from whoever framed it, already in hand.
  *
- *   parent -> isolate   { type: "alea:run", code, seed, params, deps }
+ *   parent -> isolate   { type: "alea:run", code, seed, params, deps,
+ *                         freezeClock }  omit to freeze, false to let it run
  *   isolate -> parent   { type: "alea:hello" }        ready to receive
  *                       { type: "alea:ready", ... }   the piece signalled
  *                       { type: "alea:violation", … } it reached for something
@@ -69,7 +70,7 @@
     ran = true;
 
     try {
-      run(String(d.code || ""), String(d.seed || ""), d.params || {}, d.paramsSchema || [], d.deps || [], Boolean(d.wantImage));
+      run(String(d.code || ""), String(d.seed || ""), d.params || {}, d.paramsSchema || [], d.deps || [], Boolean(d.wantImage), d.freezeClock);
     } catch (err) {
       fail(String((err && err.message) || err));
     }
@@ -102,7 +103,7 @@
    * srcdoc child intersects its parent's policy, so it can only ever be
    * stricter than this page. Stricter is the direction we want.
    */
-  function run(code, seed, params, paramsSchema, deps, wantImage) {
+  function run(code, seed, params, paramsSchema, deps, wantImage, freezeClock) {
     var CSP = [
       "default-src 'none'",
       "script-src 'unsafe-inline' 'unsafe-eval'",
@@ -122,6 +123,7 @@
       params: params,
       paramsSchema: paramsSchema,
       wantImage: wantImage,
+      freezeClock: freezeClock !== false,
       timeout: 8000
     }).replace(/<\/script/gi, "<\\/script");
 
@@ -231,14 +233,26 @@
   Math.random = function () { mathRandomCalls++; return rand(); };
 
   // Frozen clock, so a piece that branches on the date draws the same way in
-  // any year. Matches netlify/functions/lib/render.mts.
-  var FIXED = 0;
+  // any year. Matches provider/render.mts, which captures the canonical image
+  // and always freezes.
+  //
+  // Frozen is the default and every capture keeps it: a still has to be
+  // reproducible, and the studio proves determinism by drawing one seed twice
+  // and comparing what came out.
+  //
+  // A viewer asks for it running. An animated piece reads the clock to know
+  // how far through it is, and a frozen clock leaves it on its first frame
+  // forever, which is not the piece. The seeded stream stays substituted
+  // either way, so what varies is the motion and never the composition.
   var RealDate = Date;
-  Date = class extends RealDate {
-    constructor() { if (arguments.length === 0) super(FIXED); else super(...arguments); }
-    static now() { return FIXED; }
-  };
-  performance.now = function () { return 0; };
+  if (CFG.freezeClock !== false) {
+    var FIXED = 0;
+    Date = class extends RealDate {
+      constructor() { if (arguments.length === 0) super(FIXED); else super(...arguments); }
+      static now() { return FIXED; }
+    };
+    performance.now = function () { return 0; };
+  }
 
   // What the piece threw.
   //
