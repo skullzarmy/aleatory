@@ -1,30 +1,25 @@
-# Mint-time parameters, Aleatory
+# Mint-time parameters
 
-**Status:** v0, implemented, 2026-08-23. This is a spec: another platform should be able to build a mint UI for an Aleatory generator from this document alone, without reading our source and without executing the artwork.
+A generator can let whoever mints it choose a few things first. Up to five named
+inputs, set before they sign, stored on the token beside the seed. The piece is
+then a function of its code, its seed and those values.
 
-A generator may declare **up to five** named inputs that whoever mints a piece sets before they sign. The values are stored on the token beside the seed, and the piece becomes a pure function of **(code, seed, params)**.
+Most generators declare none, and that is the ordinary case. This document is
+for the two people who need the detail: an artist adding parameters to a
+generator, and anyone building a mint form for someone else's.
 
-Parameters are **always optional**. Most generators declare none, and a generator that declares none is not a lesser one, it is the default shape of the thing.
-
----
-
-## 1. Why it is shaped this way
-
-EditArt gave every project the same five unnamed sliders. That is a mechanism, not a language: a parameter meant whatever the artist could persuade a collector it meant, controls could not be labelled, ranges could not be stated, and nothing downstream could render a sensible UI because nothing downstream knew what it was rendering.
-
-So: **the artist names them, sets the range, and writes the default.** A declaration is legible without context, which is what makes the rest of this document possible, a mint page that has never heard of the artist can still put the right control on the screen with the right label above it.
-
-The five-parameter ceiling is kept. Not for storage reasons; because a collector who is handed nine sliders stops reading and starts dragging.
-
-**Where the line sits.** The seed should still do the interesting work. A parameter is a dimension the artist hands over deliberately. It is not a way to make the collector responsible for whether the piece is any good, and a generator whose output is bad across most of its own declared range has declared the wrong range.
+Everything a mint form needs is in the generator's own metadata, so a form can
+be built for any Aleatory generator without our code and without running the
+artwork. The second half of this page is that contract.
 
 ---
 
-## 2. The declaration
+## For an artist
 
-JSON, written under the generator's `aleatory:params` metadata key when a generator declares anything. One key, one place to read it, which is what §5 is for.
+### Declaring them
 
-**A generator declares its own parameters, in the file.** The studio reads that declaration when the file is uploaded and seeds the params panel with it, so an artist who already wrote their ranges down does not type them a second time and is not punished for a typo in the retyping. Four forms are read:
+Parameters are declared in your own file, and the studio reads them from there.
+Any of these work:
 
 ```html
 <meta name="alea:params" content='[{"id":"density", …}]'>
@@ -33,16 +28,68 @@ JSON, written under the generator's `aleatory:params` metadata key when a genera
 ```js
 window.$alea.paramsSchema = [ … ];   // what the starter kits write
 ALEA_PARAMS = [ … ];                 // the same list under its own name
-$fx.params([ … ]);                   // an fxhash piece, converted on the way in
+$fx.params([ … ]);                   // an fxhash project, converted on import
 ```
 
-Read by a parser for the literal subset of JavaScript. **Nothing is evaluated**: an uploaded file is a stranger's code, and it never runs on the studio's own origin. Unquoted keys, single quotes, trailing commas, comments and numbers JSON rejects all parse; a schema built by a function call is declined instead of guessed at.
+The file is read, never executed, so an uploaded generator cannot run on the
+studio's origin before you have looked at it. The reader handles the loose ends
+of real JavaScript: unquoted keys, single quotes, trailing commas, comments, and
+numbers strict JSON would refuse. A schema assembled by a function call cannot
+be read this way, and is declined rather than guessed at.
 
-The last literal assignment wins, which is what the file itself does with those lines. A generator assigning `paramsSchema` twice runs with the second, and the starter kits open with a dev harness assigning an empty array before the artist's declaration.
+If a line assigns the schema twice, the last one wins, which is what the file
+itself would do. The starter kits open with an empty assignment above your
+declaration for exactly that reason.
 
-One bad field costs one parameter, never the set. An unusable name, a step larger than its range, or a second id that collides once cleaned is dropped with a line saying so, and the rest survive. Ids are never repaired: `alea.param("density")` reads the id back at render time, so a renamed one is a control that tunes nothing.
+A bad field costs one parameter and not the set. A name that will not do, a step
+wider than its own range, or an id that collides with another once cleaned up
+gets dropped with a line saying which and why, and the others carry on. Ids are
+never silently repaired, because `$alea.param("density")` reads the id back when
+the piece draws, and a renamed one is a control wired to nothing.
 
-**The document is the record.** The studio's params panel edits the declaration in the file, the way the library picker edits the `alea:library` tags, so there is one copy and it is the artist's own file. Export it, work on it elsewhere for a week, bring it back, and it still says what it wants. What lands under `aleatory:params` at publish is read from the document.
+The studio's parameter panel edits the declaration in your file, the same way
+the library picker edits your `alea:library` tags. There is one copy and it is
+yours. Take the file elsewhere for a week, bring it back, and it still says what
+it wants.
+
+### What the artwork receives
+
+Values are resolved and injected before any of your code runs:
+
+```js
+$alea.param("density", 140)   // the resolved value, or the fallback you pass
+$alea.params                  // { density: 140, ink: "black" }
+$alea.paramsSchema            // the declaration itself
+```
+
+Reading a name you never declared still returns the fallback and still draws,
+but it is recorded as a violation and the studio's checks will stop you
+publishing. A control nobody can see is one no collector will ever reach, and
+the cause is almost always a rename that happened in one place.
+
+Running locally, outside the sandbox, the dev harness in every starter kit takes
+values from the URL: `?p.density=220&p.ink=red`.
+
+### Two things worth knowing
+
+`$fx.params([...])` does not declare anything here. On fxhash a project declares
+its parameters by calling that at load time, which means finding out what
+controls to draw requires running the artwork. A mint form should never have to
+do that, so the declaration lives in chain state instead. The call is not
+ignored: the studio spots it on import and offers to bring the declaration into
+the panel, so a project arrives with its controls intact.
+
+The seed is still meant to do the interesting work. A parameter is a dimension
+you are handing over on purpose, and the range you declare is a promise that the
+piece is worth looking at across it.
+
+---
+
+## The declaration
+
+Written to the generator's `aleatory:params` metadata key at publish. A
+generator with no parameters has no key at all, so an absent key and an empty
+declaration never have to mean the same thing.
 
 ```json
 {
@@ -59,135 +106,121 @@ One bad field costs one parameter, never the set. An unusable name, a step large
 
 | Field | Required | Meaning |
 |---|---|---|
-| `id` | yes | The key the artwork reads. `^[a-z][a-z0-9_]{0,23}$`. Unique within the generator, immutable once published. |
+| `id` | yes | The key the artwork reads. `^[a-z][a-z0-9_]{0,23}$`. Unique within the generator, and fixed once published. |
 | `label` | yes | What a person reads on the control. |
 | `type` | yes | One of the five below. |
-| `min` `max` `step` | `number`, `int` | The range and the quantization grid. `step` > 0 and ≤ `max - min`. |
+| `min` `max` `step` | `number`, `int` | The range and the grid it snaps to. `step` above 0 and no wider than `max - min`. |
 | `options` | `select` | Two or more distinct strings. |
-| `default` | yes | Used when no value is given, and whenever a value fails to resolve. Must be in range / among the options. |
+| `default` | yes | Used when no value is given, and whenever one fails to resolve. Must be in range, or among the options. |
 | `hint` | no | One line, shown under the control. |
 
-### Types
-
-| `type` | JSON value | Control to render |
+| `type` | JSON value | Control |
 |---|---|---|
 | `number` | number | slider, `min`…`max` by `step` |
-| `int` | number (integral) | slider, `min`…`max` by `step` |
+| `int` | number, integral | slider, `min`…`max` by `step` |
 | `bool` | `true` / `false` | toggle |
 | `color` | `"#rrggbb"`, lowercase | colour picker |
 | `select` | one of `options` | dropdown |
 
-At most five entries. A reader encountering more, or an entry with an unknown `type`, should **drop that entry and render the rest** rather than refuse the generator, the piece still has a seed, and a partly-rendered mint form beats none.
+Five entries at most. A reader that meets a sixth, or a `type` it does not know,
+should drop that entry and render the others. The piece still has a seed, and a
+partly drawn form is worth more than none.
 
 ---
 
-## 3. Resolution, the part that has to match exactly
+## Resolving a value
 
-Raw input in, the values a piece actually sees out. Every implementation must produce identical results, or the same token renders differently in two places and determinism is decorative.
+Raw input in, the values the piece actually sees out. Every implementation has
+to agree here, or one token draws two ways.
 
-The rule, in order, per declared parameter:
+Per declared parameter, in order:
 
-1. If the input has no entry for `id`, or the entry cannot be coerced to the declared type → **use `default`**.
-2. `number` / `int`: coerce to a finite number; clamp to `[min, max]`; snap to the grid, `min + round((v - min) / step) * step`, capped at `max`; round to **6 decimal places**; for `int`, round to an integer.
-3. `bool`: accept `true`/`false`, and the strings `"true"`/`"false"`. Anything else → `default`.
-4. `color`: accept `#rrggbb` case-insensitively, emit lowercase. Anything else → `default`.
-5. `select`: accept only an exact member of `options`. Anything else → `default`.
-6. Keys in the input that the schema does not declare are **dropped**.
+1. No entry for `id`, or one that cannot be coerced to the declared type, gives
+   `default`.
+2. `number` and `int`: coerce to a finite number, clamp to `[min, max]`, snap to
+   the grid as `min + round((v - min) / step) * step` capped at `max`, then round
+   to six decimal places. `int` rounds to a whole number.
+3. `bool`: `true` and `false`, and the strings `"true"` and `"false"`. Anything
+   else gives `default`.
+4. `color`: `#rrggbb` in either case, emitted lowercase. Anything else gives
+   `default`.
+5. `select`: an exact member of `options`. Anything else gives `default`.
+6. Keys the schema does not declare are dropped.
 
-An out-of-range value is corrected, never rejected. Refusing would produce tokens that some viewers can render and others cannot, which is the one outcome worth designing out.
+A value outside the range is corrected rather than refused. Refusing would mint
+tokens that some viewers can draw and others cannot.
 
-The rule, in full, so a reader is never inferring it:
+Reference implementation: `resolveParams` in `src/lib/params.ts`.
 
-```
-clamp to [min,max]; snap to the step grid from min; unknown keys dropped;
-missing or unresolvable values fall back to default
-```
+### Encoding
 
-Reference implementation: `src/lib/params.ts`, `resolveParams`.
-
-### Canonical encoding
-
-Values are written as a JSON object with **keys in declaration order**, not sorted, and values already resolved:
+A JSON object, keys in declaration order rather than sorted, values already
+resolved:
 
 ```json
 {"density":140,"ink":"black"}
 ```
 
-Declaration order because it is the only ordering a third party can reconstruct without our code. Byte-identical encodings matter because these strings get quoted, compared and hashed.
+Declaration order because it is the one ordering a third party can reconstruct
+from the record alone. The bytes matter: these strings are quoted, compared and
+hashed.
 
 ---
 
-## 4. Where it all lives on chain
-
-One contract per generator, deployed by the factory. Its metadata big_map
-carries the declaration; its storage carries the code.
+## Where the values live
 
 | What | Where |
 |---|---|
 | The declaration | the generator's `aleatory:params` metadata key |
-| The resolution rule | this document, §3. It is the same for every generator. |
-| One piece's values | the `mint` operation that created it, and `aleaParams` in that token's metadata JSON |
-
-A generator that declares nothing has no `aleatory:params` key at all, so an
-absent key and an empty declaration never both have to mean the same thing.
+| The resolution rule | this document. It is the same for every generator. |
+| One piece's values | the `mint` operation that created it, and `aleaParams` in that token's metadata |
 
 ---
 
-## 5. Building a mint UI for someone else's generator
+## Building a mint form
 
-The whole point. Given a generator contract address:
+Given a generator's address:
 
-1. Read the generator's metadata big_map and take `aleatory:params`. Absent means the generator has no parameters: mint as normal.
-2. Render one control per entry, per the table in §2. Use `label` above it and `hint` below it. Start at `default`.
-3. Resolve what the user set, per §3.
-4. Preview by rendering the generator's code with the resolved values, see §6.
-5. Encode canonically per §3 and pass it to `mint`. It is recorded in that operation, and whoever publishes the piece's metadata copies it into the JSON under `aleaParams`.
+1. Read its metadata big map and take `aleatory:params`. Absent means no
+   parameters, so mint as normal.
+2. Render one control per entry, per the tables above. `label` goes over it,
+   `hint` under it, and it starts at `default`.
+3. Resolve what the collector set, exactly as described above.
+4. Preview by running the generator's code with the resolved values.
+5. Encode canonically and pass that to `mint`. It is recorded in the operation,
+   and whoever publishes the piece's metadata copies it into `aleaParams`.
 
-That is the entire integration. No allowlist, no key, nothing to ask us for. A generator's mint UI is a function of its record, which is the property that stops us from being load-bearing.
-
----
-
-## 6. What the artwork receives
-
-The harness injects resolved values before any of the artist's code runs (`standard_version` 2 and up):
-
-```js
-$alea.param("density", 140)   // resolved value, else declared default, else the fallback
-$alea.params                   // { density: 140, ink: "black" }
-$alea.paramsSchema             // the declaration itself
-```
-
-The harness gives a piece one surface, `$alea`:
-
-```js
-$fx.getParam("density")
-$fx.getParams()
-```
-
-Two deliberate behaviours:
-
-- **A read of an undeclared name is reported** as a runtime violation. The fallback stands and the piece renders, but the checks fail it before publish, a value no control exists for is unreachable for every collector, forever, and it is nearly always a rename that happened in one place only.
-- **`$fx.params([...])` does not declare anything.** fxhash projects declare their params by calling it at load time; here the declaration has to be readable from chain state, because a mint UI must never have to execute the artwork to find out what controls to draw. The call is not ignored, the studio catches it and offers to import the declaration into the params panel, so an imported project arrives with its controls intact.
-
-Locally, outside the sandbox, the dev harness reads values from the URL: `?p.density=220&p.ink=red`.
+There is nothing to register for and no key to ask us for. A generator's mint
+form follows from its own record.
 
 ---
 
-## 7. Determinism, restated
+## Determinism
 
-`(code, seed, params)` is still a pure function. Two of the three inputs are now chosen by people, which raises the stakes on resolution rather than changing the guarantee:
+Code, seed and parameters together are still a pure function. Two of the three
+are chosen by people now, which is why the resolution rule above is written to
+the digit.
 
-- The determinism check runs both passes with **identical params**, so it tests the piece, not the tuner.
-- The seed grid holds params **fixed** and varies only the seed, because that is the only way to read what the seed alone is doing.
-- Traits (`features`) derived from a parameter are honest, and worth knowing about: two collectors can now share one, which a seed-derived trait could not do.
+- The studio's determinism check runs both passes with the same parameters, so
+  it tests the piece rather than the tuning.
+- The seed grid holds parameters fixed and varies only the seed, which is the
+  only way to see what the seed alone is doing.
+- A trait derived from a parameter is a real trait, and two collectors can share
+  one. A seed-derived trait could not do that.
 
 ---
 
-## 8. Known limits in v0
+## Limits
 
-- **Params are set by whoever mints.** `mint` takes the resolved values, so what the collector chose is committed by their own signature in the operation that mints the piece. A provider reads them from that operation to know what to render, and anyone else reads them to check the result. The end-to-end path is not yet exercised on a testnet.
-- **`artifactUri` does not carry the values.** It points at the code; a renderer applies `aleaParams` through the harness per §6. Baking values into the URI is a later question and depends on how the harness itself gets served.
-
-- **A wrong `aleaParams` is detectable, not preventable.** The values are in the mint operation and the code is immutable, so anyone can re-render and compare, but nothing on chain forces the published metadata to match what the piece was minted with. Same posture as the seed.
-- **No string or free-numeric type.** A free-text input is a caption, not a dimension of a piece. Imported fxhash `string` params are dropped, and said so out loud at import time.
-- **The ceiling is five,** enforced at declaration time and at import.
+- **No free text and no unbounded numbers.** A text box is a caption rather than
+  a dimension of the work. Imported fxhash `string` parameters are dropped, and
+  the import says so.
+- **Five is the ceiling**, checked when a declaration is read and again on
+  import.
+- **`artifactUri` does not carry the values.** It points at the code, and a
+  renderer applies `aleaParams` through the harness. Baking values into the URI
+  depends on how the harness itself is served, which is a later question.
+- **Published values can be checked but not enforced.** The values are in the
+  mint operation and the code cannot change, so anyone can draw the piece again
+  and compare. Nothing on chain compels the published metadata to match. This is
+  the same position as the seed.
