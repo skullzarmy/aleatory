@@ -31,6 +31,7 @@ import { InMemorySigner } from "@taquito/signer";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { feeFor } from "../provider/fees";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BUILD_DIR = resolve(__dirname, "build");
@@ -94,7 +95,10 @@ function fallbackLimits(limits: ChainLimits) {
         // Burn is charged on bytes used, so the protocol maximum is not a cost,
         // but it authorises one.
         storageLimit: Math.min(40_000, limits.storagePerOperation),
-        fee: 100_000,
+        // Derived, not picked. Three quarters of the ceiling is a large gas
+        // limit and the floor is charged against it, so a flat number here is
+        // one that stops being enough the day the ceiling moves.
+        fee: feeFor({ gas: Math.floor(ceiling * 0.75), bytes: 30_000 }),
     };
 }
 
@@ -185,7 +189,8 @@ async function ensureRevealed(tezos: TezosToolkit, signer: InMemorySigner) {
         {
             kind: "reveal",
             source: pkh,
-            fee: "1000",
+            // A public key and the envelope, nothing else.
+            fee: String(feeFor({ gas: 5_000, bytes: 100 })),
             counter: String(counter + 1),
             gas_limit: "5000",
             storage_limit: "0",

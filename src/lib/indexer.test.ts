@@ -125,6 +125,58 @@ async function main() {
         notAGenerator.art === undefined,
     );
 
+    // --- every filter the monorepo relies on, not just this package's -------
+    //
+    // `bot/` and `admin/` query the indexer too, and an audit that stopped at
+    // `src/` is how a rule gets fixed in one place and left wrong in four.
+    //
+    // A filter is proved by narrowing. Comparing two capped queries proves
+    // nothing: the first version of this reported `entrypoint=` broken because
+    // both sides returned the limit.
+    const count = async (path: string) => ((await get(path)) as unknown[]).length;
+
+    const narrows = async (label: string, all: string, some: string) => {
+        const [a, b] = [await count(all), await count(some)];
+        check(`${label} narrows`, b < a || a === 0, `unfiltered ${a}, filtered ${b}`);
+    };
+
+    const gens = (await get(
+        `/v1/contracts?creator.in=${(routerStorage.factories ?? []).join(",")}&select=address&limit=20`,
+    )) as string[];
+
+    // src/lib/tzkt.ts, src/lib/feed.ts
+    await narrows(
+        "tokens?contract.in",
+        "/v1/tokens?select=id&limit=1000",
+        `/v1/tokens?contract.in=${gens.join(",")}&select=id&limit=1000`,
+    );
+    // bot/stats.ts
+    await narrows(
+        "contracts?creator.in",
+        "/v1/contracts?select=address&limit=1000",
+        `/v1/contracts?creator.in=${(routerStorage.factories ?? []).join(",")}&select=address&limit=1000`,
+    );
+    // bot/feed.ts
+    await narrows(
+        "contracts/events?contract.in",
+        "/v1/contracts/events?select=id&limit=1000",
+        `/v1/contracts/events?contract.in=${gens.join(",")}&select=id&limit=1000`,
+    );
+    // bot/stats.ts, where a cap on both sides hides the answer, so this asks
+    // for something that cannot exist instead.
+    check(
+        "transactions?entrypoint= narrows",
+        (await count("/v1/operations/transactions?entrypoint=no_such_ep_xyz&select=id&limit=5")) ===
+            0,
+    );
+
+    // src/lib/generator.ts
+    const royalties = await get(`/v1/contracts/${generator}/storage?path=art.royalties`);
+    check(
+        "storage?path= returns the subtree and not the whole record",
+        !(royalties && typeof royalties === "object" && "art" in (royalties as object)),
+    );
+
     console.log(
         failed === 0
             ? "\n  every query the app relies on answers the way it is read\n"
