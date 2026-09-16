@@ -483,21 +483,35 @@ def aleatory():
             )
 
         @sp.entrypoint
-        def append_code(self, chunk):
+        def append_code(self, params):
             """(Artist only) Add bytes to the generator, before it is sealed.
 
             An operation is capped at 32,768 bytes. Storage is not, so a
             generator larger than that is deployed empty and arrives here a
             chunk at a time, in order.
+
+            `at` is the length the caller believes is already written, and the
+            write is refused unless it is. Appending is otherwise blind: a
+            chunk that arrives twice is written twice, and since a sender
+            cannot know whether an operation still in flight has landed, a
+            retry is enough to do it. `code` has no setter and cannot be
+            shortened, and a compressed generator seals without a hash check
+            because Michelson cannot decompress, so the corruption would be
+            permanent and silent. Saying where the bytes go makes the second
+            arrival fail instead.
             """
-            sp.cast(chunk, sp.bytes)
+            sp.cast(params, sp.record(chunk=sp.bytes, at=sp.nat))
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
             assert self.is_artist_(), "NOT_ARTIST"
             assert not self.data.art.code_sealed, "CODE_SEALED"
             assert self.data.art.code_uri == "", "CODE_IS_POINTER"
-            assert sp.len(chunk) > 0, "EMPTY_CHUNK"
-            self.data.art.code = sp.concat([self.data.art.code, chunk])
-            sp.emit(sp.record(added=sp.len(chunk)), tag="append_code")
+            assert sp.len(params.chunk) > 0, "EMPTY_CHUNK"
+            assert sp.len(self.data.art.code) == params.at, "WRONG_OFFSET"
+            self.data.art.code = sp.concat([self.data.art.code, params.chunk])
+            sp.emit(
+                sp.record(added=sp.len(params.chunk), at=params.at),
+                tag="append_code",
+            )
 
         @sp.entrypoint
         def seal_code(self):

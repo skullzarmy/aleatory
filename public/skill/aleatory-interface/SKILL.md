@@ -50,7 +50,8 @@ Four immutable fields, none with a setter:
 Exactly one of `code` and `code_uri` is set once the generator is sealed. A
 Tezos operation is capped at 32,768 bytes and `gzip` buys roughly 2.5x, but
 neither bounds a generator: storage is not capped, so a larger one arrives
-through `append_code` a chunk at a time and closes with `seal_code`. Size
+through `append_code` a chunk at a time, each naming the offset it must land
+at, and closes with `seal_code`. Size
 therefore says nothing about where to read the source. Read `art.code` unless
 `art.code_uri` is set.
 

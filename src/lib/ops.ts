@@ -639,22 +639,36 @@ export async function isOurGenerator(generator: string): Promise<boolean> {
  * Add one chunk to the end of a generator's code. Artist only, and refused
  * once sealed.
  *
- * The storage limit is the chunk itself: these bytes land in the contract's
- * storage and the artist pays the burn on them, the same way the inline path
- * pays it inside the deploy.
+ * `at` is the length the caller believes is already written. The contract
+ * refuses the write unless that is what it holds, which is what stops a chunk
+ * being applied twice: a retry cannot know whether an operation still in
+ * flight has landed, and `code` cannot be shortened afterwards.
+ *
+ * Generators from a factory originated before that entrypoint took an offset
+ * are still out there, and some of them are unsealed. They are finished with
+ * the signature they have. The parameter is encoded against the type read from
+ * the contract itself rather than assumed, so which one it is comes from the
+ * chain.
+ *
+ * The storage limit is the chunk: these bytes land in the contract's storage
+ * and the artist pays the burn, the same way the inline path pays it inside
+ * the deploy.
  */
 export async function appendCode(
     client: DAppClient,
     generator: string,
     chunkHex: string,
+    at: number,
 ): Promise<OpResult> {
     const hex = chunkHex.replace(/^0x/, "");
     const size = Math.ceil(hex.length / 2);
-    return send(client, generator, "append_code", bytes(hex), 0, {
-        gas: 30_000,
-        storage: size + 100,
-        bytes: size + 500,
-    });
+    const limits: Limits = { gas: 30_000, storage: size + 100, bytes: size + 500 };
+
+    const p = await encode(generator, "append_code", { chunk: hex, at }).catch(() =>
+        // A template from before the offset, which takes the bytes alone.
+        encode(generator, "append_code", [hex]),
+    );
+    return send(client, generator, p.entrypoint, p.value, 0, limits);
 }
 
 /**

@@ -186,6 +186,36 @@ export async function estimateSignatures(html: string): Promise<number> {
     return 1 + chunks + 1;
 }
 
+/**
+ * A generator that cannot be finished and cannot be repaired.
+ *
+ * Separate from an ordinary failure because the draft has to stop pointing at
+ * it. `code` is append-only, so there is no state this contract can be put
+ * back into; leaving the draft aimed at it means every future publish resumes
+ * into the same wall and the artist cannot even start again.
+ */
+export class UnusableGenerator extends Error {}
+
+/**
+ * Run an upload, and stop the draft pointing at the generator if it turns out
+ * to be one that can never be finished.
+ *
+ * Only for that. A refused signature or a dropped connection leaves a
+ * generator that is still exactly the beginning of this draft, and the pointer
+ * is what lets the next attempt continue it instead of paying to originate a
+ * second one.
+ */
+async function release<T>(draft: Draft, run: () => Promise<T>): Promise<T> {
+    try {
+        return await run();
+    } catch (e) {
+        if (e instanceof UnusableGenerator) {
+            await saveDraft({ ...draft, pendingUpload: undefined, updatedAt: Date.now() });
+        }
+        throw e;
+    }
+}
+
 /** Wait for the chain to hold at least `expected` bytes of code. */
 async function confirmBytes(generator: string, expected: number, timeoutMs = 180_000) {
     const deadline = Date.now() + timeoutMs;
@@ -193,7 +223,17 @@ async function confirmBytes(generator: string, expected: number, timeoutMs = 180
         await new Promise((r) => setTimeout(r, 3_000));
         const { hex } = await readCode(generator).catch(() => ({ hex: "" }));
         const have = hex.length / 2;
-        if (have >= expected) return have;
+        if (have === expected) return have;
+        // More than was sent means a chunk landed twice: an operation that was
+        // still in flight when this resumed, applied after the offset was read.
+        // `code` is append-only, so there is nothing to undo. Stopping here at
+        // least leaves it unsealed, which is a generator that cannot mint
+        // rather than one that mints a piece nobody can render.
+        if (have > expected) {
+            throw new UnusableGenerator(
+                `${generator} holds ${have} bytes where ${expected} were sent. A chunk was applied twice and the code cannot be unwritten, so it has not been sealed. Publish again as a new generator.`,
+            );
+        }
     }
     throw new Error("A chunk was signed but has not been included yet. Resume to continue.");
 }
@@ -236,13 +276,26 @@ export async function uploadCode(
             bytesOnChain: onChain,
             totalBytes: codeBytes.length,
         });
-        await appendCode(client, generator, toHex(slice));
+        // The offset this chunk must land at. The contract refuses it if that
+        // is not what it holds, which is what a retry needs it to do.
+        await appendCode(client, generator, toHex(slice), onChain);
 
         // Each chunk waits to be included before the next is signed. Two
         // operations from one wallet in flight at once collide on the account
         // counter, and `code` is append-only, so a chunk that lands twice or
         // out of order cannot be taken back.
         onChain = await confirmBytes(generator, onChain + slice.length);
+    }
+
+    // Sealing is the irreversible step and, for anything walked, the contract
+    // cannot check it: `seal_code` verifies the hash only for `identity`, and
+    // everything large enough to be walked was gzipped on the way. So the last
+    // word on whether these are the right bytes is here.
+    const final = await readCode(generator);
+    if (final.hex !== wanted) {
+        throw new UnusableGenerator(
+            `${generator} does not hold the bytes that were sent, so it has not been sealed. Publish again as a new generator.`,
+        );
     }
 
     const { hash } = await sealCode(client, generator);
@@ -287,13 +340,14 @@ async function resumePublish(
         codeBytes = zipped;
         codeEncoding = "gzip";
     } else {
-        throw new Error(
-            "The unfinished generator on chain does not hold the start of this draft, so it cannot be finished from here.",
+        await saveDraft({ ...draft, pendingUpload: undefined, updatedAt: Date.now() });
+        throw new UnusableGenerator(
+            "The unfinished generator on chain does not hold the start of this draft, so it cannot be finished from here. It has been let go, and publishing again will deploy a new one.",
         );
     }
 
     onStage?.("uploading");
-    await uploadCode(client, generator, codeBytes, onUpload);
+    await release(draft, () => uploadCode(client, generator, codeBytes, onUpload));
     onStage?.("sealing");
     await saveDraft({ ...draft, pendingUpload: undefined, updatedAt: Date.now() });
 
@@ -443,7 +497,7 @@ export async function publishGenerator(
         // nobody can ever finish.
         await saveDraft({ ...draft, pendingUpload: generator, updatedAt: Date.now() });
 
-        await uploadCode(client, generator, codeBytes, onUpload);
+        await release(draft, () => uploadCode(client, generator, codeBytes, onUpload));
         onStage?.("sealing");
         await saveDraft({ ...draft, pendingUpload: undefined, updatedAt: Date.now() });
     }

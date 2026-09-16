@@ -8,6 +8,20 @@
  * docs/interface.md, so when the spec changes this fails until the
  * implementations follow.
  *
+ * **What this cannot do.** Most of the checks below read source text and look
+ * for a pattern in it. That catches a rule being deleted and it catches a
+ * regression coming back, because the pattern was written knowing what the
+ * mistake looked like. It cannot catch a new one. A check that
+ * `/v1/operations/${hash}` appears in `ops.ts` passes just as happily for a URL
+ * that does not work, since the check is written afterwards and made to match
+ * whatever is there.
+ *
+ * Two bugs shipped behind checks of exactly this shape, days apart, both of
+ * them a query parameter the indexer ignores. Reading a file cannot tell you
+ * that. `indexer.test.ts` sends the queries and reads the answers, and that is
+ * the file to add to when the app starts depending on something new from
+ * outside itself.
+ *
  * Run: npm test
  */
 
