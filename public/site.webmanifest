@@ -36,9 +36,21 @@
     }
   ],
   "shortcuts": [
-    { "name": "Recent pieces", "url": "/" },
-    { "name": "Collections", "url": "/collections" },
-    { "name": "Market", "url": "/market" },
-    { "name": "Studio", "url": "/studio" }
+    {
+      "name": "Generators",
+      "url": "/"
+    },
+    {
+      "name": "Mints",
+      "url": "/mints"
+    },
+    {
+      "name": "Market",
+      "url": "/market"
+    },
+    {
+      "name": "Studio",
+      "url": "/studio"
+    }
   ]
 }
