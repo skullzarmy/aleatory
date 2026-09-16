@@ -45,11 +45,19 @@ Four immutable fields, none with a setter:
 | `code` | the generator, a self-contained HTML document, as `bytes` |
 | `code_encoding` | `identity` or `gzip` |
 | `code_hash` | **SHA-256** of the decoded source, raw, as `bytes` |
-| `code_uri` | `ipfs://` pointer, only for a generator past the operation cap |
+| `code_uri` | `ipfs://` pointer, for source not carried on chain at all |
 
-Exactly one of `code` and `code_uri` is set. A Tezos operation is capped at
-32,768 bytes, and `gzip` buys roughly 2.5x before that limit bites. The hash
-covers the decoded source either way, so it verifies what actually runs.
+Exactly one of `code` and `code_uri` is set once the generator is sealed. A
+Tezos operation is capped at 32,768 bytes and `gzip` buys roughly 2.5x, but
+neither bounds a generator: storage is not capped, so a larger one arrives
+through `append_code` a chunk at a time and closes with `seal_code`. Size
+therefore says nothing about where to read the source. Read `art.code` unless
+`art.code_uri` is set.
+
+`art.code_sealed` tells you the generator is closed and complete. An unsealed
+one is mid-publish, cannot mint, and must not be rendered or indexed as if it
+were finished. The hash covers the decoded source either way, so it verifies
+what actually runs.
 
 ## 2. The seed
 

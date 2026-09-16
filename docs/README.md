@@ -49,6 +49,6 @@ The code documents itself one level down.
 
 | | |
 |---|---|
-| [`public/skill/`](../public/skill/SKILL.md) | A map, and one skill each for the artist, the provider operator, and anyone building against ALEATORY-001. |
+| [`public/skill/`](../public/skill/SKILL.md) | A map, and one skill each for the artist, the provider operator, and anyone building against ALEATORY-001. Served at `/skill/SKILL.md`, `/skill/aleatory-generator/SKILL.md`, `/skill/aleatory-provider/SKILL.md` and `/skill/aleatory-interface/SKILL.md`. |
 | [`public/llms.txt`](../public/llms.txt) | The artist one as a single page, served at `/llms.txt` for anything that reads a site instead of installing a skill. |
 | [`AGENTS.md`](../AGENTS.md) | Working on the platform itself: what ships, the contracts, and the traps that have cost real time. |

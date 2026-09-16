@@ -22,6 +22,8 @@ const COLUMNS = [
             { href: "/templates", label: "Starter kits" },
             { href: "/docs/interface", label: "ALEATORY-001" },
             { href: "/providers", label: "Render providers" },
+            // A file, not a route, so it is fetched rather than navigated to.
+            { href: "/skill/SKILL.md", label: "Agent skills", file: true },
         ],
     },
 ];
@@ -59,9 +61,15 @@ export function Footer() {
                             <ul className="mt-3 space-y-2">
                                 {column.links.map((l) => (
                                     <li key={l.href}>
-                                        <Link href={l.href} className="hover:text-foreground">
-                                            {l.label}
-                                        </Link>
+                                        {"file" in l && l.file ? (
+                                            <a href={l.href} className="hover:text-foreground">
+                                                {l.label}
+                                            </a>
+                                        ) : (
+                                            <Link href={l.href} className="hover:text-foreground">
+                                                {l.label}
+                                            </Link>
+                                        )}
                                     </li>
                                 ))}
                             </ul>
