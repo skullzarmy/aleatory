@@ -18,7 +18,14 @@
  * asked to sign.
  */
 import type { DAppClient } from "@tezos-x/octez.connect-sdk";
-import { appendCode, deployGenerator, generatorFromDeploy, readCode, sealCode } from "./ops";
+import {
+    appendCode,
+    deployGenerator,
+    generatorFromDeploy,
+    isOurGenerator,
+    readCode,
+    sealCode,
+} from "./ops";
 import { buildPendingDocument, royaltiesToBps, type RoyaltySplit } from "@provider/metadata";
 import { detectParams } from "./detect";
 import { schemaForRecord } from "./params";
@@ -197,6 +204,15 @@ export async function uploadCode(
     codeBytes: Uint8Array,
     onProgress?: (p: UploadProgress) => void,
 ): Promise<{ chunks: number; sealHash: string | null }> {
+    // Before the wallet is asked for anything. An address that is not a
+    // generator our factory made is not one to offer an artist's code to,
+    // whatever produced it.
+    if (!(await isOurGenerator(generator))) {
+        throw new Error(
+            `${generator} was not deployed by an Aleatory factory, so nothing will be sent to it.`,
+        );
+    }
+
     const wanted = toHex(codeBytes);
     const current = await readCode(generator);
 
