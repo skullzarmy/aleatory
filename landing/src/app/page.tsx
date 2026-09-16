@@ -149,6 +149,13 @@ export default function LandingPage() {
                         >
                             The spec
                         </Out>
+                        {" · "}
+                        <Out
+                            href={tree("public/skill")}
+                            className="underline underline-offset-4 hover:text-foreground"
+                        >
+                            Agent skills
+                        </Out>
                     </p>
                 </section>
 
