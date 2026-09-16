@@ -25,6 +25,7 @@ import { InMemorySigner } from "@taquito/signer";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { feeFor } from "../provider/fees";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const networkArg = process.argv.find((_a, i) => process.argv[i - 1] === "--network");
@@ -146,7 +147,15 @@ async function main() {
         return;
     }
 
-    const op = await factory.methodsObject.deploy(params).send();
+    // Estimation gives the gas and storage an operation needs; it does not
+    // give a fee a baker will take. The floor is charged against the limits
+    // declared, so the fee follows from them here rather than from the
+    // library, which under-pays and leaves the operation in the mempool.
+    const op = await factory.methodsObject.deploy(params).send({
+        gasLimit: est.gasLimit,
+        storageLimit: est.storageLimit,
+        fee: feeFor({ gas: est.gasLimit, bytes: est.storageLimit }),
+    });
     console.log(`\n  injected ${op.hash}, confirming...`);
     await op.confirmation();
 
@@ -166,7 +175,11 @@ async function main() {
 
     const collection = await tezos.contract.at(address);
     console.log(`\nUnpausing and buying one piece...`);
-    await (await collection.methodsObject.set_paused(false).send()).confirmation();
+    await (
+        await collection.methodsObject
+            .set_paused(false)
+            .send({ gasLimit: 30_000, storageLimit: 100, fee: feeFor({ gas: 30_000, bytes: 200 }) })
+    ).confirmation();
 
     const total = price + Number(renderGas);
     const buyEst = await tezos.estimate.transfer(
@@ -178,7 +191,13 @@ async function main() {
     console.log(`  mint gas           ${buyEst.gasLimit}`);
     console.log(`  paid on top of price + render gas  <- what a mint costs a collector`);
 
-    const buyOp = await collection.methodsObject.buy("").send({ amount: total, mutez: true });
+    const buyOp = await collection.methodsObject.buy("").send({
+        amount: total,
+        mutez: true,
+        gasLimit: buyEst.gasLimit,
+        storageLimit: buyEst.storageLimit,
+        fee: feeFor({ gas: buyEst.gasLimit, bytes: buyEst.storageLimit }),
+    });
     console.log(`  injected ${buyOp.hash}, confirming...`);
     await buyOp.confirmation();
     console.log(`  ✓ token 0 minted. Its seed is this operation hash:`);

@@ -3,6 +3,7 @@ import type { DAppClient, TezosOperationType } from "@tezos-x/octez.connect-sdk"
 import { rpcUrl, tzktApi } from "./config";
 import { addresses, allFactories, currentFactory } from "./router";
 import { indexerFetch } from "./tzkt";
+import { feeFor } from "@provider/fees";
 
 interface OpResult {
     hash: string;
@@ -54,28 +55,6 @@ const LIST: Limits = { gas: 120_000, storage: 1_000 };
 const ORIGINATION_OVERHEAD_BYTES = 20_000;
 
 /**
- * Branch, source, counter, the three limits, destination, entrypoint tag and
- * the signature. None of it is in the parameter, and all of it is charged.
- */
-const ENVELOPE_BYTES = 512;
-
-/**
- * Over the floor on purpose.
- *
- * Paying under it is silent in the worst way: the operation injects, the wallet
- * returns a hash, and it sits in the mempool as `fees_too_low` until it is
- * dropped. Nothing in the app can see that, so the artist watches a hash that
- * will never settle. A deploy carrying 21KB was refused sixty mutez short
- * because the byte term guessed the payload and forgot the envelope.
- *
- * The margin costs a fraction of a millitez. Being under costs a publish.
- */
-function feeFor(limits: Limits): number {
-    const bytes = (limits.bytes ?? 500) + ENVELOPE_BYTES;
-    return Math.ceil((100 + limits.gas * 0.1 + bytes) * 1.1);
-}
-
-/**
  * The parameter's real serialized length, rather than a guess at it.
  *
  * The fee floor is charged per byte of the operation, and a generator's deploy
@@ -103,7 +82,7 @@ const detail = (c: Call) => {
         destination: c.destination,
         amount: String(c.amountMutez ?? 0),
         parameters: { entrypoint: c.entrypoint, value: c.value as never },
-        fee: String(feeFor(limits)),
+        fee: String(feeFor({ gas: limits.gas, bytes: limits.bytes ?? 500 })),
         gas_limit: String(limits.gas),
         storage_limit: String(limits.storage),
     } as never;

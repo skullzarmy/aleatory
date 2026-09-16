@@ -24,6 +24,7 @@ const PROVIDER_ADDRESS = process.env.ALEA_PROVIDER_ADDRESS || "";
 const AGENT_SK = process.env.ALEA_AGENT_SK || "";
 import { render as renderPiece, renderConfigFromEnv } from "./render.mts";
 import { buildPieceDocument } from "./metadata";
+import { feeFor } from "./fees";
 import { parseLibraries, resolveLibraries, type DeclaredLibrary } from "./libraries.mts";
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
@@ -555,7 +556,8 @@ async function ensureRevealed(tezos: TezosToolkit, s: InMemorySigner): Promise<v
         {
             kind: "reveal",
             source: pkh,
-            fee: "1000",
+            // A public key and the envelope, nothing else.
+            fee: String(feeFor({ gas: 5_000, bytes: 100 })),
             counter: String(counter + 1),
             gas_limit: "5000",
             storage_limit: "0",
@@ -595,8 +597,11 @@ async function publish(piece: PendingPiece, metadataUri: string): Promise<string
     // Paying under it injects, returns a hash, and sits in the mempool until it
     // expires.
     const GAS_LIMIT = 10_000;
+    // The parameter: a token id and an IPFS URI. `feeFor` adds the envelope
+    // and the margin, so this is the payload alone and not a guess at the
+    // whole operation.
     const BYTES = 400;
-    const fee = 100 + Math.ceil(GAS_LIMIT * 0.1) + BYTES + 200;
+    const fee = feeFor({ gas: GAS_LIMIT, bytes: BYTES });
 
     const op = await call.send({ gasLimit: GAS_LIMIT, storageLimit: 300, fee });
 

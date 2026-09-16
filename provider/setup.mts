@@ -16,6 +16,7 @@
  * that has never revealed looks configured and is not.
  */
 import dotenv from "dotenv";
+import { feeFor } from "./fees";
 dotenv.config();
 
 const { TezosToolkit } = await import("@taquito/taquito");
@@ -119,7 +120,8 @@ if (needsReveal) {
         {
             kind: "reveal",
             source: agentAddress,
-            fee: "1000",
+            // A public key and the envelope, nothing else.
+            fee: String(feeFor({ gas: 5_000, bytes: 100 })),
             counter: String(counter + 1),
             gas_limit: "5000",
             storage_limit: "0",

@@ -247,6 +247,29 @@ function auditLibraries() {
         );
     }
 
+    // The fee floor was worked out separately in the app, the provider, the
+    // admin console and two deploy scripts, and got a different answer each
+    // time. One of them under-paid and the operation sat refused in the
+    // mempool, which nothing downstream can see.
+    for (const path of [
+        "src/lib/ops.ts",
+        "provider/provider.mts",
+        "contract/deploy.ts",
+        "contract/deploy-collection.ts",
+    ]) {
+        const text = read(path);
+        check(
+            `${path} takes the fee floor from one place`,
+            /feeFor\(/.test(text) && !/100 \+ Math\.ceil\(/.test(text),
+            "a fee computed locally is one that drifts from the rule",
+        );
+        check(
+            `${path} declares a fee on every operation it sends`,
+            !/\.send\(\)/.test(text),
+            "an estimated fee is refused on this chain, silently",
+        );
+    }
+
     check(
         "the cover is captured with the libraries the document declares",
         /<CoverPicker[\s\S]{0,400}?deps=/.test(deploy),

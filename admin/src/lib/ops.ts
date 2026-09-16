@@ -1,5 +1,6 @@
 import type { DAppClient } from "@tezos-x/octez.connect-sdk";
 import { rpcUrl } from "./config";
+import { feeFor } from "./fees";
 
 /**
  * Every privileged action, described once and sent two ways.
@@ -74,10 +75,10 @@ export async function encode(
     return parameter;
 }
 
-/** A baker's floor: ~100 + 0.1 per gas unit + 1 per byte, in mutez. */
 const GAS = 100_000;
 const STORAGE = 1_000;
-const FEE = 100 + Math.ceil(GAS * 0.1) + 500;
+/** The parameter alone: an address, a flag, a price. `feeFor` adds the rest. */
+const FEE = feeFor({ gas: GAS, bytes: 500 });
 
 /** Sink one: through the wallet in this browser, now. */
 export async function signNow(client: DAppClient, op: AdminOp): Promise<OpResult> {
