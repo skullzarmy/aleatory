@@ -193,7 +193,17 @@ async function confirmBytes(generator: string, expected: number, timeoutMs = 180
         await new Promise((r) => setTimeout(r, 3_000));
         const { hex } = await readCode(generator).catch(() => ({ hex: "" }));
         const have = hex.length / 2;
-        if (have >= expected) return have;
+        if (have === expected) return have;
+        // More than was sent means a chunk landed twice: an operation that was
+        // still in flight when this resumed, applied after the offset was read.
+        // `code` is append-only, so there is nothing to undo. Stopping here at
+        // least leaves it unsealed, which is a generator that cannot mint
+        // rather than one that mints a piece nobody can render.
+        if (have > expected) {
+            throw new Error(
+                `${generator} holds ${have} bytes where ${expected} were sent. A chunk was applied twice and the code cannot be unwritten, so it has not been sealed. Publish again as a new generator.`,
+            );
+        }
     }
     throw new Error("A chunk was signed but has not been included yet. Resume to continue.");
 }
@@ -243,6 +253,17 @@ export async function uploadCode(
         // counter, and `code` is append-only, so a chunk that lands twice or
         // out of order cannot be taken back.
         onChain = await confirmBytes(generator, onChain + slice.length);
+    }
+
+    // Sealing is the irreversible step and, for anything walked, the contract
+    // cannot check it: `seal_code` verifies the hash only for `identity`, and
+    // everything large enough to be walked was gzipped on the way. So the last
+    // word on whether these are the right bytes is here.
+    const final = await readCode(generator);
+    if (final.hex !== wanted) {
+        throw new Error(
+            `${generator} does not hold the bytes that were sent, so it has not been sealed. Publish again as a new generator.`,
+        );
     }
 
     const { hash } = await sealCode(client, generator);
