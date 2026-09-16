@@ -65,6 +65,17 @@ can be wrong, and this one is derived fresh every pass.
 
 Poll on a clock. Fifteen seconds is a reasonable interval.
 
+**Skip a generator whose `art.code_sealed` is false.** A generator larger than
+one operation is written to the chain a chunk at a time, and until it seals its
+`art.code` is a prefix of the real source. It cannot mint in that state, so
+there is nothing legitimate to draw, but an artist publishing a second
+generator from the same draft can leave one sitting there. Reading it would
+mean hashing a partial file and rendering something that is not the artwork.
+
+**Verify `art.code_hash` against the source you decoded** before you run it,
+whether it came from storage or a pointer. That is the check that makes the
+skip above redundant rather than load-bearing.
+
 ## What a render must be
 
 The image is the artwork's canonical form, so the same piece has to produce the

@@ -90,6 +90,7 @@ Each directory has its own README explaining what it holds and why.
 | Running a render provider | [provider.md](docs/provider.md) |
 | Understanding how it fits together | [architecture.md](docs/architecture.md) |
 | Deploying your own instance | [deploying.md](docs/deploying.md) |
+| An agent, or working with one | [Agent skills](public/skill/SKILL.md), served at `/skill/SKILL.md` |
 
 ## Working on it
 

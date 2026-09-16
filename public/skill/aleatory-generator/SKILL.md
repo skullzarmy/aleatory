@@ -62,7 +62,14 @@ differently for different people, and the failure only shows after minting:
 
 ## Size
 
-The whole file fits in one Tezos operation: **32,768 bytes**.
+A Tezos operation is capped at **32,768 bytes**, and a file under that is
+published in one signature. Storage has no such cap, so a larger file is not a
+problem: it is deployed empty and written to the chain a chunk at a time, one
+signature each, closing with a seal. Size costs signatures and storage burn,
+never the on-chain guarantee.
+
+Keep it small anyway. Every byte is burn the artist pays, and `gzip` is applied
+for you when it helps.
 
 ## Declaring a library
 
@@ -237,7 +244,7 @@ alea.ready();
 - Every random value comes from `alea`
 - Nothing time-derived or screen-derived affects the drawing
 - Any library declared with an exact version, loading from a script tag
-- Under 32,768 bytes
+- As small as it can be; over 32,768 bytes simply costs more signatures
 - Opening it twice with the same seed gives the same image
 
 This file is self-contained. The site it came from serves starter kits at
