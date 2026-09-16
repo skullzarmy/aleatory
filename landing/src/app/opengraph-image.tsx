@@ -3,18 +3,23 @@ import { BRAND } from "@/lib/config";
 import { renderLogo } from "@/lib/logo";
 
 /**
- * The card any page falls back to: the pages that are not a picture, and a
- * piece whose render has not landed. Everything else has a PNG pinned already.
+ * The card this address shows when somebody shares it.
  *
- * Drawn rather than served from a file, so it follows the brand without anyone
- * re-exporting a PNG.
+ * Without one, the `summary_large_image` this page asks for renders as a large
+ * empty box, which is worse than no card at all: the link that goes furthest is
+ * the one an artist posts to say they are building here.
+ *
+ * Drawn rather than exported, so it carries the brand without anyone
+ * maintaining a PNG. Matches the app's own card, since these are two views of
+ * one thing.
  */
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = `${BRAND.name} — ${BRAND.tagline}`;
+export const alt = `${BRAND.name}, ${BRAND.tagline}`;
 
 export default function Image() {
-    // Inlined as a data URI: satori renders this card and cannot fetch.
+    // The same mark the page draws, inlined as a data URI because the card is
+    // rendered by satori and cannot fetch anything.
     const mark = `data:image/svg+xml;base64,${Buffer.from(
         renderLogo({ size: 180, stroke: "#fafafa", label: "" }),
     ).toString("base64")}`;
@@ -27,7 +32,7 @@ export default function Image() {
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
-                background: "#17191c",
+                background: "#17181c",
                 color: "#fafafa",
                 padding: 72,
                 fontFamily: "sans-serif",
@@ -39,9 +44,7 @@ export default function Image() {
                 <div style={{ fontSize: 84, fontWeight: 700, letterSpacing: -2 }}>{BRAND.name}</div>
                 <div style={{ fontSize: 38, color: "#a1a1aa", maxWidth: 900 }}>{BRAND.tagline}</div>
             </div>
-            <div style={{ fontSize: 26, color: "#a1a1aa" }}>
-                A piece is code plus a seed bound to the operation that bought it.
-            </div>
+            <div style={{ fontSize: 26, color: "#a1a1aa" }}>Opening soon. Artists welcome now.</div>
         </div>,
         size,
     );
