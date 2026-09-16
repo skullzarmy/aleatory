@@ -20,7 +20,7 @@ const COLUMNS = [
         heading: "Build",
         links: [
             { href: "/templates", label: "Starter kits" },
-            { href: "/docs/interface", label: "ALEATORY-001" },
+            { href: "/docs", label: "Docs" },
             { href: "/providers", label: "Render providers" },
             // A file, not a route, so it is fetched rather than navigated to.
             { href: "/skill/SKILL.md", label: "Agent skills", file: true },

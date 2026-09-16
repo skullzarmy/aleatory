@@ -1,8 +1,6 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { Metadata } from "next";
-import { BRAND } from "@/lib/config";
-import { renderMarkdown } from "@/lib/markdown";
+import Link from "next/link";
+import { DocPage } from "@/components/docs/DocPage";
 
 export const metadata: Metadata = {
     alternates: { canonical: "/docs/interface" },
@@ -19,53 +17,18 @@ export const metadata: Metadata = {
 
 // Renders docs/interface.md directly, so there's one copy of the spec and it can't
 // drift from the one in the repo.
-export default async function InterfacePage() {
-    const source = await readFile(join(process.cwd(), "docs", "interface.md"), "utf8");
-    const { html, headings } = renderMarkdown(source);
-    const sections = headings.filter((h) => h.depth === 2);
-
+export default function InterfacePage() {
     return (
-        <div className="mx-auto max-w-6xl px-4 py-8">
-            <div className="gap-10 lg:flex">
-                {sections.length > 0 && (
-                    <nav className="mb-8 shrink-0 lg:sticky lg:top-24 lg:mb-0 lg:h-fit lg:w-56">
-                        <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-                            Contents
-                        </p>
-                        <ul className="space-y-1.5">
-                            {sections.map((h) => (
-                                <li key={h.id}>
-                                    <a
-                                        href={`#${h.id}`}
-                                        className="block text-xs leading-snug text-muted-foreground hover:text-foreground"
-                                    >
-                                        {h.text}
-                                    </a>
-                                </li>
-                            ))}
-                        </ul>
-                    </nav>
-                )}
-
-                <article className="min-w-0 max-w-3xl">
-                    {/* Trusted input: a file in this repository, rendered by
-                        our own renderer, which escapes everything it reads. */}
-                    <div dangerouslySetInnerHTML={{ __html: html }} />
-
-                    <p className="mt-12 border-t border-border pt-6 text-xs text-muted-foreground">
-                        This document is{" "}
-                        <a
-                            href={`${BRAND.repo}/blob/main/docs/interface.md`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="underline hover:text-foreground"
-                        >
-                            docs/interface.md
-                        </a>{" "}
-                        in the repository. Our contracts are one implementation of it.
-                    </p>
-                </article>
-            </div>
-        </div>
+        <DocPage file="interface.md">
+            <Link href="/docs/params" className="underline hover:text-foreground">
+                Parameters
+            </Link>
+            <Link href="/docs/libraries" className="underline hover:text-foreground">
+                Libraries
+            </Link>
+            <Link href="/docs/provider" className="underline hover:text-foreground">
+                Running a provider
+            </Link>
+        </DocPage>
     );
 }
