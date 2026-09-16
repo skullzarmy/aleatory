@@ -96,12 +96,18 @@ export default async function PiecePage({ params }: { params: Params }) {
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
                 <div className="min-w-0">
                     {/* Params must be passed, or the frame renders the generator's fallbacks
-                        instead of the piece on the token. */}
+                        instead of the piece on the token.
+
+                        No image while it is pending. The pending document
+                        carries the generator's cover as its `displayUri`, so
+                        `imageUrl` at this point is a picture of a different
+                        piece, and showing it under this token's name says it is
+                        this one. */}
                     <ArtifactFrame
                         code={piece.code}
                         seed={piece.seed}
                         params={pieceParams(piece.params)}
-                        imageUrl={piece.imageUrl}
+                        imageUrl={piece.pending ? undefined : piece.imageUrl}
                         name={piece.name}
                     />
                 </div>
