@@ -25,11 +25,16 @@ function loadSDK(): Promise<SDKModule> {
     return sdkPromise;
 }
 
+/**
+ * The network handed to the SDK, named by the SDK's own `NetworkType` for the
+ * chain. The connect dialog looks a web wallet's address up as
+ * `links[network.type]`, and no wallet publishes a `custom` entry, so CUSTOM
+ * resolves to `links.mainnet` and sends a shadownet operator to the mainnet
+ * wallet.
+ */
 function buildNetwork(sdk: SDKModule) {
-    if (NETWORK === "mainnet") return { type: sdk.NetworkType.MAINNET };
     return {
-        type: sdk.NetworkType.CUSTOM,
-        name: NETWORK.charAt(0).toUpperCase() + NETWORK.slice(1),
+        type: NETWORK === "mainnet" ? sdk.NetworkType.MAINNET : sdk.NetworkType.SHADOWNET,
         rpcUrl: RPC_URL[NETWORK],
     };
 }
@@ -42,17 +47,11 @@ let onActiveAccount: ((address: string | null) => void) | null = null;
  * addresses do not exist on another chain, so signing there is rejected in a
  * way that reads as a broken deployment.
  */
-function matchesNetwork(
-    account: { network?: { type?: string; rpcUrl?: string } } | null,
-): boolean {
+function matchesNetwork(account: { network?: { type?: string } } | null): boolean {
     if (!account?.network) return false;
-    const want = NETWORK === "mainnet" ? "mainnet" : "custom";
-    if ((account.network.type ?? "").toLowerCase() !== want) return false;
-    if (want === "custom") {
-        const theirs = (account.network.rpcUrl ?? "").replace(/\/+$/, "");
-        if (theirs !== RPC_URL[NETWORK].replace(/\/+$/, "")) return false;
-    }
-    return true;
+    // The named type identifies the chain on its own, so the RPC is not
+    // compared: a wallet is free to report the node it actually used.
+    return (account.network.type ?? "").toLowerCase() === NETWORK;
 }
 
 /**

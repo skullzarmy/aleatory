@@ -29,11 +29,19 @@ const RPC: Record<string, string> = {
     mainnet: "https://rpc.tzkt.io/mainnet",
 };
 
+/**
+ * The network handed to the SDK, named by the SDK's own `NetworkType` for the
+ * chain. The connect dialog looks a web wallet's address up as
+ * `links[network.type]`, and no wallet publishes a `custom` entry, so CUSTOM
+ * resolves to `links.mainnet` and sends a shadownet visitor to
+ * wallet.kukai.app.
+ *
+ * The values are the same strings as ours, "shadownet" and "mainnet", which is
+ * what `matchesNetwork` below compares against.
+ */
 function buildNetwork(sdk: SDKModule) {
-    if (NETWORK === "mainnet") return { type: sdk.NetworkType.MAINNET };
     return {
-        type: sdk.NetworkType.CUSTOM,
-        name: NETWORK.charAt(0).toUpperCase() + NETWORK.slice(1),
+        type: NETWORK === "mainnet" ? sdk.NetworkType.MAINNET : sdk.NetworkType.SHADOWNET,
         rpcUrl: RPC[NETWORK],
     };
 }
@@ -102,17 +110,11 @@ interface WalletState {
  * network and all. The symptom is `non_existing_contract` for a contract that
  * exists on the other chain, and the other dApp's name on the confirm screen.
  */
-function matchesNetwork(account: { network?: { type?: string; rpcUrl?: string } } | null): boolean {
+function matchesNetwork(account: { network?: { type?: string } } | null): boolean {
     if (!account?.network) return false;
-    const want = NETWORK === "mainnet" ? "mainnet" : "custom";
-    if ((account.network.type ?? "").toLowerCase() !== want) return false;
-    // A custom network is only as specific as its RPC, so compare that too.
-    if (want === "custom") {
-        const theirs = (account.network.rpcUrl ?? "").replace(/\/+$/, "");
-        const ours = RPC[NETWORK].replace(/\/+$/, "");
-        if (theirs !== ours) return false;
-    }
-    return true;
+    // The named type identifies the chain on its own, so the RPC is not
+    // compared: a wallet is free to report the node it actually used.
+    return (account.network.type ?? "").toLowerCase() === NETWORK;
 }
 
 const WalletContext = createContext<WalletState | null>(null);
