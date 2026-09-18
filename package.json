@@ -79,13 +79,13 @@
         "tailwind-merge": "^2.6.0"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.5.11",
+        "@biomejs/biome": "^2.5.13",
         "@netlify/plugin-nextjs": "^5.9.4",
         "@taquito/signer": "^25.0.0",
         "@types/node": "^22.10.5",
         "@types/react": "^19.0.7",
         "@types/react-dom": "^19.0.3",
-        "autoprefixer": "^10.4.20",
+        "autoprefixer": "^10.6.0",
         "concurrently": "^9.2.4",
         "dotenv": "^16.4.5",
         "postcss": "^8.5.1",
