@@ -92,6 +92,26 @@ async function getClient(): Promise<DAppClient> {
     return client;
 }
 
+/**
+ * Drop a session and start over with a clean client. Clearing the active
+ * account on its own leaves the transport and peer in place, so the next
+ * request talks to a dead link and falls back to the P2P relay, which answers
+ * "no server responded" instead of opening the wallet.
+ */
+async function resetClient(c: DAppClient): Promise<void> {
+    try {
+        await c.clearActiveAccount();
+    } catch {
+        /* already gone */
+    }
+    try {
+        await (c as unknown as { destroy?: () => Promise<void> }).destroy?.();
+    } catch {
+        /* older SDKs have no destroy */
+    }
+    client = null;
+}
+
 interface WalletState {
     address: string | null;
     connecting: boolean;
@@ -133,9 +153,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             try {
                 const c = await getClient();
                 const account = await c.getActiveAccount();
-                if (!cancelled && account && matchesNetwork(account)) {
-                    setAddress(account.address);
+                if (account && !matchesNetwork(account)) {
+                    // Someone else's session, or one from before a network
+                    // change. Left in place it is found again on every connect.
+                    await resetClient(c);
+                    if (!cancelled) setAddress(null);
+                    return;
                 }
+                if (!cancelled) setAddress(account?.address ?? null);
             } catch {
                 /* a broken session behaves as no session */
             }
@@ -156,18 +181,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 setAddress(existing.address);
                 return;
             }
+            let active = c;
+            if (existing) {
+                // Connected to the wrong chain, so ask again.
+                await resetClient(c);
+                active = await getClient();
+            }
             const sdk = await loadSDK();
             try {
-                await c.requestPermissions({
+                await active.requestPermissions({
                     scopes: [sdk.PermissionScope.OPERATION_REQUEST],
                 });
             } catch (e) {
                 // Some of what this rejects with is bookkeeping the SDK does
                 // alongside the request, so ask whether an account arrived.
-                const account = await c.getActiveAccount().catch(() => null);
+                const account = await active.getActiveAccount().catch(() => null);
                 if (!account) throw e;
             }
-            const account = await c.getActiveAccount();
+            const account = await active.getActiveAccount();
             setAddress(account?.address ?? null);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Could not connect");
