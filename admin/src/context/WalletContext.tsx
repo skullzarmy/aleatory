@@ -39,6 +39,17 @@ function buildNetwork(sdk: SDKModule) {
     };
 }
 
+/**
+ * Which wallets fill the four slots the dialog offers before "Show more". The
+ * SDK defaults to ["kukai", "temple", "plenty", "umami"], and no wallet in the
+ * registry has a key beginning "plenty", so that slot falls through to the
+ * first of the remainder in alphabetical order, which is AirGap. AirGap
+ * resolves no network configuration for shadownet, so a visitor who picks it
+ * reaches a wallet that cannot complete the connection. Naming a fourth wallet
+ * that works here leaves AirGap reachable under "Show more".
+ */
+const FEATURED_WALLETS = ["kukai", "temple", "umami", "metamask"];
+
 let client: DAppClient | null = null;
 let onActiveAccount: ((address: string | null) => void) | null = null;
 
@@ -84,7 +95,11 @@ async function warmStorage(c: DAppClient): Promise<void> {
 async function getClient(): Promise<DAppClient> {
     if (client) return client;
     const sdk = await loadSDK();
-    client = new sdk.DAppClient({ name: BRAND.name, network: buildNetwork(sdk) });
+    client = new sdk.DAppClient({
+        name: BRAND.name,
+        network: buildNetwork(sdk),
+        featuredWallets: FEATURED_WALLETS,
+    });
     await client.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
         onActiveAccount?.(account && matchesNetwork(account) ? account.address : null);
     });
