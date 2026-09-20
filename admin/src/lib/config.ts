@@ -3,8 +3,7 @@
 
 export type Network = "shadownet" | "mainnet";
 
-export const NETWORK: Network =
-    (process.env.NEXT_PUBLIC_TEZOS_NETWORK as Network) || "shadownet";
+export const NETWORK: Network = (process.env.NEXT_PUBLIC_TEZOS_NETWORK as Network) || "shadownet";
 
 export const RPC_URL: Record<Network, string> = {
     shadownet: "https://rpc.tzkt.io/shadownet",

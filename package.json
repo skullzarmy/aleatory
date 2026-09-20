@@ -96,7 +96,7 @@
         "typescript": "7.0.2"
     },
     "engines": {
-        "node": ">=18.18"
+        "node": ">=20.9"
     },
     "overrides": {
         "@walletconnect/core": ">=2.23.6",

@@ -5,6 +5,8 @@
         "includes": [
             "src/**/*.ts",
             "src/**/*.tsx",
+            "admin/src/**/*.ts",
+            "admin/src/**/*.tsx",
             "landing/src/**/*.ts",
             "landing/src/**/*.tsx",
             "bot/**/*.ts",

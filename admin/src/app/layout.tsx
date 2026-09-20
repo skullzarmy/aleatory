@@ -28,9 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <header className="border-b border-line">
                         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
                             <div className="flex items-baseline gap-3">
-                                <span className="font-semibold tracking-tight">
-                                    {BRAND.name}
-                                </span>
+                                <span className="font-semibold tracking-tight">{BRAND.name}</span>
                                 {/* Which chain this is pointed at, always on
                                     screen. The controls look identical on
                                     shadownet and mainnet and do not have

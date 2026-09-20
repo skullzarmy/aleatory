@@ -145,15 +145,13 @@ export function Action({
                 <button type="button" className="btn" onClick={() => setConfirming(true)}>
                     {op.label}
                 </button>
-                {!permissionless && (
-                    <span className="text-xs text-dim">{KEY[op.authority]}</span>
-                )}
+                {!permissionless && <span className="text-xs text-dim">{KEY[op.authority]}</span>}
             </div>
 
             {!maySign && holderIsContract && (
                 <p className="text-xs text-dim">
-                    <Who holder={holder!} /> is a contract and cannot sign in a browser.
-                    Export the call for it to run.
+                    <Who holder={holder!} /> is a contract and cannot sign in a browser. Export the
+                    call for it to run.
                 </p>
             )}
             {!maySign && !holderIsContract && !address && (
@@ -166,8 +164,8 @@ export function Action({
             )}
             {!maySign && !holderIsContract && address && holder && (
                 <p className="text-xs text-warn">
-                    Only <Who holder={holder} /> can send this. Switch to that account in
-                    your wallet.
+                    Only <Who holder={holder} /> can send this. Switch to that account in your
+                    wallet.
                 </p>
             )}
             {error && <p className="text-sm text-bad">{error}</p>}
@@ -177,12 +175,7 @@ export function Action({
 
 function Who({ holder }: { holder: string }) {
     return (
-        <a
-            href={tzktLink(holder)}
-            target="_blank"
-            rel="noreferrer"
-            className="font-mono underline"
-        >
+        <a href={tzktLink(holder)} target="_blank" rel="noreferrer" className="font-mono underline">
             {shortAddress(holder)}
         </a>
     );

@@ -65,9 +65,7 @@ export default async function Dashboard() {
     const retired = router
         ? (
               await Promise.all(
-                  router.marketplaces
-                      .slice(1)
-                      .map((a) => fetchMarketplace(a).catch(() => null)),
+                  router.marketplaces.slice(1).map((a) => fetchMarketplace(a).catch(() => null)),
               )
           ).filter((m): m is NonNullable<typeof m> => m !== null)
         : [];
@@ -123,9 +121,7 @@ export default async function Dashboard() {
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div>
                             <Row label="Contract balance">{tez(marketplace.balance)}</Row>
-                            <Row label="Platform fees accrued">
-                                {tez(marketplace.feesAccrued)}
-                            </Row>
+                            <Row label="Platform fees accrued">{tez(marketplace.feesAccrued)}</Row>
                             <Row label={`Escrowed in ${marketplace.activeOffers} offer(s)`}>
                                 {tez(marketplace.escrowed)}
                             </Row>
@@ -202,7 +198,6 @@ export default async function Dashboard() {
                             contract={marketplace.address}
                         />
                     </div>
-
                 </Card>
             )}
 
@@ -220,7 +215,9 @@ export default async function Dashboard() {
                             <Row label="Balance">{tez(factory.balance)}</Row>
                             <Row label="Fees accrued">{tez(factory.feesAccrued)}</Row>
                             <Row label="Unaccounted for">
-                                <span className={factory.unaccounted === 0 ? "text-ok" : "text-bad"}>
+                                <span
+                                    className={factory.unaccounted === 0 ? "text-ok" : "text-bad"}
+                                >
                                     {tez(factory.unaccounted)}
                                     {factory.unaccounted === 0 && " ✓"}
                                 </span>
@@ -315,9 +312,8 @@ export default async function Dashboard() {
                         </Row>
                     )}
                     <p className="text-xs text-dim">
-                        {router.factories.length} factories registered, newest first. Only
-                        the first is live; the rest stay so generators they deployed
-                        remain resolvable.
+                        {router.factories.length} factories registered, newest first. Only the first
+                        is live; the rest stay so generators they deployed remain resolvable.
                     </p>
 
                     <div className="space-y-4 border-t border-line pt-4">
@@ -426,8 +422,8 @@ function ProviderCard({
         return (
             <Card title="Render provider" subtitle="Not configured.">
                 <p className="text-sm text-dim">
-                    Set <code className="font-mono">NEXT_PUBLIC_PROVIDER_ADDRESS</code> to the
-                    KT1 of the provider you operate.
+                    Set <code className="font-mono">NEXT_PUBLIC_PROVIDER_ADDRESS</code> to the KT1
+                    of the provider you operate.
                 </p>
             </Card>
         );
@@ -524,9 +520,7 @@ async function RetiredMarketplaces({ addresses }: { addresses: string[] }) {
                     </Row>
                     <Row label="Balance">{tez(m.balance)}</Row>
                     <Row label="Fees accrued">{tez(m.feesAccrued)}</Row>
-                    <Row label={`Escrowed in ${m.activeOffers} offer(s)`}>
-                        {tez(m.escrowed)}
-                    </Row>
+                    <Row label={`Escrowed in ${m.activeOffers} offer(s)`}>{tez(m.escrowed)}</Row>
                     <Row label="Active listings">{m.activeListings}</Row>
                     <Row label="Unaccounted for">
                         <span className={m.unaccounted === 0 ? "text-ok" : "text-bad"}>
@@ -538,9 +532,7 @@ async function RetiredMarketplaces({ addresses }: { addresses: string[] }) {
                     <div className="mt-3">
                         <Action
                             op={withdrawMarketplaceFees(m.address)}
-                            unavailable={
-                                m.feesAccrued === 0 ? "No fees left here." : undefined
-                            }
+                            unavailable={m.feesAccrued === 0 ? "No fees left here." : undefined}
                         />
                     </div>
                 </div>
