@@ -6,33 +6,57 @@
  * Parsed with TypeScript's own parser: indentation says nothing about scope,
  * and a nested component has its own hook order.
  *
+ * TypeScript 7 is the native compiler and its default export is the version
+ * string. The parser did not go away, it moved behind `typescript/unstable`,
+ * and it is reached through a project rather than by parsing a file on its own:
+ * open the tsconfig, ask the program for the file. The node guards and
+ * `forEachChild` are the same as they ever were.
+ *
+ * `unstable` is the word in the path and it is meant: these entry points can
+ * move. When they do, this file is where it hurts, and the check it performs is
+ * worth that.
+ *
  * Run: npx tsx src/lib/hooks.test.ts
  */
-import ts from "typescript";
+import { API } from "typescript/unstable/sync";
+import * as is from "typescript/unstable/ast/is";
+import type { Node } from "typescript/unstable/ast";
 import { globSync, readFileSync } from "node:fs";
 
 const HOOK = /^use[A-Z]/;
 type Finding = { file: string; line: number; hook: string; why: string };
 const found: Finding[] = [];
 
+const api = new API({ cwd: process.cwd() });
+const snapshot = api.updateSnapshot({ openProjects: ["tsconfig.json"] });
+const program = snapshot.getProjects()[0]?.program;
+if (!program) throw new Error("tsconfig.json opened no project, so nothing was checked.");
+
 for (const file of globSync("src/**/*.tsx")) {
     const src = readFileSync(file, "utf8");
     if (!src.startsWith('"use client"')) continue;
-    const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const sf = program.getSourceFile(file);
+    // A client component the program does not hold is one this never looked
+    // at, which is a silent pass and the thing this file exists to prevent.
+    if (!sf) throw new Error(`${file} is not in the program, so it went unchecked.`);
+
+    // Bound here rather than reached for inside the walk: `walkBody` is hoisted,
+    // so the narrowing above does not follow `sf` into it.
+    const lineOf = (pos: number) => sf.getLineAndCharacterOfPosition(pos).line + 1;
 
     /** Walk a component body tracking whether we are past a return, or inside a branch. */
-    function walkBody(body: ts.Node, file: string) {
+    function walkBody(body: Node, file: string) {
         let returned = false;
-        const visit = (n: ts.Node, conditional: boolean) => {
+        const visit = (n: Node, conditional: boolean) => {
             // A nested function has its own hook scope.
-            if (ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n))
+            if (is.isFunctionDeclaration(n) || is.isFunctionExpression(n) || is.isArrowFunction(n))
                 return;
 
-            if (ts.isCallExpression(n)) {
-                const name = ts.isIdentifier(n.expression)
+            if (is.isCallExpression(n)) {
+                const name = is.isIdentifier(n.expression)
                     ? n.expression.text
-                    : ts.isPropertyAccessExpression(n.expression) &&
-                        ts.isIdentifier(n.expression.name)
+                    : is.isPropertyAccessExpression(n.expression) &&
+                        is.isIdentifier(n.expression.name)
                       ? n.expression.name.text
                       : "";
                 if (HOOK.test(name)) {
@@ -42,21 +66,20 @@ for (const file of globSync("src/**/*.tsx")) {
                           ? "inside a branch"
                           : "";
                     if (why) {
-                        const { line } = sf.getLineAndCharacterOfPosition(n.getStart());
                         found.push({
                             file: file.replace("src/", ""),
-                            line: line + 1,
+                            line: lineOf(n.getStart()),
                             hook: name,
                             why,
                         });
                     }
                 }
             }
-            if (ts.isReturnStatement(n) && !conditional) returned = true;
+            if (is.isReturnStatement(n) && !conditional) returned = true;
             // A return inside a branch still ends that path, and hooks after
             // the branch are fine, so only unconditional returns latch.
-            if (ts.isIfStatement(n) || ts.isConditionalExpression(n) || ts.isSwitchStatement(n)) {
-                if (ts.isIfStatement(n)) {
+            if (is.isIfStatement(n) || is.isConditionalExpression(n) || is.isSwitchStatement(n)) {
+                if (is.isIfStatement(n)) {
                     visit(n.expression, conditional);
                     n.thenStatement.forEachChild((c) => visit(c, true));
                     n.elseStatement?.forEachChild((c) => visit(c, true));
@@ -64,8 +87,8 @@ for (const file of globSync("src/**/*.tsx")) {
                     // makes everything after it conditional.
                     const t = n.thenStatement;
                     const bails =
-                        ts.isReturnStatement(t) ||
-                        (ts.isBlock(t) && t.statements.some((st) => ts.isReturnStatement(st)));
+                        is.isReturnStatement(t) ||
+                        (is.isBlock(t) && t.statements.some((st) => is.isReturnStatement(st)));
                     if (bails && !conditional) returned = true;
                     return;
                 }
@@ -79,22 +102,24 @@ for (const file of globSync("src/**/*.tsx")) {
 
     const isComponent = (name: string) => /^[A-Z]/.test(name);
     sf.forEachChild(function top(n) {
-        if (ts.isFunctionDeclaration(n) && n.name && isComponent(n.name.text) && n.body)
+        if (is.isFunctionDeclaration(n) && n.name && isComponent(n.name.text) && n.body)
             walkBody(n.body, file);
-        if (ts.isVariableStatement(n))
+        if (is.isVariableStatement(n))
             for (const d of n.declarationList.declarations)
                 if (
-                    ts.isIdentifier(d.name) &&
+                    is.isIdentifier(d.name) &&
                     isComponent(d.name.text) &&
                     d.initializer &&
-                    (ts.isArrowFunction(d.initializer) || ts.isFunctionExpression(d.initializer)) &&
+                    (is.isArrowFunction(d.initializer) || is.isFunctionExpression(d.initializer)) &&
                     d.initializer.body &&
-                    ts.isBlock(d.initializer.body)
+                    is.isBlock(d.initializer.body)
                 )
                     walkBody(d.initializer.body, file);
         n.forEachChild(top);
     });
 }
+
+api.close();
 
 if (found.length === 0) console.log("  every hook runs unconditionally, in every client component");
 for (const f of found)

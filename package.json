@@ -92,7 +92,7 @@
         "tailwindcss": "^3.4.1",
         "tailwindcss-animate": "^1.0.7",
         "tsx": "^4.19.2",
-        "typescript": "5.9.3"
+        "typescript": "7.0.2"
     },
     "engines": {
         "node": ">=18.18"
