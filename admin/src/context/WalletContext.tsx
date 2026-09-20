@@ -42,9 +42,7 @@ let onActiveAccount: ((address: string | null) => void) | null = null;
  * addresses do not exist on another chain, so signing there is rejected in a
  * way that reads as a broken deployment.
  */
-function matchesNetwork(
-    account: { network?: { type?: string; rpcUrl?: string } } | null,
-): boolean {
+function matchesNetwork(account: { network?: { type?: string; rpcUrl?: string } } | null): boolean {
     if (!account?.network) return false;
     const want = NETWORK === "mainnet" ? "mainnet" : "custom";
     if ((account.network.type ?? "").toLowerCase() !== want) return false;

@@ -100,7 +100,9 @@ async function run() {
     // round would send an address-shaped thing as an amount, or silently
     // withdraw a different number than was asked for.
     {
-        const { entrypoint, value } = await encode(withdrawRenderGas(provider, 1_234_567, marketplace));
+        const { entrypoint, value } = await encode(
+            withdrawRenderGas(provider, 1_234_567, marketplace),
+        );
         const v = value as { args?: { int?: string }[] };
         check("withdraw targets the right entrypoint", entrypoint === "withdraw", entrypoint);
         check(

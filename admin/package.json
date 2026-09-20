@@ -7,7 +7,6 @@
         "dev": "next dev --port 3100",
         "build": "next build",
         "start": "next start",
-        "lint": "next lint",
         "test": "npx tsx --env-file-if-exists=.env src/lib/ops.test.ts"
     },
     "dependencies": {
@@ -26,5 +25,8 @@
         "tailwindcss": "^3.4.1",
         "tsx": "^4.19.2",
         "typescript": "7.0.2"
+    },
+    "engines": {
+        "node": ">=20.9"
     }
 }

@@ -19,8 +19,7 @@ export function Amount(
 
     if (props.kind === "withdraw") {
         const mutez = Math.round(Number(value) * 1_000_000);
-        const valid =
-            Number.isFinite(mutez) && mutez > 0 && mutez <= props.max && ADDRESS.test(to);
+        const valid = Number.isFinite(mutez) && mutez > 0 && mutez <= props.max && ADDRESS.test(to);
 
         return (
             <div className="space-y-2">
@@ -55,7 +54,10 @@ export function Amount(
                     />
                 </label>
                 {valid ? (
-                    <Action op={withdrawRenderGas(props.provider, mutez, to)} holder={props.operator} />
+                    <Action
+                        op={withdrawRenderGas(props.provider, mutez, to)}
+                        holder={props.operator}
+                    />
                 ) : (
                     <p className="text-xs text-dim">
                         {props.max === 0
@@ -74,8 +76,8 @@ export function Amount(
             <div className="space-y-2">
                 <p className="label">Render gas per mint</p>
                 <p className="text-xs text-dim">
-                    Currently {tez(props.current)}. Generators snapshot this when the artist
-                    picks the provider, so a change reaches new generators only.
+                    Currently {tez(props.current)}. Generators snapshot this when the artist picks
+                    the provider, so a change reaches new generators only.
                 </p>
                 <label className="flex items-center gap-2 text-sm">
                     <input
@@ -99,10 +101,10 @@ export function Amount(
         <div className="space-y-2">
             <p className="label">Rotate the agent key</p>
             <p className="text-xs text-dim">
-                One operation revokes the current key everywhere. Generators ask this
-                contract for the live agent rather than trusting what they snapshotted, so
-                every generator using this provider follows immediately and no artist has to
-                act. This is the control to reach for if the daemon key leaks.
+                One operation revokes the current key everywhere. Generators ask this contract for
+                the live agent rather than trusting what they snapshotted, so every generator using
+                this provider follows immediately and no artist has to act. This is the control to
+                reach for if the daemon key leaks.
             </p>
             <label className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-dim">New agent</span>

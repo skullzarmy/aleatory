@@ -53,9 +53,7 @@ export interface OpResult {
  * SmartPy lays a record's fields out alphabetically, so a positional encoding
  * of `withdraw(amount, to_)` is right only by luck.
  */
-export async function encode(
-    op: AdminOp,
-): Promise<{ entrypoint: string; value: unknown }> {
+export async function encode(op: AdminOp): Promise<{ entrypoint: string; value: unknown }> {
     const { TezosToolkit } = await import("@taquito/taquito");
     const contract = await new TezosToolkit(rpcUrl()).contract.at(op.to);
     const methods = contract.methodsObject as unknown as Record<
@@ -179,9 +177,7 @@ export const setFactoryTreasury = (factory: string, treasury: string): AdminOp =
 });
 
 export const setFactoryPaused = (factory: string, paused: boolean): AdminOp => ({
-    label: paused
-        ? "Pause the factory: no new generators can be deployed"
-        : "Resume the factory",
+    label: paused ? "Pause the factory: no new generators can be deployed" : "Resume the factory",
     to: factory,
     entrypoint: "set_paused",
     args: paused,
@@ -235,11 +231,7 @@ export const setRenderGas = (provider: string, mutez: number): AdminOp => ({
     authority: "operator",
 });
 
-export const withdrawRenderGas = (
-    provider: string,
-    mutez: number,
-    to: string,
-): AdminOp => ({
+export const withdrawRenderGas = (provider: string, mutez: number, to: string): AdminOp => ({
     label: `Withdraw ${mutez} mutez of render gas to ${to}`,
     to: provider,
     entrypoint: "withdraw",
@@ -255,11 +247,7 @@ export const setAgent = (provider: string, agent: string): AdminOp => ({
     authority: "operator",
 });
 
-export const setProviderMetadata = (
-    provider: string,
-    key: string,
-    value: string,
-): AdminOp => ({
+export const setProviderMetadata = (provider: string, key: string, value: string): AdminOp => ({
     label: `Set provider metadata ${key || "(empty key)"}`,
     to: provider,
     entrypoint: "set_metadata",

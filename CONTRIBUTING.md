@@ -18,8 +18,9 @@ cp .env.example .env
 npm run dev
 ```
 
-Node 24, which is what `.nvmrc` names and what CI runs. `package.json` allows
-18.18 and up, so an older one will work for most things.
+Node 24, which is what `.nvmrc` names and what CI runs. `package.json` asks for
+20.9 and up, which is Next's floor; below it the install is accepted and the
+build is not.
 
 `.env` needs nothing filled in to browse the site. The addresses come from a
 router contract on chain, and the example file says which variables exist and
