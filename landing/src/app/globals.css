@@ -1,6 +1,11 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* The theme stays in the config file; v4 reads one when pointed at it. */
+@config "../../tailwind.config.ts";
+
+/* This page follows the system rather than a toggle, so the dark variant is
+   the media query and not a class. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
 body {
     font-family: "Anybody", sans-serif;

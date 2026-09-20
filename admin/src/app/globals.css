@@ -1,6 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* The theme stays in the config file; v4 reads one when pointed at it. */
+@config "../../tailwind.config.ts";
 
 /**
  * Dark only: a colour meaning "something is wrong" should look the same every

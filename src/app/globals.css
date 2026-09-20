@@ -1,6 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* The theme still lives in tailwind.config.ts. v4 reads a JS config when it is
+   pointed at one, and the palette there carries the contrast ratios that
+   brand.test.ts asserts, so it stays one file rather than being restated here
+   in `@theme`. */
+@config "../../tailwind.config.ts";
+
+/* `animate-in`, `fade-in-0`, `zoom-in-95` and the slide utilities, which the
+   dropdown and the tabs are built on. tailwindcss-animate was a v3 plugin;
+   this is its v4 replacement and the utility names are unchanged. */
+@import "tw-animate-css";
+
+/* v4 reads the dark variant from CSS rather than `darkMode: ["class"]`. The
+   toggle writes the class to <html>, so this has to match what it writes. */
+@custom-variant dark (&:where(.dark, .dark *));
 
 body {
     font-family: "Anybody", sans-serif;

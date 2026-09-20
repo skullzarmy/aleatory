@@ -1,7 +1,8 @@
 import type { Config } from "tailwindcss";
 
 export default {
-    darkMode: ["class"],
+    // The dark variant is declared in globals.css with `@custom-variant`,
+    // which is where v4 takes it from.
     content: [
         "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
         "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -96,5 +97,4 @@ export default {
             },
         },
     },
-    plugins: [require("tailwindcss-animate")],
 } satisfies Config;
