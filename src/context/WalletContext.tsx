@@ -29,14 +29,33 @@ const RPC: Record<string, string> = {
     mainnet: "https://rpc.tzkt.io/mainnet",
 };
 
+/**
+ * The network handed to the SDK, named by the SDK's own `NetworkType` for the
+ * chain. The connect dialog looks a web wallet's address up as
+ * `links[network.type]`, and no wallet publishes a `custom` entry, so CUSTOM
+ * resolves to `links.mainnet` and sends a shadownet visitor to
+ * wallet.kukai.app.
+ *
+ * The values are the same strings as ours, "shadownet" and "mainnet", which is
+ * what `matchesNetwork` below compares against.
+ */
 function buildNetwork(sdk: SDKModule) {
-    if (NETWORK === "mainnet") return { type: sdk.NetworkType.MAINNET };
     return {
-        type: sdk.NetworkType.CUSTOM,
-        name: NETWORK.charAt(0).toUpperCase() + NETWORK.slice(1),
+        type: NETWORK === "mainnet" ? sdk.NetworkType.MAINNET : sdk.NetworkType.SHADOWNET,
         rpcUrl: RPC[NETWORK],
     };
 }
+
+/**
+ * Which wallets fill the four slots the dialog offers before "Show more". The
+ * SDK defaults to ["kukai", "temple", "plenty", "umami"], and no wallet in the
+ * registry has a key beginning "plenty", so that slot falls through to the
+ * first of the remainder in alphabetical order, which is AirGap. AirGap
+ * resolves no network configuration for shadownet, so a visitor who picks it
+ * reaches a wallet that cannot complete the connection. Naming a fourth wallet
+ * that works here leaves AirGap reachable under "Show more".
+ */
+const FEATURED_WALLETS = ["kukai", "temple", "umami", "metamask"];
 
 let client: DAppClient | null = null;
 
@@ -49,7 +68,11 @@ let onActiveAccount: ((address: string | null) => void) | null = null;
 async function getClient(): Promise<DAppClient> {
     if (client) return client;
     const sdk = await loadSDK();
-    client = new sdk.DAppClient({ name: BRAND.name, network: buildNetwork(sdk) });
+    client = new sdk.DAppClient({
+        name: BRAND.name,
+        network: buildNetwork(sdk),
+        featuredWallets: FEATURED_WALLETS,
+    });
 
     // The wallet can change the active account without being asked, and nothing
     // here polls, so without this the page shows the old account until reload.
@@ -102,17 +125,11 @@ interface WalletState {
  * network and all. The symptom is `non_existing_contract` for a contract that
  * exists on the other chain, and the other dApp's name on the confirm screen.
  */
-function matchesNetwork(account: { network?: { type?: string; rpcUrl?: string } } | null): boolean {
+function matchesNetwork(account: { network?: { type?: string } } | null): boolean {
     if (!account?.network) return false;
-    const want = NETWORK === "mainnet" ? "mainnet" : "custom";
-    if ((account.network.type ?? "").toLowerCase() !== want) return false;
-    // A custom network is only as specific as its RPC, so compare that too.
-    if (want === "custom") {
-        const theirs = (account.network.rpcUrl ?? "").replace(/\/+$/, "");
-        const ours = RPC[NETWORK].replace(/\/+$/, "");
-        if (theirs !== ours) return false;
-    }
-    return true;
+    // The named type identifies the chain on its own, so the RPC is not
+    // compared: a wallet is free to report the node it actually used.
+    return (account.network.type ?? "").toLowerCase() === NETWORK;
 }
 
 const WalletContext = createContext<WalletState | null>(null);

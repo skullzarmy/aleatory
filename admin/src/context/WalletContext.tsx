@@ -25,14 +25,30 @@ function loadSDK(): Promise<SDKModule> {
     return sdkPromise;
 }
 
+/**
+ * The network handed to the SDK, named by the SDK's own `NetworkType` for the
+ * chain. The connect dialog looks a web wallet's address up as
+ * `links[network.type]`, and no wallet publishes a `custom` entry, so CUSTOM
+ * resolves to `links.mainnet` and sends a shadownet operator to the mainnet
+ * wallet.
+ */
 function buildNetwork(sdk: SDKModule) {
-    if (NETWORK === "mainnet") return { type: sdk.NetworkType.MAINNET };
     return {
-        type: sdk.NetworkType.CUSTOM,
-        name: NETWORK.charAt(0).toUpperCase() + NETWORK.slice(1),
+        type: NETWORK === "mainnet" ? sdk.NetworkType.MAINNET : sdk.NetworkType.SHADOWNET,
         rpcUrl: RPC_URL[NETWORK],
     };
 }
+
+/**
+ * Which wallets fill the four slots the dialog offers before "Show more". The
+ * SDK defaults to ["kukai", "temple", "plenty", "umami"], and no wallet in the
+ * registry has a key beginning "plenty", so that slot falls through to the
+ * first of the remainder in alphabetical order, which is AirGap. AirGap
+ * resolves no network configuration for shadownet, so a visitor who picks it
+ * reaches a wallet that cannot complete the connection. Naming a fourth wallet
+ * that works here leaves AirGap reachable under "Show more".
+ */
+const FEATURED_WALLETS = ["kukai", "temple", "umami", "metamask"];
 
 let client: DAppClient | null = null;
 let onActiveAccount: ((address: string | null) => void) | null = null;
@@ -42,17 +58,11 @@ let onActiveAccount: ((address: string | null) => void) | null = null;
  * addresses do not exist on another chain, so signing there is rejected in a
  * way that reads as a broken deployment.
  */
-function matchesNetwork(
-    account: { network?: { type?: string; rpcUrl?: string } } | null,
-): boolean {
+function matchesNetwork(account: { network?: { type?: string } } | null): boolean {
     if (!account?.network) return false;
-    const want = NETWORK === "mainnet" ? "mainnet" : "custom";
-    if ((account.network.type ?? "").toLowerCase() !== want) return false;
-    if (want === "custom") {
-        const theirs = (account.network.rpcUrl ?? "").replace(/\/+$/, "");
-        if (theirs !== RPC_URL[NETWORK].replace(/\/+$/, "")) return false;
-    }
-    return true;
+    // The named type identifies the chain on its own, so the RPC is not
+    // compared: a wallet is free to report the node it actually used.
+    return (account.network.type ?? "").toLowerCase() === NETWORK;
 }
 
 /**
@@ -85,12 +95,36 @@ async function warmStorage(c: DAppClient): Promise<void> {
 async function getClient(): Promise<DAppClient> {
     if (client) return client;
     const sdk = await loadSDK();
-    client = new sdk.DAppClient({ name: BRAND.name, network: buildNetwork(sdk) });
+    client = new sdk.DAppClient({
+        name: BRAND.name,
+        network: buildNetwork(sdk),
+        featuredWallets: FEATURED_WALLETS,
+    });
     await client.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
         onActiveAccount?.(account && matchesNetwork(account) ? account.address : null);
     });
     await warmStorage(client);
     return client;
+}
+
+/**
+ * Drop a session and start over with a clean client. Clearing the active
+ * account on its own leaves the transport and peer in place, so the next
+ * request talks to a dead link and falls back to the P2P relay, which answers
+ * "no server responded" instead of opening the wallet.
+ */
+async function resetClient(c: DAppClient): Promise<void> {
+    try {
+        await c.clearActiveAccount();
+    } catch {
+        /* already gone */
+    }
+    try {
+        await (c as unknown as { destroy?: () => Promise<void> }).destroy?.();
+    } catch {
+        /* older SDKs have no destroy */
+    }
+    client = null;
 }
 
 interface WalletState {
@@ -134,9 +168,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             try {
                 const c = await getClient();
                 const account = await c.getActiveAccount();
-                if (!cancelled && account && matchesNetwork(account)) {
-                    setAddress(account.address);
+                if (account && !matchesNetwork(account)) {
+                    // Someone else's session, or one from before a network
+                    // change. Left in place it is found again on every connect.
+                    await resetClient(c);
+                    if (!cancelled) setAddress(null);
+                    return;
                 }
+                if (!cancelled) setAddress(account?.address ?? null);
             } catch {
                 /* a broken session behaves as no session */
             }
@@ -157,18 +196,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 setAddress(existing.address);
                 return;
             }
+            let active = c;
+            if (existing) {
+                // Connected to the wrong chain, so ask again.
+                await resetClient(c);
+                active = await getClient();
+            }
             const sdk = await loadSDK();
             try {
-                await c.requestPermissions({
+                await active.requestPermissions({
                     scopes: [sdk.PermissionScope.OPERATION_REQUEST],
                 });
             } catch (e) {
                 // Some of what this rejects with is bookkeeping the SDK does
                 // alongside the request, so ask whether an account arrived.
-                const account = await c.getActiveAccount().catch(() => null);
+                const account = await active.getActiveAccount().catch(() => null);
                 if (!account) throw e;
             }
-            const account = await c.getActiveAccount();
+            const account = await active.getActiveAccount();
             setAddress(account?.address ?? null);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Could not connect");
