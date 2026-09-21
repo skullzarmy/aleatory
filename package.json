@@ -79,8 +79,8 @@
         "tailwind-merge": "3.7.0"
     },
     "devDependencies": {
-        "@biomejs/biome": "2.5.13",
-        "@netlify/plugin-nextjs": "^5.9.4",
+        "@biomejs/biome": "2.5.14",
+        "@netlify/plugin-nextjs": "^5.16.0",
         "@tailwindcss/postcss": "4.3.3",
         "@taquito/signer": "^25.0.0",
         "@types/node": "26.6.1",
