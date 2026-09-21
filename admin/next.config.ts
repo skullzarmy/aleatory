@@ -37,6 +37,14 @@ function csp(): string {
 }
 
 const nextConfig: NextConfig = {
+    /**
+     * Next writes an agent-rules block into AGENTS.md when `next dev` detects
+     * a coding agent, pointing it at `node_modules/next/dist/docs/`. Ours is
+     * written by hand, it is the file that says how to work in this
+     * repository, and a reference into node_modules does not survive a clone,
+     * which `check-refs` fails on and is right to.
+     */
+    agentRules: false,
     async headers() {
         return [
             {

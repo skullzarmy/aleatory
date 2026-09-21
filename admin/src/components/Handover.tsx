@@ -55,10 +55,7 @@ function One({ contract }: { contract: Administered }) {
                         Offered to <Addr address={contract.proposedAdmin} />, not yet accepted.
                         Administration has not moved.
                     </p>
-                    <Action
-                        op={acceptAdmin(contract.address)}
-                        holder={contract.proposedAdmin}
-                    />
+                    <Action op={acceptAdmin(contract.address)} holder={contract.proposedAdmin} />
                 </div>
             ) : (
                 <div className="mt-3 space-y-2">
