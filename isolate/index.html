@@ -136,7 +136,9 @@
       '<meta charset="utf-8">\n' +
       '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">\n' +
       '<meta name="viewport" content="width=device-width,initial-scale=1">\n' +
-      "<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}" +
+      // Marked, because the capture copies the document's stylesheets into an
+      // SVG it rasterises and this one is the frame's, not the piece's.
+      '<style id="alea-frame">html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}' +
       "canvas{display:block}svg{display:block;width:100%;height:100%}<\/style>\n" +
       "<script>" + harness + "<\/script>\n" + libs;
 
@@ -181,6 +183,9 @@
   var violations = [];
   var featureStore = {};
   var captured = false;
+  // The piece never signalled and the ceiling took the picture instead, which
+  // is the difference between a still and a half-drawn one.
+  var autoCaptured = false;
 
   function post(msg) { try { parent.postMessage(msg, "*"); } catch (e) {} }
   function violate(kind, detail) {
@@ -305,34 +310,142 @@
     return name in CFG.params ? CFG.params[name] : fallback;
   }
 
-  function finish() {
-    if (captured) return;
-    captured = true;
-    var canvas = document.querySelector("canvas");
-    var digest = "";
-    var image = null;
+  /** Long edge of a capture taken from an SVG, which has no pixel size of its own. */
+  var COVER_PX = 1200;
+
+  /**
+   * A picture of an SVG piece.
+   *
+   * There is no canvas to read, so the drawing is serialised and painted into
+   * one. Without this a piece that draws in SVG — which is what the svg
+   * template does, and what seals most cheaply on chain — renders everywhere
+   * and yields no cover, and the deploy form asks for a cover it can never be
+   * given. The renderer screenshots a viewport and never had this problem,
+   * which is why it went unseen.
+   *
+   * Drawn at cover size rather than at the frame's: SVG is resolution
+   * independent, and the frame here is a thumbnail.
+   */
+  function rasterize(svg, done) {
+    var settled = false;
+    var timer = null;
+    function settle(url) {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      done(url);
+    }
+    // A picture that never loads must not hold the capture open forever.
+    timer = setTimeout(function () { settle(null); }, 4000);
+
     try {
-      if (canvas && canvas.toDataURL) {
-        var url = canvas.toDataURL("image/png");
-        // The digest is the tail of the encoding, which is enough to tell two
-        // runs of one seed apart without shipping a megabyte to say so.
-        digest = url.slice(-64);
-        // The whole image only when someone asked, because a collection cover
-        // is the one case that needs the pixels rather than a comparison.
-        if (CFG.wantImage) image = url;
-      } else {
-        digest = String(document.body.innerHTML.length);
+      var box = svg.getBoundingClientRect();
+      var view = svg.viewBox && svg.viewBox.baseVal;
+      var w = (view && view.width) || parseFloat(svg.getAttribute("width")) || box.width || 1000;
+      var h = (view && view.height) || parseFloat(svg.getAttribute("height")) || box.height || 1000;
+
+      var clone = svg.cloneNode(true);
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+      // Without a viewBox the content is in user units and setting a larger
+      // width scales the frame around it instead of the drawing inside it.
+      if (!(view && view.width)) clone.setAttribute("viewBox", "0 0 " + w + " " + h);
+
+      // The document's own styles, which a serialised subtree leaves behind. A
+      // piece that fills its shapes from a stylesheet draws unstyled without
+      // them, and that is not what the artist is looking at.
+      var sheets = "";
+      var styles = document.querySelectorAll("style");
+      for (var si = 0; si < styles.length; si++) {
+        if (styles[si].id !== "alea-frame") sheets += styles[si].textContent || "";
       }
-    } catch (e) { digest = "unreadable"; }
+      if (sheets) {
+        var style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+        style.textContent = sheets;
+        clone.insertBefore(style, clone.firstChild);
+      }
+
+      var scale = Math.max(1, COVER_PX / Math.max(w, h));
+      var W = Math.max(1, Math.round(w * scale));
+      var H = Math.max(1, Math.round(h * scale));
+      clone.setAttribute("width", String(W));
+      clone.setAttribute("height", String(H));
+
+      var markup = new XMLSerializer().serializeToString(clone);
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var c = document.createElement("canvas");
+          c.width = W;
+          c.height = H;
+          var ctx = c.getContext("2d");
+          // Opaque first: a PNG is transparent where nothing was drawn, and
+          // black is what this frame puts behind a piece.
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, W, H);
+          ctx.drawImage(img, 0, 0, W, H);
+          settle(c.toDataURL("image/png"));
+        } catch (e) { settle(null); }
+      };
+      img.onerror = function () { settle(null); };
+      // data:, which the CSP allows and which taints nothing, so the canvas
+      // can still be read back.
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup);
+    } catch (e) { settle(null); }
+  }
+
+  function send(digest, image, source) {
     post({
       type: "alea:ready",
       seed: CFG.seed,
       digest: digest,
       image: image,
+      // What the capture came from, so a caller that needs pixels can say why
+      // it has none instead of showing a button that never enables.
+      source: source,
       features: featureStore,
       violations: violations,
       mathRandomCalls: mathRandomCalls,
-      elapsed: RealDate.now() - t0
+      elapsed: RealDate.now() - t0,
+      autoCaptured: autoCaptured
+    });
+  }
+
+  function finish() {
+    if (captured) return;
+    captured = true;
+    var canvas = document.querySelector("canvas");
+    if (canvas && canvas.toDataURL) {
+      var url = "";
+      try {
+        url = canvas.toDataURL("image/png");
+      } catch (e) {
+        send("unreadable", null, "canvas");
+        return;
+      }
+      // The digest is the tail of the encoding, which is enough to tell two
+      // runs of one seed apart without shipping a megabyte to say so.
+      // The whole image only when someone asked, because a cover is the one
+      // case that needs the pixels rather than a comparison.
+      send(url.slice(-64), CFG.wantImage ? url : null, "canvas");
+      return;
+    }
+
+    var svg = document.querySelector("svg");
+    // The digest stays what it has always been for a piece with no canvas:
+    // rasterising is for the pixels, and a determinism check that started
+    // costing a repaint per run would be a different change.
+    var digest = String(document.body.innerHTML.length);
+    if (!svg) {
+      send(digest, null, "none");
+      return;
+    }
+    if (!CFG.wantImage) {
+      send(digest, null, "svg");
+      return;
+    }
+    rasterize(svg, function (url) {
+      send(digest, url, "svg");
     });
   }
 
@@ -359,7 +472,11 @@
   window.$alea = alea;
 
   // A piece that never signals is captured on a timeout rather than never.
-  setTimeout(finish, CFG.timeout || 8000);
+  setTimeout(function () {
+    if (captured) return;
+    autoCaptured = true;
+    finish();
+  }, CFG.timeout || 8000);
 })();
 `;
 })();
