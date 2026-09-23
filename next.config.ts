@@ -86,6 +86,16 @@ function csp(): string {
             "wss://*.octez.io",
             "https://*.walletbeacon.io",
             "wss://*.walletbeacon.io",
+            // WalletConnect's relay, which the same SDK dials for wallets that
+            // pair over it — `frame-src` already admits their verify frame, and
+            // this is the socket the pairing itself runs on. Without it the
+            // wallet dialog waits and then reports "The connection timed out"
+            // and "Failed to publish custom payload", which name nothing an
+            // artist could act on and read as the site being broken.
+            "wss://relay.walletconnect.com",
+            "wss://relay.walletconnect.org",
+            "https://relay.walletconnect.com",
+            "https://relay.walletconnect.org",
             // The wallet list: which wallets the connect dialog offers, and
             // the deep links behind them. The SDK ships a bundled copy and
             // fetches this to pick up wallets added since our pinned release,
