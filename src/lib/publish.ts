@@ -32,6 +32,7 @@ import { schemaForRecord } from "./params";
 import { recordFor } from "./libraries";
 import type { DepSpec } from "./kinds";
 import { saveDraft, type Draft } from "./draft";
+import { COST_PER_BYTE, MAX_CHUNK_BYTES, gzip, publishPlan } from "./plan";
 
 export type PublishStage = "encoding" | "pinning-metadata" | "signing" | "uploading" | "sealing";
 
@@ -43,43 +44,13 @@ export interface UploadProgress {
     totalBytes: number;
 }
 
-/**
- * The protocol's operation ceiling, less measured room for everything else the
- * deploy carries: metadata, royalties, the pending pointer.
- */
-const MAX_INLINE_CODE_BYTES = 32_768 - 700;
-
-/**
- * One chunk of a walked generator. The same ceiling applies, less room for the
- * call around the bytes, which is far smaller than a deploy's: an entrypoint
- * name, a contract address and the signature.
- */
-const MAX_CHUNK_BYTES = 32_768 - 1_200;
-
-/**
- * How many signatures a publish may ask for before the generator goes behind a
- * pointer instead. Every chunk is a separate wallet prompt, and there is a
- * count past which walking it on chain stops being a reasonable thing to ask
- * of an artist.
- */
-const MAX_WALK_CHUNKS = 8;
-
-/** Storage burn per byte, fixed here so a publish can quote a cost with no
- *  round trip. */
-const COST_PER_BYTE = 250;
+// The size thresholds, the encoding and the three routes live in `plan.ts`,
+// which the studio also reads. They were duplicated, and the copies disagreed.
 
 function toHex(bytes: Uint8Array): string {
     return Array.from(bytes)
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
-}
-
-/** Native everywhere this runs, so compression adds no dependency. */
-async function gzip(bytes: Uint8Array): Promise<Uint8Array> {
-    const stream = new Blob([bytes as unknown as BlobPart])
-        .stream()
-        .pipeThrough(new CompressionStream("gzip"));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 export interface PublishInput {
@@ -176,14 +147,7 @@ async function pin(body: unknown): Promise<string> {
  * rather than keeping its own copy of these thresholds, which would drift.
  */
 export async function estimateSignatures(html: string): Promise<number> {
-    const raw = new TextEncoder().encode(html);
-    const codeBytes = raw.length > MAX_INLINE_CODE_BYTES ? await gzip(raw) : raw;
-    if (codeBytes.length <= MAX_INLINE_CODE_BYTES) return 1;
-    const chunks = Math.ceil(codeBytes.length / MAX_CHUNK_BYTES);
-    // Past the walk budget it goes behind a pointer, which is one deploy again.
-    if (chunks > MAX_WALK_CHUNKS) return 1;
-    // The deploy, a signature per chunk, and the seal.
-    return 1 + chunks + 1;
+    return (await publishPlan(html)).signatures;
 }
 
 /**
@@ -392,25 +356,15 @@ export async function publishGenerator(
         if (resumed) return resumed;
     }
 
-    const raw = new TextEncoder().encode(draft.html);
-    let codeBytes: Uint8Array<ArrayBufferLike> = raw;
-    let codeEncoding: "identity" | "gzip" = "identity";
-
-    // Identity by default, so the bytes can be read straight off the chain.
-    // Compressed only when the source would not otherwise fit one operation.
-    if (raw.length > MAX_INLINE_CODE_BYTES) {
-        codeBytes = await gzip(raw);
-        codeEncoding = "gzip";
-    }
-
-    // Three ways in, decided by size alone. Inline is one signature and the
-    // bytes ride inside the deploy. Walked is a deploy carrying nothing
-    // followed by a chunk per signature. A pointer is the last resort, and the
-    // only one where the art is not on chain.
-    const inline = codeBytes.length <= MAX_INLINE_CODE_BYTES;
-    const chunks = Math.ceil(codeBytes.length / MAX_CHUNK_BYTES);
-    const walked = !inline && chunks <= MAX_WALK_CHUNKS;
-    const byPointer = !inline && !walked;
+    // Three ways in, decided by size alone, and decided in one place: the
+    // studio quotes the same plan before any of this is asked for.
+    const plan = await publishPlan(draft.html);
+    const codeBytes = plan.code;
+    const codeEncoding = plan.codeEncoding;
+    const inline = plan.route === "inline";
+    const walked = plan.route === "walked";
+    const byPointer = plan.route === "pointer";
+    const chunks = plan.chunks;
 
     let codeUri = "";
     if (byPointer) {

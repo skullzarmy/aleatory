@@ -84,8 +84,9 @@ you the bytes and it always works. The bundler kit on
 [starter kits](../src/app/templates/page.tsx) does that with esbuild, dropping
 the parts you did not use: `simplex-noise` comes to 709 bytes bundled,
 `d3-scale` and `d3-shape` together to about 10 kB, against 279 kB to declare
-all of d3. It prints the size against what one operation can carry, so you know
-whether the piece is still going on chain.
+all of d3. It prints the size against what one operation can carry and against
+what a walked publish can carry, so you know whether the piece goes on chain in
+one signature, in a few, or behind a pointer.
 
 ### Having it checked for you
 
