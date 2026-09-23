@@ -661,11 +661,14 @@ async function publishingChecks() {
     );
     check("and its burn is quoted on bytes that exist", small.codeBytes === small.rawBytes);
 
-    // The size from the report.
+    // The size from the report. Which side of the inline threshold it lands on
+    // depends on what the platform's gzip makes of it — this fixture straddled
+    // it and the suite failed on CI and passed here. What was wrong is that it
+    // was refused at all, and that is what this asks.
     const reported = await publishPlan(document(49_000));
     check(
-        `49KB walks on chain rather than being refused (${reported.route}, ${reported.signatures} signatures)`,
-        reported.route === "walked" && reported.signatures === reported.chunks + 2,
+        `49KB publishes rather than being refused (${reported.route}, ${reported.signatures} signatures)`,
+        reported.route !== "pointer",
         "this is the generator the studio called too big to publish",
     );
     check(
@@ -673,7 +676,15 @@ async function publishingChecks() {
         reported.codeEncoding === "gzip" && reported.codeBytes < reported.rawBytes,
     );
 
-    const huge = await publishPlan(document(400_000));
+    // Far enough past one operation that no implementation of gzip brings it
+    // back under, and far short of the walk budget.
+    const walked = await publishPlan(document(120_000));
+    check(
+        `past one operation it walks on chain (${walked.chunks} chunks, ${walked.signatures} signatures)`,
+        walked.route === "walked" && walked.signatures === walked.chunks + 2,
+    );
+
+    const huge = await publishPlan(document(600_000));
     check("past the walk budget it goes behind a pointer", huge.route === "pointer");
     check("and nothing is burned for code that is not in storage", huge.codeBytes === 0);
 
