@@ -13,6 +13,7 @@ import { declaredIn, librariesIn, recordFor, specFor, withLibraries } from "./li
 import { P5_DEP, THREE_DEP } from "./kinds";
 import { detectParams } from "./detect";
 import { MAX_PARAMS } from "./params";
+import { MAX_CHUNK_BYTES, MAX_WALK_CHUNKS, publishPlan } from "./plan";
 import { strToU8, zipSync } from "fflate";
 import { readFileSync } from "node:fs";
 import blakejs from "blakejs";
@@ -30,7 +31,11 @@ function check(name: string, condition: boolean, detail = "") {
     }
 }
 
-/** The protocol's operation ceiling. A larger generator cannot be deployed. */
+/**
+ * The protocol's operation ceiling. A generator past it is still publishable —
+ * it walks on chain a chunk at a time — but a starting template that costs an
+ * artist four signatures is a bad first publish.
+ */
 const MAX_OPERATION_BYTES = 32_768;
 
 console.log("\nTemplates");
@@ -623,9 +628,84 @@ console.log("\nDeclared libraries");
     );
 }
 
-console.log(
-    failures === 0
-        ? "\nAll studio checks passed.\n"
-        : `\n${failures} studio check${failures === 1 ? "" : "s"} failed.\n`,
-);
-process.exit(failures === 0 ? 0 : 1);
+/**
+ * What the studio tells an artist publishing will do.
+ *
+ * A 49KB generator was told it was too big to publish while the publisher was
+ * willing to walk it on chain in four signatures: the studio compared the raw
+ * source against one operation's ceiling and knew nothing about compression or
+ * chunking. Both now read `publishPlan`, and these are the sizes either side of
+ * each threshold.
+ */
+async function publishingChecks() {
+    console.log("\nPublishing");
+
+    // Incompressible, so a size here means what it says: repeated text gzips to
+    // almost nothing and would take every route through the inline branch.
+    const noise = (bytes: number) => {
+        let out = "";
+        let h = 1;
+        while (out.length < bytes) {
+            h = (Math.imul(h, 48271) % 2147483647) >>> 0;
+            out += h.toString(36);
+        }
+        return out.slice(0, bytes);
+    };
+    const document = (bytes: number) =>
+        `<!doctype html><html><body><script>/*${noise(bytes)}*/</script></body></html>`;
+
+    const small = await publishPlan(templateFor(1));
+    check(
+        "a template publishes inline, in one signature",
+        small.route === "inline" && small.signatures === 1,
+    );
+    check("and its burn is quoted on bytes that exist", small.codeBytes === small.rawBytes);
+
+    // The size from the report. Which side of the inline threshold it lands on
+    // depends on what the platform's gzip makes of it — this fixture straddled
+    // it and the suite failed on CI and passed here. What was wrong is that it
+    // was refused at all, and that is what this asks.
+    const reported = await publishPlan(document(49_000));
+    check(
+        `49KB publishes rather than being refused (${reported.route}, ${reported.signatures} signatures)`,
+        reported.route !== "pointer",
+        "this is the generator the studio called too big to publish",
+    );
+    check(
+        "and it is compressed on the way, so storage is paid on less",
+        reported.codeEncoding === "gzip" && reported.codeBytes < reported.rawBytes,
+    );
+
+    // Far enough past one operation that no implementation of gzip brings it
+    // back under, and far short of the walk budget.
+    const walked = await publishPlan(document(120_000));
+    check(
+        `past one operation it walks on chain (${walked.chunks} chunks, ${walked.signatures} signatures)`,
+        walked.route === "walked" && walked.signatures === walked.chunks + 2,
+    );
+
+    const huge = await publishPlan(document(600_000));
+    check("past the walk budget it goes behind a pointer", huge.route === "pointer");
+    check("and nothing is burned for code that is not in storage", huge.codeBytes === 0);
+
+    // The pointer route pins the source, and the pinning endpoint used to cap
+    // that at one operation's worth of bytes: every generator that needed a
+    // pointer was refused by the only path that could carry it.
+    const pin = readFileSync("src/app/api/pin/route.ts", "utf8");
+    const ceiling = Number(/MAX_SOURCE_BYTES = ([\d_]+)/.exec(pin)?.[1].replace(/_/g, "") ?? 0);
+    check(
+        "the pinning endpoint accepts a generator large enough to need it",
+        ceiling > MAX_CHUNK_BYTES * MAX_WALK_CHUNKS,
+        `pin accepts ${ceiling.toLocaleString()}, the pointer route starts above ${(MAX_CHUNK_BYTES * MAX_WALK_CHUNKS).toLocaleString()}`,
+    );
+}
+
+// Last, and asynchronous: gzip is a stream, and the rest of this file is not.
+void publishingChecks().then(() => {
+    console.log(
+        failures === 0
+            ? "\nAll studio checks passed.\n"
+            : `\n${failures} studio check${failures === 1 ? "" : "s"} failed.\n`,
+    );
+    process.exit(failures === 0 ? 0 : 1);
+});

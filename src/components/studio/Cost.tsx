@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatTez } from "@/lib/utils";
 import { NETWORK } from "@/lib/config";
+import { publishPlan, type PublishPlan } from "@/lib/plan";
 
 // Cost figures are fetched from the chain rather than hardcoded, since
 // protocol constants (cost per byte, size limits) can change.
@@ -37,6 +38,19 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
         };
     }, []);
 
+    // How this source actually gets on chain, from the same function the
+    // publisher uses. Comparing its size against one operation's ceiling said
+    // "too big to publish" for anything over 32KB, which is a generator the
+    // publisher walks on chain in a few more signatures.
+    const [plan, setPlan] = useState<PublishPlan | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        void publishPlan(html).then((p) => !cancelled && setPlan(p));
+        return () => {
+            cancelled = true;
+        };
+    }, [html]);
+
     const bytes = new TextEncoder().encode(html).length;
 
     if (error) {
@@ -46,36 +60,62 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
             </p>
         );
     }
-    if (!constants) {
+    if (!constants || !plan) {
         return <p className="text-sm text-muted-foreground">Loading…</p>;
     }
 
-    const burn = bytes * constants.costPerByte;
-    const overSized = bytes > constants.maxOperationBytes;
+    // Storage is paid on the bytes that land in it, which for anything past one
+    // operation is the gzipped source.
+    const burn = plan.codeBytes * constants.costPerByte;
 
     return (
         <div className="space-y-4">
             <div>
                 <p className="text-3xl font-semibold tracking-tight">{formatTez(burn)} ꜩ</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    one-off, to store your {bytes.toLocaleString("en-US")}-byte generator on chain.
+                    {plan.route === "pointer"
+                        ? `one-off. Your ${bytes.toLocaleString("en-US")}-byte generator is stored off chain, so there is no storage burn for it.`
+                        : `one-off, to store your ${bytes.toLocaleString("en-US")}-byte generator on chain.`}
                 </p>
             </div>
 
             <dl className="divide-y divide-border rounded-lg border border-border text-sm">
                 <Row label="Generator" value={`${bytes.toLocaleString("en-US")} bytes`} />
+                {plan.codeEncoding === "gzip" && (
+                    <Row
+                        label="Compressed"
+                        value={`${plan.code.length.toLocaleString("en-US")} bytes, gzip`}
+                    />
+                )}
                 <Row label="Storage" value={`${constants.costPerByte} mutez per byte`} />
                 <Row
-                    label="Size limit"
+                    label="Per operation"
                     value={`${constants.maxOperationBytes.toLocaleString("en-US")} bytes`}
+                />
+                <Row
+                    label="Signatures"
+                    value={
+                        plan.signatures === 1
+                            ? "1, the deploy"
+                            : `${plan.signatures}: the deploy, ${plan.chunks} chunks, and the seal`
+                    }
                 />
                 <Row label="Per mint" value="around 0.05 ꜩ, paid by the collector" />
             </dl>
 
-            {overSized && (
+            {plan.route === "walked" && (
+                <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm">
+                    Bigger than one operation, so it is compressed and walked on chain a chunk at a
+                    time. That is {plan.signatures} wallet prompts instead of one, and the art is
+                    still fully on chain.
+                </p>
+            )}
+
+            {plan.route === "pointer" && (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
-                    This generator is too big to publish. Trim it down, or move a library out of it,
-                    and try again.
+                    Too big to walk on chain in a reasonable number of signatures, so the source
+                    would be stored off chain and the contract would hold a pointer to it. Trim it
+                    down, or move a library out of it, to keep the art on chain.
                 </p>
             )}
 

@@ -320,8 +320,9 @@ node serve.mjs`}</Code>
                     />
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground">
-                    Every build prints its size against what one operation can carry, so you know
-                    whether the piece is still going on chain.
+                    Every build prints its size against what one operation carries and against what
+                    a walked publish carries, so you know whether the piece goes on chain in one
+                    signature, in a few, or behind a pointer.
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
                     Needs an install and a build step. The other four need neither.

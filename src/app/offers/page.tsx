@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { useOffers } from "@/context/OffersContext";
 import { AccountLink } from "@/components/account/AccountLink";
+import { PieceImage } from "@/components/feed/PieceImage";
 import { piecesFor, type FeedPiece } from "@/lib/feed";
 import { fetchRoyaltyBps } from "@/lib/generator";
 import { proceeds, type IncomingOffer, type Offer } from "@/lib/market";
@@ -356,21 +357,13 @@ function Row({
     return (
         <li className="flex gap-3 p-3 sm:gap-4 sm:p-4">
             <Link href={href} className="shrink-0">
-                {/* `alt=""` collapses a failed image onto the plate instead of
-                    painting the browser's broken glyph. The name beside it
-                    already names the link. */}
-                <span className="block h-14 w-14 overflow-hidden rounded-md bg-muted sm:h-16 sm:w-16">
-                    {piece?.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                            src={piece.imageUrl}
-                            alt=""
-                            loading="lazy"
-                            className="h-full w-full object-cover"
-                        />
-                    ) : (
-                        <span className="pending-shimmer block h-full w-full" />
-                    )}
+                <span className="relative block h-14 w-14 overflow-hidden rounded-md bg-muted sm:h-16 sm:w-16">
+                    <PieceImage
+                        src={piece?.imageUrl}
+                        pending={piece?.pending}
+                        missingLabel=""
+                        compact
+                    />
                 </span>
             </Link>
 

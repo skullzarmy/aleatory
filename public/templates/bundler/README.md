@@ -57,11 +57,13 @@ fetch 279 kB.
 
 ## Size
 
-`npm run build` prints the gzipped size against 32,068 bytes, which is what one
-operation can carry. Under it, your generator is stored on chain. Over it, the
-piece is still publishable: it goes to IPFS and the contract stores a pointer.
-That works, and it is a different promise, so the build tells you which one you
-are about to make.
+`npm run build` prints the size against 32,068 bytes, which is what one
+operation can carry. Under it, your generator is stored on chain in a single
+signature. Over it, it is compressed and walked into storage a chunk at a time,
+one signature per chunk — still fully on chain, just more wallet prompts. Only
+past eight chunks does the piece go to IPFS with the contract storing a
+pointer. That works, and it is a different promise, so the build tells you
+which one you are about to make.
 
 ## The three rules
 

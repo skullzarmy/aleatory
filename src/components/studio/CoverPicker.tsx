@@ -71,10 +71,29 @@ export function CoverPicker({
     const [pinned, setPinned] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Why there are no pixels, when there are none. A disabled button with
+    // nothing next to it is the same screen as a piece that has not drawn yet,
+    // and an artist cannot tell which one they are looking at.
+    const [uncapturable, setUncapturable] = useState<string | null>(null);
 
     // Held from the last render so "use this one" needs no second run.
-    const onReady = useCallback((d: { image: string | null }) => {
+    const onReady = useCallback((d: { image: string | null; source: string }) => {
         setImage(d.image);
+        if (d.image) {
+            setUncapturable(null);
+        } else if (d.source === "none") {
+            setUncapturable(
+                "This piece draws in neither a canvas nor an SVG, so there is nothing here to photograph. A cover has to be captured from the piece itself, so give it one of the two and try again.",
+            );
+        } else {
+            setUncapturable("The piece drew, but the picture could not be read back.");
+        }
+    }, []);
+
+    // The piece threw. Without this the frame is black, the button never
+    // enables, and nothing says why.
+    const onError = useCallback((message: string) => {
+        setUncapturable(`The piece stopped: ${message}`);
     }, []);
 
     const resolved = resolveParams(params, values ?? {});
@@ -120,6 +139,7 @@ export function CoverPicker({
     function reroll() {
         setImage(null);
         setPinned(null);
+        setUncapturable(null);
         onCaptured(null);
         setSeed(randomSeed());
     }
@@ -136,6 +156,7 @@ export function CoverPicker({
                     wantImage
                     title="Cover"
                     onReady={onReady}
+                    onError={onError}
                 />
             </div>
 
@@ -161,9 +182,9 @@ export function CoverPicker({
                 </code>
             </div>
 
-            {error && (
+            {(error || uncapturable) && (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
-                    {error}
+                    {error ?? uncapturable}
                 </p>
             )}
 

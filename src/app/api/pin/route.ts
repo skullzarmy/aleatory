@@ -9,8 +9,7 @@ import { NextResponse } from "next/server";
  * studio is for, which makes this an open pinning endpoint on our account. The
  * limits are the whole defence:
  *
- *   - one operation's worth of bytes, since larger source cannot be
- *     deployed anyway
+ *   - a ceiling on source, well above anything publishable
  *   - JSON documents capped far below that
  *   - `content-type` fixed here, so nothing decides its own media type
  *
@@ -21,10 +20,13 @@ import { NextResponse } from "next/server";
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
 /**
- * The protocol's operation ceiling. Source above it cannot be carried by
- * the deploy, so pinning one produces a pointer that fails at signature.
+ * Source is pinned for one case only: a generator too big to walk on chain,
+ * which publishes behind an `ipfs://` pointer instead. So this cannot be one
+ * operation's worth of bytes — everything that reaches this path is larger
+ * than that by definition, and while it was, the pointer route answered 413
+ * for every generator that needed it.
  */
-const MAX_SOURCE_BYTES = 32_768;
+const MAX_SOURCE_BYTES = 1_000_000;
 const MAX_DOCUMENT_BYTES = 8_192;
 
 type Body =
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
             if (bytes.length > MAX_SOURCE_BYTES) {
                 return NextResponse.json(
                     {
-                        error: `That source is ${bytes.length.toLocaleString()} bytes. One operation carries ${MAX_SOURCE_BYTES.toLocaleString()}, so it could not be deployed even if it were pinned.`,
+                        error: `That source is ${bytes.length.toLocaleString()} bytes, past the ${MAX_SOURCE_BYTES.toLocaleString()} this accepts.`,
                     },
                     { status: 413 },
                 );

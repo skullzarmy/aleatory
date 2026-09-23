@@ -30,11 +30,16 @@ async function loadEsbuild() {
 const here = dirname(fileURLToPath(import.meta.url));
 
 /**
- * Gzipped byte cap for one on-chain operation. Matches the figure used in
- * `src/lib/publish.ts`. A generator over the cap still publishes; it just
- * goes to IPFS with a pointer stored on chain instead.
+ * The three routes on chain, and the sizes between them. Matches
+ * `src/lib/plan.ts`, which is what the studio quotes and the publisher does.
+ *
+ * Past one operation a generator is not off chain: it is compressed and walked
+ * into storage a chunk at a time, one signature per chunk. Only past the walk
+ * budget does it go to IPFS with a pointer stored on chain instead.
  */
 const ON_CHAIN_CAP = 32_768 - 700;
+const CHUNK_CAP = 32_768 - 1_200;
+const MAX_WALK_CHUNKS = 8;
 
 export async function buildHtml() {
     const build = await loadEsbuild();
@@ -61,13 +66,22 @@ export async function buildHtml() {
 function report(html) {
     const raw = Buffer.byteLength(html);
     const gz = gzipSync(Buffer.from(html)).length;
-    const pct = Math.round((gz / ON_CHAIN_CAP) * 100);
 
     console.log(`  ${raw.toLocaleString()} bytes, ${gz.toLocaleString()} gzipped`);
+
+    // The publisher compresses only when the raw source will not fit inline, so
+    // a small build is quoted on its raw size the way it is actually stored.
+    if (raw <= ON_CHAIN_CAP) {
+        const pct = Math.round((raw / ON_CHAIN_CAP) * 100);
+        console.log(`  on chain in one signature, ${pct}% of the ${ON_CHAIN_CAP.toLocaleString()} byte operation cap`);
+        return;
+    }
+
+    const chunks = Math.ceil(gz / CHUNK_CAP);
     console.log(
-        gz <= ON_CHAIN_CAP
-            ? `  fits on chain, ${pct}% of the ${ON_CHAIN_CAP.toLocaleString()} byte cap`
-            : `  ${(gz / ON_CHAIN_CAP).toFixed(1)}x over the ${ON_CHAIN_CAP.toLocaleString()} byte cap.\n` +
+        chunks <= MAX_WALK_CHUNKS
+            ? `  on chain, walked in ${chunks} chunk${chunks === 1 ? "" : "s"}: ${chunks + 2} signatures to publish`
+            : `  past the ${(CHUNK_CAP * MAX_WALK_CHUNKS).toLocaleString()} bytes ${MAX_WALK_CHUNKS} chunks carry.\n` +
                   "  Publishable, but stored on IPFS with a pointer on chain rather than on chain.",
     );
 }

@@ -43,7 +43,13 @@ export function IsolateFrame({
     wantImage?: boolean;
     className?: string;
     title?: string;
-    onReady?: (detail: { digest: string; image: string | null; violations: unknown[] }) => void;
+    onReady?: (detail: {
+        digest: string;
+        image: string | null;
+        /** What the capture came from, so a caller needing pixels can say why it has none. */
+        source: "canvas" | "svg" | "none";
+        violations: unknown[];
+    }) => void;
     onViolation?: (kind: string, detail: string) => void;
     /** The piece threw. A blank frame and black paint look the same. */
     onError?: (message: string) => void;
@@ -99,6 +105,7 @@ export function IsolateFrame({
                 detail?: string;
                 digest?: string;
                 image?: string | null;
+                source?: "canvas" | "svg" | "none";
                 violations?: unknown[];
                 message?: string;
             };
@@ -112,6 +119,7 @@ export function IsolateFrame({
                 handlers.current.onReady?.({
                     digest: d.digest ?? "",
                     image: d.image ?? null,
+                    source: d.source ?? "none",
                     violations: d.violations ?? [],
                 });
             }
