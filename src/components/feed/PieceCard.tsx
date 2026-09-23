@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { FeedPiece } from "@/lib/feed";
 import { AccountName } from "@/components/account/AccountName";
+import { PieceImage } from "./PieceImage";
 
 // The artist renders as AccountName, not a link: the whole card is already a
 // link to the piece, and an anchor inside an anchor won't hydrate.
@@ -12,25 +13,8 @@ export function PieceCard({ piece }: { piece: FeedPiece }) {
             href={`/piece/${piece.contract}/${piece.tokenId}`}
             className="group block overflow-hidden rounded-lg border border-border bg-card-background transition-shadow hover:shadow-lg"
         >
-            {/* alt="" so a failed image load collapses to the muted plate instead of
-                showing the browser's broken-image glyph; the piece name below already
-                names the link. */}
             <div className="relative aspect-square bg-muted">
-                {piece.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={piece.imageUrl}
-                        alt=""
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                    />
-                ) : (
-                    <div className="pending-shimmer flex h-full w-full items-center justify-center">
-                        <span className="px-4 text-center text-xs text-muted-foreground">
-                            Awaiting render
-                        </span>
-                    </div>
-                )}
+                <PieceImage src={piece.imageUrl} pending={piece.pending} />
             </div>
 
             <div className="space-y-1 p-3">

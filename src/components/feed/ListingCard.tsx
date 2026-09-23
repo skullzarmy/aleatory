@@ -4,6 +4,7 @@ import { AccountName } from "@/components/account/AccountName";
 import { formatTez, shortAddress } from "@/lib/utils";
 import type { FeedPiece } from "@/lib/feed";
 import type { Listing } from "@/lib/market";
+import { PieceImage } from "./PieceImage";
 
 /**
  * One piece for sale: the same card as a feed piece, with the price on it.
@@ -24,26 +25,12 @@ export function ListingCard({
             href={`/piece/${listing.generator}/${listing.tokenId}`}
             className="group block overflow-hidden rounded-lg border border-border bg-card-background transition-shadow hover:shadow-lg"
         >
-            {/* The plate matters: an image that fails to load collapses to it
-                instead of painting the browser's broken glyph into the grid.
-                `alt=""` is what makes it collapse, and the name is already the
-                first line of the card, so the link is named without it. */}
             <div className="relative aspect-square bg-muted">
-                {piece?.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={piece.imageUrl}
-                        alt=""
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                    />
-                ) : (
-                    <div className="pending-shimmer flex h-full w-full items-center justify-center">
-                        <span className="px-4 text-center text-xs text-muted-foreground">
-                            {piece ? "Awaiting render" : "Loading"}
-                        </span>
-                    </div>
-                )}
+                <PieceImage
+                    src={piece?.imageUrl}
+                    pending={piece?.pending}
+                    missingLabel={piece ? "Awaiting render" : "Loading"}
+                />
 
                 <span className="absolute bottom-2 right-2 rounded-md bg-background/90 px-2 py-1 text-sm font-semibold tabular-nums shadow-sm backdrop-blur">
                     {formatTez(listing.priceMutez)} ꜩ
