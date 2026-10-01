@@ -113,6 +113,10 @@ export function buildPendingDocument(input: PendingDocInput) {
         isBooleanAmount: false,
         shouldPreferSymbol: false,
         creators: [input.artist],
+        // Same placeholder as displayUri/thumbnailUri — a missing or empty
+        // artifactUri is read by objkt as "no real content" and the token is
+        // excluded from the grid even though it is owned and tradeable now.
+        artifactUri: input.placeholderImageUri,
         displayUri: input.placeholderImageUri,
         thumbnailUri: input.placeholderImageUri,
         royalties: encodeRoyalties(input.split),
@@ -128,7 +132,15 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
      * provider publishes what the contract holds.
      */
     royalties: { decimals: number; shares: Record<string, number> };
-    /** The source, with the seed and parameters applied. */
+    /**
+     * The rendered image, same as `imageUri` — there is no separate pinned,
+     * per-piece interactive artifact today, only the generator's shared,
+     * unparameterized source. A marketplace that requires a non-empty
+     * `artifactUri` to treat a token as real, displayable content (objkt
+     * does) got an empty string here before: `piece.codeUri`, the
+     * generator's own external code pointer, empty for the common inline
+     * case and, even set, identical across every piece in the edition.
+     */
     artifactUri: string;
     imageUri: string;
     seed: string;

@@ -6,7 +6,13 @@
  *   npx tsx provider/metadata.test.ts
  */
 import assert from "node:assert/strict";
-import { encodeRoyalties, royaltyPreview, buildPieceDocument, cleanTags } from "./metadata";
+import {
+    encodeRoyalties,
+    royaltyPreview,
+    buildPendingDocument,
+    buildPieceDocument,
+    cleanTags,
+} from "./metadata";
 
 const A = "tz1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const B = "tz1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -294,6 +300,37 @@ check("declared, trait value is absurdly long: truncated, never a broken or gian
     assert.ok(doc.name.length < 100, `name was ${doc.name.length} characters: ${doc.name}`);
     assert.ok(doc.name.startsWith("Prancers #12 · xxx"));
     assert.ok(doc.name.endsWith("…"));
+});
+
+console.log("\nartifactUri — objkt reads a missing/empty one as no real content");
+
+check(
+    "piece document: artifactUri passes through, never left to the caller's old codeUri mistake",
+    () => {
+        const doc = buildPieceDocument({
+            generatorName: "Drift",
+            artist: A,
+            royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+            tokenId: 0,
+            artifactUri: "ipfs://image",
+            imageUri: "ipfs://image",
+            seed: "oo1",
+            codeHash: "aa",
+        });
+        assert.equal(doc.artifactUri, "ipfs://image");
+    },
+);
+
+check("pending document: carries artifactUri too, same as displayUri/thumbnailUri", () => {
+    const doc = buildPendingDocument({
+        generatorName: "Drift",
+        artist: A,
+        placeholderImageUri: "ipfs://placeholder",
+        split: { totalPercent: 0, recipients: [] },
+    });
+    assert.equal(doc.artifactUri, "ipfs://placeholder");
+    assert.equal(doc.displayUri, "ipfs://placeholder");
+    assert.equal(doc.thumbnailUri, "ipfs://placeholder");
 });
 
 console.log("\ntags");
