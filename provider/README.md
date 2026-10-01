@@ -49,8 +49,8 @@ gas, and rotates the agent. A wallet with money in it.
 **Agent** signs `set_token_metadata` and nothing else. It lives in a
 process's environment, which is somewhere a leak is plausible. It cannot pause
 a generator, move a token, change a price, or touch the provider contract's
-balance. Fund it with a few tez: a publish costs about 0.0015 ꜩ, so that is
-thousands of pieces, and it caps what a leak is worth.
+balance. Fund it with a few tez: a publish costs about 0.0066 ꜩ, so that is a
+few hundred pieces, and it caps what a leak is worth.
 
 Generators ask the provider contract for the current agent on every write
 rather than trusting what they recorded at deploy, so one `set_agent` revokes a
