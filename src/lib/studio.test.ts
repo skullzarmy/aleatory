@@ -670,13 +670,14 @@ async function publishingChecks() {
     //
     // noise() above is not entropy-dense enough for this: gzip gets it to
     // roughly two thirds its size, so a fixture even several thousand bytes
-    // past the cutoff still lands back under it. A 94-symbol printable range
-    // per byte is close enough to the entropy ceiling that gzip cannot
-    // recover anywhere near that much.
+    // past the cutoff still lands back under it. A flat 6 bits of entropy
+    // per byte (64 symbols, a power of two so there is no modulo bias off
+    // the random source) is close enough to the ceiling that 12,000 bytes
+    // past the cutoff is what gzip cannot claw back under it, measured.
     const denseNoise = (bytes: number) => {
         const b = randomBytes(bytes);
         let out = "";
-        for (let i = 0; i < bytes; i++) out += String.fromCharCode(33 + (b[i] % 94));
+        for (let i = 0; i < bytes; i++) out += String.fromCharCode(33 + (b[i] & 63));
         return out;
     };
     const denseDocument = (bytes: number) =>
@@ -695,7 +696,7 @@ async function publishingChecks() {
         "200 bytes under the inline cutoff still publishes inline",
         justInside.route === "inline",
     );
-    const justOutside = await publishPlan(denseDocument(MAX_INLINE_CODE_BYTES - 64 + 8_000));
+    const justOutside = await publishPlan(denseDocument(MAX_INLINE_CODE_BYTES - 64 + 13_000));
     check(
         "safely past what gzip can claw back under the cutoff, it walks instead of being refused",
         justOutside.route === "walked",
