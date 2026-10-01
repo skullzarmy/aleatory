@@ -45,8 +45,6 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
     const [name, setName] = useState(draft?.name ?? "");
     const [description, setDescription] = useState(draft?.description ?? "");
-    // Comma-separated, same freeform shape as the rest of this form. Cleaned
-    // (trimmed/deduped/capped) by `cleanTags` wherever this becomes a document.
     const [tags, setTags] = useState((draft?.tags ?? []).join(", "));
     const [codeUri, setCodeUri] = useState("");
     const [editionSize, setEditionSize] = useState("10");
@@ -101,7 +99,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     );
 
     // This form remounts fresh every time the publish route loads, so name,
-    // description and tags are otherwise ordinary local state — navigate away
+    // description and tags are otherwise ordinary local state. Navigate away
     // to check something and back, and whatever was typed is gone. Same
     // debounced-save shape Workspace.tsx already uses for the rest of a draft.
     // No draft (the ipfs:// pointer path) has nothing to save into.
@@ -455,7 +453,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
             <Field
                 label="Tags"
-                hint="Comma separated, e.g. generative, glitch, longform. Read by objkt and other marketplaces for discovery. Not locked like the fields above: changeable later via set_metadata, but only pieces minted after a change pick it up — it never rewrites a piece already published."
+                hint="Comma separated, e.g. generative, glitch, longform. Read by objkt and other marketplaces for discovery. Changeable later via set_metadata. A change only reaches pieces minted after it; a piece already published keeps what it had."
             >
                 <input
                     value={tags}

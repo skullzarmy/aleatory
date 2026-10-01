@@ -63,7 +63,7 @@ export interface PublishInput {
     /** The generator name, which is also each piece's name stem. */
     name: string;
     description: string;
-    /** Standard TZIP-21 tags, not an `aleatory:` key — objkt reads this directly. */
+    /** Standard TZIP-21 tags. objkt reads this field directly. */
     tags?: string[];
     artist: string;
     editionSize: number;
@@ -447,8 +447,7 @@ export async function publishGenerator(
                     : {}),
                 // Recorded so the cover can be redrawn from chain state.
                 ...(input.coverSeed ? { aleaCoverSeed: input.coverSeed } : {}),
-                // Standard TZIP-21 field, not an `aleatory:` key — objkt reads
-                // this directly off `content`, no platform-specific convention.
+                // Standard TZIP-21 field. objkt reads it directly off `content`.
                 ...(tags.length > 0 ? { tags } : {}),
             }),
             // Under its own key, so a mint UI reads one value and not the whole

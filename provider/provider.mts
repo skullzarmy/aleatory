@@ -758,14 +758,6 @@ export async function handle(piece: PendingPiece): Promise<string> {
         tags: piece.tags,
         artist: piece.artist,
         tokenId: Number(piece.tokenId),
-        // Same as imageUri: no separate per-piece interactive artifact is
-        // pinned today, and piece.codeUri (the generator's shared,
-        // unparameterized source pointer, empty in the common inline case)
-        // was never that — it made every piece's artifactUri identical or
-        // blank, which objkt reads as "no real content" and excludes from
-        // the token grid even though the activity and the metadata both
-        // otherwise resolve.
-        artifactUri: imageUri,
         imageUri: imageUri,
         seed: piece.seed,
         codeHash: piece.codeHash,

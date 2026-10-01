@@ -192,25 +192,32 @@ export async function fetchEditionSizes(
  * Whether each generator is paused, right now.
  *
  * Not an events read like `fetchEditionSizes` above: `deploy`'s payload never
- * carried `start_paused`, so there is no event bulk-listing the initial state
- * the way there is for edition size, and a generator that has never been
- * toggled has no `set_paused` event at all to read either. Confirmed live:
- * `/v1/contracts?select=storage.sale.paused` answers every row with `null`
- * rather than an error — TzKT quietly can't project a nested storage path in
- * bulk, matching the limitation already noted above for `creator`-side
- * filtering. One narrow request per generator instead, same shape as
- * `fetchProviderGas`.
+ * carried `start_paused`, so there is no event bulk-listing the initial state,
+ * and a generator that has never been toggled has no `set_paused` event to
+ * read either. Confirmed live: `/v1/contracts?select=storage.sale.paused`
+ * answers every row with `null` instead of erroring. TzKT cannot project a
+ * nested storage path in bulk, the same limitation already noted above for
+ * `creator`-side filtering. One narrow request per generator instead, same
+ * shape as `fetchProviderGas`, bounded concurrency and short-lived caching so
+ * a large collection does not fan out unbounded on every page render.
  */
+const PAUSED_CONCURRENCY = 8;
 export async function fetchPausedStates(generators: string[]): Promise<Map<string, boolean>> {
     const paused = new Map<string, boolean>();
-    await Promise.all(
-        generators.map(async (address) => {
-            const p = await get<boolean>(`/v1/contracts/${address}/storage`, {
-                path: "sale.paused",
-            }).catch(() => null);
+    const queue = [...generators];
+    async function worker() {
+        for (;;) {
+            const address = queue.shift();
+            if (address === undefined) return;
+            const p = await fetch(`${tzktApi()}/v1/contracts/${address}/storage?path=sale.paused`, {
+                next: { revalidate: 30 },
+            })
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null);
             if (typeof p === "boolean") paused.set(address, p);
-        }),
-    );
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(PAUSED_CONCURRENCY, queue.length) }, worker));
     return paused;
 }
 
@@ -412,7 +419,7 @@ export interface GeneratorMeta {
     /** The cover the artist picked at deploy. What to show before any piece renders. */
     displayUri?: string;
     thumbnailUri?: string;
-    /** Standard TZIP-21 tags, as declared in `content` — not an `aleatory:` key. */
+    /** Standard TZIP-21 tags, as declared in `content`. */
     tags?: string[];
 }
 
