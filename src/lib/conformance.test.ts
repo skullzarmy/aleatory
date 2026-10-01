@@ -97,24 +97,46 @@ function extractFunction(src: string, name: string): string {
 }
 
 /**
- * The first few numbers a harness's own xmur3 + sfc32, as they actually
- * appear in its source, produce for a fixed seed. Not a string match: this
- * runs the extracted code. A harness that passes the magic-number checks
- * below but warms the stream extra times, or seeds it differently, fails
- * here instead of being discovered after a piece has minted.
+ * The statements between `sfc32`'s definition and the `Math.random =`
+ * assignment every harness makes right after seeding — `var s = xmur3(...)`,
+ * `var rand = sfc32(...)`, and anything else a harness does to `rand` before
+ * handing it to the piece. Extracted as text, not reconstructed, because a
+ * reconstruction can only re-assert what this file already assumes a harness
+ * does; it was a hand-written `xmur3(seed); sfc32(s(), s(), s(), s())` here
+ * that let four templates warm the stream 16 extra times with every check
+ * above still green, since none of them actually ran a template's own
+ * seeding code.
+ */
+function seedingBlock(src: string): string {
+    const sfc32Text = extractFunction(src, "sfc32");
+    const after = src.indexOf(sfc32Text) + sfc32Text.length;
+    const assignment = /Math\.random\s*=/.exec(src.slice(after));
+    if (!assignment) throw new Error("no Math.random assignment found after sfc32");
+    return src.slice(after, after + assignment.index);
+}
+
+/**
+ * The first few numbers a harness's own xmur3 + sfc32 and its own seeding
+ * statements, as they actually appear in its source, produce for a fixed
+ * seed. Not a string match and not this file's idea of how seeding goes:
+ * `seedingBlock` is run verbatim, so a harness that passes the magic-number
+ * checks below but warms the stream extra times, or seeds it differently,
+ * fails here instead of being discovered after a piece has minted.
  */
 function firstDraws(src: string, seed: string, n: number): number[] {
+    // Isolate and the renderer read `CFG.seed`; templates read a bare
+    // `seed` already in scope above their harness block. Both defined, so
+    // whichever the extracted statements reach for resolves.
     const code =
         extractFunction(src, "xmur3") +
         "\n" +
         extractFunction(src, "sfc32") +
-        "\nreturn { xmur3, sfc32 };";
-    const { xmur3, sfc32 } = new Function(code)() as {
-        xmur3: (s: string) => () => number;
-        sfc32: (a: number, b: number, c: number, d: number) => () => number;
-    };
-    const s = xmur3(seed);
-    const rand = sfc32(s(), s(), s(), s());
+        "\n" +
+        `var seed = ${JSON.stringify(seed)};\n` +
+        `var CFG = { seed: seed };\n` +
+        seedingBlock(src) +
+        "\nreturn { rand: rand };";
+    const { rand } = new Function(code)() as { rand: () => number };
     const out: number[] = [];
     for (let i = 0; i < n; i++) out.push(rand());
     return out;
