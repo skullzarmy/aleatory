@@ -17,6 +17,11 @@ export function GeneratorCard({ generator: c }: { generator: GeneratorSummary })
                         Sold out
                     </span>
                 )}
+                {!soldOut && c.paused && (
+                    <span className="absolute right-2 top-2 z-10 rounded-md bg-background/90 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide backdrop-blur">
+                        Paused
+                    </span>
+                )}
                 {c.coverUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

@@ -27,6 +27,8 @@ export interface Draft {
     seed: string;
     /** The collection description, set on the deploy form. Empty until then. */
     description?: string;
+    /** Standard TZIP-21 tags, set on the deploy form. Empty until then. */
+    tags?: string[];
     createdAt: number;
     updatedAt: number;
     /**

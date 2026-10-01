@@ -11,6 +11,7 @@ import {
     fetchTokensHeldBy,
     fetchTokenUris,
     fetchEditionSizes,
+    fetchPausedStates,
     type TzktToken,
 } from "./tzkt";
 import { isBlockedGenerator } from "./blocklist";
@@ -417,7 +418,7 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
 
     // The made side is a handful of generators, so the cover, the edition size
     // and the artist's own name are worth the extra reads.
-    const [docs, state, metas, covers, editions] = await Promise.all([
+    const [docs, state, metas, covers, editions, paused] = await Promise.all([
         docsFor(tokens),
         pendingState(tokens),
         Promise.all(
@@ -427,6 +428,7 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
         ),
         coversFor(madeAddresses).catch(() => new Map<string, string>()),
         fetchEditionSizes(factories, madeAddresses).catch(() => new Map<string, number>()),
+        fetchPausedStates(madeAddresses).catch(() => new Map<string, boolean>()),
     ]);
 
     return {
@@ -443,6 +445,7 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
                 minted: c.tokensCount ?? 0,
                 editionSize: editions.get(c.address) ?? 0,
                 firstActivity: c.firstActivityTime,
+                paused: paused.get(c.address) ?? false,
             };
         }),
         unconfigured: false,

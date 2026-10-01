@@ -23,7 +23,7 @@ const RPC = process.env.TEZOS_RPC || "https://rpc.tzkt.io/shadownet";
 const PROVIDER_ADDRESS = process.env.ALEA_PROVIDER_ADDRESS || "";
 const AGENT_SK = process.env.ALEA_AGENT_SK || "";
 import { render as renderPiece, renderConfigFromEnv, type RenderResult } from "./render.mts";
-import { buildPieceDocument } from "./metadata";
+import { buildPieceDocument, cleanTags } from "./metadata";
 import { feeFor } from "./fees";
 import { parseLibraries, resolveLibraries, type DeclaredLibrary } from "./libraries.mts";
 import { decodeParams, type ParamSpec, type ParamValues } from "../src/lib/params";
@@ -140,6 +140,8 @@ interface PendingPiece {
     /** For the document. A piece is "<generator> #<n>", never a bare number. */
     generatorName: string;
     description: string;
+    /** From the generator's content blob, already trimmed/deduped/capped. */
+    tags: string[];
     /** Address to basis points, straight from the generator's storage. */
     royalties: Record<string, number>;
     codeHash: string;
@@ -247,14 +249,20 @@ export async function generatorsServed(): Promise<string[]> {
  * means a transient outage skips this generator for a pass instead of
  * quietly minting pieces under an empty name.
  */
-async function generatorFacts(generator: string): Promise<{ name: string; description: string }> {
+async function generatorFacts(
+    generator: string,
+): Promise<{ name: string; description: string; tags: string[] }> {
     const raw = await metadataKey(generator, "content");
-    if (!raw) return { name: "", description: "" };
+    if (!raw) return { name: "", description: "", tags: [] };
     try {
-        const doc = JSON.parse(raw) as { name?: string; description?: string };
-        return { name: doc.name ?? "", description: doc.description ?? "" };
+        const doc = JSON.parse(raw) as { name?: string; description?: string; tags?: unknown };
+        return {
+            name: doc.name ?? "",
+            description: doc.description ?? "",
+            tags: cleanTags(doc.tags),
+        };
     } catch {
-        return { name: "", description: "" };
+        return { name: "", description: "", tags: [] };
     }
 }
 
@@ -393,6 +401,7 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
                 artist: storage.administrator,
                 generatorName: facts.name,
                 description: facts.description,
+                tags: facts.tags,
                 royalties,
                 codeHash: storage.art.code_hash ?? "",
             });
@@ -716,6 +725,7 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
         artist: storage.administrator,
         generatorName: facts.name,
         description: facts.description,
+        tags: facts.tags,
         royalties: royaltiesOf(storage),
         codeHash: storage.art.code_hash ?? "",
     };
@@ -745,9 +755,9 @@ export async function handle(piece: PendingPiece): Promise<string> {
     const doc = buildPieceDocument({
         generatorName: piece.generatorName,
         description: piece.description,
+        tags: piece.tags,
         artist: piece.artist,
         tokenId: Number(piece.tokenId),
-        artifactUri: piece.codeUri,
         imageUri: imageUri,
         seed: piece.seed,
         codeHash: piece.codeHash,

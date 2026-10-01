@@ -68,15 +68,42 @@ export function royaltyPreview(split: RoyaltySplit): { address: string; percentO
     }));
 }
 
+/** The generator's declared tags, bounded before any document ever sees them. */
+const MAX_TAGS = 10;
+const MAX_TAG_LENGTH = 32;
+export function cleanTags(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const t of raw) {
+        if (typeof t !== "string") continue;
+        // Array.from, not .slice: a plain string index counts UTF-16 code
+        // units, so a cap landing inside a surrogate pair (a tag ending in an
+        // emoji, say) would cut a character in half and corrupt the output.
+        // Trimmed again after the cut: a cap landing on a space inside the
+        // original string leaves trailing whitespace the first trim never saw.
+        const trimmed = Array.from(t.trim()).slice(0, MAX_TAG_LENGTH).join("").trim();
+        const key = trimmed.toLowerCase();
+        if (!trimmed || seen.has(key)) continue;
+        seen.add(key);
+        out.push(trimmed);
+        if (out.length >= MAX_TAGS) break;
+    }
+    return out;
+}
+
 export interface PendingDocInput {
     generatorName: string;
     description?: string;
+    /** The generator's declared tags, standard TZIP-21. */
+    tags?: string[];
     artist: string;
     placeholderImageUri: string;
     split: RoyaltySplit;
 }
 
 export function buildPendingDocument(input: PendingDocInput) {
+    const tags = cleanTags(input.tags);
     return {
         name: `${input.generatorName}`,
         description:
@@ -86,9 +113,14 @@ export function buildPendingDocument(input: PendingDocInput) {
         isBooleanAmount: false,
         shouldPreferSymbol: false,
         creators: [input.artist],
+        // Same placeholder as displayUri/thumbnailUri. objkt reads a missing
+        // artifactUri as no real content and excludes the token from the
+        // grid, even though it is owned and tradeable now.
+        artifactUri: input.placeholderImageUri,
         displayUri: input.placeholderImageUri,
         thumbnailUri: input.placeholderImageUri,
         royalties: encodeRoyalties(input.split),
+        ...(tags.length > 0 ? { tags } : {}),
     };
 }
 
@@ -100,13 +132,13 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
      * provider publishes what the contract holds.
      */
     royalties: { decimals: number; shares: Record<string, number> };
-    /** The source, with the seed and parameters applied. */
-    artifactUri: string;
     imageUri: string;
     seed: string;
     params?: Record<string, unknown>;
     /** `$alea.features()`'s accumulated traits. Empty or absent when the piece reports none. */
     features?: Record<string, string>;
+    /** The generator's declared tags, as of this piece's own publish time. */
+    tags?: string[];
     /**
      * The generator's opt-in declaration (`aleatory:nameTrait`), naming which
      * feature key, if any, becomes part of each piece's name. Absent for
@@ -153,6 +185,7 @@ function pieceName(input: PieceDocInput): string {
  * piece carries.
  */
 export function buildPieceDocument(input: PieceDocInput) {
+    const tags = cleanTags(input.tags);
     return {
         name: pieceName(input),
         description: input.description || "",
@@ -160,15 +193,18 @@ export function buildPieceDocument(input: PieceDocInput) {
         isBooleanAmount: false,
         shouldPreferSymbol: false,
         creators: [input.artist],
-        artifactUri: input.artifactUri,
+        // No separate pinned artifact exists per piece, so the rendered
+        // image is what objkt and other marketplaces get for both fields.
+        artifactUri: input.imageUri,
         displayUri: input.imageUri,
         thumbnailUri: input.imageUri,
         royalties: input.royalties,
+        ...(tags.length > 0 ? { tags } : {}),
         aleaSeed: input.seed,
         aleaCodeHash: input.codeHash,
         aleaParams: input.params ? JSON.stringify(input.params) : "",
-        // Traits first, then params — declared features are what the artist
-        // meant to be shown to a collector; params are inputs that happen to
+        // Traits first, then params: declared features are what the artist
+        // meant to be shown to a collector, params are inputs that happen to
         // also be readable. Order is not spec-mandated, just a pick.
         attributes: [
             ...Object.entries(input.features ?? {}).map(([name, value]) => ({

@@ -45,6 +45,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
     const [name, setName] = useState(draft?.name ?? "");
     const [description, setDescription] = useState(draft?.description ?? "");
+    const [tags, setTags] = useState((draft?.tags ?? []).join(", "));
     const [codeUri, setCodeUri] = useState("");
     const [editionSize, setEditionSize] = useState("10");
     const [price, setPrice] = useState("1");
@@ -88,19 +89,32 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         };
     }, [draft?.html]);
 
-    // This form remounts fresh every time the publish route loads, so name and
-    // description are otherwise ordinary local state — navigate away to check
-    // something and back, and whatever was typed is gone. Same debounced-save
-    // shape Workspace.tsx already uses for the rest of a draft. No draft (the
-    // ipfs:// pointer path) has nothing to save into.
+    const tagsList = useMemo(
+        () =>
+            tags
+                .split(",")
+                .map((t) => t.trim())
+                .filter(Boolean),
+        [tags],
+    );
+
+    // This form remounts fresh every time the publish route loads, so name,
+    // description and tags are otherwise ordinary local state. Navigate away
+    // to check something and back, and whatever was typed is gone. Same
+    // debounced-save shape Workspace.tsx already uses for the rest of a draft.
+    // No draft (the ipfs:// pointer path) has nothing to save into.
     useEffect(() => {
         if (!draft) return;
         const t = setTimeout(() => {
-            if (draft.name === name && (draft.description ?? "") === description) return;
-            void saveDraft({ ...draft, name, description });
+            const sameTags =
+                (draft.tags ?? []).length === tagsList.length &&
+                (draft.tags ?? []).every((v, i) => v === tagsList[i]);
+            if (draft.name === name && (draft.description ?? "") === description && sameTags)
+                return;
+            void saveDraft({ ...draft, name, description, tags: tagsList });
         }, 600);
         return () => clearTimeout(t);
-    }, [draft, name, description]);
+    }, [draft, name, description, tagsList]);
 
     // The effect above cancels its own timer on every keystroke, by design —
     // that's the debounce. But its cleanup also runs on a real unmount, which
@@ -109,14 +123,18 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     // ever going to happen for it. A ref keeps the latest values reachable
     // from a cleanup that only fires on the real thing (empty deps), so an
     // unmount flushes immediately instead of just cancelling.
-    const latest = useRef({ draft, name, description });
-    latest.current = { draft, name, description };
+    const latest = useRef({ draft, name, description, tagsList });
+    latest.current = { draft, name, description, tagsList };
     useEffect(() => {
         return () => {
-            const { draft, name, description } = latest.current;
+            const { draft, name, description, tagsList } = latest.current;
             if (!draft) return;
-            if (draft.name === name && (draft.description ?? "") === description) return;
-            void saveDraft({ ...draft, name, description });
+            const sameTags =
+                (draft.tags ?? []).length === tagsList.length &&
+                (draft.tags ?? []).every((v, i) => v === tagsList[i]);
+            if (draft.name === name && (draft.description ?? "") === description && sameTags)
+                return;
+            void saveDraft({ ...draft, name, description, tags: tagsList });
         };
     }, []);
 
@@ -319,6 +337,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     draft,
                     name: name.trim(),
                     description: description.trim(),
+                    tags: tagsList,
                     artist: address as string,
                     editionSize: Number.parseInt(editionSize, 10),
                     priceMutez: parseTez(price) as bigint,
@@ -429,6 +448,18 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     rows={3}
                     placeholder="What the generator does, in a sentence or two."
                     className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm"
+                />
+            </Field>
+
+            <Field
+                label="Tags"
+                hint="Comma separated, e.g. generative, glitch, longform. Read by objkt and other marketplaces for discovery. Changeable later via set_metadata. A change only reaches pieces minted after it; a piece already published keeps what it had."
+            >
+                <input
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="generative, glitch"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                 />
             </Field>
 
