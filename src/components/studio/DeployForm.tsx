@@ -52,6 +52,10 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [platformPercent, setPlatformPercent] = useState("10");
     const [providerAddress, setProviderAddress] = useState(providers[0]?.address ?? "");
     const [trustResolver, setTrustResolver] = useState(false);
+    // Opt-in, off by default. The feature key whose value becomes part of
+    // each piece's name — empty means every piece keeps the plain
+    // "<Generator> #<n>" form every indexer expects.
+    const [nameTrait, setNameTrait] = useState("");
     // Deploy, look at it, announce it, then open it. A generator that opens
     // the instant it exists cannot be checked before someone mints from it.
     const [startPaused, setStartPaused] = useState(true);
@@ -305,6 +309,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     resolvedLibraries: resolvedDeps.map((r) => r.spec),
                     startPaused,
                     trustResolver,
+                    nameTrait: nameTrait.trim() || undefined,
                     coverUri: cover?.uri,
                     coverThumbUri: cover?.thumbUri,
                     coverSeed: cover?.seed,
@@ -405,6 +410,23 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     rows={3}
                     placeholder="What the generator does, in a sentence or two."
                     className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm"
+                />
+            </Field>
+
+            <Field
+                label="Name a piece from a trait (optional)"
+                permanent
+                hint={
+                    nameTrait.trim()
+                        ? `Pieces will be named "${name.trim() || "Generator"} #1 · <value of ${nameTrait.trim()}>" when that trait is present, and the plain form otherwise.`
+                        : 'Leave empty and every piece is named "Generator #1", "Generator #2", and so on — the form every marketplace expects. Fill in a key your code passes to $alea.features() and that trait\'s value is appended to the name.'
+                }
+            >
+                <input
+                    value={nameTrait}
+                    onChange={(e) => setNameTrait(e.target.value)}
+                    placeholder="e.g. Name"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                 />
             </Field>
 

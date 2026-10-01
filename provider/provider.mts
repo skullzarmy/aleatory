@@ -145,6 +145,8 @@ interface PendingPiece {
     codeHash: string;
     /** The generator's declared mint-time parameters, empty when it declares none. */
     paramsSchema: ParamSpec[];
+    /** `aleatory:nameTrait`, if the generator opted into a feature-derived name. */
+    nameTrait?: string;
 }
 
 async function tzkt<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
@@ -267,6 +269,12 @@ async function paramsSchemaOf(generator: string): Promise<ParamSpec[]> {
     }
 }
 
+/** The generator's opt-in `aleatory:nameTrait` declaration, absent for most generators. */
+async function nameTraitOf(generator: string): Promise<string | undefined> {
+    const raw = await metadataKey(generator, "aleatory:nameTrait").catch(() => undefined);
+    return raw?.trim() || undefined;
+}
+
 /** One key out of a generator's metadata big_map, decoded. */
 async function metadataKey(generator: string, key: string): Promise<string | undefined> {
     const row = await tzkt<{ value?: string } | null>(
@@ -328,6 +336,7 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
         await metadataKey(generator, "aleatory:libraries").catch(() => undefined),
     );
     const paramsSchema = await paramsSchemaOf(generator);
+    const nameTrait = await nameTraitOf(generator);
     const facts = await generatorFacts(generator);
     const royalties = royaltiesOf(storage);
 
@@ -361,6 +370,7 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
                 codeUri,
                 libraries,
                 paramsSchema,
+                nameTrait,
                 artist: storage.administrator,
                 generatorName: facts.name,
                 description: facts.description,
@@ -677,6 +687,7 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
             await metadataKey(generator, "aleatory:libraries").catch(() => undefined),
         ),
         paramsSchema: await paramsSchemaOf(generator),
+        nameTrait: await nameTraitOf(generator),
         artist: storage.administrator,
         generatorName: facts.name,
         description: facts.description,
@@ -708,6 +719,7 @@ export async function handle(piece: PendingPiece): Promise<string> {
         codeHash: piece.codeHash,
         params,
         features,
+        nameTrait: piece.nameTrait,
         // Basis points, and TZIP-21 with `decimals: 4` is the same unit.
         royalties: { decimals: 4, shares: piece.royalties },
     });
