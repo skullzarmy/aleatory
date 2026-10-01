@@ -223,8 +223,9 @@
 // and its own Math.random wiring — those legitimately differ (isolate counts
 // calls, the provider doesn't, templates read from the URL) and stay separate.
 //
-// No backtick characters anywhere in this file: isolate/build.mjs splices it
-// raw into a template literal, and one breaks that silently.
+// No backticks or template-literal interpolation in this shared block:
+// isolate/build.mjs splices it raw into a template literal, and either breaks
+// that silently.
 function xmur3(str) {
   var h = 1779033703 ^ str.length;
   for (var i = 0; i < str.length; i++) {
