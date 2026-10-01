@@ -69,11 +69,95 @@ const HARNESSES: { name: string; path: string; renderer: boolean }[] = [
     { name: "template custom", path: "public/templates/custom/index.html", renderer: false },
 ];
 
+/**
+ * Pull one `function name(...) { ... }` out of source text by counting
+ * braces, not by a regex that assumes a particular body shape. The function
+ * being extracted is exactly the thing under test, so the extraction cannot
+ * assume anything about its contents.
+ */
+function extractFunction(src: string, name: string): string {
+    const start = src.indexOf(`function ${name}`);
+    if (start < 0) throw new Error(`function ${name} not found`);
+    let depth = 0;
+    let opened = false;
+    let i = start;
+    for (; i < src.length; i++) {
+        if (src[i] === "{") {
+            depth++;
+            opened = true;
+        } else if (src[i] === "}") {
+            depth--;
+            if (opened && depth === 0) {
+                i++;
+                break;
+            }
+        }
+    }
+    return src.slice(start, i);
+}
+
+/**
+ * The first few numbers a harness's own xmur3 + sfc32, as they actually
+ * appear in its source, produce for a fixed seed. Not a string match: this
+ * runs the extracted code. A harness that passes the magic-number checks
+ * below but warms the stream extra times, or seeds it differently, fails
+ * here instead of being discovered after a piece has minted.
+ */
+function firstDraws(src: string, seed: string, n: number): number[] {
+    const code =
+        extractFunction(src, "xmur3") +
+        "\n" +
+        extractFunction(src, "sfc32") +
+        "\nreturn { xmur3, sfc32 };";
+    const { xmur3, sfc32 } = new Function(code)() as {
+        xmur3: (s: string) => () => number;
+        sfc32: (a: number, b: number, c: number, d: number) => () => number;
+    };
+    const s = xmur3(seed);
+    const rand = sfc32(s(), s(), s(), s());
+    const out: number[] = [];
+    for (let i = 0; i < n; i++) out.push(rand());
+    return out;
+}
+
+/**
+ * `provider/render.mts` reads the core from `src/lib/harness-core.js` at run
+ * time (`readFileSync`) rather than typing it inline, so its own file no
+ * longer contains literal `function xmur3`/`function sfc32` text — just an
+ * `import`. Splice the shared core in before any check reads this file as
+ * source text, or every check below would need its own special case instead
+ * of this one.
+ */
+const HARNESS_CORE_TEXT = (() => {
+    const file = readFileSync("src/lib/harness-core.js", "utf8");
+    return file.slice(file.indexOf("function xmur3"));
+})();
+function effectiveSource(h: (typeof HARNESSES)[number]): string {
+    const src = read(h.path);
+    return h.path === "provider/render.mts"
+        ? src.replace("${HARNESS_CORE}", HARNESS_CORE_TEXT)
+        : src;
+}
+
 function auditHarnesses() {
     console.log("\nThe render harness (§7)\n");
 
+    {
+        const seed = "aleatory-conformance-fixed-seed";
+        const reference = firstDraws(effectiveSource(HARNESSES[0]), seed, 5);
+        for (const h of HARNESSES) {
+            const draws = firstDraws(effectiveSource(h), seed, 5);
+            check(
+                `${h.name}: draws the same numbers from one seed as ${HARNESSES[0].name}`,
+                JSON.stringify(draws) === JSON.stringify(reference),
+                `got ${JSON.stringify(draws)}, expected ${JSON.stringify(reference)} — a template, the ` +
+                    "isolate and the renderer have to agree, not just use the same constants",
+            );
+        }
+    }
+
     for (const h of HARNESSES) {
-        const src = read(h.path);
+        const src = effectiveSource(h);
 
         const missing = SURFACE.filter((m) => !new RegExp(`\\b${m}\\s*:`).test(src));
         check(

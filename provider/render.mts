@@ -9,6 +9,21 @@
  * look the same in a browser as in the image that ends up on chain.
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * The seeded-PRNG construction (xmur3 + sfc32), shared verbatim with
+ * `isolate/index.html` and the starter templates via `src/lib/harness-core.js`.
+ * Read once at module load, not retyped here — a second copy is a second
+ * thing to drift, which is how the templates ended up warming the stream 16
+ * extra times before this got consolidated.
+ */
+const HARNESS_CORE = readFileSync(join(__dirname, "..", "src/lib/harness-core.js"), "utf8");
+
 const API = "https://api.cloudflare.com/client/v4/accounts";
 
 /** Long edge of a rendered piece. */
@@ -57,32 +72,7 @@ function harness(seed: string, params: Record<string, unknown>): string {
   "use strict";
   var CFG = ${config};
 
-  function xmur3(str) {
-    var h = 1779033703 ^ str.length;
-    for (var i = 0; i < str.length; i++) {
-      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-      h = (h << 13) | (h >>> 19);
-    }
-    return function () {
-      h = Math.imul(h ^ (h >>> 16), 2246822507);
-      h = Math.imul(h ^ (h >>> 13), 3266489909);
-      h ^= h >>> 16;
-      return h >>> 0;
-    };
-  }
-  function sfc32(a, b, c, d) {
-    return function () {
-      a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
-      var t = (a + b) | 0;
-      a = b ^ (b >>> 9);
-      b = (c + (c << 3)) | 0;
-      c = (c << 21) | (c >>> 11);
-      d = (d + 1) | 0;
-      t = (t + d) | 0;
-      c = (c + t) | 0;
-      return (t >>> 0) / 4294967296;
-    };
-  }
+  ${HARNESS_CORE}
 
   // The seed is a base58 operation hash and is never hex. Parsing it as hex
   // yields zero for every word and every piece draws the same picture.
