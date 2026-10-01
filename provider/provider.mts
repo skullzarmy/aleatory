@@ -153,6 +153,12 @@ async function tzkt<T>(path: string, params: Record<string, string | number> = {
     const url = new URL(`${TZKT}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    // TzKT's answer for "that bigmap key does not exist": 204, empty body.
+    // `res.ok` is true for 204, so without this `res.json()` throws on the
+    // empty body — indistinguishable from a real failure to every caller
+    // that catches it, which is exactly how a transient outage ends up
+    // silently read as "this generator declares nothing."
+    if (res.status === 204) return null as T;
     if (!res.ok) throw new Error(`TzKT ${res.status} ${path}`);
     return (await res.json()) as T;
 }
@@ -234,9 +240,15 @@ export async function generatorsServed(): Promise<string[]> {
     return served;
 }
 
-/** Name and description from the generator's own TZIP-16 document. */
+/**
+ * Name and description from the generator's own TZIP-16 document. Does not
+ * catch a real failure here either — the per-generator scan already does
+ * (`pendingIn(generator).catch(...)` in the daemon), so letting it through
+ * means a transient outage skips this generator for a pass instead of
+ * quietly minting pieces under an empty name.
+ */
 async function generatorFacts(generator: string): Promise<{ name: string; description: string }> {
-    const raw = await metadataKey(generator, "content").catch(() => undefined);
+    const raw = await metadataKey(generator, "content");
     if (!raw) return { name: "", description: "" };
     try {
         const doc = JSON.parse(raw) as { name?: string; description?: string };
@@ -259,7 +271,7 @@ function royaltiesOf(storage: GeneratorStorage): Record<string, number> {
  * seeing them unresolved and crashing before `ready()`.
  */
 async function paramsSchemaOf(generator: string): Promise<ParamSpec[]> {
-    const raw = await metadataKey(generator, "aleatory:params").catch(() => undefined);
+    const raw = await metadataKey(generator, "aleatory:params");
     if (!raw) return [];
     try {
         const parsed = JSON.parse(raw) as { params?: unknown };
@@ -271,15 +283,22 @@ async function paramsSchemaOf(generator: string): Promise<ParamSpec[]> {
 
 /** The generator's opt-in `aleatory:nameTrait` declaration, absent for most generators. */
 async function nameTraitOf(generator: string): Promise<string | undefined> {
-    const raw = await metadataKey(generator, "aleatory:nameTrait").catch(() => undefined);
+    const raw = await metadataKey(generator, "aleatory:nameTrait");
     return raw?.trim() || undefined;
 }
 
 /** One key out of a generator's metadata big_map, decoded. */
+/**
+ * Does not catch. A genuinely absent key comes back as `null` cleanly (see
+ * `tzkt`'s 204 handling) — a real failure (network, TzKT down) throws, and
+ * callers that need params/libraries/nameTrait right must let that propagate
+ * rather than read it as "declares nothing," which is a permanent wrong
+ * render, not a retry.
+ */
 async function metadataKey(generator: string, key: string): Promise<string | undefined> {
     const row = await tzkt<{ value?: string } | null>(
         `/v1/contracts/${generator}/bigmaps/metadata/keys/${encodeURIComponent(key)}`,
-    ).catch(() => null);
+    );
     const value = row?.value;
     return value ? hexToUtf8(value) : undefined;
 }
@@ -331,10 +350,10 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
     verifySource(code, storage.art.code_hash ?? "", generator);
 
     // Read from the generator's own metadata: a provider does not need to know
-    // what a "p5 sketch" is, only how to resolve what it was told.
-    const libraries = parseLibraries(
-        await metadataKey(generator, "aleatory:libraries").catch(() => undefined),
-    );
+    // what a "p5 sketch" is, only how to resolve what it was told. Not caught
+    // — a real failure here means this generator is skipped this pass, not
+    // that it silently declares no libraries a p5 piece then draws blank.
+    const libraries = parseLibraries(await metadataKey(generator, "aleatory:libraries"));
     const paramsSchema = await paramsSchemaOf(generator);
     const nameTrait = await nameTraitOf(generator);
     const facts = await generatorFacts(generator);
@@ -683,9 +702,7 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
         params: mint.params,
         code,
         codeUri: storage.art.code_uri ?? "",
-        libraries: parseLibraries(
-            await metadataKey(generator, "aleatory:libraries").catch(() => undefined),
-        ),
+        libraries: parseLibraries(await metadataKey(generator, "aleatory:libraries")),
         paramsSchema: await paramsSchemaOf(generator),
         nameTrait: await nameTraitOf(generator),
         artist: storage.administrator,
