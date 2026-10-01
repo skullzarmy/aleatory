@@ -68,15 +68,42 @@ export function royaltyPreview(split: RoyaltySplit): { address: string; percentO
     }));
 }
 
+/**
+ * The generator's declared tags, trimmed/deduped/length-and-count-capped —
+ * same "never produce a broken document" bar as `pieceName`'s nameTrait
+ * handling. A tag is free text an artist typed, not a bounded param, so this
+ * is the one place that bounds it before it reaches any document.
+ */
+const MAX_TAGS = 10;
+const MAX_TAG_LENGTH = 32;
+export function cleanTags(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const t of raw) {
+        if (typeof t !== "string") continue;
+        const trimmed = t.trim().slice(0, MAX_TAG_LENGTH);
+        const key = trimmed.toLowerCase();
+        if (!trimmed || seen.has(key)) continue;
+        seen.add(key);
+        out.push(trimmed);
+        if (out.length >= MAX_TAGS) break;
+    }
+    return out;
+}
+
 export interface PendingDocInput {
     generatorName: string;
     description?: string;
+    /** The generator's declared tags (TZIP-21, standard — not an `aleatory:` key). */
+    tags?: string[];
     artist: string;
     placeholderImageUri: string;
     split: RoyaltySplit;
 }
 
 export function buildPendingDocument(input: PendingDocInput) {
+    const tags = cleanTags(input.tags);
     return {
         name: `${input.generatorName}`,
         description:
@@ -89,6 +116,7 @@ export function buildPendingDocument(input: PendingDocInput) {
         displayUri: input.placeholderImageUri,
         thumbnailUri: input.placeholderImageUri,
         royalties: encodeRoyalties(input.split),
+        ...(tags.length > 0 ? { tags } : {}),
     };
 }
 
@@ -107,6 +135,8 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
     params?: Record<string, unknown>;
     /** `$alea.features()`'s accumulated traits. Empty or absent when the piece reports none. */
     features?: Record<string, string>;
+    /** The generator's declared tags, as of this piece's own publish time. */
+    tags?: string[];
     /**
      * The generator's opt-in declaration (`aleatory:nameTrait`), naming which
      * feature key, if any, becomes part of each piece's name. Absent for
@@ -153,6 +183,7 @@ function pieceName(input: PieceDocInput): string {
  * piece carries.
  */
 export function buildPieceDocument(input: PieceDocInput) {
+    const tags = cleanTags(input.tags);
     return {
         name: pieceName(input),
         description: input.description || "",
@@ -164,6 +195,7 @@ export function buildPieceDocument(input: PieceDocInput) {
         displayUri: input.imageUri,
         thumbnailUri: input.imageUri,
         royalties: input.royalties,
+        ...(tags.length > 0 ? { tags } : {}),
         aleaSeed: input.seed,
         aleaCodeHash: input.codeHash,
         aleaParams: input.params ? JSON.stringify(input.params) : "",

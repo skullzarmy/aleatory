@@ -12,6 +12,7 @@ import {
     fetchGenerators,
     fetchGeneratorMeta,
     fetchEditionSizes,
+    fetchPausedStates,
     type GeneratorMeta,
     indexerFetch,
     isAddress,
@@ -59,6 +60,8 @@ export interface Generator {
     artist: string;
     name?: string;
     description?: string;
+    /** Standard TZIP-21 tags, read by objkt and other marketplaces. */
+    tags?: string[];
     /** The source, decoded from storage. Empty when it is a pointer. */
     code: string;
     /** False while the source is still arriving in chunks. Nothing mints. */
@@ -125,6 +128,7 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
         address,
         name: meta.name,
         description: meta.description,
+        tags: meta.tags,
         paramsSchema: await fetchParamsSchema(address),
         artist: s.administrator,
         code: await decodeCode(s.art.code, s.art.code_encoding).catch(() => ""),
@@ -250,6 +254,7 @@ export interface GeneratorSummary {
     /** The cap. Zero is an open edition. */
     editionSize: number;
     firstActivity?: string;
+    paused: boolean;
 }
 
 export async function fetchAllGenerators(): Promise<GeneratorSummary[]> {
@@ -265,12 +270,13 @@ export async function fetchAllGenerators(): Promise<GeneratorSummary[]> {
         // factory rather than one order.
         .sort((a, b) => (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""));
     const addresses = rows.map((c) => c.address);
-    const [metas, covers, editions] = await Promise.all([
+    const [metas, covers, editions, paused] = await Promise.all([
         Promise.all(
             addresses.map((a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({}))),
         ),
         coversFor(addresses).catch(() => new Map<string, string>()),
         fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
+        fetchPausedStates(addresses).catch(() => new Map<string, boolean>()),
     ]);
 
     return rows.map((c, i) => ({
@@ -287,5 +293,8 @@ export async function fetchAllGenerators(): Promise<GeneratorSummary[]> {
         minted: c.tokensCount ?? 0,
         editionSize: editions.get(c.address) ?? 0,
         firstActivity: c.firstActivityTime,
+        // Unknown reads as not-paused: a missing badge is a cosmetic miss, a
+        // false "paused" on every row this failed for would be worse.
+        paused: paused.get(c.address) ?? false,
     }));
 }

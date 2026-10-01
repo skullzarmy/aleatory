@@ -26,7 +26,12 @@ import {
     readCode,
     sealCode,
 } from "./ops";
-import { buildPendingDocument, royaltiesToBps, type RoyaltySplit } from "@provider/metadata";
+import {
+    buildPendingDocument,
+    cleanTags,
+    royaltiesToBps,
+    type RoyaltySplit,
+} from "@provider/metadata";
 import { detectParams } from "./detect";
 import { schemaForRecord } from "./params";
 import { recordFor } from "./libraries";
@@ -58,6 +63,8 @@ export interface PublishInput {
     /** The generator name, which is also each piece's name stem. */
     name: string;
     description: string;
+    /** Standard TZIP-21 tags, not an `aleatory:` key — objkt reads this directly. */
+    tags?: string[];
     artist: string;
     editionSize: number;
     priceMutez: bigint;
@@ -395,6 +402,7 @@ export async function publishGenerator(
         content: buildPendingDocument({
             generatorName: input.name,
             description: input.description,
+            tags: input.tags,
             artist: input.artist,
             placeholderImageUri: input.placeholderImageUri ?? input.coverUri ?? "",
             split: input.split,
@@ -403,6 +411,7 @@ export async function publishGenerator(
 
     onStage?.("signing");
     const schema = schemaForRecord(detectParams(draft.html)?.params ?? []);
+    const tags = cleanTags(input.tags);
 
     const result = await deployGenerator(client, {
         // A walked generator is deployed holding neither its code nor a
@@ -438,6 +447,9 @@ export async function publishGenerator(
                     : {}),
                 // Recorded so the cover can be redrawn from chain state.
                 ...(input.coverSeed ? { aleaCoverSeed: input.coverSeed } : {}),
+                // Standard TZIP-21 field, not an `aleatory:` key — objkt reads
+                // this directly off `content`, no platform-specific convention.
+                ...(tags.length > 0 ? { tags } : {}),
             }),
             // Under its own key, so a mint UI reads one value and not the whole
             // record. docs/params.md §4.

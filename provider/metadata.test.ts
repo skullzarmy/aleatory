@@ -6,7 +6,7 @@
  *   npx tsx provider/metadata.test.ts
  */
 import assert from "node:assert/strict";
-import { encodeRoyalties, royaltyPreview, buildPieceDocument } from "./metadata";
+import { encodeRoyalties, royaltyPreview, buildPieceDocument, cleanTags } from "./metadata";
 
 const A = "tz1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const B = "tz1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -294,6 +294,83 @@ check("declared, trait value is absurdly long: truncated, never a broken or gian
     assert.ok(doc.name.length < 100, `name was ${doc.name.length} characters: ${doc.name}`);
     assert.ok(doc.name.startsWith("Prancers #12 · xxx"));
     assert.ok(doc.name.endsWith("…"));
+});
+
+console.log("\ntags");
+
+check("not declared at all: no tags key on the document", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+    });
+    assert.ok(!("tags" in doc));
+});
+
+check("declared: lands on the document as-is", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        tags: ["generative", "glitch"],
+    });
+    assert.deepEqual(doc.tags, ["generative", "glitch"]);
+});
+
+check("empty array: same as not declared, no tags key", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        tags: [],
+    });
+    assert.ok(!("tags" in doc));
+});
+
+check("cleanTags: not an array at all, never throws", () => {
+    assert.deepEqual(cleanTags(undefined), []);
+    assert.deepEqual(cleanTags(null), []);
+    assert.deepEqual(cleanTags("generative"), []);
+    assert.deepEqual(cleanTags({ 0: "generative" }), []);
+});
+
+check("cleanTags: non-string entries dropped, not coerced", () => {
+    assert.deepEqual(cleanTags(["generative", 3, null, "glitch"]), ["generative", "glitch"]);
+});
+
+check("cleanTags: trimmed, empty strings dropped", () => {
+    assert.deepEqual(cleanTags(["  generative  ", "   ", "glitch"]), ["generative", "glitch"]);
+});
+
+check("cleanTags: deduped case-insensitively, first spelling wins", () => {
+    assert.deepEqual(cleanTags(["Generative", "generative", "GENERATIVE"]), ["Generative"]);
+});
+
+check("cleanTags: each tag capped at 32 characters", () => {
+    const long = "x".repeat(50);
+    const [tag] = cleanTags([long]);
+    assert.equal(tag.length, 32);
+});
+
+check("cleanTags: capped at 10 tags total, earliest kept", () => {
+    const tags = Array.from({ length: 20 }, (_, i) => `tag${i}`);
+    assert.equal(cleanTags(tags).length, 10);
+    assert.deepEqual(cleanTags(tags), tags.slice(0, 10));
 });
 
 console.log(failures === 0 ? "\nall passed" : `\n${failures} failed`);
