@@ -29,7 +29,12 @@ export type FrameMessage =
     | {
           type: "alea:ready";
           seed: string;
-          /** sha-256 (or fallback) of the captured output, the determinism digest. */
+          /**
+           * The determinism digest: the last 64 characters of the captured
+           * canvas's data: URL, not a cryptographic hash. A real hash would
+           * cost a repaint per run; two runs of one seed differing in these
+           * 64 characters is the same signal a hash would also give, for free.
+           */
           digest: string;
           /** data: URL of the capture, only when requested. */
           image: string | null;
