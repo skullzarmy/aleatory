@@ -423,7 +423,16 @@ whole surface is in §7 and a renderer installs all of it.
 freeze `Date` and `performance.now`. Block the network for the duration. These
 are not optional: they are what makes two renders of one seed agree.
 
-**6. Capture when the piece says so**, on `$alea.ready()`, and not on a timer.
+**6. Capture when the piece says so**, on `$alea.ready()`. A generator cannot
+be trusted to always reach that call — a bug, an infinite loop before it, a
+piece that simply forgot — and a renderer waiting forever on one is a stuck
+queue, so a bounded ceiling that captures whatever is on screen rather than
+hanging is conforming; a renderer taking this path should make that fact
+available to whoever is watching it run, the way `isolate/index.html` and
+`provider/render.mts` both do with an `autoCaptured` flag. What is not
+conforming is capturing *routinely* on a timer instead of the signal, or a
+ceiling short enough that a legitimately slow piece hits it regularly. Both
+of ours use 20s.
 
 **7. Publish** with `set_token_metadata` on the generator. You may call it if
 the generator names you: its `render.provider_agent`, an address in

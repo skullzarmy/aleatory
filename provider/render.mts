@@ -35,9 +35,13 @@ const SIZE = 1000;
 
 /**
  * How long to wait for a piece to signal. A generator sets its own capture
- * point and cannot be trusted to reach it, so this is the ceiling.
+ * point and cannot be trusted to reach it, so this is the ceiling — the
+ * in-page fallback (below) fires at this minus 2s, which is what keeps it
+ * ahead of Cloudflare's own `waitForSelector` wait at this exact value.
+ * Matches isolate/index.html's default so a piece behaves the same whether a
+ * viewer or the renderer is the one waiting on it.
  */
-const CAPTURE_TIMEOUT_MS = 20_000;
+const CAPTURE_TIMEOUT_MS = 22_000;
 
 export interface RenderInput {
     /** The generator, decoded. Already has its libraries inlined if it needs any. */

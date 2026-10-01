@@ -40,7 +40,12 @@ const INITIAL: Check[] = [
     },
 ];
 
-const CAPTURE_TIMEOUT = 8000;
+// Matches isolate's own default fallback (isolate/index.html, CFG.timeout ||
+// 20000) — this component never passes an explicit timeout, so that default
+// is what actually runs. This file's own +2000 margin below is what keeps
+// this outer timeout from giving up before the isolate's internal one would
+// have produced a real (if auto-captured) result.
+const CAPTURE_TIMEOUT = 20_000;
 
 /**
  * How much of two captures actually differs, in pixels.

@@ -487,11 +487,14 @@ function sfc32(a, b, c, d) {
   window.$alea = alea;
 
   // A piece that never signals is captured on a timeout rather than never.
+  // Matches provider/render.mts's in-page fallback (CAPTURE_TIMEOUT_MS - 2s),
+  // so a piece behaves the same whether a viewer or the renderer is waiting
+  // on it — they used to disagree (8s here, 18s there).
   setTimeout(function () {
     if (captured) return;
     autoCaptured = true;
     finish();
-  }, CFG.timeout || 8000);
+  }, CFG.timeout || 20000);
 })();
 `;
 })();
