@@ -6,9 +6,12 @@
 // never hand-retyped. A seed pinned anywhere draws the same numbers everywhere,
 // or nothing else about this platform's determinism claim holds.
 //
-// Each consumer still does its own seeding call (`xmur3(seed)`, `sfc32(s(),s(),s(),s())`)
+// Each consumer still does its own seeding call (xmur3(seed), sfc32(s(),s(),s(),s()))
 // and its own Math.random wiring — those legitimately differ (isolate counts
 // calls, the provider doesn't, templates read from the URL) and stay separate.
+//
+// No backtick characters anywhere in this file: isolate/build.mjs splices it
+// raw into a template literal, and one breaks that silently.
 function xmur3(str) {
   var h = 1779033703 ^ str.length;
   for (var i = 0; i < str.length; i++) {

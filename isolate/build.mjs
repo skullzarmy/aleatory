@@ -26,6 +26,12 @@ if (!src.includes(MARKER)) {
     process.exit(1);
 }
 
+// Splices raw into a template literal in index.src.html; a backtick closes that early.
+if (core.includes("`")) {
+    console.error("harness-core.js contains a backtick, which breaks the splice into index.src.html");
+    process.exit(1);
+}
+
 const out = src.replace(MARKER, core);
 writeFileSync(join(root, "index.html"), out);
 console.log("isolate: index.html generated from index.src.html");
