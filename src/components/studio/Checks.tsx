@@ -73,7 +73,12 @@ export function Checks({
     const runOnce = useCallback(
         (
             runSeed: string,
-        ): Promise<{ digest: string | null; violations: string[]; ready: boolean }> =>
+        ): Promise<{
+            digest: string | null;
+            violations: string[];
+            ready: boolean;
+            autoCaptured: boolean;
+        }> =>
             new Promise((resolve) => {
                 const frame = document.createElement("iframe");
                 frame.setAttribute("sandbox", "allow-scripts");
@@ -84,6 +89,7 @@ export function Checks({
 
                 const violations: string[] = [];
                 let ready = false;
+                let autoCaptured = false;
                 let done = false;
 
                 function finish(digest: string | null) {
@@ -91,7 +97,7 @@ export function Checks({
                     done = true;
                     window.removeEventListener("message", onMessage);
                     frame.remove();
-                    resolve({ digest, violations, ready });
+                    resolve({ digest, violations, ready, autoCaptured });
                 }
 
                 function onMessage(e: MessageEvent) {
@@ -101,6 +107,7 @@ export function Checks({
                         kind?: string;
                         detail?: string;
                         digest?: string;
+                        autoCaptured?: boolean;
                     };
                     if (d?.type === "alea:hello") {
                         frame.contentWindow?.postMessage(
@@ -121,7 +128,12 @@ export function Checks({
                         violations.push(`${d.kind}: ${d.detail}`);
                     }
                     if (d?.type === "alea:ready") {
-                        ready = true;
+                        // A message did arrive, but the isolate's own fallback
+                        // timer can be what sent it — that is not the piece
+                        // saying it is done, and this check exists to tell
+                        // the difference.
+                        ready = !d.autoCaptured;
+                        autoCaptured = Boolean(d.autoCaptured);
                         finish(d.digest ?? null);
                     }
                 }
@@ -169,7 +181,9 @@ export function Checks({
             status: first.ready ? "pass" : "fail",
             note: first.ready
                 ? "Called $alea.ready()."
-                : "Never called $alea.ready(). Without it we capture on a timer and might catch your piece half-drawn.",
+                : first.autoCaptured
+                  ? "Never called $alea.ready() — captured on a timer instead, which might have caught your piece half-drawn."
+                  : "Never called $alea.ready(), and the run never finished at all.",
         });
 
         setRunning(false);
