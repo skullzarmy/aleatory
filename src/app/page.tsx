@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 // TzKT's alias is set only for contracts it recognizes, never ours, so the display
 // name comes from the generator's own metadata instead.
 export default async function HomePage() {
-    const generators = await fetchAllGenerators();
+    const generators = await fetchAllGenerators({ paused: true });
 
     if (generators.length === 0) {
         return (

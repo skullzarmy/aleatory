@@ -257,7 +257,12 @@ export interface GeneratorSummary {
     paused: boolean;
 }
 
-export async function fetchAllGenerators(): Promise<GeneratorSummary[]> {
+/**
+ * `paused` defaults off: it is one uncached TzKT request per generator, and
+ * the market page calls this just to build a name map, never reads it. Only
+ * a caller that actually renders the badge (the home page) should pay for it.
+ */
+export async function fetchAllGenerators(opts?: { paused?: boolean }): Promise<GeneratorSummary[]> {
     const factories = await allFactories();
     if (factories.length === 0) return [];
     const lists = await Promise.all(factories.map((f) => fetchGenerators(f).catch(() => [])));
@@ -276,7 +281,9 @@ export async function fetchAllGenerators(): Promise<GeneratorSummary[]> {
         ),
         coversFor(addresses).catch(() => new Map<string, string>()),
         fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
-        fetchPausedStates(addresses).catch(() => new Map<string, boolean>()),
+        opts?.paused
+            ? fetchPausedStates(addresses).catch(() => new Map<string, boolean>())
+            : Promise.resolve(new Map<string, boolean>()),
     ]);
 
     return rows.map((c, i) => ({

@@ -364,6 +364,38 @@ check("declared: lands on the document as-is", () => {
     assert.deepEqual(doc.tags, ["generative", "glitch"]);
 });
 
+check("pending document: not declared at all: no tags key", () => {
+    const doc = buildPendingDocument({
+        generatorName: "Drift",
+        artist: A,
+        placeholderImageUri: "ipfs://placeholder",
+        split: { totalPercent: 0, recipients: [] },
+    });
+    assert.ok(!("tags" in doc));
+});
+
+check("pending document: declared: lands on the document, cleaned", () => {
+    const doc = buildPendingDocument({
+        generatorName: "Drift",
+        artist: A,
+        placeholderImageUri: "ipfs://placeholder",
+        split: { totalPercent: 0, recipients: [] },
+        tags: ["Generative", "  glitch  ", "generative"],
+    });
+    assert.deepEqual(doc.tags, ["Generative", "glitch"]);
+});
+
+check("pending document: empty array: same as not declared", () => {
+    const doc = buildPendingDocument({
+        generatorName: "Drift",
+        artist: A,
+        placeholderImageUri: "ipfs://placeholder",
+        split: { totalPercent: 0, recipients: [] },
+        tags: [],
+    });
+    assert.ok(!("tags" in doc));
+});
+
 check("empty array: same as not declared, no tags key", () => {
     const doc = buildPieceDocument({
         generatorName: "Drift",
@@ -402,6 +434,16 @@ check("cleanTags: each tag capped at 32 characters", () => {
     const long = "x".repeat(50);
     const [tag] = cleanTags([long]);
     assert.equal(tag.length, 32);
+});
+
+check("cleanTags: a 32-character cap lands inside an emoji, the character survives whole", () => {
+    // 31 ASCII characters, then a non-BMP emoji (two UTF-16 code units): a
+    // plain .slice(0, 32) would keep only the leading surrogate and corrupt
+    // the string. Array.from makes the cap count whole characters instead.
+    const withEmoji = `${"x".repeat(31)}🎨🎨`;
+    const [tag] = cleanTags([withEmoji]);
+    assert.equal(tag, `${"x".repeat(31)}🎨`);
+    assert.equal([...tag].length, 32);
 });
 
 check("cleanTags: capped at 10 tags total, earliest kept", () => {

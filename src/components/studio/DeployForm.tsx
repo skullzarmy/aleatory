@@ -455,8 +455,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
             <Field
                 label="Tags"
-                permanent
-                hint="Comma separated, e.g. generative, glitch, longform. Read by objkt and other marketplaces for discovery."
+                hint="Comma separated, e.g. generative, glitch, longform. Read by objkt and other marketplaces for discovery. Not locked like the fields above: changeable later via set_metadata, but only pieces minted after a change pick it up — it never rewrites a piece already published."
             >
                 <input
                     value={tags}

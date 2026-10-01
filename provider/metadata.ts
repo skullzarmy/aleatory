@@ -82,7 +82,10 @@ export function cleanTags(raw: unknown): string[] {
     const out: string[] = [];
     for (const t of raw) {
         if (typeof t !== "string") continue;
-        const trimmed = t.trim().slice(0, MAX_TAG_LENGTH);
+        // Array.from, not .slice: a plain string index counts UTF-16 code
+        // units, so a cap landing inside a surrogate pair (a tag ending in an
+        // emoji, say) would cut a character in half and corrupt the output.
+        const trimmed = Array.from(t.trim()).slice(0, MAX_TAG_LENGTH).join("");
         const key = trimmed.toLowerCase();
         if (!trimmed || seen.has(key)) continue;
         seen.add(key);
