@@ -195,15 +195,23 @@ export interface RenderResult {
  * ourselves, so a regex is the whole job. Malformed or missing never fails a
  * render; a trait is a nice-to-have, a pinned image is not.
  */
+/**
+ * Throws rather than returning `{}` when the attribute is missing or
+ * unparseable — `finish()` always writes it, present and valid, even when
+ * the piece called `features()` with nothing (`"{}"`). An attribute that
+ * genuinely isn't there, or doesn't parse, means the snapshot or this
+ * regex failed, not that the piece has no traits — and `{}` either way
+ * would publish that permanently with no error and no retry, same mistake
+ * as reading a schema-read failure as "no schema" (see provider.mts).
+ */
 function featuresFrom(contentHtml: string): Record<string, string> {
     const m = contentHtml.match(/data-alea-features="([^"]*)"/);
-    if (!m) return {};
-    try {
-        const parsed = JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
-        return parsed && typeof parsed === "object" ? parsed : {};
-    } catch {
-        return {};
+    if (!m) throw new Error("data-alea-features attribute missing from the capture");
+    const parsed = JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
+    if (!parsed || typeof parsed !== "object") {
+        throw new Error("data-alea-features did not parse to an object");
     }
+    return parsed;
 }
 
 /** Render one piece. Returns the PNG bytes and whatever traits it reported. */
