@@ -494,15 +494,28 @@ async function pin(bytes: Uint8Array, name: string): Promise<string> {
 /**
  * Ask the public gateway for something we just pinned. A gateway other than the
  * pinning service answers with nothing until something asks it to fetch the
- * content across the network. Failures are ignored.
+ * content across the network, which can take a few seconds after Pinata's own
+ * API already answered 200 — that response means the upload was accepted, not
+ * that it is globally fetchable yet.
+ *
+ * Three tries, short backoff, because this is awaited before the chain write
+ * now: an indexer that resolves the metadata URI before any gateway confirms
+ * it can fetch the content may never retry on its own, and a token sits
+ * looking blank until someone notices and reruns `provider:retry` by hand.
+ * This does not provably close that race, only narrow it — it confirms our
+ * own gateway, not whatever an indexer itself reads from.
  */
 async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
     if (!cid) return;
-    await Promise.all([
-        fetch(`${IPFS_GATEWAY}/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {}),
-        warmSite(cid),
-    ]);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        const res = await fetch(`${IPFS_GATEWAY}/${cid}`, {
+            signal: AbortSignal.timeout(20_000),
+        }).catch(() => null);
+        if (res?.ok) break;
+        if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 2000));
+    }
+    await warmSite(cid).catch(() => {});
 }
 
 /**
@@ -705,10 +718,11 @@ export async function handle(piece: PendingPiece): Promise<string> {
 
     const metadataUri = await pinJson(withProvider, `${piece.generator}-${piece.tokenId}.json`);
 
-    // Started before the write lands so the two requests overlap the operation.
-    const warmed = Promise.all([warmGateway(imageUri), warmGateway(metadataUri)]);
+    // Awaited before the write lands, not overlapped with it: an indexer that
+    // resolves the metadata URI before a gateway can serve the content either
+    // one points at gets nothing, and may never ask again. Costs latency per
+    // piece; a token that looks permanently blank costs more.
+    await Promise.all([warmGateway(imageUri), warmGateway(metadataUri)]);
 
-    const hash = await publish(piece, metadataUri);
-    await warmed;
-    return hash;
+    return publish(piece, metadataUri);
 }
