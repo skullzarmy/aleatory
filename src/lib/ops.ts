@@ -641,6 +641,11 @@ export async function appendCode(
 ): Promise<OpResult> {
     const hex = chunkHex.replace(/^0x/, "");
     const size = Math.ceil(hex.length / 2);
+    // Measured against shadownet across the studio's full 8-chunk, ~250KB
+    // walk (contract/bisect-append-gas.ts): gas tops out at 10,696 on the
+    // first chunk and settles under 8,400 after, despite `code = concat([code,
+    // chunk])` growing the total each time. 30,000 keeps 3x headroom even at
+    // max accumulated size, not a number that needs rescaling with chunk count.
     const limits: Limits = { gas: 30_000, storage: size + 100, bytes: size + 500 };
 
     const p = await encode(generator, "append_code", { chunk: hex, at }).catch(() =>
