@@ -141,5 +141,41 @@ check("parameters land in aleaParams and in attributes", () => {
     ]);
 });
 
+check("features land in attributes, ahead of params", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        params: { density: 140 },
+        features: { Palette: "warm", Count: 3 as unknown as string },
+    });
+    assert.deepEqual(doc.attributes, [
+        { name: "Palette", value: "warm" },
+        { name: "Count", value: "3" },
+        { name: "density", value: "140" },
+    ]);
+});
+
+check("no features reported is attributes built from params alone", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        params: { density: 140 },
+        features: {},
+    });
+    assert.deepEqual(doc.attributes, [{ name: "density", value: "140" }]);
+});
+
 console.log(failures === 0 ? "\nall passed" : `\n${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);

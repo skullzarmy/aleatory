@@ -95,6 +95,10 @@ function harness(seed: string, params: Record<string, unknown>): string {
     // An attribute, because a selector is the only thing the screenshot
     // endpoint can watch for.
     document.documentElement.setAttribute("data-alea-ready", "1");
+    // Same idea, for traits: the snapshot endpoint hands back the page's
+    // HTML alongside the image, so this is how they leave the page. A piece
+    // that reports nothing here ends with features: {}, not a failed render.
+    document.documentElement.setAttribute("data-alea-features", JSON.stringify(featureStore));
   }
 
   var featureStore = {};
@@ -170,9 +174,33 @@ export function buildDocument(input: RenderInput): string {
     return `<!doctype html><html><head>\n${injected}\n</head><body>\n${code}\n</body></html>`;
 }
 
-/** Render one piece. Returns PNG bytes. */
-export async function render(input: RenderInput, config: RenderConfig): Promise<Uint8Array> {
-    const res = await fetch(`${API}/${config.accountId}/browser-rendering/screenshot`, {
+export interface RenderResult {
+    png: Uint8Array;
+    /** `$alea.features()`'s accumulated traits. Empty when the piece reports none. */
+    features: Record<string, string>;
+}
+
+/**
+ * The features attribute's value, out of the page's own serialised HTML.
+ * `result.content` is a full document string, not a DOM this process has —
+ * there is nothing here to parse it with but the one attribute we put there
+ * ourselves, so a regex is the whole job. Malformed or missing never fails a
+ * render; a trait is a nice-to-have, a pinned image is not.
+ */
+function featuresFrom(contentHtml: string): Record<string, string> {
+    const m = contentHtml.match(/data-alea-features="([^"]*)"/);
+    if (!m) return {};
+    try {
+        const parsed = JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+/** Render one piece. Returns the PNG bytes and whatever traits it reported. */
+export async function render(input: RenderInput, config: RenderConfig): Promise<RenderResult> {
+    const res = await fetch(`${API}/${config.accountId}/browser-rendering/snapshot`, {
         method: "POST",
         headers: {
             authorization: `Bearer ${config.apiToken}`,
@@ -180,6 +208,10 @@ export async function render(input: RenderInput, config: RenderConfig): Promise<
         },
         body: JSON.stringify({
             html: buildDocument(input),
+            // Both in one call: the page's HTML, for the features attribute,
+            // and the screenshot, in the same browser session /screenshot
+            // alone would have opened. No second render, no added cost.
+            formats: ["content", "screenshot"],
             viewport: { width: SIZE, height: SIZE, deviceScaleFactor: 1 },
             // Without this the capture lands when the document is ready, which
             // for a generative piece is before it has drawn anything.
@@ -201,7 +233,7 @@ export async function render(input: RenderInput, config: RenderConfig): Promise<
     if (type.includes("application/json")) {
         const json = (await res.json()) as {
             success?: boolean;
-            result?: { screenshot?: string };
+            result?: { screenshot?: string; content?: string };
             errors?: unknown;
         };
         const b64 = json.result?.screenshot;
@@ -209,8 +241,13 @@ export async function render(input: RenderInput, config: RenderConfig): Promise<
             console.error("browser-run", JSON.stringify(json.errors).slice(0, 500));
             throw new Error("render returned no image");
         }
-        return Uint8Array.from(Buffer.from(b64, "base64"));
+        return {
+            png: Uint8Array.from(Buffer.from(b64, "base64")),
+            features: featuresFrom(json.result?.content ?? ""),
+        };
     }
 
-    return new Uint8Array(await res.arrayBuffer());
+    // No JSON content type: the body is the image bytes directly, and there
+    // is no page HTML alongside it to read features from.
+    return { png: new Uint8Array(await res.arrayBuffer()), features: {} };
 }

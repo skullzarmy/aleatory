@@ -105,6 +105,8 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
     imageUri: string;
     seed: string;
     params?: Record<string, unknown>;
+    /** `$alea.features()`'s accumulated traits. Empty or absent when the piece reports none. */
+    features?: Record<string, string>;
     codeHash: string;
 }
 
@@ -129,11 +131,18 @@ export function buildPieceDocument(input: PieceDocInput) {
         aleaSeed: input.seed,
         aleaCodeHash: input.codeHash,
         aleaParams: input.params ? JSON.stringify(input.params) : "",
-        attributes: input.params
-            ? Object.entries(input.params).map(([name, value]) => ({
-                  name,
-                  value: String(value),
-              }))
-            : [],
+        // Traits first, then params — declared features are what the artist
+        // meant to be shown to a collector; params are inputs that happen to
+        // also be readable. Order is not spec-mandated, just a pick.
+        attributes: [
+            ...Object.entries(input.features ?? {}).map(([name, value]) => ({
+                name,
+                value: String(value),
+            })),
+            ...Object.entries(input.params ?? {}).map(([name, value]) => ({
+                name,
+                value: String(value),
+            })),
+        ],
     };
 }

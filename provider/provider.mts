@@ -22,7 +22,7 @@ const TZKT = process.env.TZKT_API || "https://api.shadownet.tzkt.io";
 const RPC = process.env.TEZOS_RPC || "https://rpc.tzkt.io/shadownet";
 const PROVIDER_ADDRESS = process.env.ALEA_PROVIDER_ADDRESS || "";
 const AGENT_SK = process.env.ALEA_AGENT_SK || "";
-import { render as renderPiece, renderConfigFromEnv } from "./render.mts";
+import { render as renderPiece, renderConfigFromEnv, type RenderResult } from "./render.mts";
 import { buildPieceDocument } from "./metadata";
 import { feeFor } from "./fees";
 import { parseLibraries, resolveLibraries, type DeclaredLibrary } from "./libraries.mts";
@@ -433,7 +433,7 @@ async function fetchGenerator(codeUri: string): Promise<string> {
 }
 
 /** Draw one piece, through Browser Run's REST endpoint. */
-async function render(piece: PendingPiece): Promise<Uint8Array> {
+async function render(piece: PendingPiece): Promise<RenderResult> {
     const config = renderConfigFromEnv();
     if (!config) throw new Error("rendering is not configured");
     // Throws rather than rendering without them. A p5 sketch drawn with no p5
@@ -658,8 +658,8 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
 }
 
 export async function handle(piece: PendingPiece): Promise<string> {
-    const image = await render(piece);
-    const imageUri = await pin(image, `${piece.generator}-${piece.tokenId}.png`);
+    const { png, features } = await render(piece);
+    const imageUri = await pin(png, `${piece.generator}-${piece.tokenId}.png`);
 
     const params = safeParse(piece.params);
     // Shared with the studio and covered by the golden tests. A document
@@ -674,6 +674,7 @@ export async function handle(piece: PendingPiece): Promise<string> {
         seed: piece.seed,
         codeHash: piece.codeHash,
         params,
+        features,
         // Basis points, and TZIP-21 with `decimals: 4` is the same unit.
         royalties: { decimals: 4, shares: piece.royalties },
     });
