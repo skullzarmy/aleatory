@@ -15,7 +15,7 @@ import { royaltyPreview, type RoyaltySplit } from "@provider/metadata";
 import { parseTez, shortAddress } from "@/lib/utils";
 import { tzktApi, tzktLink } from "@/lib/config";
 import type { Provider } from "@/lib/providers";
-import type { Draft } from "@/lib/draft";
+import { saveDraft, type Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
 import { detectParams } from "@/lib/detect";
 import { AccountName } from "@/components/account/AccountName";
@@ -43,7 +43,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const { address, connect, getClient } = useWallet();
 
     const [name, setName] = useState(draft?.name ?? "");
-    const [description, setDescription] = useState("");
+    const [description, setDescription] = useState(draft?.description ?? "");
     const [codeUri, setCodeUri] = useState("");
     const [editionSize, setEditionSize] = useState("10");
     const [price, setPrice] = useState("1");
@@ -82,6 +82,20 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             cancelled = true;
         };
     }, [draft?.html]);
+
+    // This form remounts fresh every time the publish route loads, so name and
+    // description are otherwise ordinary local state — navigate away to check
+    // something and back, and whatever was typed is gone. Same debounced-save
+    // shape Workspace.tsx already uses for the rest of a draft. No draft (the
+    // ipfs:// pointer path) has nothing to save into.
+    useEffect(() => {
+        if (!draft) return;
+        const t = setTimeout(() => {
+            if (draft.name === name && (draft.description ?? "") === description) return;
+            void saveDraft({ ...draft, name, description });
+        }, 600);
+        return () => clearTimeout(t);
+    }, [draft, name, description]);
 
     const provider = providers.find((p) => p.address === providerAddress);
     /**

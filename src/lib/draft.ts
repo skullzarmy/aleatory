@@ -25,6 +25,8 @@ export interface Draft {
     html: string;
     /** The seed the artist pinned as the one they look at. */
     seed: string;
+    /** The collection description, set on the deploy form. Empty until then. */
+    description?: string;
     createdAt: number;
     updatedAt: number;
     /**
