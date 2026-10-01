@@ -122,13 +122,18 @@
       "form-action 'none'"
     ].join("; ");
 
+    // No `timeout` here. The harness's own `CFG.timeout || 20000` default is
+    // the one place that number lives — this object used to also hardcode
+    // `timeout: 8000`, which always won over that default since 8000 is
+    // truthy, so changing the harness's fallback alone did nothing. Two
+    // numbers that have to be kept in sync by hand is the exact bug the rest
+    // of this file is about eliminating; don't reintroduce a smaller one here.
     var config = JSON.stringify({
       seed: seed,
       params: params,
       paramsSchema: paramsSchema,
       wantImage: wantImage,
-      freezeClock: freezeClock !== false,
-      timeout: 8000
+      freezeClock: freezeClock !== false
     }).replace(/<\/script/gi, "<\\/script");
 
     var harness = HARNESS.replace("__ALEA_CONFIG__", config);

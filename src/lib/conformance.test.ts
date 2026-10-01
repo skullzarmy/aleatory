@@ -476,6 +476,35 @@ function auditIsolation() {
             spec.includes("clock is frozen"),
         "docs/interface.md changed shape; this suite may be checking the wrong thing",
     );
+
+    // The exact shape of a real bug: CFG.timeout used to be hardcoded to 8000
+    // in run()'s own config object, which always won over the harness's
+    // `CFG.timeout || 20000` fallback below it, since 8000 is truthy. Changing
+    // the fallback's default alone did nothing — this checks the two actually
+    // agree by executing them together, not by reading either in isolation.
+    const configMatch = isolate.match(/var config = JSON\.stringify\(\{([\s\S]*?)\}\)\./);
+    const fallbackMatch = isolate.match(/CFG\.timeout \|\| (\d+)/);
+    check(
+        "run()'s own config and the harness's timeout fallback are found",
+        Boolean(configMatch && fallbackMatch),
+        "isolate/index.html's shape changed; this check needs updating to match",
+    );
+    if (configMatch && fallbackMatch) {
+        const configSrc = configMatch[1];
+        const fallbackDefault = Number(fallbackMatch[1]);
+        // A literal value here would always win over the harness's own
+        // default, exactly like `timeout: 8000` did.
+        const code = `var seed="s",params={},paramsSchema=[],wantImage=false,freezeClock=true;
+            var config = JSON.parse(JSON.stringify({${configSrc}}));
+            var CFG = config;
+            return CFG.timeout || ${fallbackDefault};`;
+        const effective = new Function(code)() as number;
+        check(
+            `isolate's effective capture timeout is the harness's own default (${fallbackDefault}ms), not a hardcoded override`,
+            effective === fallbackDefault,
+            `got ${effective} — something in run()'s own config is still setting timeout directly`,
+        );
+    }
 }
 
 console.log("ALEATORY-001 conformance");
