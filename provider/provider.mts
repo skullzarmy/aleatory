@@ -669,7 +669,7 @@ async function publish(piece: PendingPiece, metadataUri: string): Promise<string
     // declared and not the gas consumed, so a generous limit raises the floor.
     // Paying under it injects, returns a hash, and sits in the mempool until it
     // expires.
-    const GAS_LIMIT = 10_000;
+    const GAS_LIMIT = 50_000;
     // The parameter: a token id and an IPFS URI. `feeFor` adds the envelope
     // and the margin, so this is the payload alone and not a guess at the
     // whole operation.
