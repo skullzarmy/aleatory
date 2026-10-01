@@ -3,13 +3,22 @@
 # part of the provider stack that other people run.
 #
 # Netlify site settings: base directory `isolate`, publish directory `.`,
-# no build command, no environment variables. Its own domain.
+# build command `node build.mjs`, no environment variables. Its own domain.
 #
 # Separate from the app on purpose. Generator code is untrusted and runs in
 # every visitor's browser, and a different origin is what keeps it away from
 # wallet state and session storage.
+#
+# index.html is generated from index.src.html by build.mjs, which pulls the
+# seeded-PRNG construction from ../src/lib/harness-core.js rather than having
+# it hand-retyped here. index.html is committed too — this site has no other
+# build step, and a literal static file anyone can read without running
+# anything is worth keeping even though it is generated. The build command
+# regenerates it so a source edit without regenerating fails the deploy
+# instead of shipping stale.
 
 [build]
+  command = "node build.mjs"
   publish = "."
 
 # The app frames /render?code=…&seed=…&params=…. There is one document here

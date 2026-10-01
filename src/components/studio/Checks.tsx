@@ -40,7 +40,73 @@ const INITIAL: Check[] = [
     },
 ];
 
-const CAPTURE_TIMEOUT = 8000;
+// Matches isolate's own default fallback (isolate/index.html, CFG.timeout ||
+// 20000) — this component never passes an explicit timeout, so that default
+// is what actually runs. This file's own +2000 margin below is what keeps
+// this outer timeout from giving up before the isolate's internal one would
+// have produced a real (if auto-captured) result.
+const CAPTURE_TIMEOUT = 20_000;
+
+/**
+ * How much of two captures actually differs, in pixels.
+ *
+ * Chrome defers 2D canvas drawing and rasterises it at timing-dependent
+ * moments, so two determinism runs of one genuinely deterministic piece can
+ * differ by a handful of pixels for reasons that have nothing to do with the
+ * piece's own code — this has been measured on WebGL/shader pieces
+ * specifically. A flat pass/fail on digest equality cannot tell that apart
+ * from a real bug, so this reports the actual magnitude and leaves the
+ * judgment to whoever is looking at it.
+ *
+ * A channel has to differ by more than a few levels to count — anti-aliasing
+ * and compression rounding differ by one or two levels on pixels nothing
+ * drew differently, and counting those would make every piece report noise.
+ */
+async function pixelDiffPercent(a: string, b: string): Promise<number | null> {
+    try {
+        const [imgA, imgB] = await Promise.all([loadImage(a), loadImage(b)]);
+        if (imgA.width !== imgB.width || imgA.height !== imgB.height) return null;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = imgA.width;
+        canvas.height = imgA.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+
+        ctx.drawImage(imgA, 0, 0);
+        const dataA = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(imgB, 0, 0);
+        const dataB = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+        const TOLERANCE = 6;
+        let differing = 0;
+        const pixels = dataA.length / 4;
+        for (let p = 0; p < pixels; p++) {
+            const i = p * 4;
+            if (
+                Math.abs(dataA[i] - dataB[i]) > TOLERANCE ||
+                Math.abs(dataA[i + 1] - dataB[i + 1]) > TOLERANCE ||
+                Math.abs(dataA[i + 2] - dataB[i + 2]) > TOLERANCE ||
+                Math.abs(dataA[i + 3] - dataB[i + 3]) > TOLERANCE
+            ) {
+                differing++;
+            }
+        }
+        return (differing / pixels) * 100;
+    } catch {
+        return null;
+    }
+}
+
+function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("image failed to decode"));
+        img.src = dataUrl;
+    });
+}
 
 export function Checks({
     html,
@@ -73,7 +139,13 @@ export function Checks({
     const runOnce = useCallback(
         (
             runSeed: string,
-        ): Promise<{ digest: string | null; violations: string[]; ready: boolean }> =>
+        ): Promise<{
+            digest: string | null;
+            image: string | null;
+            violations: string[];
+            ready: boolean;
+            autoCaptured: boolean;
+        }> =>
             new Promise((resolve) => {
                 const frame = document.createElement("iframe");
                 frame.setAttribute("sandbox", "allow-scripts");
@@ -84,14 +156,15 @@ export function Checks({
 
                 const violations: string[] = [];
                 let ready = false;
+                let autoCaptured = false;
                 let done = false;
 
-                function finish(digest: string | null) {
+                function finish(digest: string | null, image: string | null) {
                     if (done) return;
                     done = true;
                     window.removeEventListener("message", onMessage);
                     frame.remove();
-                    resolve({ digest, violations, ready });
+                    resolve({ digest, image, violations, ready, autoCaptured });
                 }
 
                 function onMessage(e: MessageEvent) {
@@ -101,6 +174,8 @@ export function Checks({
                         kind?: string;
                         detail?: string;
                         digest?: string;
+                        image?: string | null;
+                        autoCaptured?: boolean;
                     };
                     if (d?.type === "alea:hello") {
                         frame.contentWindow?.postMessage(
@@ -111,6 +186,10 @@ export function Checks({
                                 params: resolveParams(params, values ?? {}),
                                 paramsSchema: params,
                                 deps: deps ?? [],
+                                // The pixels, not just the digest: a mismatch
+                                // is reported by how much actually differs,
+                                // which needs the images to compare.
+                                wantImage: true,
                             },
                             // An opaque origin cannot be named, so "*" is the
                             // only targetOrigin that reaches it.
@@ -121,8 +200,13 @@ export function Checks({
                         violations.push(`${d.kind}: ${d.detail}`);
                     }
                     if (d?.type === "alea:ready") {
-                        ready = true;
-                        finish(d.digest ?? null);
+                        // A message did arrive, but the isolate's own fallback
+                        // timer can be what sent it — that is not the piece
+                        // saying it is done, and this check exists to tell
+                        // the difference.
+                        ready = !d.autoCaptured;
+                        autoCaptured = Boolean(d.autoCaptured);
+                        finish(d.digest ?? null, d.image ?? null);
                     }
                 }
 
@@ -131,7 +215,7 @@ export function Checks({
 
                 // Browsers throttle hidden frames, so a piece that never signals
                 // gets a generous window.
-                window.setTimeout(() => finish(null), CAPTURE_TIMEOUT + 2000);
+                window.setTimeout(() => finish(null, null), CAPTURE_TIMEOUT + 2000);
             }),
         [html, params, values, deps],
     );
@@ -145,13 +229,21 @@ export function Checks({
 
         const bothCaptured = first.digest !== null && second.digest !== null;
         const same = bothCaptured && first.digest === second.digest;
+        let diffPercent: number | null = null;
+        if (bothCaptured && !same && first.image && second.image) {
+            diffPercent = await pixelDiffPercent(first.image, second.image);
+        }
         set("determinism", {
             status: same ? "pass" : "fail",
             note: same
                 ? "Same seed, same picture, every time."
-                : bothCaptured
-                  ? "The same seed drew two different pictures. Something in your piece is using randomness that is not the seed."
-                  : "One of the runs never finished, so there was nothing to compare.",
+                : !bothCaptured
+                  ? "One of the runs never finished, so there was nothing to compare."
+                  : diffPercent === null
+                    ? "The same seed drew two different pictures, and the pixels could not be compared directly."
+                    : diffPercent < 0.1
+                      ? `${diffPercent.toFixed(2)}% of pixels differ — small enough that this can be a browser timing quirk rather than a bug. Chrome's canvas rasterisation timing varies run to run; compare the two captures yourself before assuming your code is wrong.`
+                      : `${diffPercent.toFixed(2)}% of pixels differ. Something in your piece is likely using randomness that is not the seed.`,
         });
 
         const net = [...first.violations, ...second.violations].filter((v) =>
@@ -169,7 +261,9 @@ export function Checks({
             status: first.ready ? "pass" : "fail",
             note: first.ready
                 ? "Called $alea.ready()."
-                : "Never called $alea.ready(). Without it we capture on a timer and might catch your piece half-drawn.",
+                : first.autoCaptured
+                  ? "Never called $alea.ready() — captured on a timer instead, which might have caught your piece half-drawn."
+                  : "Never called $alea.ready(), and the run never finished at all.",
         });
 
         setRunning(false);

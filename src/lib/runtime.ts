@@ -2,8 +2,13 @@
  * The message shapes the runtime harness speaks.
  *
  * The harness itself lives in `isolate/index.html` and in
- * `provider/render.mts`. The two agree by conforming to ALEATORY-001 §7, not by
- * sharing a file, and a third copy here would be a third thing to drift.
+ * `provider/render.mts`. The seeded-PRNG core they both start from is one file,
+ * `src/lib/harness-core.js` — three independent copies of it was how a seed
+ * pinned locally once drew a different picture than what minted. Everything
+ * around that core (how `param()`/`features()`/`ready()` get wired up, the
+ * capture mechanism) still differs by design and still has to agree by
+ * conforming to ALEATORY-001 §7, because the two run in genuinely different
+ * contexts: a browser and a headless render host.
  *
  * What the harness provides: a seeded PRNG, the $alea lifecycle (boot / render
  * / ready / features / resize), blocked and reported network access, a
@@ -29,7 +34,12 @@ export type FrameMessage =
     | {
           type: "alea:ready";
           seed: string;
-          /** sha-256 (or fallback) of the captured output, the determinism digest. */
+          /**
+           * The determinism digest: the last 64 characters of the captured
+           * canvas's data: URL, not a cryptographic hash. A real hash would
+           * cost a repaint per run; two runs of one seed differing in these
+           * 64 characters is the same signal a hash would also give, for free.
+           */
           digest: string;
           /** data: URL of the capture, only when requested. */
           image: string | null;

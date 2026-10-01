@@ -1,13 +1,32 @@
 /**
  * Rendering a piece, through Cloudflare Browser Run. In: the generator's
- * source, a seed, parameters. Out: PNG bytes. The REST endpoint takes raw HTML,
- * so there is no Worker to deploy and no `workers.dev` URL to guard.
+ * source, a seed, parameters. Out: PNG bytes and whatever traits the piece
+ * reported. The REST endpoint takes raw HTML, so there is no Worker to deploy
+ * and no `workers.dev` URL to guard.
  *
  * The provider's half of the two harness implementations. The other is
- * `isolate/index.html`, which draws for a viewer. They agree by conforming to
- * ALEATORY-001 §7 and not by sharing a file, and they have to: a piece has to
- * look the same in a browser as in the image that ends up on chain.
+ * `isolate/index.html`, which draws for a viewer. The seeded-PRNG core both
+ * start from is one shared file (`src/lib/harness-core.js`) now, not two
+ * copies kept in step by hand — everything around it (capture mechanism,
+ * param/feature wiring) still has to agree by conforming to ALEATORY-001 §7,
+ * because a piece has to look the same in a browser as in the image that ends
+ * up on chain, and the two run in genuinely different contexts.
  */
+
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * The seeded-PRNG construction (xmur3 + sfc32), shared verbatim with
+ * `isolate/index.html` and the starter templates via `src/lib/harness-core.js`.
+ * Read once at module load, not retyped here — a second copy is a second
+ * thing to drift, which is how the templates ended up warming the stream 16
+ * extra times before this got consolidated.
+ */
+const HARNESS_CORE = readFileSync(join(__dirname, "..", "src/lib/harness-core.js"), "utf8");
 
 const API = "https://api.cloudflare.com/client/v4/accounts";
 
@@ -16,9 +35,13 @@ const SIZE = 1000;
 
 /**
  * How long to wait for a piece to signal. A generator sets its own capture
- * point and cannot be trusted to reach it, so this is the ceiling.
+ * point and cannot be trusted to reach it, so this is the ceiling — the
+ * in-page fallback (below) fires at this minus 2s, which is what keeps it
+ * ahead of Cloudflare's own `waitForSelector` wait at this exact value.
+ * Matches isolate/index.html's default so a piece behaves the same whether a
+ * viewer or the renderer is the one waiting on it.
  */
-const CAPTURE_TIMEOUT_MS = 20_000;
+const CAPTURE_TIMEOUT_MS = 22_000;
 
 export interface RenderInput {
     /** The generator, decoded. Already has its libraries inlined if it needs any. */
@@ -57,32 +80,7 @@ function harness(seed: string, params: Record<string, unknown>): string {
   "use strict";
   var CFG = ${config};
 
-  function xmur3(str) {
-    var h = 1779033703 ^ str.length;
-    for (var i = 0; i < str.length; i++) {
-      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-      h = (h << 13) | (h >>> 19);
-    }
-    return function () {
-      h = Math.imul(h ^ (h >>> 16), 2246822507);
-      h = Math.imul(h ^ (h >>> 13), 3266489909);
-      h ^= h >>> 16;
-      return h >>> 0;
-    };
-  }
-  function sfc32(a, b, c, d) {
-    return function () {
-      a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
-      var t = (a + b) | 0;
-      a = b ^ (b >>> 9);
-      b = (c + (c << 3)) | 0;
-      c = (c << 21) | (c >>> 11);
-      d = (d + 1) | 0;
-      t = (t + d) | 0;
-      c = (c + t) | 0;
-      return (t >>> 0) / 4294967296;
-    };
-  }
+  ${HARNESS_CORE}
 
   // The seed is a base58 operation hash and is never hex. Parsing it as hex
   // yields zero for every word and every piece draws the same picture.
@@ -99,12 +97,22 @@ function harness(seed: string, params: Record<string, unknown>): string {
   performance.now = function () { return 0; };
 
   var done = false;
+  // The piece never signalled and the ceiling took the picture instead —
+  // conforming (ALEATORY-001 §9 step 6), but worth knowing when it happens
+  // to the thing that becomes the permanent image, same as isolate already
+  // tracks for a viewer.
+  var autoCaptured = false;
   function finish() {
     if (done) return;
     done = true;
     // An attribute, because a selector is the only thing the screenshot
     // endpoint can watch for.
     document.documentElement.setAttribute("data-alea-ready", "1");
+    document.documentElement.setAttribute("data-alea-auto-captured", autoCaptured ? "1" : "0");
+    // Same idea, for traits: the snapshot endpoint hands back the page's
+    // HTML alongside the image, so this is how they leave the page. A piece
+    // that reports nothing here ends with features: {}, not a failed render.
+    document.documentElement.setAttribute("data-alea-features", JSON.stringify(featureStore));
   }
 
   var featureStore = {};
@@ -129,7 +137,10 @@ function harness(seed: string, params: Record<string, unknown>): string {
   };
 
   // A piece that never signals is captured on the ceiling rather than never.
-  setTimeout(finish, ${CAPTURE_TIMEOUT_MS - 2000});
+  setTimeout(function () {
+    autoCaptured = true;
+    finish();
+  }, ${CAPTURE_TIMEOUT_MS - 2000});
 })();
 `;
 }
@@ -180,9 +191,48 @@ export function buildDocument(input: RenderInput): string {
     return `<!doctype html><html><head>\n${injected}\n</head><body>\n${code}\n</body></html>`;
 }
 
-/** Render one piece. Returns PNG bytes. */
-export async function render(input: RenderInput, config: RenderConfig): Promise<Uint8Array> {
-    const res = await fetch(`${API}/${config.accountId}/browser-rendering/screenshot`, {
+export interface RenderResult {
+    png: Uint8Array;
+    /** `$alea.features()`'s accumulated traits. Empty when the piece reports none. */
+    features: Record<string, string>;
+    /** True when the piece never called `ready()` and the ceiling captured instead. */
+    autoCaptured: boolean;
+}
+
+/**
+ * The features attribute's value, out of the page's own serialised HTML.
+ * `result.content` is a full document string, not a DOM this process has —
+ * there is nothing here to parse it with but the attributes we put there
+ * ourselves, so a regex is the whole job.
+ *
+ * Throws rather than returning `{}` when the attribute is missing or
+ * unparseable — `finish()` always writes it, present and valid, even when
+ * the piece called `features()` with nothing (`"{}"`). An attribute that
+ * genuinely isn't there, or doesn't parse, means the snapshot or this
+ * regex failed, not that the piece has no traits — and `{}` either way
+ * would publish that permanently with no error and no retry, same mistake
+ * as reading a schema-read failure as "no schema" (see provider.mts).
+ */
+function featuresFrom(contentHtml: string): Record<string, string> {
+    const m = contentHtml.match(/data-alea-features="([^"]*)"/);
+    if (!m) throw new Error("data-alea-features attribute missing from the capture");
+    const parsed = JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
+    if (!parsed || typeof parsed !== "object") {
+        throw new Error("data-alea-features did not parse to an object");
+    }
+    return parsed;
+}
+
+/** Same deal as `featuresFrom`, for the much simpler "0" or "1" flag. */
+function autoCapturedFrom(contentHtml: string): boolean {
+    const m = contentHtml.match(/data-alea-auto-captured="([^"]*)"/);
+    if (!m) throw new Error("data-alea-auto-captured attribute missing from the capture");
+    return m[1] === "1";
+}
+
+/** Render one piece. Returns the PNG bytes and whatever traits it reported. */
+export async function render(input: RenderInput, config: RenderConfig): Promise<RenderResult> {
+    const res = await fetch(`${API}/${config.accountId}/browser-rendering/snapshot`, {
         method: "POST",
         headers: {
             authorization: `Bearer ${config.apiToken}`,
@@ -190,6 +240,10 @@ export async function render(input: RenderInput, config: RenderConfig): Promise<
         },
         body: JSON.stringify({
             html: buildDocument(input),
+            // Both in one call: the page's HTML, for the features attribute,
+            // and the screenshot, in the same browser session /screenshot
+            // alone would have opened. No second render, no added cost.
+            formats: ["content", "screenshot"],
             viewport: { width: SIZE, height: SIZE, deviceScaleFactor: 1 },
             // Without this the capture lands when the document is ready, which
             // for a generative piece is before it has drawn anything.
@@ -211,7 +265,7 @@ export async function render(input: RenderInput, config: RenderConfig): Promise<
     if (type.includes("application/json")) {
         const json = (await res.json()) as {
             success?: boolean;
-            result?: { screenshot?: string };
+            result?: { screenshot?: string; content?: string };
             errors?: unknown;
         };
         const b64 = json.result?.screenshot;
@@ -219,8 +273,16 @@ export async function render(input: RenderInput, config: RenderConfig): Promise<
             console.error("browser-run", JSON.stringify(json.errors).slice(0, 500));
             throw new Error("render returned no image");
         }
-        return Uint8Array.from(Buffer.from(b64, "base64"));
+        const content = json.result?.content ?? "";
+        return {
+            png: Uint8Array.from(Buffer.from(b64, "base64")),
+            features: featuresFrom(content),
+            autoCaptured: autoCapturedFrom(content),
+        };
     }
 
-    return new Uint8Array(await res.arrayBuffer());
+    // No JSON content type: the body is the image bytes directly, and there
+    // is no page HTML alongside it to read features or the capture flag
+    // from — the same shape of gap as the features-only fallback above.
+    return { png: new Uint8Array(await res.arrayBuffer()), features: {}, autoCaptured: false };
 }

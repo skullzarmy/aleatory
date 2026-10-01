@@ -6,6 +6,7 @@ import {
     useEffect,
     useId,
     useMemo,
+    useRef,
     useState,
     type ReactElement,
 } from "react";
@@ -15,7 +16,7 @@ import { royaltyPreview, type RoyaltySplit } from "@provider/metadata";
 import { parseTez, shortAddress } from "@/lib/utils";
 import { tzktApi, tzktLink } from "@/lib/config";
 import type { Provider } from "@/lib/providers";
-import type { Draft } from "@/lib/draft";
+import { saveDraft, type Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
 import { detectParams } from "@/lib/detect";
 import { AccountName } from "@/components/account/AccountName";
@@ -43,7 +44,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const { address, connect, getClient } = useWallet();
 
     const [name, setName] = useState(draft?.name ?? "");
-    const [description, setDescription] = useState("");
+    const [description, setDescription] = useState(draft?.description ?? "");
     const [codeUri, setCodeUri] = useState("");
     const [editionSize, setEditionSize] = useState("10");
     const [price, setPrice] = useState("1");
@@ -52,6 +53,10 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [platformPercent, setPlatformPercent] = useState("10");
     const [providerAddress, setProviderAddress] = useState(providers[0]?.address ?? "");
     const [trustResolver, setTrustResolver] = useState(false);
+    // Opt-in, off by default. The feature key whose value becomes part of
+    // each piece's name — empty means every piece keeps the plain
+    // "<Generator> #<n>" form every indexer expects.
+    const [nameTrait, setNameTrait] = useState("");
     // Deploy, look at it, announce it, then open it. A generator that opens
     // the instant it exists cannot be checked before someone mints from it.
     const [startPaused, setStartPaused] = useState(true);
@@ -82,6 +87,38 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             cancelled = true;
         };
     }, [draft?.html]);
+
+    // This form remounts fresh every time the publish route loads, so name and
+    // description are otherwise ordinary local state — navigate away to check
+    // something and back, and whatever was typed is gone. Same debounced-save
+    // shape Workspace.tsx already uses for the rest of a draft. No draft (the
+    // ipfs:// pointer path) has nothing to save into.
+    useEffect(() => {
+        if (!draft) return;
+        const t = setTimeout(() => {
+            if (draft.name === name && (draft.description ?? "") === description) return;
+            void saveDraft({ ...draft, name, description });
+        }, 600);
+        return () => clearTimeout(t);
+    }, [draft, name, description]);
+
+    // The effect above cancels its own timer on every keystroke, by design —
+    // that's the debounce. But its cleanup also runs on a real unmount, which
+    // looks identical to "settled, waiting out the 600ms" from in here: typing
+    // and navigating away inside that window cancelled the only save that was
+    // ever going to happen for it. A ref keeps the latest values reachable
+    // from a cleanup that only fires on the real thing (empty deps), so an
+    // unmount flushes immediately instead of just cancelling.
+    const latest = useRef({ draft, name, description });
+    latest.current = { draft, name, description };
+    useEffect(() => {
+        return () => {
+            const { draft, name, description } = latest.current;
+            if (!draft) return;
+            if (draft.name === name && (draft.description ?? "") === description) return;
+            void saveDraft({ ...draft, name, description });
+        };
+    }, []);
 
     const provider = providers.find((p) => p.address === providerAddress);
     /**
@@ -291,6 +328,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     resolvedLibraries: resolvedDeps.map((r) => r.spec),
                     startPaused,
                     trustResolver,
+                    nameTrait: nameTrait.trim() || undefined,
                     coverUri: cover?.uri,
                     coverThumbUri: cover?.thumbUri,
                     coverSeed: cover?.seed,
@@ -391,6 +429,23 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     rows={3}
                     placeholder="What the generator does, in a sentence or two."
                     className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm"
+                />
+            </Field>
+
+            <Field
+                label="Name a piece from a trait (optional)"
+                permanent
+                hint={
+                    nameTrait.trim()
+                        ? `Pieces will be named "${name.trim() || "Generator"} #1 · <value of ${nameTrait.trim()}>" when that trait is present, and the plain form otherwise.`
+                        : 'Leave empty and every piece is named "Generator #1", "Generator #2", and so on — the form every marketplace expects. Fill in a key your code passes to $alea.features() and that trait\'s value is appended to the name.'
+                }
+            >
+                <input
+                    value={nameTrait}
+                    onChange={(e) => setNameTrait(e.target.value)}
+                    placeholder="e.g. Name"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                 />
             </Field>
 

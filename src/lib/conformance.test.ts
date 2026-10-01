@@ -69,11 +69,117 @@ const HARNESSES: { name: string; path: string; renderer: boolean }[] = [
     { name: "template custom", path: "public/templates/custom/index.html", renderer: false },
 ];
 
+/**
+ * Pull one `function name(...) { ... }` out of source text by counting
+ * braces, not by a regex that assumes a particular body shape. The function
+ * being extracted is exactly the thing under test, so the extraction cannot
+ * assume anything about its contents.
+ */
+function extractFunction(src: string, name: string): string {
+    const start = src.indexOf(`function ${name}`);
+    if (start < 0) throw new Error(`function ${name} not found`);
+    let depth = 0;
+    let opened = false;
+    let i = start;
+    for (; i < src.length; i++) {
+        if (src[i] === "{") {
+            depth++;
+            opened = true;
+        } else if (src[i] === "}") {
+            depth--;
+            if (opened && depth === 0) {
+                i++;
+                break;
+            }
+        }
+    }
+    return src.slice(start, i);
+}
+
+/**
+ * The statements between `sfc32`'s definition and the `Math.random =`
+ * assignment every harness makes right after seeding — `var s = xmur3(...)`,
+ * `var rand = sfc32(...)`, and anything else a harness does to `rand` before
+ * handing it to the piece. Extracted as text, not reconstructed, because a
+ * reconstruction can only re-assert what this file already assumes a harness
+ * does; it was a hand-written `xmur3(seed); sfc32(s(), s(), s(), s())` here
+ * that let four templates warm the stream 16 extra times with every check
+ * above still green, since none of them actually ran a template's own
+ * seeding code.
+ */
+function seedingBlock(src: string): string {
+    const sfc32Text = extractFunction(src, "sfc32");
+    const after = src.indexOf(sfc32Text) + sfc32Text.length;
+    const assignment = /Math\.random\s*=/.exec(src.slice(after));
+    if (!assignment) throw new Error("no Math.random assignment found after sfc32");
+    return src.slice(after, after + assignment.index);
+}
+
+/**
+ * The first few numbers a harness's own xmur3 + sfc32 and its own seeding
+ * statements, as they actually appear in its source, produce for a fixed
+ * seed. Not a string match and not this file's idea of how seeding goes:
+ * `seedingBlock` is run verbatim, so a harness that passes the magic-number
+ * checks below but warms the stream extra times, or seeds it differently,
+ * fails here instead of being discovered after a piece has minted.
+ */
+function firstDraws(src: string, seed: string, n: number): number[] {
+    // Isolate and the renderer read `CFG.seed`; templates read a bare
+    // `seed` already in scope above their harness block. Both defined, so
+    // whichever the extracted statements reach for resolves.
+    const code =
+        extractFunction(src, "xmur3") +
+        "\n" +
+        extractFunction(src, "sfc32") +
+        "\n" +
+        `var seed = ${JSON.stringify(seed)};\n` +
+        `var CFG = { seed: seed };\n` +
+        seedingBlock(src) +
+        "\nreturn { rand: rand };";
+    const { rand } = new Function(code)() as { rand: () => number };
+    const out: number[] = [];
+    for (let i = 0; i < n; i++) out.push(rand());
+    return out;
+}
+
+/**
+ * `provider/render.mts` reads the core from `src/lib/harness-core.js` at run
+ * time (`readFileSync`) rather than typing it inline, so its own file no
+ * longer contains literal `function xmur3`/`function sfc32` text — just an
+ * `import`. Splice the shared core in before any check reads this file as
+ * source text, or every check below would need its own special case instead
+ * of this one.
+ */
+const HARNESS_CORE_TEXT = (() => {
+    const file = readFileSync("src/lib/harness-core.js", "utf8");
+    return file.slice(file.indexOf("function xmur3"));
+})();
+function effectiveSource(h: (typeof HARNESSES)[number]): string {
+    const src = read(h.path);
+    return h.path === "provider/render.mts"
+        ? src.replace("${HARNESS_CORE}", HARNESS_CORE_TEXT)
+        : src;
+}
+
 function auditHarnesses() {
     console.log("\nThe render harness (§7)\n");
 
+    {
+        const seed = "aleatory-conformance-fixed-seed";
+        const reference = firstDraws(effectiveSource(HARNESSES[0]), seed, 5);
+        for (const h of HARNESSES) {
+            const draws = firstDraws(effectiveSource(h), seed, 5);
+            check(
+                `${h.name}: draws the same numbers from one seed as ${HARNESSES[0].name}`,
+                JSON.stringify(draws) === JSON.stringify(reference),
+                `got ${JSON.stringify(draws)}, expected ${JSON.stringify(reference)} — a template, the ` +
+                    "isolate and the renderer have to agree, not just use the same constants",
+            );
+        }
+    }
+
     for (const h of HARNESSES) {
-        const src = read(h.path);
+        const src = effectiveSource(h);
 
         const missing = SURFACE.filter((m) => !new RegExp(`\\b${m}\\s*:`).test(src));
         check(
@@ -392,6 +498,35 @@ function auditIsolation() {
             spec.includes("clock is frozen"),
         "docs/interface.md changed shape; this suite may be checking the wrong thing",
     );
+
+    // The exact shape of a real bug: CFG.timeout used to be hardcoded to 8000
+    // in run()'s own config object, which always won over the harness's
+    // `CFG.timeout || 20000` fallback below it, since 8000 is truthy. Changing
+    // the fallback's default alone did nothing — this checks the two actually
+    // agree by executing them together, not by reading either in isolation.
+    const configMatch = isolate.match(/var config = JSON\.stringify\(\{([\s\S]*?)\}\)\./);
+    const fallbackMatch = isolate.match(/CFG\.timeout \|\| (\d+)/);
+    check(
+        "run()'s own config and the harness's timeout fallback are found",
+        Boolean(configMatch && fallbackMatch),
+        "isolate/index.html's shape changed; this check needs updating to match",
+    );
+    if (configMatch && fallbackMatch) {
+        const configSrc = configMatch[1];
+        const fallbackDefault = Number(fallbackMatch[1]);
+        // A literal value here would always win over the harness's own
+        // default, exactly like `timeout: 8000` did.
+        const code = `var seed="s",params={},paramsSchema=[],wantImage=false,freezeClock=true;
+            var config = JSON.parse(JSON.stringify({${configSrc}}));
+            var CFG = config;
+            return CFG.timeout || ${fallbackDefault};`;
+        const effective = new Function(code)() as number;
+        check(
+            `isolate's effective capture timeout is the harness's own default (${fallbackDefault}ms), not a hardcoded override`,
+            effective === fallbackDefault,
+            `got ${effective} — something in run()'s own config is still setting timeout directly`,
+        );
+    }
 }
 
 console.log("ALEATORY-001 conformance");

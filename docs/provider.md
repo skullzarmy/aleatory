@@ -351,10 +351,39 @@ mint operation's hash, the parameters are in that operation, and the generator
 is immutable, so a retry is not a second opinion, it is the same answer.
 
 Two harness implementations exist: `provider/render.mts`, which
-draws headless, and `isolate/index.html`, which draws for a viewer. They agree
-by conforming to [ALEATORY-001](interface.md) §7 rather than by sharing a file.
-When they once disagreed on how to seed, every piece rendered from one
-identical stream. If you change one, change the other.
+draws headless, and `isolate/index.html`, which draws for a viewer. The
+seeded-PRNG core both build on is one shared file, `src/lib/harness-core.js` —
+three independently hand-typed copies (including a third, in the starter
+templates' dev harness) was how a seed pinned locally once drew a different
+picture than what minted. Everything around that core — how `param()`,
+`features()` and `ready()` get wired up, the capture mechanism itself — still
+differs on purpose and still has to agree by conforming to
+[ALEATORY-001](interface.md) §7, because the two run in genuinely different
+contexts: a sandboxed browser frame and a headless render host with no build
+tooling of its own at runtime.
+
+### The capture environment
+
+If you run your own provider: Browser Run is Cloudflare's, and which GPU
+backend it renders with is their infrastructure choice, not something this
+spec pins. Observed as of this writing, not guaranteed to stay true:
+
+- A shader-heavy piece can render measurably differently depending on
+  whether the backend is a real GPU or software rendering (SwiftShader) —
+  differences of up to roughly 100 tonal levels in shader-heavy regions have
+  been observed between the two. A collector's live view (their own browser,
+  their own GPU) is not guaranteed to match the permanent capture pixel for
+  pixel for this reason, same as it already does not promise to for timing.
+- Render time is dominated by shader compilation, not resolution. Budget
+  accordingly if your piece does heavy GPU work — the capture ceiling is
+  documented below, under Determinism and in [ALEATORY-001](interface.md).
+- Viewport, timeout and failure behavior are as documented elsewhere in this
+  file and in `provider/render.mts` directly; nothing about the backend
+  changes those.
+
+If this matters to your piece, the templates all draw in Canvas 2D, SVG, or
+WebGL through a library — a piece that avoids raw WebGL shader work entirely
+sidesteps this class of difference altogether.
 
 ---
 

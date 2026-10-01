@@ -22,10 +22,11 @@ const TZKT = process.env.TZKT_API || "https://api.shadownet.tzkt.io";
 const RPC = process.env.TEZOS_RPC || "https://rpc.tzkt.io/shadownet";
 const PROVIDER_ADDRESS = process.env.ALEA_PROVIDER_ADDRESS || "";
 const AGENT_SK = process.env.ALEA_AGENT_SK || "";
-import { render as renderPiece, renderConfigFromEnv } from "./render.mts";
+import { render as renderPiece, renderConfigFromEnv, type RenderResult } from "./render.mts";
 import { buildPieceDocument } from "./metadata";
 import { feeFor } from "./fees";
 import { parseLibraries, resolveLibraries, type DeclaredLibrary } from "./libraries.mts";
+import { decodeParams, type ParamSpec, type ParamValues } from "../src/lib/params";
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
 const KT1 = /^KT1[1-9A-HJ-NP-Za-km-z]{33}$/;
@@ -142,12 +143,22 @@ interface PendingPiece {
     /** Address to basis points, straight from the generator's storage. */
     royalties: Record<string, number>;
     codeHash: string;
+    /** The generator's declared mint-time parameters, empty when it declares none. */
+    paramsSchema: ParamSpec[];
+    /** `aleatory:nameTrait`, if the generator opted into a feature-derived name. */
+    nameTrait?: string;
 }
 
 async function tzkt<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
     const url = new URL(`${TZKT}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    // TzKT's answer for "that bigmap key does not exist": 204, empty body.
+    // `res.ok` is true for 204, so without this `res.json()` throws on the
+    // empty body — indistinguishable from a real failure to every caller
+    // that catches it, which is exactly how a transient outage ends up
+    // silently read as "this generator declares nothing."
+    if (res.status === 204) return null as T;
     if (!res.ok) throw new Error(`TzKT ${res.status} ${path}`);
     return (await res.json()) as T;
 }
@@ -229,9 +240,15 @@ export async function generatorsServed(): Promise<string[]> {
     return served;
 }
 
-/** Name and description from the generator's own TZIP-16 document. */
+/**
+ * Name and description from the generator's own TZIP-16 document. Does not
+ * catch a real failure here either — the per-generator scan already does
+ * (`pendingIn(generator).catch(...)` in the daemon), so letting it through
+ * means a transient outage skips this generator for a pass instead of
+ * quietly minting pieces under an empty name.
+ */
 async function generatorFacts(generator: string): Promise<{ name: string; description: string }> {
-    const raw = await metadataKey(generator, "content").catch(() => undefined);
+    const raw = await metadataKey(generator, "content");
     if (!raw) return { name: "", description: "" };
     try {
         const doc = JSON.parse(raw) as { name?: string; description?: string };
@@ -247,11 +264,41 @@ function royaltiesOf(storage: GeneratorStorage): Record<string, number> {
     );
 }
 
+/**
+ * A generator's declared mint-time parameters, same record `mint`, the mint
+ * form and the viewer all resolve against — a direct contract call writes
+ * raw bytes the contract never validates, and this is what keeps a piece from
+ * seeing them unresolved and crashing before `ready()`.
+ */
+async function paramsSchemaOf(generator: string): Promise<ParamSpec[]> {
+    const raw = await metadataKey(generator, "aleatory:params");
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw) as { params?: unknown };
+        return Array.isArray(parsed?.params) ? (parsed.params as ParamSpec[]) : [];
+    } catch {
+        return [];
+    }
+}
+
+/** The generator's opt-in `aleatory:nameTrait` declaration, absent for most generators. */
+async function nameTraitOf(generator: string): Promise<string | undefined> {
+    const raw = await metadataKey(generator, "aleatory:nameTrait");
+    return raw?.trim() || undefined;
+}
+
 /** One key out of a generator's metadata big_map, decoded. */
+/**
+ * Does not catch. A genuinely absent key comes back as `null` cleanly (see
+ * `tzkt`'s 204 handling) — a real failure (network, TzKT down) throws, and
+ * callers that need params/libraries/nameTrait right must let that propagate
+ * rather than read it as "declares nothing," which is a permanent wrong
+ * render, not a retry.
+ */
 async function metadataKey(generator: string, key: string): Promise<string | undefined> {
     const row = await tzkt<{ value?: string } | null>(
         `/v1/contracts/${generator}/bigmaps/metadata/keys/${encodeURIComponent(key)}`,
-    ).catch(() => null);
+    );
     const value = row?.value;
     return value ? hexToUtf8(value) : undefined;
 }
@@ -303,10 +350,12 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
     verifySource(code, storage.art.code_hash ?? "", generator);
 
     // Read from the generator's own metadata: a provider does not need to know
-    // what a "p5 sketch" is, only how to resolve what it was told.
-    const libraries = parseLibraries(
-        await metadataKey(generator, "aleatory:libraries").catch(() => undefined),
-    );
+    // what a "p5 sketch" is, only how to resolve what it was told. Not caught
+    // — a real failure here means this generator is skipped this pass, not
+    // that it silently declares no libraries a p5 piece then draws blank.
+    const libraries = parseLibraries(await metadataKey(generator, "aleatory:libraries"));
+    const paramsSchema = await paramsSchemaOf(generator);
+    const nameTrait = await nameTraitOf(generator);
     const facts = await generatorFacts(generator);
     const royalties = royaltiesOf(storage);
 
@@ -339,6 +388,8 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
                 code,
                 codeUri,
                 libraries,
+                paramsSchema,
+                nameTrait,
                 artist: storage.administrator,
                 generatorName: facts.name,
                 description: facts.description,
@@ -433,22 +484,14 @@ async function fetchGenerator(codeUri: string): Promise<string> {
 }
 
 /** Draw one piece, through Browser Run's REST endpoint. */
-async function render(piece: PendingPiece): Promise<Uint8Array> {
+async function render(piece: PendingPiece, params: ParamValues): Promise<RenderResult> {
     const config = renderConfigFromEnv();
     if (!config) throw new Error("rendering is not configured");
     // Throws rather than rendering without them. A p5 sketch drawn with no p5
     // produces a blank frame, and the token would carry it permanently.
     const deps = await resolveLibraries(piece.libraries);
 
-    return renderPiece(
-        {
-            code: piece.code,
-            seed: piece.seed,
-            params: piece.params ? (JSON.parse(piece.params) as Record<string, unknown>) : {},
-            deps,
-        },
-        config,
-    );
+    return renderPiece({ code: piece.code, seed: piece.seed, params, deps }, config);
 }
 
 /** The generator, out of storage. `gzip` only when it would not otherwise fit. */
@@ -480,15 +523,36 @@ async function pin(bytes: Uint8Array, name: string): Promise<string> {
 /**
  * Ask the public gateway for something we just pinned. A gateway other than the
  * pinning service answers with nothing until something asks it to fetch the
- * content across the network. Failures are ignored.
+ * content across the network, which can take a few seconds after Pinata's own
+ * API already answered 200 — that response means the upload was accepted, not
+ * that it is globally fetchable yet.
+ *
+ * Three tries, short backoff, because this is awaited before the chain write
+ * now: an indexer that resolves the metadata URI before any gateway confirms
+ * it can fetch the content may never retry on its own, and a token sits
+ * looking blank until someone notices and reruns `provider:retry` by hand.
+ * This does not provably close that race, only narrow it — it confirms our
+ * own gateway, not whatever an indexer itself reads from.
  */
 async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
     if (!cid) return;
-    await Promise.all([
-        fetch(`${IPFS_GATEWAY}/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {}),
-        warmSite(cid),
-    ]);
+    let confirmed = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        const res = await fetch(`${IPFS_GATEWAY}/${cid}`, {
+            signal: AbortSignal.timeout(20_000),
+        }).catch(() => null);
+        if (res?.ok) {
+            confirmed = true;
+            break;
+        }
+        if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 2000));
+    }
+    // Publishing proceeds either way (see handle()) — this never blocked that
+    // on principle, only on the three tries above. Logged so exhausting them
+    // is at least visible to whoever is watching the daemon, not silent.
+    if (!confirmed) console.error(`gateway never confirmed ${cid} after 3 tries`);
+    await warmSite(cid).catch(() => {});
 }
 
 /**
@@ -646,9 +710,9 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
         params: mint.params,
         code,
         codeUri: storage.art.code_uri ?? "",
-        libraries: parseLibraries(
-            await metadataKey(generator, "aleatory:libraries").catch(() => undefined),
-        ),
+        libraries: parseLibraries(await metadataKey(generator, "aleatory:libraries")),
+        paramsSchema: await paramsSchemaOf(generator),
+        nameTrait: await nameTraitOf(generator),
         artist: storage.administrator,
         generatorName: facts.name,
         description: facts.description,
@@ -658,10 +722,24 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
 }
 
 export async function handle(piece: PendingPiece): Promise<string> {
-    const image = await render(piece);
-    const imageUri = await pin(image, `${piece.generator}-${piece.tokenId}.png`);
+    // Resolved once, fed to both the render and the document it is recorded
+    // in — resolving twice is how the two end up disagreeing about what a
+    // piece actually saw. A direct contract call can write params the schema
+    // never allows; resolveParams clamps or defaults rather than throwing, so
+    // this can never be why a piece fails to render.
+    const params = decodeParams(piece.paramsSchema, piece.params);
+    const { png, features, autoCaptured } = await render(piece, params);
+    // Conforming (ALEATORY-001 §9 step 6), not an error — this still
+    // publishes. Logged because it's the permanent image saying it may be
+    // half-drawn, and that's worth a human's attention even when nothing
+    // here is going to retry over it.
+    if (autoCaptured) {
+        console.error(
+            `${piece.generator} #${piece.tokenId} auto-captured on the timeout, not ready()`,
+        );
+    }
+    const imageUri = await pin(png, `${piece.generator}-${piece.tokenId}.png`);
 
-    const params = safeParse(piece.params);
     // Shared with the studio and covered by the golden tests. A document
     // assembled here instead is how a provider ships pieces with no royalties.
     const doc = buildPieceDocument({
@@ -674,6 +752,8 @@ export async function handle(piece: PendingPiece): Promise<string> {
         seed: piece.seed,
         codeHash: piece.codeHash,
         params,
+        features,
+        nameTrait: piece.nameTrait,
         // Basis points, and TZIP-21 with `decimals: 4` is the same unit.
         royalties: { decimals: 4, shares: piece.royalties },
     });
@@ -684,19 +764,11 @@ export async function handle(piece: PendingPiece): Promise<string> {
 
     const metadataUri = await pinJson(withProvider, `${piece.generator}-${piece.tokenId}.json`);
 
-    // Started before the write lands so the two requests overlap the operation.
-    const warmed = Promise.all([warmGateway(imageUri), warmGateway(metadataUri)]);
+    // Awaited before the write lands, not overlapped with it: an indexer that
+    // resolves the metadata URI before a gateway can serve the content either
+    // one points at gets nothing, and may never ask again. Costs latency per
+    // piece; a token that looks permanently blank costs more.
+    await Promise.all([warmGateway(imageUri), warmGateway(metadataUri)]);
 
-    const hash = await publish(piece, metadataUri);
-    await warmed;
-    return hash;
-}
-
-function safeParse(s: string): Record<string, unknown> {
-    try {
-        const v = JSON.parse(s) as unknown;
-        return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
-    } catch {
-        return {};
-    }
+    return publish(piece, metadataUri);
 }

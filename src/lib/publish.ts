@@ -67,6 +67,15 @@ export interface PublishInput {
     maxRenderGasMutez: bigint;
     startPaused: boolean;
     trustResolver: boolean;
+    /**
+     * Opt-in, off by default. The key of a trait this generator declares
+     * through `$alea.features()` whose value becomes part of each piece's
+     * name: `"<Generator> #<n> · <value>"` instead of the plain form. Set at
+     * deploy, immutable after — same as every other field in this object.
+     * A piece whose features don't include this key (or that declares none
+     * at all) still gets the plain name; this never blocks a publish.
+     */
+    nameTrait?: string;
     /** Shown on a piece until its own render is published. */
     placeholderImageUri?: string;
     /**
@@ -436,6 +445,7 @@ export async function publishGenerator(
             ...(record.libraries.length > 0
                 ? { "aleatory:libraries": JSON.stringify(record.libraries) }
                 : {}),
+            ...(input.nameTrait?.trim() ? { "aleatory:nameTrait": input.nameTrait.trim() } : {}),
         },
     });
 

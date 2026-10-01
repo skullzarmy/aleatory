@@ -38,6 +38,38 @@ const readme = Object.fromEntries(
     KINDS.map((k) => [k, readFileSync(join(root, "public/templates", k, "README.md"), "utf8")]),
 ) as Record<(typeof KINDS)[number], string>;
 
+// Every template's seeded-PRNG construction has to be the shared core, not a
+// hand-retyped copy — that drift is exactly how the templates ended up
+// warming the stream 16 extra times before the renderer and isolate ever see
+// it, so a seed pinned locally did not draw what actually minted.
+//
+// Only the two function bodies, not harness-core.js's own header comment —
+// the templates' markers bracket just the functions.
+const coreFile = readFileSync(join(root, "src/lib/harness-core.js"), "utf8");
+const CORE = coreFile.slice(coreFile.indexOf("function xmur3")).trim();
+const CORE_BLOCK = /\/\/ alea:harness-core:start\n([\s\S]*?)\n\s*\/\/ alea:harness-core:end/;
+for (const kind of KINDS) {
+    const match = html[kind].match(CORE_BLOCK);
+    if (!match) {
+        console.error(`${kind}: no alea:harness-core markers`);
+        process.exit(1);
+    }
+    // Templates indent the whole block 6 spaces deeper than the bare file;
+    // comparison should not care about that, only about the code itself.
+    const got = match[1]
+        .split("\n")
+        .map((line) => line.replace(/^ {6}/, ""))
+        .join("\n")
+        .trim();
+    if (got !== CORE) {
+        console.error(
+            `${kind}: harness core has drifted from src/lib/harness-core.js. ` +
+                "Copy the shared core back in, do not hand-edit the PRNG.",
+        );
+        process.exit(1);
+    }
+}
+
 const serve = readFileSync(join(root, "scripts/kit/serve.mjs"), "utf8");
 
 /**

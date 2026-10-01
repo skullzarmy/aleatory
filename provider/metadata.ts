@@ -105,7 +105,46 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
     imageUri: string;
     seed: string;
     params?: Record<string, unknown>;
+    /** `$alea.features()`'s accumulated traits. Empty or absent when the piece reports none. */
+    features?: Record<string, string>;
+    /**
+     * The generator's opt-in declaration (`aleatory:nameTrait`), naming which
+     * feature key, if any, becomes part of each piece's name. Absent for
+     * every generator that didn't ask for this — the overwhelming majority —
+     * which get the plain name exactly as before.
+     */
+    nameTrait?: string;
     codeHash: string;
+}
+
+/** `[collection name] #[n]`, the convention every indexer expects (docs/decisions.md §11). */
+function plainName(generatorName: string, tokenId: number): string {
+    return `${generatorName} #${tokenId + 1}`;
+}
+
+/**
+ * The opt-in suffix: `[collection name] #[n] · [trait value]`. Never throws
+ * and never produces a half-formed name — anything that isn't a clean,
+ * present, reasonably-sized string value for the declared key falls all the
+ * way back to the plain form, same as a generator that never opted in.
+ */
+function pieceName(input: PieceDocInput): string {
+    const plain = plainName(input.generatorName, input.tokenId);
+    const trait = input.nameTrait?.trim();
+    if (!trait) return plain;
+
+    const raw = input.features?.[trait];
+    if (raw === undefined || raw === null) return plain;
+
+    const value = String(raw).trim();
+    if (!value) return plain;
+
+    // A trait value is free text from the artist's own code, not a declared,
+    // bounded param — cap it so one piece's name cannot dwarf every other
+    // field in the document it shares an operation with.
+    const MAX_SUFFIX = 60;
+    const suffix = value.length > MAX_SUFFIX ? `${value.slice(0, MAX_SUFFIX)}…` : value;
+    return `${plain} · ${suffix}`;
 }
 
 /**
@@ -115,8 +154,7 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
  */
 export function buildPieceDocument(input: PieceDocInput) {
     return {
-        // Token ids are 0-based and displayed edition numbers are 1-based.
-        name: `${input.generatorName} #${input.tokenId + 1}`,
+        name: pieceName(input),
         description: input.description || "",
         decimals: 0,
         isBooleanAmount: false,
@@ -129,11 +167,18 @@ export function buildPieceDocument(input: PieceDocInput) {
         aleaSeed: input.seed,
         aleaCodeHash: input.codeHash,
         aleaParams: input.params ? JSON.stringify(input.params) : "",
-        attributes: input.params
-            ? Object.entries(input.params).map(([name, value]) => ({
-                  name,
-                  value: String(value),
-              }))
-            : [],
+        // Traits first, then params — declared features are what the artist
+        // meant to be shown to a collector; params are inputs that happen to
+        // also be readable. Order is not spec-mandated, just a pick.
+        attributes: [
+            ...Object.entries(input.features ?? {}).map(([name, value]) => ({
+                name,
+                value: String(value),
+            })),
+            ...Object.entries(input.params ?? {}).map(([name, value]) => ({
+                name,
+                value: String(value),
+            })),
+        ],
     };
 }

@@ -141,5 +141,160 @@ check("parameters land in aleaParams and in attributes", () => {
     ]);
 });
 
+check("features land in attributes, ahead of params", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        params: { density: 140 },
+        features: { Palette: "warm", Count: 3 as unknown as string },
+    });
+    assert.deepEqual(doc.attributes, [
+        { name: "Palette", value: "warm" },
+        { name: "Count", value: "3" },
+        { name: "density", value: "140" },
+    ]);
+});
+
+check("no features reported is attributes built from params alone", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        params: { density: 140 },
+        features: {},
+    });
+    assert.deepEqual(doc.attributes, [{ name: "density", value: "140" }]);
+});
+
+console.log("\nper-piece names, opt-in");
+
+check("not declared at all: the plain form, unaffected", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Prancers",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 11,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        features: { Name: "Mochi Purrington" },
+        // nameTrait omitted entirely.
+    });
+    assert.equal(doc.name, "Prancers #12");
+});
+
+check("declared and present: the trait value is appended", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Prancers",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 11,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        features: { Name: "Mochi Purrington" },
+        nameTrait: "Name",
+    });
+    assert.equal(doc.name, "Prancers #12 · Mochi Purrington");
+});
+
+check("declared, but this piece's features don't have it: falls back to plain", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Prancers",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 11,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        features: { Temperament: "shy" },
+        nameTrait: "Name",
+    });
+    assert.equal(doc.name, "Prancers #12");
+});
+
+check("declared, no features reported at all: falls back to plain", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Prancers",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 11,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        nameTrait: "Name",
+    });
+    assert.equal(doc.name, "Prancers #12");
+});
+
+check(
+    "declared, trait value is an empty string: falls back to plain, not a trailing separator",
+    () => {
+        const doc = buildPieceDocument({
+            generatorName: "Prancers",
+            artist: A,
+            royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+            tokenId: 11,
+            artifactUri: "ipfs://code",
+            imageUri: "ipfs://image",
+            seed: "oo1",
+            codeHash: "aa",
+            features: { Name: "   " },
+            nameTrait: "Name",
+        });
+        assert.equal(doc.name, "Prancers #12");
+    },
+);
+
+check("declared, trait value is a number: coerced to a string, not dropped", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Prancers",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 11,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        features: { Lucky: 7 as unknown as string },
+        nameTrait: "Lucky",
+    });
+    assert.equal(doc.name, "Prancers #12 · 7");
+});
+
+check("declared, trait value is absurdly long: truncated, never a broken or giant name", () => {
+    const long = "x".repeat(500);
+    const doc = buildPieceDocument({
+        generatorName: "Prancers",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 11,
+        artifactUri: "ipfs://code",
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        features: { Name: long },
+        nameTrait: "Name",
+    });
+    assert.ok(doc.name.length < 100, `name was ${doc.name.length} characters: ${doc.name}`);
+    assert.ok(doc.name.startsWith("Prancers #12 · xxx"));
+    assert.ok(doc.name.endsWith("…"));
+});
+
 console.log(failures === 0 ? "\nall passed" : `\n${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);
