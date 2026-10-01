@@ -728,7 +728,16 @@ export async function handle(piece: PendingPiece): Promise<string> {
     // never allows; resolveParams clamps or defaults rather than throwing, so
     // this can never be why a piece fails to render.
     const params = decodeParams(piece.paramsSchema, piece.params);
-    const { png, features } = await render(piece, params);
+    const { png, features, autoCaptured } = await render(piece, params);
+    // Conforming (ALEATORY-001 §9 step 6), not an error — this still
+    // publishes. Logged because it's the permanent image saying it may be
+    // half-drawn, and that's worth a human's attention even when nothing
+    // here is going to retry over it.
+    if (autoCaptured) {
+        console.error(
+            `${piece.generator} #${piece.tokenId} auto-captured on the timeout, not ready()`,
+        );
+    }
     const imageUri = await pin(png, `${piece.generator}-${piece.tokenId}.png`);
 
     // Shared with the studio and covered by the golden tests. A document

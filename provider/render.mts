@@ -97,12 +97,18 @@ function harness(seed: string, params: Record<string, unknown>): string {
   performance.now = function () { return 0; };
 
   var done = false;
+  // The piece never signalled and the ceiling took the picture instead —
+  // conforming (ALEATORY-001 §9 step 6), but worth knowing when it happens
+  // to the thing that becomes the permanent image, same as isolate already
+  // tracks for a viewer.
+  var autoCaptured = false;
   function finish() {
     if (done) return;
     done = true;
     // An attribute, because a selector is the only thing the screenshot
     // endpoint can watch for.
     document.documentElement.setAttribute("data-alea-ready", "1");
+    document.documentElement.setAttribute("data-alea-auto-captured", autoCaptured ? "1" : "0");
     // Same idea, for traits: the snapshot endpoint hands back the page's
     // HTML alongside the image, so this is how they leave the page. A piece
     // that reports nothing here ends with features: {}, not a failed render.
@@ -131,7 +137,10 @@ function harness(seed: string, params: Record<string, unknown>): string {
   };
 
   // A piece that never signals is captured on the ceiling rather than never.
-  setTimeout(finish, ${CAPTURE_TIMEOUT_MS - 2000});
+  setTimeout(function () {
+    autoCaptured = true;
+    finish();
+  }, ${CAPTURE_TIMEOUT_MS - 2000});
 })();
 `;
 }
@@ -186,16 +195,16 @@ export interface RenderResult {
     png: Uint8Array;
     /** `$alea.features()`'s accumulated traits. Empty when the piece reports none. */
     features: Record<string, string>;
+    /** True when the piece never called `ready()` and the ceiling captured instead. */
+    autoCaptured: boolean;
 }
 
 /**
  * The features attribute's value, out of the page's own serialised HTML.
  * `result.content` is a full document string, not a DOM this process has —
- * there is nothing here to parse it with but the one attribute we put there
- * ourselves, so a regex is the whole job. Malformed or missing never fails a
- * render; a trait is a nice-to-have, a pinned image is not.
- */
-/**
+ * there is nothing here to parse it with but the attributes we put there
+ * ourselves, so a regex is the whole job.
+ *
  * Throws rather than returning `{}` when the attribute is missing or
  * unparseable — `finish()` always writes it, present and valid, even when
  * the piece called `features()` with nothing (`"{}"`). An attribute that
@@ -212,6 +221,13 @@ function featuresFrom(contentHtml: string): Record<string, string> {
         throw new Error("data-alea-features did not parse to an object");
     }
     return parsed;
+}
+
+/** Same deal as `featuresFrom`, for the much simpler "0" or "1" flag. */
+function autoCapturedFrom(contentHtml: string): boolean {
+    const m = contentHtml.match(/data-alea-auto-captured="([^"]*)"/);
+    if (!m) throw new Error("data-alea-auto-captured attribute missing from the capture");
+    return m[1] === "1";
 }
 
 /** Render one piece. Returns the PNG bytes and whatever traits it reported. */
@@ -257,13 +273,16 @@ export async function render(input: RenderInput, config: RenderConfig): Promise<
             console.error("browser-run", JSON.stringify(json.errors).slice(0, 500));
             throw new Error("render returned no image");
         }
+        const content = json.result?.content ?? "";
         return {
             png: Uint8Array.from(Buffer.from(b64, "base64")),
-            features: featuresFrom(json.result?.content ?? ""),
+            features: featuresFrom(content),
+            autoCaptured: autoCapturedFrom(content),
         };
     }
 
     // No JSON content type: the body is the image bytes directly, and there
-    // is no page HTML alongside it to read features from.
-    return { png: new Uint8Array(await res.arrayBuffer()), features: {} };
+    // is no page HTML alongside it to read features or the capture flag
+    // from — the same shape of gap as the features-only fallback above.
+    return { png: new Uint8Array(await res.arrayBuffer()), features: {}, autoCaptured: false };
 }
