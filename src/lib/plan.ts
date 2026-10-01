@@ -14,10 +14,18 @@
  */
 
 /**
- * The protocol's operation ceiling, less measured room for everything else the
- * deploy carries: metadata, royalties, the pending pointer.
+ * The protocol's operation ceiling, less a margin for everything else the
+ * deploy carries: the metadata map (name, description, tags, cover,
+ * interfaces, authors, and aleatory:params/libraries/nameTrait when
+ * declared), royalties, the pending pointer, edition size, price, provider
+ * and the Michelson envelope around all of it. A margin, never a per-publish
+ * measurement of the real metadata bytes. Failed live on mainnet at 700: a
+ * generator whose metadata came to roughly 787 bytes landed an operation 87
+ * bytes over the cap. 3,000 gives real headroom past that one failure. The
+ * correct fix measures the actual metadata bytes per publish; this still
+ * guesses, with more room to be wrong.
  */
-export const MAX_INLINE_CODE_BYTES = 32_768 - 700;
+export const MAX_INLINE_CODE_BYTES = 32_768 - 3_000;
 
 /**
  * One chunk of a walked generator. The same ceiling applies, less room for the
