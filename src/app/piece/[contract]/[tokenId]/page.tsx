@@ -6,6 +6,7 @@ import { ArtifactFrame } from "@/components/piece/ArtifactFrame";
 import { PieceArriving } from "@/components/piece/PieceArriving";
 import { JustMinted } from "@/components/piece/JustMinted";
 import { fetchGenerator } from "@/lib/generator";
+import { decodeParams } from "@/lib/params";
 import { PieceFacts } from "@/components/piece/PieceFacts";
 import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
@@ -67,9 +68,10 @@ export default async function PiecePage({ params }: { params: Params }) {
         return <PieceArriving contract={contract} tokenId={tokenId} />;
     }
 
-    const [listing, offers] = await Promise.all([
+    const [listing, offers, generator] = await Promise.all([
         fetchListingFor(contract, tokenId).catch(() => null),
         fetchOffersFor(contract, tokenId).catch(() => []),
+        fetchGenerator(contract).catch(() => null),
     ]);
     const royaltyTotal = piece.royalties.reduce((n, r) => n + r.bps, 0);
 
@@ -106,7 +108,7 @@ export default async function PiecePage({ params }: { params: Params }) {
                     <ArtifactFrame
                         code={piece.code}
                         seed={piece.seed}
-                        params={pieceParams(piece.params)}
+                        params={decodeParams(generator?.paramsSchema?.params ?? [], piece.params)}
                         imageUrl={piece.pending ? undefined : piece.imageUrl}
                         name={piece.name}
                     />
@@ -154,19 +156,4 @@ export default async function PiecePage({ params }: { params: Params }) {
             </div>
         </div>
     );
-}
-
-// Parsed and handed over as written, with no schema resolution, matching what the
-// render provider did when it made the pinned image. Any divergence here would make
-// the live render disagree with the permanent one.
-function pieceParams(json?: string): Record<string, unknown> | undefined {
-    if (!json) return undefined;
-    try {
-        const parsed: unknown = JSON.parse(json);
-        return parsed && typeof parsed === "object"
-            ? (parsed as Record<string, unknown>)
-            : undefined;
-    } catch {
-        return undefined;
-    }
 }

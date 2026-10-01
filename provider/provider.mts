@@ -26,6 +26,7 @@ import { render as renderPiece, renderConfigFromEnv, type RenderResult } from ".
 import { buildPieceDocument } from "./metadata";
 import { feeFor } from "./fees";
 import { parseLibraries, resolveLibraries, type DeclaredLibrary } from "./libraries.mts";
+import { decodeParams, type ParamSpec, type ParamValues } from "../src/lib/params";
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
 const KT1 = /^KT1[1-9A-HJ-NP-Za-km-z]{33}$/;
@@ -142,6 +143,8 @@ interface PendingPiece {
     /** Address to basis points, straight from the generator's storage. */
     royalties: Record<string, number>;
     codeHash: string;
+    /** The generator's declared mint-time parameters, empty when it declares none. */
+    paramsSchema: ParamSpec[];
 }
 
 async function tzkt<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
@@ -247,6 +250,23 @@ function royaltiesOf(storage: GeneratorStorage): Record<string, number> {
     );
 }
 
+/**
+ * A generator's declared mint-time parameters, same record `mint`, the mint
+ * form and the viewer all resolve against — a direct contract call writes
+ * raw bytes the contract never validates, and this is what keeps a piece from
+ * seeing them unresolved and crashing before `ready()`.
+ */
+async function paramsSchemaOf(generator: string): Promise<ParamSpec[]> {
+    const raw = await metadataKey(generator, "aleatory:params").catch(() => undefined);
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw) as { params?: unknown };
+        return Array.isArray(parsed?.params) ? (parsed.params as ParamSpec[]) : [];
+    } catch {
+        return [];
+    }
+}
+
 /** One key out of a generator's metadata big_map, decoded. */
 async function metadataKey(generator: string, key: string): Promise<string | undefined> {
     const row = await tzkt<{ value?: string } | null>(
@@ -307,6 +327,7 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
     const libraries = parseLibraries(
         await metadataKey(generator, "aleatory:libraries").catch(() => undefined),
     );
+    const paramsSchema = await paramsSchemaOf(generator);
     const facts = await generatorFacts(generator);
     const royalties = royaltiesOf(storage);
 
@@ -339,6 +360,7 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
                 code,
                 codeUri,
                 libraries,
+                paramsSchema,
                 artist: storage.administrator,
                 generatorName: facts.name,
                 description: facts.description,
@@ -433,22 +455,14 @@ async function fetchGenerator(codeUri: string): Promise<string> {
 }
 
 /** Draw one piece, through Browser Run's REST endpoint. */
-async function render(piece: PendingPiece): Promise<RenderResult> {
+async function render(piece: PendingPiece, params: ParamValues): Promise<RenderResult> {
     const config = renderConfigFromEnv();
     if (!config) throw new Error("rendering is not configured");
     // Throws rather than rendering without them. A p5 sketch drawn with no p5
     // produces a blank frame, and the token would carry it permanently.
     const deps = await resolveLibraries(piece.libraries);
 
-    return renderPiece(
-        {
-            code: piece.code,
-            seed: piece.seed,
-            params: piece.params ? (JSON.parse(piece.params) as Record<string, unknown>) : {},
-            deps,
-        },
-        config,
-    );
+    return renderPiece({ code: piece.code, seed: piece.seed, params, deps }, config);
 }
 
 /** The generator, out of storage. `gzip` only when it would not otherwise fit. */
@@ -649,6 +663,7 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
         libraries: parseLibraries(
             await metadataKey(generator, "aleatory:libraries").catch(() => undefined),
         ),
+        paramsSchema: await paramsSchemaOf(generator),
         artist: storage.administrator,
         generatorName: facts.name,
         description: facts.description,
@@ -658,10 +673,15 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
 }
 
 export async function handle(piece: PendingPiece): Promise<string> {
-    const { png, features } = await render(piece);
+    // Resolved once, fed to both the render and the document it is recorded
+    // in — resolving twice is how the two end up disagreeing about what a
+    // piece actually saw. A direct contract call can write params the schema
+    // never allows; resolveParams clamps or defaults rather than throwing, so
+    // this can never be why a piece fails to render.
+    const params = decodeParams(piece.paramsSchema, piece.params);
+    const { png, features } = await render(piece, params);
     const imageUri = await pin(png, `${piece.generator}-${piece.tokenId}.png`);
 
-    const params = safeParse(piece.params);
     // Shared with the studio and covered by the golden tests. A document
     // assembled here instead is how a provider ships pieces with no royalties.
     const doc = buildPieceDocument({
@@ -691,13 +711,4 @@ export async function handle(piece: PendingPiece): Promise<string> {
     const hash = await publish(piece, metadataUri);
     await warmed;
     return hash;
-}
-
-function safeParse(s: string): Record<string, unknown> {
-    try {
-        const v = JSON.parse(s) as unknown;
-        return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
-    } catch {
-        return {};
-    }
 }
