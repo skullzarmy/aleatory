@@ -15,11 +15,11 @@ You charge render gas, once, per mint. The artist sets nothing: your contract
 holds the price, every mint asks you for it, and pays your contract in the same
 operation that pays the artist.
 
-Against that, a publish costs roughly 0.0015 ꜩ in chain fees, plus whatever
+Against that, a publish costs roughly 0.0066 ꜩ in chain fees, plus whatever
 your rendering and pinning cost you off chain. The provider this site runs
-charges 0.05 ꜩ, so the chain-fee margin is about thirty to one. That is not
-the whole picture, because a headless browser and a pinning service are not
-free, and it is the number to start from.
+charges 0.05 ꜩ, so the chain-fee margin is about seven and a half to one.
+That is not the whole picture, because a headless browser and a pinning
+service are not free, and it is the number to start from.
 
 Nothing about this is exclusive. Any number of providers can serve any number
 of generators, an artist picks one per generator at deploy, and can switch
@@ -103,8 +103,8 @@ serverless function's environment, which is to say somewhere a leak is
 plausible. It cannot pause a generator, move a token, change a price, or touch
 the provider contract's balance. Losing it costs the gas in it.
 
-Fund the agent with a few tez and no more. A publish costs about 0.0015 ꜩ, so
-that is thousands of pieces, and it caps what a leak is worth.
+Fund the agent with a few tez and no more. A publish costs about 0.0066 ꜩ, so
+that is a few hundred pieces, and it caps what a leak is worth.
 
 The generator asks `get_agent()` **live**, on every write, and a live answer
 overrides the address it snapshotted at deploy. That is what makes rotation

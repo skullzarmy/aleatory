@@ -116,7 +116,7 @@ function RunOne() {
                     <dd className="mt-1 text-muted-foreground">
                         You set your own render gas, paid to your contract by every mint of every
                         generator that picked you, in the same operation that pays the artist.
-                        Changing it reaches all of them at once. A publish costs about 0.0015 ꜩ in
+                        Changing it reaches all of them at once. A publish costs about 0.0066 ꜩ in
                         chain fees against it.
                     </dd>
                 </div>

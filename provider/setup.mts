@@ -30,8 +30,8 @@ const RPC = process.env.TEZOS_RPC || "https://rpc.tzkt.io/shadownet";
 /**
  * What to send the agent.
  *
- * A reveal costs about 0.001 tez and a publish about 0.0015, so this is a few
- * thousand pieces. It holds nothing else on purpose: the agent is a hot key in
+ * A reveal costs about 0.0013 tez and a publish about 0.0066, so this is a few
+ * hundred pieces. It holds nothing else on purpose: the agent is a hot key in
  * a serverless function, and what it is worth stealing should stay close to
  * the gas it needs.
  */
@@ -157,4 +157,4 @@ console.log(`ALEA_AGENT_SK=${agentSk}`);
 console.log("\nIt signs set_token_metadata and nothing else. It cannot pause a");
 console.log("generator, move a token, change a price, or touch the provider");
 console.log("contract's balance. Losing it costs you the gas in it and nothing more.");
-console.log("Top it up when it runs low; a publish costs about 0.0015 tez.\n");
+console.log("Top it up when it runs low; a publish costs about 0.0066 tez.\n");
