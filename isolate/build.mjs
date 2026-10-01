@@ -26,6 +26,14 @@ if (!src.includes(MARKER)) {
     process.exit(1);
 }
 
+// Splices raw into a template literal in index.src.html. A backtick closes it
+// early; `${` opens interpolation that String.raw does not suppress — both
+// parse fine and fail only when the browser runs that line.
+if (core.includes("`") || core.includes("${")) {
+    console.error("harness-core.js contains a backtick or ${, which breaks the splice into index.src.html");
+    process.exit(1);
+}
+
 const out = src.replace(MARKER, core);
 writeFileSync(join(root, "index.html"), out);
 console.log("isolate: index.html generated from index.src.html");
