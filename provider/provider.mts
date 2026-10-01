@@ -537,13 +537,21 @@ async function pin(bytes: Uint8Array, name: string): Promise<string> {
 async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
     if (!cid) return;
+    let confirmed = false;
     for (let attempt = 1; attempt <= 3; attempt++) {
         const res = await fetch(`${IPFS_GATEWAY}/${cid}`, {
             signal: AbortSignal.timeout(20_000),
         }).catch(() => null);
-        if (res?.ok) break;
+        if (res?.ok) {
+            confirmed = true;
+            break;
+        }
         if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 2000));
     }
+    // Publishing proceeds either way (see handle()) — this never blocked that
+    // on principle, only on the three tries above. Logged so exhausting them
+    // is at least visible to whoever is watching the daemon, not silent.
+    if (!confirmed) console.error(`gateway never confirmed ${cid} after 3 tries`);
     await warmSite(cid).catch(() => {});
 }
 
