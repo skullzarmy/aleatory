@@ -78,6 +78,17 @@ export default async function PiecePage({ params }: { params: Params }) {
     // Null for an open edition, which has nothing to count down.
     const remaining = piece.editionSize > 0 ? Math.max(0, piece.editionSize - piece.minted) : null;
 
+    // The piece already resolved above, so its generator exists on chain — a
+    // failed fetch here is a transient read, not a generator that was never
+    // declared. Below, a failure reads the same as "declares no params" and
+    // the live run gets an empty schema, which can resolve this token's
+    // params to the wrong values (clamped/defaulted instead of what it
+    // actually minted with). A published image was rendered against the
+    // real schema, so when one exists it is the honest thing to show, not a
+    // live run guessing at params it cannot actually read right now.
+    const cachedImage = piece.pending ? undefined : piece.imageUrl;
+    const schemaUnknown = !generator && Boolean(cachedImage);
+
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
             <LiveRefresh seconds={30} />
@@ -106,10 +117,10 @@ export default async function PiecePage({ params }: { params: Params }) {
                         piece, and showing it under this token's name says it is
                         this one. */}
                     <ArtifactFrame
-                        code={piece.code}
-                        seed={piece.seed}
+                        code={schemaUnknown ? undefined : piece.code}
+                        seed={schemaUnknown ? undefined : piece.seed}
                         params={decodeParams(generator?.paramsSchema?.params ?? [], piece.params)}
-                        imageUrl={piece.pending ? undefined : piece.imageUrl}
+                        imageUrl={cachedImage}
                         name={piece.name}
                     />
                 </div>
