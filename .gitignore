@@ -16,6 +16,9 @@ contract/__pycache__/
 # deliberate act and adding a line is the cost of it; a directory that
 # appeared on its own is litter and stays invisible.
 contract/output/
+# The daemon's own record of pieces that keep failing to render. Local state
+# for whichever box runs it, not something a checkout should carry.
+provider/.state/
 /*/
 !/.github/
 !/.githooks/

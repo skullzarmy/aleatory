@@ -18,6 +18,9 @@ dotenv.config();
 const { generatorsServed, factoriesIgnored, pendingIn, handle } = await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
 const { heartbeat } = await import("./heartbeat.ts");
+const { keyFor, isStuck, recordFailure, recordSuccess, stuckList, STUCK_AFTER } = await import(
+    "./stuck.mts"
+);
 
 /** How often to look when there is nothing to do. */
 const IDLE_MS = Number(process.env.ALEA_POLL_MS || 15_000);
@@ -173,6 +176,7 @@ while (!stopping) {
         let failed = 0;
         let scanned = 0;
         let scanFailed = 0;
+        let stuck = 0;
         for (const generator of served) {
             if (stopping) break;
             scanned++;
@@ -184,6 +188,14 @@ while (!stopping) {
 
             for (const piece of waiting) {
                 if (stopping) break;
+                const key = keyFor(piece.generator, piece.tokenId);
+                if (isStuck(key)) {
+                    // Already failed STUCK_AFTER times. Retrying it every pass
+                    // forever was the bug; skip it until provider:retry runs
+                    // by hand, after whatever was actually wrong is fixed.
+                    stuck++;
+                    continue;
+                }
                 log(`rendering ${piece.generator} #${piece.tokenId}`);
                 // Before the work, not only after it: a capture that takes
                 // twenty seconds is progress and should sound like it.
@@ -191,13 +203,22 @@ while (!stopping) {
                 try {
                     const hash = await handle(piece);
                     published++;
+                    recordSuccess(key);
                     log(`  published ${hash}`);
                     beat({ status: "up", msg: `published #${piece.tokenId}` });
                 } catch (e) {
                     // One bad piece must not stop the queue. It stays pending
-                    // and the next pass tries again.
+                    // and the next pass tries again, up to the cap.
                     failed++;
-                    log(`  FAILED: ${e instanceof Error ? e.message : e}`);
+                    const message = e instanceof Error ? e.message : String(e);
+                    const { attempts, justStuck } = recordFailure(key, message);
+                    log(`  FAILED (${attempts}/${STUCK_AFTER}): ${message}`);
+                    if (justStuck) {
+                        log(
+                            `  ${piece.generator} #${piece.tokenId} has failed ${STUCK_AFTER} times ` +
+                                "in a row and will not be retried automatically. Needs a human.",
+                        );
+                    }
                 }
             }
         }
@@ -210,9 +231,15 @@ while (!stopping) {
             status: blind ? "down" : "up",
             msg: blind
                 ? `every scan failed (${scanned} generators)`
-                : `${scanned} scanned, ${scanFailed} scan failed, ${published} published, ${failed} failed`,
+                : `${scanned} scanned, ${scanFailed} scan failed, ${published} published, ` +
+                  `${failed} failed, ${stuck} stuck (skipped)`,
             ping: Date.now() - startedAt,
         });
+        if (stuck > 0) {
+            for (const { key, entry } of stuckList()) {
+                log(`  stuck: ${key}  ${entry.attempts} attempts  last: ${entry.lastError}`);
+            }
+        }
 
         backoff = BACKOFF_MIN_MS;
         // Straight back round when there was work, so a busy generator does
