@@ -6,6 +6,7 @@ import {
     useEffect,
     useId,
     useMemo,
+    useRef,
     useState,
     type ReactElement,
 } from "react";
@@ -100,6 +101,24 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         }, 600);
         return () => clearTimeout(t);
     }, [draft, name, description]);
+
+    // The effect above cancels its own timer on every keystroke, by design —
+    // that's the debounce. But its cleanup also runs on a real unmount, which
+    // looks identical to "settled, waiting out the 600ms" from in here: typing
+    // and navigating away inside that window cancelled the only save that was
+    // ever going to happen for it. A ref keeps the latest values reachable
+    // from a cleanup that only fires on the real thing (empty deps), so an
+    // unmount flushes immediately instead of just cancelling.
+    const latest = useRef({ draft, name, description });
+    latest.current = { draft, name, description };
+    useEffect(() => {
+        return () => {
+            const { draft, name, description } = latest.current;
+            if (!draft) return;
+            if (draft.name === name && (draft.description ?? "") === description) return;
+            void saveDraft({ ...draft, name, description });
+        };
+    }, []);
 
     const provider = providers.find((p) => p.address === providerAddress);
     /**
