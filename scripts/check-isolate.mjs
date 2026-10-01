@@ -28,7 +28,7 @@ console.log("isolate/index.html matches its source");
 
 // Matching source doesn't mean it parses — a bad splice produces a file
 // that's byte-identical to what the build would make and still renders nothing.
-const script = after.match(/<script>([\s\S]*?)<\/script>/);
+const script = after.match(/<script>([\s\S]*?)<\/script>/i);
 if (!script) {
     console.error("\nisolate/index.html has no <script> block to check");
     process.exit(1);
