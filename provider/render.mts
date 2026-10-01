@@ -1,12 +1,16 @@
 /**
  * Rendering a piece, through Cloudflare Browser Run. In: the generator's
- * source, a seed, parameters. Out: PNG bytes. The REST endpoint takes raw HTML,
- * so there is no Worker to deploy and no `workers.dev` URL to guard.
+ * source, a seed, parameters. Out: PNG bytes and whatever traits the piece
+ * reported. The REST endpoint takes raw HTML, so there is no Worker to deploy
+ * and no `workers.dev` URL to guard.
  *
  * The provider's half of the two harness implementations. The other is
- * `isolate/index.html`, which draws for a viewer. They agree by conforming to
- * ALEATORY-001 §7 and not by sharing a file, and they have to: a piece has to
- * look the same in a browser as in the image that ends up on chain.
+ * `isolate/index.html`, which draws for a viewer. The seeded-PRNG core both
+ * start from is one shared file (`src/lib/harness-core.js`) now, not two
+ * copies kept in step by hand — everything around it (capture mechanism,
+ * param/feature wiring) still has to agree by conforming to ALEATORY-001 §7,
+ * because a piece has to look the same in a browser as in the image that ends
+ * up on chain, and the two run in genuinely different contexts.
  */
 
 import { readFileSync } from "node:fs";

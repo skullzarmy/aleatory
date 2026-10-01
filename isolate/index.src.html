@@ -38,9 +38,13 @@
  *   a third party   implements ALEATORY-001 however they like
  *
  * One executor, so there is one harness on this side. `provider/render.mts` has
- * the other, and the two agree by conforming to the spec rather than by
- * sharing a file. When they disagreed on seeding, that was a bug in one of
- * them, not an argument for merging them.
+ * the other. The seeded-PRNG core both build on is one shared file now
+ * (`src/lib/harness-core.js`, pulled in by build.mjs below) — three
+ * independent copies of it was how the two once disagreed on seeding.
+ * Everything else here still has to agree with the other side by conforming
+ * to the spec, not by sharing code: this frame has no network and no build
+ * tooling available to it at runtime, and the other side is a headless render
+ * host, so most of what each does with the core is necessarily its own.
  */
 (function () {
   function fail(msg) {
