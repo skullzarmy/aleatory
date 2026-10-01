@@ -541,7 +541,11 @@ def aleatory():
             renderer reads to decide what a piece runs, and ALEATORY-001 tells
             it to trust that record absolutely, so a key that could change them
             would let an administrator change what an already-minted piece
-            executes. They are written at origination and refused here, as are
+            executes. `aleatory:nameTrait` is the same shape of promise at a
+            smaller scale: the provider reads it for every piece it publishes,
+            so a key that could move mid-edition would make pieces minted
+            before and after the change disagree about what their own name
+            means. They are written at origination and refused here, as are
             `code`, `code_uri`, `code_hash` and `royalties`, which live in
             storage and have no setter at all.
             """
@@ -551,6 +555,7 @@ def aleatory():
             assert self.is_artist_(), "NOT_ARTIST"
             assert key != "aleatory:libraries", "KEY_IMMUTABLE"
             assert key != "aleatory:params", "KEY_IMMUTABLE"
+            assert key != "aleatory:nameTrait", "KEY_IMMUTABLE"
             self.data.metadata[key] = value
             sp.emit(sp.record(key=key), tag="set_metadata")
 

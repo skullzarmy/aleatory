@@ -328,6 +328,11 @@ def test_set_metadata_is_display_only():
                    _valid=False)
     c.set_metadata(key="aleatory:params", value=body, _sender=artist,
                    _valid=False)
+    # The provider reads this for every piece it publishes; a key that could
+    # move mid-edition would make pieces minted before and after disagree
+    # about what their own name means, same promise as the two above.
+    c.set_metadata(key="aleatory:nameTrait", value=body, _sender=artist,
+                   _valid=False)
 
 
 @sp.add_test()
