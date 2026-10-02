@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ShareButtons } from "@/components/ShareButtons";
+import { ShareButtons, type ArtistHandles } from "@/components/ShareButtons";
 
 /**
  * The moment after a mint, on the piece's own page. Marked by `?minted` on the
@@ -14,12 +14,14 @@ export function JustMinted({
     remaining,
     shareUrl,
     shareText,
+    artistHandles,
 }: {
     contract: string;
     /** Unsold in the edition, or null for an open one. */
     remaining: number | null;
     shareUrl: string;
     shareText: string;
+    artistHandles?: ArtistHandles;
 }) {
     const params = useSearchParams();
     if (!params.has("minted")) return null;
@@ -58,7 +60,7 @@ export function JustMinted({
                 <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
                     Show it off
                 </p>
-                <ShareButtons url={shareUrl} text={shareText} />
+                <ShareButtons url={shareUrl} text={shareText} artistHandles={artistHandles} />
             </div>
         </div>
     );

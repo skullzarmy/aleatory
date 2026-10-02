@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { Check, Link2, Share2 } from "lucide-react";
 
+/** The artist's handle on each network, from their own profile, when they have one. */
+export type ArtistHandles = Partial<
+    Record<"twitter" | "bluesky" | "farcaster" | "telegram", string>
+>;
+
 /**
  * Share a piece. The URL is the piece's permanent page, never the one a
  * collector lands on after minting, and the text is composed here rather than
@@ -12,10 +17,12 @@ import { Check, Link2, Share2 } from "lucide-react";
 export function ShareButtons({
     url,
     text,
+    artistHandles,
     className,
 }: {
     url: string;
     text: string;
+    artistHandles?: ArtistHandles;
     className?: string;
 }) {
     const [copied, setCopied] = useState(false);
@@ -27,22 +34,34 @@ export function ShareButtons({
     }, []);
 
     const u = encodeURIComponent(url);
-    const t = encodeURIComponent(text);
-    const both = encodeURIComponent(`${text} ${url}`);
+    // A network that has the artist's handle for itself gets them tagged in
+    // the post; one that doesn't gets the plain text.
+    const tagged = (kind: keyof ArtistHandles) => {
+        const handle = artistHandles?.[kind];
+        return handle ? `${text} by ${handle}` : text;
+    };
 
     const networks = [
-        { name: "X", href: `https://x.com/intent/post?text=${t}&url=${u}`, icon: <XMark /> },
+        {
+            name: "X",
+            href: `https://x.com/intent/post?text=${encodeURIComponent(tagged("twitter"))}&url=${u}`,
+            icon: <XMark />,
+        },
         {
             name: "Bluesky",
-            href: `https://bsky.app/intent/compose?text=${both}`,
+            href: `https://bsky.app/intent/compose?text=${encodeURIComponent(`${tagged("bluesky")} ${url}`)}`,
             icon: <Butterfly />,
         },
         {
             name: "Farcaster",
-            href: `https://farcaster.xyz/~/compose?text=${t}&embeds[]=${u}`,
+            href: `https://farcaster.xyz/~/compose?text=${encodeURIComponent(tagged("farcaster"))}&embeds[]=${u}`,
             icon: <Arch />,
         },
-        { name: "Telegram", href: `https://t.me/share/url?url=${u}&text=${t}`, icon: <Paper /> },
+        {
+            name: "Telegram",
+            href: `https://t.me/share/url?url=${u}&text=${encodeURIComponent(tagged("telegram"))}`,
+            icon: <Paper />,
+        },
     ];
 
     /**

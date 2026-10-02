@@ -12,7 +12,7 @@ import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
 import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
-import { resolveName } from "@/lib/identity";
+import { resolveName, fetchProfile, socialHandle } from "@/lib/identity";
 import { shortAddress } from "@/lib/utils";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { PieceJsonLd } from "@/components/JsonLd";
@@ -76,12 +76,19 @@ export default async function PiecePage({
         return <PieceArriving contract={contract} tokenId={tokenId} />;
     }
 
-    const [listing, offers, generator] = await Promise.all([
+    const [listing, offers, generator, artistProfile] = await Promise.all([
         fetchListingFor(contract, tokenId).catch(() => null),
         fetchOffersFor(contract, tokenId).catch(() => []),
         fetchGenerator(contract).catch(() => null),
+        piece.artist ? fetchProfile(piece.artist).catch(() => null) : Promise.resolve(null),
     ]);
     const royaltyTotal = piece.royalties.reduce((n, r) => n + r.bps, 0);
+    const artistHandles = {
+        twitter: socialHandle(artistProfile, "twitter") ?? undefined,
+        bluesky: socialHandle(artistProfile, "bluesky") ?? undefined,
+        farcaster: socialHandle(artistProfile, "farcaster") ?? undefined,
+        telegram: socialHandle(artistProfile, "telegram") ?? undefined,
+    };
 
     // Null for an open edition, which has nothing to count down.
     const remaining = piece.editionSize > 0 ? Math.max(0, piece.editionSize - piece.minted) : null;
@@ -116,6 +123,7 @@ export default async function PiecePage({
                     remaining={remaining}
                     shareUrl={`${BRAND.url}/piece/${contract}/${tokenId}`}
                     shareText={`I minted ${piece.name} on ${BRAND.name}`}
+                    artistHandles={artistHandles}
                 />
             </Suspense>
 
@@ -175,6 +183,7 @@ export default async function PiecePage({
                             <ShareButtons
                                 url={`${BRAND.url}/piece/${contract}/${tokenId}`}
                                 text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
+                                artistHandles={artistHandles}
                             />
                         </div>
                     )}

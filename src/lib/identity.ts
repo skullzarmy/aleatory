@@ -369,5 +369,16 @@ export function avatarUrl(profile: Profile | null): string | null {
     return `${RESOLVER}/api/v1/hackatar/${profile.handle.split(".")[0]}?static=1`;
 }
 
+/**
+ * An artist's handle on one network, for tagging them in a share post. `null`
+ * covers both "no link of that kind" and a Bluesky link that is a DID rather
+ * than a handle. `link()` already marks that case with a label carrying no
+ * `@`, and a DID is not something to type into a post as a mention.
+ */
+export function socialHandle(profile: Profile | null, kind: string): string | null {
+    const found = profile?.links.find((l) => l.kind === kind);
+    return found?.label.startsWith("@") ? found.label : null;
+}
+
 /** Where someone goes to fill in a profile. */
 export const PROFILE_HOME = "https://hacktez.com";
