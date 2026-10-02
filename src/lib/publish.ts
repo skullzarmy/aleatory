@@ -38,7 +38,6 @@ import { recordFor } from "./libraries";
 import type { DepSpec } from "./kinds";
 import { saveDraft, type Draft } from "./draft";
 import { COST_PER_BYTE, MAX_CHUNK_BYTES, gzip, publishPlan } from "./plan";
-import { BRAND } from "./config";
 
 export type PublishStage = "encoding" | "pinning-metadata" | "signing" | "uploading" | "sealing";
 
@@ -436,11 +435,7 @@ export async function publishGenerator(
             content: JSON.stringify({
                 name: input.name,
                 description: input.description,
-                interfaces: ["TZIP-012", "TZIP-016", "TZIP-021", "ALEATORY-001"],
-                symbol: "ALEA",
-                // The one field objkt copies to `fa.website` and groups
-                // collections by. Same URL on every generator.
-                homepage: BRAND.url,
+                interfaces: ["TZIP-012", "TZIP-016", "ALEATORY-001"],
                 authors: [input.artist],
                 // The keys an external marketplace looks for. Both point at
                 // the same capture: some read one, some the other.
