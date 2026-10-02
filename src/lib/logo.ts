@@ -27,9 +27,9 @@ export interface LogoOptions {
     /** Accessible name. An empty string marks it decorative. */
     label?: string;
     /**
-     * Relief instead of line art: the tracery fills solid with `stroke`, and
-     * `background` becomes a dashed line engraved along its edge instead of
-     * the plate behind it. The plate stays, in `background`, same as always.
+     * Relief: the tracery fills solid with `stroke`, and `background` traces
+     * a dashed line engraved along its edge. The plate still sits behind it,
+     * in `background`, same as always.
      */
     fill?: boolean;
 }
