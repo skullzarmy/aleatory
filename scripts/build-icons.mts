@@ -21,8 +21,8 @@ writeFileSync(
         seed: CANONICAL_SEED,
         size: 512,
         detail: "compact",
-        stroke: "#d9b46a",
-        background: "#0f1b1a",
+        stroke: "#fbbf24",
+        background: "#0d0f12",
     }),
 );
 
@@ -31,20 +31,21 @@ writeFileSync(
     renderLogo({
         seed: CANONICAL_SEED,
         size: 512,
-        stroke: "#d9b46a",
-        background: "#0f1b1a",
+        stroke: "#fbbf24",
+        background: "#0d0f12",
     }),
 );
 
-// Colors mirror admin/src/app/globals.css's --warn and --base.
+// Admin's favicon: the site's old pair, in relief rather than line art.
 writeFileSync(
     resolve(root, "admin/public/favicon.svg"),
     renderLogo({
         seed: CANONICAL_SEED,
         size: 512,
         detail: "compact",
-        stroke: "#fbbf24",
-        background: "#0d0f12",
+        stroke: "#d9b46a",
+        background: "#0f1b1a",
+        fill: true,
     }),
 );
 
