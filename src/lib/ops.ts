@@ -493,11 +493,22 @@ export async function pushContent(
 }
 
 /**
- * The protocol's operation ceiling, less a margin for the batch's own
- * envelope and every call's entrypoint name and destination address, in the
- * same spirit as `MAX_CHUNK_BYTES` in `plan.ts`.
+ * The protocol's operation ceiling, less the group's own envelope: a branch
+ * hash, a signature, the wrapping tags around a list of calls. Unlike
+ * `MAX_CHUNK_BYTES` in `plan.ts`, which margins one call, a batch holds a
+ * variable number of them, so each call's own envelope is counted
+ * separately below, as `PER_CALL_OVERHEAD_BYTES`, rather than folded into
+ * one flat margin sized for a single call.
  */
-const MAX_BATCH_BYTES = 32_768 - 2_000;
+const MAX_BATCH_BYTES = 32_768 - 300;
+
+/**
+ * What `packedBytes(p.value)` never counts for one call in a batch: the
+ * destination address, the entrypoint name, and the fee, gas_limit,
+ * storage_limit and counter fields. Generous on purpose, since this is a
+ * margin and not a measurement.
+ */
+const PER_CALL_OVERHEAD_BYTES = 150;
 
 /**
  * The same push, across several generators. Grouped so no signature's
@@ -515,7 +526,8 @@ export async function pushContentBatch(
                 key: "content",
                 value: utf8ToHex(u.contentJson),
             });
-            return { generator: u.generator, p, bytes: await packedBytes(p.value) };
+            const bytes = (await packedBytes(p.value)) + PER_CALL_OVERHEAD_BYTES;
+            return { generator: u.generator, p, bytes };
         }),
     );
 
