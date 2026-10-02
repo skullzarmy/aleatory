@@ -76,8 +76,9 @@ export function Amount(
             <div className="space-y-2">
                 <p className="label">Render gas per mint</p>
                 <p className="text-xs text-dim">
-                    Currently {tez(props.current)}. Generators snapshot this when the artist picks
-                    the provider, so a change reaches new generators only.
+                    Currently {tez(props.current)}. Read live on every mint, so a change reaches
+                    every generator that named this provider on their very next sale, not only new
+                    ones.
                 </p>
                 <label className="flex items-center gap-2 text-sm">
                     <input
