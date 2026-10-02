@@ -74,8 +74,6 @@ console.log("\nThe mark\n");
     check("the mark has bands at all", ids.length > 0);
 }
 
-// Relief: the tracery fills with the stroke colour and carries the background
-// colour as a dashed edge, but the monogram stays plain line art regardless.
 {
     const stroke = "#d9b46a";
     const background = "#0f1b1a";

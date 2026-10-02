@@ -28,8 +28,8 @@ export interface LogoOptions {
     label?: string;
     /**
      * Relief: the tracery fills solid with `stroke`, and `background` traces
-     * a dashed line engraved along its edge. The plate still sits behind it,
-     * in `background`, same as always.
+     * a dashed line engraved along its edge. The plate behind it is drawn
+     * from `background` either way.
      */
     fill?: boolean;
 }
