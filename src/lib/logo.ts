@@ -26,6 +26,12 @@ export interface LogoOptions {
     detail?: "full" | "compact";
     /** Accessible name. An empty string marks it decorative. */
     label?: string;
+    /**
+     * Relief instead of line art: the tracery fills solid with `stroke`, and
+     * `background` becomes a dashed line engraved along its edge instead of
+     * the plate behind it. The plate stays, in `background`, same as always.
+     */
+    fill?: boolean;
 }
 
 /* Seeded stream, matching provider/render.mts so the two agree exactly. */
@@ -375,6 +381,7 @@ export function renderLogo(options: LogoOptions = {}): string {
         fold = 12,
         detail = "full",
         label = "Aleatory",
+        fill = false,
     } = options;
 
     const rand = makeRandom(seed);
@@ -419,12 +426,16 @@ export function renderLogo(options: LogoOptions = {}): string {
         ? `<circle cx="0" cy="0" r="${round(R * BANDS.frame[0] * 0.98)}" fill="${background}"/>`
         : "";
 
+    const traceryFill = fill ? stroke : "none";
+    const traceryStroke = fill && background ? background : stroke;
+    const traceryDash = fill && background ? ` stroke-dasharray="4 3"` : "";
+
     return [
         `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-108 -108 216 216" width="${size}" height="${size}" ` +
             (label ? `role="img" aria-label="${label}">` : `aria-hidden="true" focusable="false">`),
         `<defs>${defs.join("")}</defs>`,
         plate,
-        `<g fill="none" stroke="${stroke}" stroke-linecap="round" stroke-linejoin="round">`,
+        `<g fill="${traceryFill}" stroke="${traceryStroke}" stroke-linecap="round" stroke-linejoin="round"${traceryDash}>`,
         uses.join(""),
         `</g>`,
         clear,
