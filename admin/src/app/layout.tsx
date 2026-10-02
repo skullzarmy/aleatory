@@ -10,6 +10,7 @@ export const metadata: Metadata = {
     // Nothing here belongs in an index. Every action is gated on chain, so
     // this is not a security boundary, but a console has no readers to find.
     robots: { index: false, follow: false, nocache: true },
+    icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

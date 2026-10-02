@@ -36,4 +36,16 @@ writeFileSync(
     }),
 );
 
-console.log("wrote public/favicon.svg and public/mark.svg");
+// Colors mirror admin/src/app/globals.css's --warn and --base.
+writeFileSync(
+    resolve(root, "admin/public/favicon.svg"),
+    renderLogo({
+        seed: CANONICAL_SEED,
+        size: 512,
+        detail: "compact",
+        stroke: "#fbbf24",
+        background: "#0d0f12",
+    }),
+);
+
+console.log("wrote public/favicon.svg, public/mark.svg and admin/public/favicon.svg");
