@@ -10,7 +10,7 @@
  */
 
 import { missingTzipFields, patchTzipFields } from "./tzip";
-import { BRAND } from "./config";
+import { siteUrl } from "./config";
 
 let failures = 0;
 
@@ -35,7 +35,7 @@ console.log("\nTZIP backfill\n");
     );
 
     const patched = patchTzipFields(old);
-    check("the patch sets homepage", patched.homepage === BRAND.url);
+    check("the patch sets homepage", patched.homepage === siteUrl());
     check(
         "the patch adds TZIP-021 to interfaces",
         Array.isArray(patched.interfaces) && patched.interfaces.includes("TZIP-021"),
@@ -57,7 +57,7 @@ console.log("\nTZIP backfill\n");
     const current = {
         name: "New Generator",
         interfaces: ["TZIP-012", "TZIP-016", "TZIP-021", "ALEATORY-001"],
-        homepage: BRAND.url,
+        homepage: siteUrl(),
     };
     check("nothing is missing", missingTzipFields(current).length === 0);
 }
@@ -67,7 +67,7 @@ console.log("\nTZIP backfill\n");
     const partial = {
         name: "Partial",
         interfaces: ["TZIP-012", "TZIP-016", "ALEATORY-001"],
-        homepage: BRAND.url,
+        homepage: siteUrl(),
     };
     const missing = missingTzipFields(partial);
     check("only TZIP-021 is reported missing", missing.length === 1 && missing[0] === "TZIP-021");
@@ -90,7 +90,7 @@ console.log("\nTZIP backfill\n");
     const empty = { name: "Empty homepage", homepage: "" };
     check("an empty homepage is reported missing", missingTzipFields(empty).includes("homepage"));
     const patched = patchTzipFields(empty);
-    check("the patch replaces an empty homepage", patched.homepage === BRAND.url);
+    check("the patch replaces an empty homepage", patched.homepage === siteUrl());
     check(
         "patching an empty homepage reports nothing missing after",
         missingTzipFields(patched).length === 0,

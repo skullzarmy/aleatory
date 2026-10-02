@@ -38,7 +38,7 @@ import { recordFor } from "./libraries";
 import type { DepSpec } from "./kinds";
 import { saveDraft, type Draft } from "./draft";
 import { COST_PER_BYTE, MAX_CHUNK_BYTES, gzip, publishPlan } from "./plan";
-import { BRAND } from "./config";
+import { siteUrl } from "./config";
 
 export type PublishStage = "encoding" | "pinning-metadata" | "signing" | "uploading" | "sealing";
 
@@ -441,7 +441,7 @@ export async function publishGenerator(
                 // collections on. Same URL on every generator. Confirmed live
                 // against objkt's schema: this is contract-level, unlike
                 // `symbol`, which is per-token (provider/metadata.ts).
-                homepage: BRAND.url,
+                homepage: siteUrl(),
                 authors: [input.artist],
                 // The keys an external marketplace looks for. Both point at
                 // the same capture: some read one, some the other.

@@ -7,7 +7,7 @@
  * at all. It is a per-token field, handled in `provider/metadata.ts`, not
  * something a generator's own contract metadata carries.
  */
-import { BRAND } from "./config";
+import { siteUrl } from "./config";
 
 /** Which of the fields below `content` is missing, if any. */
 export function missingTzipFields(content: Record<string, unknown>): string[] {
@@ -25,6 +25,6 @@ export function patchTzipFields(content: Record<string, unknown>): Record<string
     return {
         ...content,
         interfaces,
-        homepage: content.homepage || BRAND.url,
+        homepage: content.homepage || siteUrl(),
     };
 }
