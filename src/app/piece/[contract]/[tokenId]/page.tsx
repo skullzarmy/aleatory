@@ -115,7 +115,7 @@ export default async function PiecePage({
                     contract={contract}
                     remaining={remaining}
                     shareUrl={`${BRAND.url}/piece/${contract}/${tokenId}`}
-                    shareText={`I minted ${piece.name}${piece.generatorName ? ` from ${piece.generatorName}` : ""} on ${BRAND.name}`}
+                    shareText={`I minted ${piece.name} on ${BRAND.name}`}
                 />
             </Suspense>
 
@@ -170,7 +170,6 @@ export default async function PiecePage({
                         <PieceFacts piece={piece} />
                     </div>
 
-                    {/* JustMinted carries this instead, worded for the moment. */}
                     {!justMinted && (
                         <div className="mt-4">
                             <ShareButtons
