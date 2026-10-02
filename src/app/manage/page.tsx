@@ -5,15 +5,24 @@ import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { allFactories } from "@/lib/router";
 import { fetchGenerator, type Generator } from "@/lib/generator";
-import { fetchGeneratorsDeployedBy } from "@/lib/tzkt";
+import { fetchGeneratorsDeployedBy, fetchRawContent } from "@/lib/tzkt";
+import { missingTzipFields, patchTzipFields } from "@/lib/tzip";
+import { pushContentBatch } from "@/lib/ops";
 import { formatTez, shortAddress } from "@/lib/utils";
 import { useLive } from "@/components/LiveRefresh";
+
+interface Row {
+    generator: Generator;
+    content: Record<string, unknown> | null;
+}
 
 // Ownership here is the contract's `administrator`; connecting a different wallet
 // shows a different list.
 export default function ManagePage() {
-    const { address, connect, restoring } = useWallet();
-    const [generators, setGenerators] = useState<Generator[] | null>(null);
+    const { address, getClient, connect, restoring } = useWallet();
+    const [rows, setRows] = useState<Row[] | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [note, setNote] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
 
     const load = useCallback(async () => {
         if (!address) return null;
@@ -24,18 +33,25 @@ export default function ManagePage() {
             factories.map((f) => fetchGeneratorsDeployedBy(address, f).catch(() => [])),
         );
         const addresses = [...new Set(lists.flat())];
-        const rows = await Promise.all(addresses.map((a) => fetchGenerator(a).catch(() => null)));
-        return rows.filter((c): c is Generator => c !== null);
+        const out = await Promise.all(
+            addresses.map(async (a) => {
+                const generator = await fetchGenerator(a).catch(() => null);
+                if (!generator) return null;
+                const content = await fetchRawContent(a).catch(() => null);
+                return { generator, content };
+            }),
+        );
+        return out.filter((r): r is Row => r !== null);
     }, [address]);
 
     useEffect(() => {
         if (!address) {
-            setGenerators(null);
+            setRows(null);
             return;
         }
         let cancelled = false;
-        void load().then((rows) => {
-            if (!cancelled && rows) setGenerators(rows);
+        void load().then((r) => {
+            if (!cancelled && r) setRows(r);
         });
         return () => {
             cancelled = true;
@@ -44,7 +60,38 @@ export default function ManagePage() {
 
     // A generator published in the studio, in another tab, belongs in this list
     // without being asked for again.
-    useLive(() => void load().then((rows) => rows && setGenerators(rows)), 30);
+    useLive(() => void load().then((r) => r && setRows(r)), 30);
+
+    const needsUpdate = (rows ?? []).filter(
+        (r) => r.content && missingTzipFields(r.content).length > 0,
+    );
+
+    async function updateAll() {
+        setBusy(true);
+        setNote(null);
+        try {
+            const client = await getClient();
+            const { hash } = await pushContentBatch(
+                client,
+                needsUpdate.map((r) => ({
+                    generator: r.generator.address,
+                    contentJson: JSON.stringify(
+                        patchTzipFields(r.content as Record<string, unknown>),
+                    ),
+                })),
+            );
+            setNote({ kind: "ok", text: `Signed. ${hash.slice(0, 12)}…` });
+            const r = await load();
+            if (r) setRows(r);
+        } catch (e) {
+            setNote({
+                kind: "bad",
+                text: e instanceof Error ? e.message : "Your wallet cancelled that.",
+            });
+        } finally {
+            setBusy(false);
+        }
+    }
 
     if (restoring) {
         return (
@@ -71,7 +118,7 @@ export default function ManagePage() {
         );
     }
 
-    if (generators === null) {
+    if (rows === null) {
         return (
             <Shell>
                 <p className="text-sm text-muted-foreground">Loading…</p>
@@ -79,7 +126,7 @@ export default function ManagePage() {
         );
     }
 
-    if (generators.length === 0) {
+    if (rows.length === 0) {
         return (
             <Shell>
                 <p className="text-sm text-muted-foreground">
@@ -97,8 +144,38 @@ export default function ManagePage() {
 
     return (
         <Shell>
+            {needsUpdate.length > 0 && (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-accent/40 px-4 py-3">
+                    <p className="text-sm">
+                        {needsUpdate.length} generator{needsUpdate.length === 1 ? "" : "s"} missing
+                        metadata marketplaces like objkt read (symbol, site link). One signature
+                        updates all of them.
+                    </p>
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void updateAll()}
+                        className="shrink-0 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-60"
+                    >
+                        {busy ? "Signing…" : `Update all (${needsUpdate.length})`}
+                    </button>
+                </div>
+            )}
+
+            {note && (
+                <p
+                    className={`mb-4 rounded-md px-3 py-2 text-sm ${
+                        note.kind === "ok"
+                            ? "border border-success/40 bg-success/10"
+                            : "border border-destructive/40 bg-destructive/10"
+                    }`}
+                >
+                    {note.text}
+                </p>
+            )}
+
             <ul className="divide-y divide-border rounded-lg border border-border">
-                {generators.map((c) => (
+                {rows.map(({ generator: c, content }) => (
                     <li key={c.address}>
                         <Link
                             href={`/manage/${c.address}`}
@@ -113,6 +190,12 @@ export default function ManagePage() {
                                     {c.editionSize > 0 ? ` of ${c.editionSize}` : ", open edition"}
                                     {" · "}
                                     {formatTez(Number(c.totalMutez))} ꜩ to mint
+                                    {content && missingTzipFields(content).length > 0 && (
+                                        <>
+                                            {" · "}
+                                            <span className="text-warning">metadata update</span>
+                                        </>
+                                    )}
                                 </span>
                             </span>
                             <Status generator={c} />

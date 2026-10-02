@@ -5,11 +5,20 @@ import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { fetchGenerator, type Generator } from "@/lib/generator";
 import { fetchProviders, type Provider } from "@/lib/providers";
+import { fetchRawContent } from "@/lib/tzkt";
+import { missingTzipFields, patchTzipFields } from "@/lib/tzip";
 import { useLive } from "@/components/LiveRefresh";
 import { tzktLink } from "@/lib/config";
 import { AccountLink } from "@/components/account/AccountLink";
 import { formatTez, parseTez, shortAddress } from "@/lib/utils";
-import { setEditionSize, setPaused, setPrice, setProvider, setTrustResolver } from "@/lib/ops";
+import {
+    pushContent,
+    setEditionSize,
+    setPaused,
+    setPrice,
+    setProvider,
+    setTrustResolver,
+} from "@/lib/ops";
 
 // Every control writes to the contract, then re-reads the chain rather than assuming
 // the write landed. The contract enforces its own rules here too: edition size only
@@ -19,11 +28,13 @@ export default function ManageGeneratorPage({ params }: { params: Promise<{ addr
     const { address: wallet, getClient, connect } = useWallet();
     const [generator, setGenerator] = useState<Generator | null | undefined>(undefined);
     const [providers, setProviders] = useState<Provider[]>([]);
+    const [content, setContent] = useState<Record<string, unknown> | null>(null);
     const [busy, setBusy] = useState<string | null>(null);
     const [note, setNote] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
 
     const reload = useCallback(async () => {
         setGenerator(await fetchGenerator(contract).catch(() => null));
+        setContent(await fetchRawContent(contract).catch(() => null));
     }, [contract]);
 
     useEffect(() => {
@@ -78,6 +89,7 @@ export default function ManageGeneratorPage({ params }: { params: Promise<{ addr
     }
 
     const isArtist = wallet !== null && wallet === generator.artist;
+    const missingTzip = content ? missingTzipFields(content) : [];
 
     return (
         <div className="mx-auto max-w-2xl px-4 py-8">
@@ -132,6 +144,30 @@ export default function ManageGeneratorPage({ params }: { params: Promise<{ addr
                         </button>
                     )}
                 </p>
+            )}
+
+            {isArtist && content && missingTzip.length > 0 && (
+                <Control
+                    title="Metadata update available"
+                    detail={`Marketplaces like objkt read ${missingTzip.join(", ")} off this generator, and it was deployed before those existed. One signature adds them; nothing else in your metadata changes.`}
+                >
+                    <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() =>
+                            void run("tzip", (c) =>
+                                pushContent(
+                                    c,
+                                    generator.address,
+                                    JSON.stringify(patchTzipFields(content)),
+                                ),
+                            )
+                        }
+                        className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-60"
+                    >
+                        {busy === "tzip" ? "Signing…" : "Push update"}
+                    </button>
+                </Control>
             )}
 
             {note && (
