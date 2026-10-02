@@ -46,7 +46,6 @@ export function Setting({
     /** The address the chain requires for the change. */
     holder: string;
     setter: SetterKey;
-    /** The contract to act on. */
     contract: string;
     placeholder?: string;
 }) {
