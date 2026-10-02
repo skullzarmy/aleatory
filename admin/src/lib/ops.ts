@@ -19,9 +19,7 @@ import { feeFor } from "./fees";
 export type Authority =
     /** Destination is fixed in storage, so there is nothing to steal. */
     | "anyone"
-    /** The contract's `administrator`. */
     | "admin"
-    /** The provider's `operator`. */
     | "operator"
     /** The address a pending `propose_admin` named, and only that address. */
     | "proposed";
@@ -29,7 +27,6 @@ export type Authority =
 export interface AdminOp {
     /** What this does, as a sentence, for the confirm step and the audit log. */
     label: string;
-    /** The contract being called. */
     to: string;
     entrypoint: string;
     /**
