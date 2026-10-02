@@ -664,9 +664,7 @@ async function publishingChecks() {
 
     // Pins MAX_INLINE_CODE_BYTES itself, not just sizes far from it. A
     // template and the 49KB/120KB/600KB fixtures below all land nowhere near
-    // the cutoff, so none of them would notice if the margin were wrong: a
-    // real generator did land there, failed live on mainnet with the margin
-    // this test would have caught, and nothing before this one checked it.
+    // the cutoff, so none of them would notice if the margin were wrong.
     //
     // noise() above is not entropy-dense enough for this: gzip gets it to
     // roughly two thirds its size, so a fixture even several thousand bytes
