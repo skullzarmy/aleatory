@@ -13,7 +13,8 @@ import { declaredIn, librariesIn, recordFor, specFor, withLibraries } from "./li
 import { P5_DEP, THREE_DEP } from "./kinds";
 import { detectParams } from "./detect";
 import { MAX_PARAMS } from "./params";
-import { MAX_CHUNK_BYTES, MAX_WALK_CHUNKS, publishPlan } from "./plan";
+import { MAX_CHUNK_BYTES, MAX_INLINE_CODE_BYTES, MAX_WALK_CHUNKS, publishPlan } from "./plan";
+import { randomBytes } from "node:crypto";
 import { strToU8, zipSync } from "fflate";
 import { readFileSync } from "node:fs";
 import blakejs from "blakejs";
@@ -660,6 +661,44 @@ async function publishingChecks() {
         small.route === "inline" && small.signatures === 1,
     );
     check("and its burn is quoted on bytes that exist", small.codeBytes === small.rawBytes);
+
+    // Pins MAX_INLINE_CODE_BYTES itself, not just sizes far from it. A
+    // template and the 49KB/120KB/600KB fixtures below all land nowhere near
+    // the cutoff, so none of them would notice if the margin were wrong.
+    //
+    // noise() above is not entropy-dense enough for this: gzip gets it to
+    // roughly two thirds its size, so a fixture even several thousand bytes
+    // past the cutoff still lands back under it. A flat 6 bits of entropy
+    // per byte (64 symbols, a power of two so there is no modulo bias off
+    // the random source) is close enough to the ceiling that 12,000 bytes
+    // past the cutoff is what gzip cannot claw back under it, measured.
+    const denseNoise = (bytes: number) => {
+        const b = randomBytes(bytes);
+        let out = "";
+        for (let i = 0; i < bytes; i++) out += String.fromCharCode(33 + (b[i] & 63));
+        return out;
+    };
+    const denseDocument = (bytes: number) =>
+        `<!doctype html><html><body><script>/*${denseNoise(bytes)}*/</script></body></html>`;
+
+    // The boundary checks below compute their fixtures from the live import,
+    // so they would silently track the constant wherever it moved and never
+    // notice a regression on their own. This pins the number itself.
+    check(
+        "the inline cutoff is the value this margin was raised to, not whatever it drifts to",
+        MAX_INLINE_CODE_BYTES === 32_768 - 3_000,
+    );
+
+    const justInside = await publishPlan(denseDocument(MAX_INLINE_CODE_BYTES - 64 - 200));
+    check(
+        "200 bytes under the inline cutoff still publishes inline",
+        justInside.route === "inline",
+    );
+    const justOutside = await publishPlan(denseDocument(MAX_INLINE_CODE_BYTES - 64 + 13_000));
+    check(
+        "safely past what gzip can claw back under the cutoff, it walks instead of being refused",
+        justOutside.route === "walked",
+    );
 
     // The size from the report. Which side of the inline threshold it lands on
     // depends on what the platform's gzip makes of it — this fixture straddled
