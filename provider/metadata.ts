@@ -9,6 +9,13 @@
  * `decimals: 4` with shares of 1250 each.
  */
 
+/**
+ * objkt's `symbol` is a field on the token, not the collection — the `fa`
+ * type in their schema has no `symbol` at all. Every piece carries the same
+ * one, the way fxhash's GENTK tokens all carry `symbol: "GENTK"`.
+ */
+export const GENERATOR_SYMBOL = "ALEA";
+
 export const ROYALTY_DECIMALS = 4;
 const SCALE = 10 ** ROYALTY_DECIMALS;
 
@@ -111,6 +118,7 @@ export function buildPendingDocument(input: PendingDocInput) {
             "This piece is awaiting its render. It is owned and tradeable now.",
         decimals: 0,
         isBooleanAmount: false,
+        symbol: GENERATOR_SYMBOL,
         shouldPreferSymbol: false,
         creators: [input.artist],
         // Same placeholder as displayUri/thumbnailUri. objkt reads a missing
@@ -191,6 +199,7 @@ export function buildPieceDocument(input: PieceDocInput) {
         description: input.description || "",
         decimals: 0,
         isBooleanAmount: false,
+        symbol: GENERATOR_SYMBOL,
         shouldPreferSymbol: false,
         creators: [input.artist],
         // No separate pinned artifact exists per piece, so the rendered

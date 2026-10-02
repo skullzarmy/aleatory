@@ -424,6 +424,23 @@ export interface GeneratorMeta {
 }
 
 export async function fetchGeneratorMeta(address: string): Promise<GeneratorMeta> {
+    const doc = await fetchRawContent(address);
+    if (!doc) return {};
+    return {
+        name: doc.name as string | undefined,
+        description: doc.description as string | undefined,
+        displayUri: doc.displayUri as string | undefined,
+        thumbnailUri: doc.thumbnailUri as string | undefined,
+        tags: cleanTags(doc.tags as string[] | undefined),
+    };
+}
+
+/**
+ * The `content` document exactly as stored, for anything that needs to read
+ * a field this app has no typed model for and write the whole thing back
+ * with only that field changed.
+ */
+export async function fetchRawContent(address: string): Promise<Record<string, unknown> | null> {
     const row = await fetch(`${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/content`, {
         next: { revalidate: 300 },
     })
@@ -431,18 +448,11 @@ export async function fetchGeneratorMeta(address: string): Promise<GeneratorMeta
         .catch(() => null);
 
     const raw = (row as { value?: string } | null)?.value;
-    if (!raw) return {};
+    if (!raw) return null;
     try {
-        const doc = JSON.parse(bytesToString(raw)) as GeneratorMeta;
-        return {
-            name: doc.name,
-            description: doc.description,
-            displayUri: doc.displayUri,
-            thumbnailUri: doc.thumbnailUri,
-            tags: cleanTags(doc.tags),
-        };
+        return JSON.parse(bytesToString(raw)) as Record<string, unknown>;
     } catch {
-        return {};
+        return null;
     }
 }
 
