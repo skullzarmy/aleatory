@@ -74,5 +74,31 @@ console.log("\nThe mark\n");
     check("the mark has bands at all", ids.length > 0);
 }
 
+// Relief: the tracery fills with the stroke colour and carries the background
+// colour as a dashed edge, but the monogram stays plain line art regardless.
+{
+    const stroke = "#d9b46a";
+    const background = "#0f1b1a";
+    const svg = renderLogo({
+        seed: "relief",
+        size: 64,
+        detail: "compact",
+        stroke,
+        background,
+        fill: true,
+    });
+    const [traceryGroup, monogramGroup] = [...svg.matchAll(/<g [^>]*>/g)].map((m) => m[0]);
+
+    check("the tracery fills with the stroke colour", traceryGroup.includes(`fill="${stroke}"`));
+    check(
+        "the tracery's edge carries the background colour",
+        traceryGroup.includes(`stroke="${background}"`),
+    );
+    check("the tracery's edge is dashed", traceryGroup.includes("stroke-dasharray="));
+    check("the monogram stays unfilled", monogramGroup.includes('fill="none"'));
+    check("the monogram keeps the stroke colour", monogramGroup.includes(`stroke="${stroke}"`));
+    check("the monogram carries no dash", !monogramGroup.includes("stroke-dasharray="));
+}
+
 console.log(failures === 0 ? "\nThe mark holds together.\n" : `\n${failures} check(s) failed.\n`);
 process.exit(failures === 0 ? 0 : 1);

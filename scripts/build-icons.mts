@@ -36,7 +36,6 @@ writeFileSync(
     }),
 );
 
-// Admin's favicon: the site's old pair, in relief rather than line art.
 writeFileSync(
     resolve(root, "admin/public/favicon.svg"),
     renderLogo({
