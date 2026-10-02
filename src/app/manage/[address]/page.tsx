@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { fetchGenerator, type Generator } from "@/lib/generator";
 import { fetchProviders, type Provider } from "@/lib/providers";
-import { fetchRawContent } from "@/lib/tzkt";
+import { fetchRawContent, hasEntrypoint } from "@/lib/tzkt";
 import { missingTzipFields, patchTzipFields } from "@/lib/tzip";
 import { useLive } from "@/components/LiveRefresh";
 import { tzktLink } from "@/lib/config";
@@ -34,7 +34,8 @@ export default function ManageGeneratorPage({ params }: { params: Promise<{ addr
 
     const reload = useCallback(async () => {
         setGenerator(await fetchGenerator(contract).catch(() => null));
-        setContent(await fetchRawContent(contract).catch(() => null));
+        const supportsTzip = await hasEntrypoint(contract, "set_metadata").catch(() => false);
+        setContent(supportsTzip ? await fetchRawContent(contract).catch(() => null) : null);
     }, [contract]);
 
     useEffect(() => {

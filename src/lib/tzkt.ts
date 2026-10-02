@@ -457,6 +457,20 @@ export async function fetchRawContent(address: string): Promise<Record<string, u
 }
 
 /**
+ * Whether a contract has a given entrypoint, from TzKT's own indexed schema
+ * rather than an RPC round-trip. A factory redeploy leaves older generators
+ * on a template that may not have one a newer template added.
+ */
+export async function hasEntrypoint(address: string, name: string): Promise<boolean> {
+    const rows = await fetch(`${tzktApi()}/v1/contracts/${address}/entrypoints`, {
+        next: { revalidate: 3600 },
+    })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+    return Array.isArray(rows) && rows.some((e: { name?: string }) => e?.name === name);
+}
+
+/**
  * Which token an operation minted. A collector signs and gets a hash back; the
  * contract decides the token id.
  *

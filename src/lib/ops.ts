@@ -230,6 +230,12 @@ async function encode(
             toTransferParams: () => { parameter?: { entrypoint: string; value: unknown } };
         }
     >;
+    // A generator on a template from before this entrypoint existed has no
+    // method here, and `allFactories()` keeps every historical factory
+    // reachable, so one can still turn up in a current list.
+    if (typeof methods[entrypoint] !== "function") {
+        throw new Error(`${contractAddress} has no ${entrypoint} entrypoint.`);
+    }
     const parameter = methods[entrypoint](args).toTransferParams().parameter;
     if (!parameter) throw new Error(`${entrypoint} encoded to nothing.`);
     return parameter;
@@ -510,26 +516,43 @@ const MAX_BATCH_BYTES = 32_768 - 300;
  */
 const PER_CALL_OVERHEAD_BYTES = 150;
 
+export interface ContentPushResult {
+    results: OpResult[];
+    skipped: { generator: string; reason: string }[];
+}
+
 /**
- * The same push, across several generators. Grouped so no signature's
- * operation exceeds the protocol's size ceiling: an artist with enough
- * generators, or large enough metadata, gets more than one signature rather
- * than a batch that fails to inject at all.
+ * The same push, across several generators, grouped so no signature exceeds
+ * the operation size ceiling. Encoded one at a time rather than behind
+ * `Promise.all`, so a generator on a template old enough to lack
+ * `set_metadata` lands in `skipped` instead of failing every other update
+ * in the same call.
  */
 export async function pushContentBatch(
     client: DAppClient,
     updates: { generator: string; contentJson: string }[],
-): Promise<OpResult[]> {
-    const encoded = await Promise.all(
-        updates.map(async (u) => {
+): Promise<ContentPushResult> {
+    const encoded: {
+        generator: string;
+        p: { entrypoint: string; value: unknown };
+        bytes: number;
+    }[] = [];
+    const skipped: { generator: string; reason: string }[] = [];
+    for (const u of updates) {
+        try {
             const p = await encode(u.generator, "set_metadata", {
                 key: "content",
                 value: utf8ToHex(u.contentJson),
             });
             const bytes = (await packedBytes(p.value)) + PER_CALL_OVERHEAD_BYTES;
-            return { generator: u.generator, p, bytes };
-        }),
-    );
+            encoded.push({ generator: u.generator, p, bytes });
+        } catch (e) {
+            skipped.push({
+                generator: u.generator,
+                reason: e instanceof Error ? e.message : "Could not encode this update.",
+            });
+        }
+    }
 
     const batches: (typeof encoded)[] = [];
     let current: typeof encoded = [];
@@ -559,7 +582,7 @@ export async function pushContentBatch(
             ),
         );
     }
-    return results;
+    return { results, skipped };
 }
 
 /** Let Aleatory's keys publish metadata for unrevealed pieces, or stop them. */

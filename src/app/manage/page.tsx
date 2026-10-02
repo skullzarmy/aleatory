@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { allFactories } from "@/lib/router";
 import { fetchGenerator, type Generator } from "@/lib/generator";
-import { fetchGeneratorsDeployedBy, fetchRawContent } from "@/lib/tzkt";
+import { fetchGeneratorsDeployedBy, fetchRawContent, hasEntrypoint } from "@/lib/tzkt";
 import { missingTzipFields, patchTzipFields } from "@/lib/tzip";
 import { pushContentBatch } from "@/lib/ops";
 import { formatTez, shortAddress } from "@/lib/utils";
@@ -14,6 +14,7 @@ import { useLive } from "@/components/LiveRefresh";
 interface Row {
     generator: Generator;
     content: Record<string, unknown> | null;
+    supportsTzip: boolean;
 }
 
 // Ownership here is the contract's `administrator`; connecting a different wallet
@@ -37,8 +38,9 @@ export default function ManagePage() {
             addresses.map(async (a) => {
                 const generator = await fetchGenerator(a).catch(() => null);
                 if (!generator) return null;
-                const content = await fetchRawContent(a).catch(() => null);
-                return { generator, content };
+                const supportsTzip = await hasEntrypoint(a, "set_metadata").catch(() => false);
+                const content = supportsTzip ? await fetchRawContent(a).catch(() => null) : null;
+                return { generator, content, supportsTzip };
             }),
         );
         return out.filter((r): r is Row => r !== null);
@@ -75,7 +77,7 @@ export default function ManagePage() {
         setNote(null);
         try {
             const client = await getClient();
-            const results = await pushContentBatch(
+            const { results, skipped } = await pushContentBatch(
                 client,
                 needsUpdate.map((r) => ({
                     generator: r.generator.address,
@@ -85,12 +87,19 @@ export default function ManagePage() {
                 })),
             );
             const hashes = results.map((r) => r.hash.slice(0, 12)).join(", ");
+            const signed =
+                results.length === 0
+                    ? "Nothing to sign."
+                    : results.length === 1
+                      ? `Signed. ${hashes}…`
+                      : `Signed in ${results.length} batches. ${hashes}…`;
+            const skippedNote =
+                skipped.length > 0
+                    ? ` ${skipped.length} generator${skipped.length === 1 ? "" : "s"} skipped: ${shortAddress(skipped[0].generator)} is on a template too old for this${skipped.length > 1 ? `, and ${skipped.length - 1} more` : ""}.`
+                    : "";
             setNote({
-                kind: "ok",
-                text:
-                    results.length === 1
-                        ? `Signed. ${hashes}…`
-                        : `Signed in ${results.length} batches. ${hashes}…`,
+                kind: skipped.length > 0 && results.length === 0 ? "bad" : "ok",
+                text: signed + skippedNote,
             });
             const r = await load();
             if (r) setRows(r);
