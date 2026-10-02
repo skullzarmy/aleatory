@@ -39,6 +39,10 @@ const DEFAULT_RPC: Record<string, string> = {
     mainnet: "https://rpc.tzkt.io/mainnet",
 };
 const TZKT: Record<string, string> = { shadownet: "shadownet.tzkt.io", mainnet: "tzkt.io" };
+const SITE_URL: Record<string, string> = {
+    shadownet: "https://shadownet.aleatory.art",
+    mainnet: "https://aleatory.art",
+};
 const RPC_URL = process.env.TEZOS_RPC || DEFAULT_RPC[NETWORK];
 
 function deployments(): Record<string, string> {
@@ -93,7 +97,8 @@ async function main() {
             JSON.stringify({
                 name: process.env.ALEA_COLLECTION_NAME || "Aleatory Test Collection",
                 description: "Deployed by contract/deploy-collection.ts",
-                interfaces: ["TZIP-012", "TZIP-016", "ALEATORY-001"],
+                interfaces: ["TZIP-012", "TZIP-016", "TZIP-021", "ALEATORY-001"],
+                homepage: SITE_URL[NETWORK],
             }),
         ),
     );

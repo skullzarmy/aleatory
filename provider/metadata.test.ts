@@ -12,6 +12,7 @@ import {
     buildPendingDocument,
     buildPieceDocument,
     cleanTags,
+    GENERATOR_SYMBOL,
 } from "./metadata";
 
 const A = "tz1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -316,6 +317,29 @@ check("pending document: carries artifactUri too, same as displayUri/thumbnailUr
     assert.equal(doc.artifactUri, "ipfs://placeholder");
     assert.equal(doc.displayUri, "ipfs://placeholder");
     assert.equal(doc.thumbnailUri, "ipfs://placeholder");
+});
+
+check("pending document: carries the token-level symbol objkt reads", () => {
+    const doc = buildPendingDocument({
+        generatorName: "Drift",
+        artist: A,
+        placeholderImageUri: "ipfs://placeholder",
+        split: { totalPercent: 0, recipients: [] },
+    });
+    assert.equal(doc.symbol, GENERATOR_SYMBOL);
+});
+
+check("piece document: carries the same symbol as the pending one did", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        artist: A,
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+    });
+    assert.equal(doc.symbol, GENERATOR_SYMBOL);
 });
 
 console.log("\ntags");

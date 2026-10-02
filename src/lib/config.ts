@@ -38,6 +38,20 @@ export const RPC: Record<Network, string> = {
 export const rpcUrl = () => RPC[NETWORK];
 
 /**
+ * Where this network's own frontend lives. `BRAND.url` falls back to
+ * production whenever `NEXT_PUBLIC_SITE_URL` is unset, which it is on every
+ * deploy that hasn't set it explicitly, so anything written on chain that
+ * should point back at the site serving the network it was written on
+ * (a generator's `homepage`, for instance) reads this instead.
+ */
+export const SITE_URL: Record<Network, string> = {
+    shadownet: "https://shadownet.aleatory.art",
+    mainnet: "https://aleatory.art",
+};
+
+export const siteUrl = () => SITE_URL[NETWORK];
+
+/**
  * Contract addresses. `router` is the only one that has to be set; the rest are
  * read from it on chain by `lib/router.ts`. Setting one of the others overrides
  * that, which lets a fork point at its own contracts without a router.

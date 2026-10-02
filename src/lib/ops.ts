@@ -230,6 +230,12 @@ async function encode(
             toTransferParams: () => { parameter?: { entrypoint: string; value: unknown } };
         }
     >;
+    // A generator on a template from before this entrypoint existed has no
+    // method here, and `allFactories()` keeps every historical factory
+    // reachable, so one can still turn up in a current list.
+    if (typeof methods[entrypoint] !== "function") {
+        throw new Error(`${contractAddress} has no ${entrypoint} entrypoint.`);
+    }
     const parameter = methods[entrypoint](args).toTransferParams().parameter;
     if (!parameter) throw new Error(`${entrypoint} encoded to nothing.`);
     return parameter;
@@ -472,6 +478,111 @@ export async function setProvider(
         max_price: maxPriceMutez.toString(),
     });
     return send(client, generator, p.entrypoint, p.value);
+}
+
+/**
+ * Push a patched `content` document. Artist only, same as any other display
+ * field (`contract/aleatory.py:536`): there is no admin key that can do this
+ * on their behalf.
+ */
+export async function pushContent(
+    client: DAppClient,
+    generator: string,
+    contentJson: string,
+): Promise<OpResult> {
+    const p = await encode(generator, "set_metadata", {
+        key: "content",
+        value: utf8ToHex(contentJson),
+    });
+    const bytes = await packedBytes(p.value);
+    return send(client, generator, p.entrypoint, p.value, 0, { ...SMALL, bytes });
+}
+
+/**
+ * The protocol's operation ceiling, less the group's own envelope: a branch
+ * hash, a signature, the wrapping tags around a list of calls. Unlike
+ * `MAX_CHUNK_BYTES` in `plan.ts`, which margins one call, a batch holds a
+ * variable number of them, so each call's own envelope is counted
+ * separately below, as `PER_CALL_OVERHEAD_BYTES`, rather than folded into
+ * one flat margin sized for a single call.
+ */
+const MAX_BATCH_BYTES = 32_768 - 300;
+
+/**
+ * What `packedBytes(p.value)` never counts for one call in a batch: the
+ * destination address, the entrypoint name, and the fee, gas_limit,
+ * storage_limit and counter fields. Generous on purpose, since this is a
+ * margin and not a measurement.
+ */
+const PER_CALL_OVERHEAD_BYTES = 150;
+
+export interface ContentPushResult {
+    results: OpResult[];
+    skipped: { generator: string; reason: string }[];
+}
+
+/**
+ * The same push, across several generators, grouped so no signature exceeds
+ * the operation size ceiling. Encoded one at a time rather than behind
+ * `Promise.all`, so a generator on a template old enough to lack
+ * `set_metadata` lands in `skipped` instead of failing every other update
+ * in the same call.
+ */
+export async function pushContentBatch(
+    client: DAppClient,
+    updates: { generator: string; contentJson: string }[],
+): Promise<ContentPushResult> {
+    const encoded: {
+        generator: string;
+        p: { entrypoint: string; value: unknown };
+        bytes: number;
+    }[] = [];
+    const skipped: { generator: string; reason: string }[] = [];
+    for (const u of updates) {
+        try {
+            const p = await encode(u.generator, "set_metadata", {
+                key: "content",
+                value: utf8ToHex(u.contentJson),
+            });
+            const bytes = (await packedBytes(p.value)) + PER_CALL_OVERHEAD_BYTES;
+            encoded.push({ generator: u.generator, p, bytes });
+        } catch (e) {
+            skipped.push({
+                generator: u.generator,
+                reason: e instanceof Error ? e.message : "Could not encode this update.",
+            });
+        }
+    }
+
+    const batches: (typeof encoded)[] = [];
+    let current: typeof encoded = [];
+    let currentBytes = 0;
+    for (const call of encoded) {
+        if (current.length > 0 && currentBytes + call.bytes > MAX_BATCH_BYTES) {
+            batches.push(current);
+            current = [];
+            currentBytes = 0;
+        }
+        current.push(call);
+        currentBytes += call.bytes;
+    }
+    if (current.length > 0) batches.push(current);
+
+    const results: OpResult[] = [];
+    for (const batch of batches) {
+        results.push(
+            await sendBatch(
+                client,
+                batch.map((call) => ({
+                    destination: call.generator,
+                    entrypoint: call.p.entrypoint,
+                    value: call.p.value,
+                    limits: { ...SMALL, bytes: call.bytes },
+                })),
+            ),
+        );
+    }
+    return { results, skipped };
 }
 
 /** Let Aleatory's keys publish metadata for unrevealed pieces, or stop them. */
