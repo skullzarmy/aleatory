@@ -73,6 +73,9 @@ async function getClient(): Promise<DAppClient> {
     const sdk = await loadSDK();
     client = new sdk.DAppClient({
         name: BRAND.name,
+        description: BRAND.description,
+        iconUrl: `${BRAND.url}/web-app-manifest-192x192.png`,
+        appUrl: BRAND.url,
         network: buildNetwork(sdk),
         featuredWallets: FEATURED_WALLETS,
     });
