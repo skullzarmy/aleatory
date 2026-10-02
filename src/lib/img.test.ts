@@ -47,6 +47,25 @@ async function run() {
         check(`${name} is refused`, res.status === 400, `got ${res.status}`);
     }
 
+    // Deterministic, no network: a gateway answering with an SVG is exactly
+    // the case the allowlist exists to refuse, and the only one of these
+    // checks that needs the real gateway list to agree on nothing happens
+    // to be offline that day.
+    {
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = (async () =>
+            new Response('<svg onload="alert(1)"></svg>', {
+                status: 200,
+                headers: { "content-type": "image/svg+xml" },
+            })) as typeof fetch;
+        try {
+            const res = await ask(RENDER);
+            check("an svg is refused despite a 200 from the gateway", res.status === 502);
+        } finally {
+            globalThis.fetch = realFetch;
+        }
+    }
+
     // The gateway the route actually reads from. Probing a host we no longer
     // use meant this block skipped itself on the day that host went down, and
     // reported a pass on the day the route could not serve a single image.

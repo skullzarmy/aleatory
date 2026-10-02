@@ -19,8 +19,16 @@ export const revalidate = 31536000;
 /** The shape TzKT and our own pinning produce. Anything else is not a CID. */
 const CID = /^[A-Za-z0-9]{46,64}$/;
 
-/** An image and nothing else. A gateway serving HTML is a gateway erroring. */
-const ALLOWED = /^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/;
+/**
+ * An image and nothing else. A gateway serving HTML is a gateway erroring.
+ *
+ * No svg+xml: every image this platform pins is rasterized to PNG before
+ * pinning, a render's screenshot and a cover's canvas capture alike, so
+ * nothing legitimate is ever SVG. It is also the one format here that can
+ * carry a script, and the sandboxed CSP below is defense in depth, not a
+ * reason to still allow the one format it exists to stop.
+ */
+const ALLOWED = /^image\/(png|jpeg|gif|webp|avif)$/;
 
 /** A render is a PNG of a square. Anything past this is not one of ours. */
 const MAX_BYTES = 16 * 1024 * 1024;
