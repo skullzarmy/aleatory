@@ -36,4 +36,19 @@ writeFileSync(
     }),
 );
 
-console.log("wrote public/favicon.svg and public/mark.svg");
+// Admin's favicon: the same mark, the same seed, so it reads as the same
+// brand at a glance, recolored to admin's own warn-amber so a tab bar with
+// both open tells them apart. admin/src/app/globals.css's own --base and
+// --warn, not the site's colors.
+writeFileSync(
+    resolve(root, "admin/public/favicon.svg"),
+    renderLogo({
+        seed: CANONICAL_SEED,
+        size: 512,
+        detail: "compact",
+        stroke: "#fbbf24",
+        background: "#0d0f12",
+    }),
+);
+
+console.log("wrote public/favicon.svg, public/mark.svg and admin/public/favicon.svg");
