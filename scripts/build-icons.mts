@@ -36,10 +36,7 @@ writeFileSync(
     }),
 );
 
-// Admin's favicon: the same mark, the same seed, so it reads as the same
-// brand at a glance, recolored to admin's own warn-amber so a tab bar with
-// both open tells them apart. admin/src/app/globals.css's own --base and
-// --warn, not the site's colors.
+// Colors mirror admin/src/app/globals.css's --warn and --base.
 writeFileSync(
     resolve(root, "admin/public/favicon.svg"),
     renderLogo({
