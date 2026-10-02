@@ -476,7 +476,7 @@ export async function setProvider(
 
 /**
  * Push a patched `content` document. Artist only, same as any other display
- * field (`contract/aleatory.py:536`) — there is no admin key that can do this
+ * field (`contract/aleatory.py:536`): there is no admin key that can do this
  * on their behalf.
  */
 export async function pushContent(
@@ -488,31 +488,66 @@ export async function pushContent(
         key: "content",
         value: utf8ToHex(contentJson),
     });
-    return send(client, generator, p.entrypoint, p.value, 0, SMALL);
+    const bytes = await packedBytes(p.value);
+    return send(client, generator, p.entrypoint, p.value, 0, { ...SMALL, bytes });
 }
 
-/** The same push, across several generators in one signature. */
+/**
+ * The protocol's operation ceiling, less a margin for the batch's own
+ * envelope and every call's entrypoint name and destination address, in the
+ * same spirit as `MAX_CHUNK_BYTES` in `plan.ts`.
+ */
+const MAX_BATCH_BYTES = 32_768 - 2_000;
+
+/**
+ * The same push, across several generators. Grouped so no signature's
+ * operation exceeds the protocol's size ceiling: an artist with enough
+ * generators, or large enough metadata, gets more than one signature rather
+ * than a batch that fails to inject at all.
+ */
 export async function pushContentBatch(
     client: DAppClient,
     updates: { generator: string; contentJson: string }[],
-): Promise<OpResult> {
+): Promise<OpResult[]> {
     const encoded = await Promise.all(
-        updates.map((u) =>
-            encode(u.generator, "set_metadata", {
+        updates.map(async (u) => {
+            const p = await encode(u.generator, "set_metadata", {
                 key: "content",
                 value: utf8ToHex(u.contentJson),
-            }),
-        ),
+            });
+            return { generator: u.generator, p, bytes: await packedBytes(p.value) };
+        }),
     );
-    return sendBatch(
-        client,
-        encoded.map((p, i) => ({
-            destination: updates[i].generator,
-            entrypoint: p.entrypoint,
-            value: p.value,
-            limits: SMALL,
-        })),
-    );
+
+    const batches: (typeof encoded)[] = [];
+    let current: typeof encoded = [];
+    let currentBytes = 0;
+    for (const call of encoded) {
+        if (current.length > 0 && currentBytes + call.bytes > MAX_BATCH_BYTES) {
+            batches.push(current);
+            current = [];
+            currentBytes = 0;
+        }
+        current.push(call);
+        currentBytes += call.bytes;
+    }
+    if (current.length > 0) batches.push(current);
+
+    const results: OpResult[] = [];
+    for (const batch of batches) {
+        results.push(
+            await sendBatch(
+                client,
+                batch.map((call) => ({
+                    destination: call.generator,
+                    entrypoint: call.p.entrypoint,
+                    value: call.p.value,
+                    limits: { ...SMALL, bytes: call.bytes },
+                })),
+            ),
+        );
+    }
+    return results;
 }
 
 /** Let Aleatory's keys publish metadata for unrevealed pieces, or stop them. */

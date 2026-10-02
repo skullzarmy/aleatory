@@ -25,6 +25,6 @@ export function patchTzipFields(content: Record<string, unknown>): Record<string
     return {
         ...content,
         interfaces,
-        homepage: content.homepage ?? BRAND.url,
+        homepage: content.homepage || BRAND.url,
     };
 }

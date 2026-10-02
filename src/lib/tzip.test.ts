@@ -3,7 +3,7 @@
  * ends of the same decision: `missingTzipFields` says whether the "push an
  * update" button shows, `patchTzipFields` is what it sends.
  *
- * `symbol` is deliberately absent from these checks — it belongs on the
+ * `symbol` is deliberately absent from these checks: it belongs on the
  * per-token document (provider/metadata.test.ts), not here.
  *
  * Run: npm test
@@ -80,6 +80,20 @@ console.log("\nTZIP backfill\n");
     check(
         "an existing homepage is kept, not overwritten",
         patched.homepage === "https://example.com",
+    );
+}
+
+// An empty string is falsy, same as absent: missingTzipFields flags it, and
+// patchTzipFields has to actually fill it rather than keep the empty string
+// a nullish check would have let through.
+{
+    const empty = { name: "Empty homepage", homepage: "" };
+    check("an empty homepage is reported missing", missingTzipFields(empty).includes("homepage"));
+    const patched = patchTzipFields(empty);
+    check("the patch replaces an empty homepage", patched.homepage === BRAND.url);
+    check(
+        "patching an empty homepage reports nothing missing after",
+        missingTzipFields(patched).length === 0,
     );
 }
 

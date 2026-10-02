@@ -10,9 +10,9 @@
  */
 
 /**
- * objkt's `symbol` is a field on the token, not the collection — the `fa`
- * type in their schema has no `symbol` at all. Every piece carries the same
- * one, the way fxhash's GENTK tokens all carry `symbol: "GENTK"`.
+ * objkt's `fa` type, their collection, has no `symbol` field at all.
+ * `symbol` lives on the token. Every piece carries the same one, the way
+ * fxhash's GENTK tokens all carry `symbol: "GENTK"`.
  */
 export const GENERATOR_SYMBOL = "ALEA";
 

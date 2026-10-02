@@ -62,8 +62,12 @@ export default function ManagePage() {
     // without being asked for again.
     useLive(() => void load().then((r) => r && setRows(r)), 30);
 
+    // Administration can move after a deploy, and `set_metadata` checks who
+    // holds it now: a transferred generator in this batch fails the whole
+    // atomic group with NOT_ARTIST and reverts the ones still owned.
     const needsUpdate = (rows ?? []).filter(
-        (r) => r.content && missingTzipFields(r.content).length > 0,
+        (r) =>
+            r.generator.artist === address && r.content && missingTzipFields(r.content).length > 0,
     );
 
     async function updateAll() {
@@ -71,7 +75,7 @@ export default function ManagePage() {
         setNote(null);
         try {
             const client = await getClient();
-            const { hash } = await pushContentBatch(
+            const results = await pushContentBatch(
                 client,
                 needsUpdate.map((r) => ({
                     generator: r.generator.address,
@@ -80,7 +84,14 @@ export default function ManagePage() {
                     ),
                 })),
             );
-            setNote({ kind: "ok", text: `Signed. ${hash.slice(0, 12)}…` });
+            const hashes = results.map((r) => r.hash.slice(0, 12)).join(", ");
+            setNote({
+                kind: "ok",
+                text:
+                    results.length === 1
+                        ? `Signed. ${hashes}…`
+                        : `Signed in ${results.length} batches. ${hashes}…`,
+            });
             const r = await load();
             if (r) setRows(r);
         } catch (e) {
