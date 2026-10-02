@@ -40,15 +40,18 @@ function buildNetwork(sdk: SDKModule) {
 }
 
 /**
- * Which wallets fill the four slots the dialog offers before "Show more". The
- * SDK defaults to ["kukai", "temple", "plenty", "umami"], and no wallet in the
- * registry has a key beginning "plenty", so that slot falls through to the
- * first of the remainder in alphabetical order, which is AirGap. AirGap
- * resolves no network configuration for shadownet, so a visitor who picks it
- * reaches a wallet that cannot complete the connection. Naming a fourth wallet
- * that works here leaves AirGap reachable under "Show more".
+ * Which wallets fill the four slots the dialog offers before "Show more", on
+ * shadownet. The SDK defaults to ["kukai", "temple", "plenty", "umami"], and
+ * no wallet in the registry has a key beginning "plenty", so that slot falls
+ * through to the first of the remainder in alphabetical order, which is
+ * AirGap. AirGap resolves no network configuration for shadownet, so a
+ * visitor who picks it reaches a wallet that cannot complete the connection.
+ * Naming a fourth wallet that works there leaves AirGap reachable under "Show
+ * more". Mainnet is a network every wallet in the registry resolves, so there
+ * the SDK's own default stands and AirGap gets one of the four slots back.
  */
-const FEATURED_WALLETS = ["kukai", "temple", "umami", "metamask"];
+const FEATURED_WALLETS =
+    NETWORK === "mainnet" ? undefined : ["kukai", "temple", "umami", "metamask"];
 
 let client: DAppClient | null = null;
 let onActiveAccount: ((address: string | null) => void) | null = null;
@@ -97,6 +100,9 @@ async function getClient(): Promise<DAppClient> {
     const sdk = await loadSDK();
     client = new sdk.DAppClient({
         name: BRAND.name,
+        description: BRAND.description,
+        iconUrl: `${window.location.origin}/favicon.svg`,
+        appUrl: window.location.origin,
         network: buildNetwork(sdk),
         featuredWallets: FEATURED_WALLETS,
     });

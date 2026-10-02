@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { ShareButtons, type ArtistHandles } from "@/components/ShareButtons";
 
 /**
  * The moment after a mint, on the piece's own page. Marked by `?minted` on the
@@ -11,10 +12,16 @@ import { useSearchParams } from "next/navigation";
 export function JustMinted({
     contract,
     remaining,
+    shareUrl,
+    shareText,
+    artistHandles,
 }: {
     contract: string;
     /** Unsold in the edition, or null for an open one. */
     remaining: number | null;
+    shareUrl: string;
+    shareText: string;
+    artistHandles?: ArtistHandles;
 }) {
     const params = useSearchParams();
     if (!params.has("minted")) return null;
@@ -48,6 +55,12 @@ export function JustMinted({
                 >
                     Other generators
                 </Link>
+            </div>
+            <div className="mt-4 border-t border-alea-600/20 pt-3">
+                <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+                    Show it off
+                </p>
+                <ShareButtons url={shareUrl} text={shareText} artistHandles={artistHandles} />
             </div>
         </div>
     );

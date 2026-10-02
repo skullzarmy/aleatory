@@ -12,7 +12,7 @@ import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
 import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
-import { resolveName } from "@/lib/identity";
+import { resolveName, fetchProfile, socialHandle } from "@/lib/identity";
 import { shortAddress } from "@/lib/utils";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { PieceJsonLd } from "@/components/JsonLd";
@@ -24,6 +24,7 @@ import { PieceJsonLd } from "@/components/JsonLd";
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ contract: string; tokenId: string }>;
+type Search = Promise<{ minted?: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
     const { contract, tokenId } = await params;
@@ -55,8 +56,15 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     };
 }
 
-export default async function PiecePage({ params }: { params: Params }) {
+export default async function PiecePage({
+    params,
+    searchParams,
+}: {
+    params: Params;
+    searchParams: Search;
+}) {
     const { contract, tokenId } = await params;
+    const justMinted = (await searchParams).minted !== undefined;
     const piece = await fetchPiece(contract, tokenId);
 
     // The indexer may not have caught up yet; check the contract's next_token_id
@@ -68,12 +76,19 @@ export default async function PiecePage({ params }: { params: Params }) {
         return <PieceArriving contract={contract} tokenId={tokenId} />;
     }
 
-    const [listing, offers, generator] = await Promise.all([
+    const [listing, offers, generator, artistProfile] = await Promise.all([
         fetchListingFor(contract, tokenId).catch(() => null),
         fetchOffersFor(contract, tokenId).catch(() => []),
         fetchGenerator(contract).catch(() => null),
+        piece.artist ? fetchProfile(piece.artist).catch(() => null) : Promise.resolve(null),
     ]);
     const royaltyTotal = piece.royalties.reduce((n, r) => n + r.bps, 0);
+    const artistHandles = {
+        twitter: socialHandle(artistProfile, "twitter") ?? undefined,
+        bluesky: socialHandle(artistProfile, "bluesky") ?? undefined,
+        farcaster: socialHandle(artistProfile, "farcaster") ?? undefined,
+        telegram: socialHandle(artistProfile, "telegram") ?? undefined,
+    };
 
     // Null for an open edition, which has nothing to count down.
     const remaining = piece.editionSize > 0 ? Math.max(0, piece.editionSize - piece.minted) : null;
@@ -103,7 +118,13 @@ export default async function PiecePage({ params }: { params: Params }) {
             />
             {/* Only for whoever arrived here from the mint; a shared link gets the plain page. */}
             <Suspense fallback={null}>
-                <JustMinted contract={contract} remaining={remaining} />
+                <JustMinted
+                    contract={contract}
+                    remaining={remaining}
+                    shareUrl={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                    shareText={`I minted ${piece.name} on ${BRAND.name}`}
+                    artistHandles={artistHandles}
+                />
             </Suspense>
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -157,12 +178,15 @@ export default async function PiecePage({ params }: { params: Params }) {
                         <PieceFacts piece={piece} />
                     </div>
 
-                    <div className="mt-4">
-                        <ShareButtons
-                            url={`${BRAND.url}/piece/${contract}/${tokenId}`}
-                            text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
-                        />
-                    </div>
+                    {!justMinted && (
+                        <div className="mt-4">
+                            <ShareButtons
+                                url={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                                text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
+                                artistHandles={artistHandles}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
