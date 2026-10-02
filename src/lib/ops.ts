@@ -474,6 +474,47 @@ export async function setProvider(
     return send(client, generator, p.entrypoint, p.value);
 }
 
+/**
+ * Push a patched `content` document. Artist only, same as any other display
+ * field (`contract/aleatory.py:536`) — there is no admin key that can do this
+ * on their behalf.
+ */
+export async function pushContent(
+    client: DAppClient,
+    generator: string,
+    contentJson: string,
+): Promise<OpResult> {
+    const p = await encode(generator, "set_metadata", {
+        key: "content",
+        value: utf8ToHex(contentJson),
+    });
+    return send(client, generator, p.entrypoint, p.value, 0, SMALL);
+}
+
+/** The same push, across several generators in one signature. */
+export async function pushContentBatch(
+    client: DAppClient,
+    updates: { generator: string; contentJson: string }[],
+): Promise<OpResult> {
+    const encoded = await Promise.all(
+        updates.map((u) =>
+            encode(u.generator, "set_metadata", {
+                key: "content",
+                value: utf8ToHex(u.contentJson),
+            }),
+        ),
+    );
+    return sendBatch(
+        client,
+        encoded.map((p, i) => ({
+            destination: updates[i].generator,
+            entrypoint: p.entrypoint,
+            value: p.value,
+            limits: SMALL,
+        })),
+    );
+}
+
 /** Let Aleatory's keys publish metadata for unrevealed pieces, or stop them. */
 export function setTrustResolver(
     client: DAppClient,
