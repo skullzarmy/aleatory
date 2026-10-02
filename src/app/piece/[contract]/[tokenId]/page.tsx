@@ -24,6 +24,7 @@ import { PieceJsonLd } from "@/components/JsonLd";
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ contract: string; tokenId: string }>;
+type Search = Promise<{ minted?: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
     const { contract, tokenId } = await params;
@@ -55,8 +56,15 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     };
 }
 
-export default async function PiecePage({ params }: { params: Params }) {
+export default async function PiecePage({
+    params,
+    searchParams,
+}: {
+    params: Params;
+    searchParams: Search;
+}) {
     const { contract, tokenId } = await params;
+    const justMinted = (await searchParams).minted !== undefined;
     const piece = await fetchPiece(contract, tokenId);
 
     // The indexer may not have caught up yet; check the contract's next_token_id
@@ -103,7 +111,12 @@ export default async function PiecePage({ params }: { params: Params }) {
             />
             {/* Only for whoever arrived here from the mint; a shared link gets the plain page. */}
             <Suspense fallback={null}>
-                <JustMinted contract={contract} remaining={remaining} />
+                <JustMinted
+                    contract={contract}
+                    remaining={remaining}
+                    shareUrl={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                    shareText={`I minted ${piece.name}${piece.generatorName ? ` from ${piece.generatorName}` : ""} on ${BRAND.name}`}
+                />
             </Suspense>
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -157,12 +170,15 @@ export default async function PiecePage({ params }: { params: Params }) {
                         <PieceFacts piece={piece} />
                     </div>
 
-                    <div className="mt-4">
-                        <ShareButtons
-                            url={`${BRAND.url}/piece/${contract}/${tokenId}`}
-                            text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
-                        />
-                    </div>
+                    {/* JustMinted carries this instead, worded for the moment. */}
+                    {!justMinted && (
+                        <div className="mt-4">
+                            <ShareButtons
+                                url={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                                text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
