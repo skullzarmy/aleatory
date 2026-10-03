@@ -9,8 +9,8 @@ import { PieceImage } from "./PieceImage";
 /**
  * One piece for sale: the same card as a feed piece, with the price on it.
  *
- * The seller is a name and not a link, because the whole card is already a link
- * and an anchor inside an anchor is invalid HTML.
+ * The artist renders as AccountName, not a link, same as PieceCard: the whole
+ * card is already a link, and an anchor inside an anchor won't hydrate.
  */
 export function ListingCard({
     listing,
@@ -46,7 +46,7 @@ export function ListingCard({
                 </p>
                 <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
                     <span className="min-w-0 truncate">
-                        <AccountName address={listing.seller} />
+                        {piece?.artist ? <AccountName address={piece.artist} /> : ""}
                     </span>
                     {piece?.mintedAt ? (
                         <span className="shrink-0">
