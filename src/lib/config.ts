@@ -70,7 +70,7 @@ export const CONTRACTS = {
  * storage. See docs/architecture.md §10.
  */
 export const ISOLATE_ORIGIN =
-    process.env.NEXT_PUBLIC_ISOLATE_ORIGIN || "https://isolate.aleatory.art";
+    process.env.NEXT_PUBLIC_ISOLATE_ORIGIN || "https://isolated.aleatory.art";
 
 export const tzktApi = () => TZKT_API[NETWORK];
 export const tzktLink = (hashOrAddress: string) => `${TZKT_UI[NETWORK]}/${hashOrAddress}`;

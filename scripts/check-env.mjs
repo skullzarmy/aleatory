@@ -21,7 +21,7 @@ const READS = [
 ];
 
 /** Set by the runtime or the host, never by an operator editing a file. */
-const PLATFORM = new Set(["NODE_ENV", "PORT", "URL", "DEPLOY_URL"]);
+const PLATFORM = new Set(["NODE_ENV", "PORT", "URL", "DEPLOY_URL", "CONTEXT", "REVIEW_ID"]);
 
 const used = new Map();
 for (const file of code) {

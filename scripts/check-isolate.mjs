@@ -13,8 +13,16 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const isolate = join(root, "isolate");
 
 const before = readFileSync(join(isolate, "index.html"), "utf8");
-execFileSync("node", ["build.mjs"], { cwd: isolate, stdio: "inherit" });
+const headersBefore = readFileSync(join(isolate, "_headers"), "utf8");
+// CONTEXT/REVIEW_ID unset here, same as a production build, so this is the
+// byte-identical baseline check for both generated files.
+execFileSync("node", ["build.mjs"], {
+    cwd: isolate,
+    stdio: "inherit",
+    env: { ...process.env, CONTEXT: "", REVIEW_ID: "" },
+});
 const after = readFileSync(join(isolate, "index.html"), "utf8");
+const headersAfter = readFileSync(join(isolate, "_headers"), "utf8");
 
 if (before !== after) {
     console.error(
@@ -25,6 +33,16 @@ if (before !== after) {
 }
 
 console.log("isolate/index.html matches its source");
+
+if (headersBefore !== headersAfter) {
+    console.error(
+        "\nisolate/_headers does not match what isolate/build.mjs produces in production " +
+            "context. Run `node isolate/build.mjs` and commit the result.",
+    );
+    process.exit(1);
+}
+
+console.log("isolate/_headers matches its source");
 
 // Matching source doesn't mean it parses — a bad splice produces a file
 // that's byte-identical to what the build would make and still renders nothing.
