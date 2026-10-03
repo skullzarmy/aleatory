@@ -260,7 +260,7 @@ export interface GeneratorSummary {
 /**
  * `paused` defaults off: it is one uncached TzKT request per generator, and
  * the market page calls this just to build a name map, never reads it. Only
- * a caller that actually renders the badge (the home page) should pay for it.
+ * a caller that filters on it (the home page) or renders the badge pays for it.
  */
 export async function fetchAllGenerators(opts?: { paused?: boolean }): Promise<GeneratorSummary[]> {
     const factories = await allFactories();

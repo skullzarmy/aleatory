@@ -29,13 +29,14 @@ export const dynamic = "force-dynamic";
 // TzKT's alias is set only for contracts it recognizes, never ours, so the display
 // name comes from the generator's own metadata instead.
 export default async function HomePage() {
-    const generators = await fetchAllGenerators({ paused: true });
+    const all = await fetchAllGenerators({ paused: true });
+    const generators = all.filter((g) => !g.paused);
 
     if (generators.length === 0) {
         return (
             <div className="mx-auto max-w-7xl px-4 py-8">
                 <LiveRefresh seconds={60} />
-                <EmptyFeed reason="unconfigured" />
+                <EmptyFeed reason={all.length === 0 ? "unconfigured" : "no-generators"} />
             </div>
         );
     }
