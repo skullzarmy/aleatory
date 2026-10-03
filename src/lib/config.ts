@@ -51,6 +51,24 @@ export const SITE_URL: Record<Network, string> = {
 
 export const siteUrl = () => SITE_URL[NETWORK];
 
+export const OBJKT_URL: Record<Network, string> = {
+    shadownet: "https://shadownet.objkt.com",
+    mainnet: "https://objkt.com",
+};
+
+/** A collection's own management page on objkt, where an artist sets the fields their contract metadata can't carry: a logo, a banner, a category, and the token link below. */
+export const objktManageLink = (contract: string) =>
+    `${OBJKT_URL[NETWORK]}/collections/${contract}/manage`;
+
+/**
+ * The template to paste into objkt's own "Token link" field, so a token's
+ * page there carries a link back to its page here. `:id` is objkt's own
+ * placeholder, substituted with the token's id; the collection is already
+ * fixed by which collection's settings this is pasted into, so nothing here
+ * names it.
+ */
+export const objktTokenLinkTemplate = (contract: string) => `${siteUrl()}/piece/${contract}/:id`;
+
 /**
  * Contract addresses. `router` is the only one that has to be set; the rest are
  * read from it on chain by `lib/router.ts`. Setting one of the others overrides

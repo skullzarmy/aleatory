@@ -8,7 +8,7 @@ import { fetchProviders, type Provider } from "@/lib/providers";
 import { fetchRawContent, hasEntrypoint } from "@/lib/tzkt";
 import { missingTzipFields, patchTzipFields } from "@/lib/tzip";
 import { useLive } from "@/components/LiveRefresh";
-import { tzktLink } from "@/lib/config";
+import { tzktLink, objktManageLink, objktTokenLinkTemplate } from "@/lib/config";
 import { AccountLink } from "@/components/account/AccountLink";
 import { formatTez, parseTez, shortAddress } from "@/lib/utils";
 import {
@@ -328,7 +328,50 @@ export default function ManageGeneratorPage({ params }: { params: Promise<{ addr
                     <Row label="Owner" value={<AccountLink address={generator.artist} />} />
                 </dl>
             </section>
+
+            <section className="mt-10 border-t border-border pt-6">
+                <h2 className="text-sm font-medium">List nicely on objkt</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                    A logo, a banner and a token link live on objkt's own collection page, not in
+                    anything your contract carries. Open your collection there and paste this into
+                    its Token link field, so a piece viewed on objkt links back to its page here.
+                </p>
+                <a
+                    href={objktManageLink(generator.address)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-block rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+                >
+                    Open on objkt
+                </a>
+                <div className="mt-3">
+                    <CopyField
+                        value={objktTokenLinkTemplate(generator.address)}
+                        label="Token link"
+                    />
+                </div>
+            </section>
         </div>
+    );
+}
+
+function CopyField({ value, label }: { value: string; label: string }) {
+    const [copied, setCopied] = useState(false);
+    return (
+        <button
+            type="button"
+            onClick={() => {
+                void navigator.clipboard.writeText(value).then(() => {
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1600);
+                });
+            }}
+            className="flex w-full items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-left text-xs hover:bg-accent"
+        >
+            <span className="shrink-0 text-muted-foreground">{label}</span>
+            <span className="min-w-0 flex-1 truncate font-mono">{value}</span>
+            <span className="shrink-0 text-muted-foreground">{copied ? "Copied" : "Copy"}</span>
+        </button>
     );
 }
 
