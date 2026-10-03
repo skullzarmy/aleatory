@@ -13,7 +13,10 @@ const GENERATORS: Record<Network, readonly string[]> = {
         // renders as an empty square and always will: the code is immutable.
         "KT1Q9PqMtkiwFxhofbb2mAbP1UFoLYaHsg2s",
     ],
-    mainnet: [],
+    mainnet: [
+        // Interrupted upload left uncompressed HTML stored with gzip encoding.
+        "KT1JY8Sa1wU79hwRRi8PBj6awwU7Md4U18q7",
+    ],
 };
 
 const PROVIDERS: Record<Network, readonly string[]> = {
