@@ -30,7 +30,7 @@
         "provider:retry": "npx tsx provider/retry.mts",
         "provider:daemon": "npx tsx provider/daemon.mts",
         "templates:build": "npx tsx scripts/build-templates.mts",
-        "prebuild": "npx tsx scripts/build-templates.mts",
+        "prebuild": "npx tsx scripts/build-preview-env.mts && npx tsx scripts/build-templates.mts",
         "test:dep": "npx tsx src/lib/dep.test.ts",
         "test:conformance": "npx tsx src/lib/conformance.test.ts",
         "predev": "npx tsx scripts/build-templates.mts",

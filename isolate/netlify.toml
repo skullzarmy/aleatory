@@ -16,6 +16,10 @@
 # anything is worth keeping even though it is generated. The build command
 # regenerates it so a source edit without regenerating fails the deploy
 # instead of shipping stale.
+#
+# Headers (CSP's frame-ancestors, the list of hosts allowed to frame this)
+# live in the generated _headers file, not here, since it has to change on a
+# deploy preview to admit that same PR's main-site preview. See build.mjs.
 
 [build]
   command = "node build.mjs"
@@ -27,19 +31,3 @@
   from = "/render"
   to = "/index.html"
   status = 200
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    # connect-src 'none' is what makes "a piece never touches the network"
-    # structural. The harness overrides in JS are reporting; this is the
-    # control. script-src carries no https:, so a piece cannot pull in a
-    # remote script either.
-    Content-Security-Policy = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; frame-src 'self'; child-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://aleatory.art https://*.aleatory.art http://localhost:* https://alea-mainnet.netlify.app"
-    # ^ Every host allowed to frame this. A site not listed here gets an empty
-    # frame and nothing in the console beyond a CSP notice, so a Netlify
-    # preview URL (*.netlify.app) or a domain outside aleatory.art has to be
-    # added before its previews will render anything.
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "no-referrer"
-    Permissions-Policy = "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
