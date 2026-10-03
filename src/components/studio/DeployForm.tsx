@@ -429,8 +429,13 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                             A logo, a banner and a token link live on objkt's own collection page,
                             not in anything your contract carries. Open your collection there and
                             paste this into its Token link field, so a piece viewed on objkt links
-                            back to its page here — and while you're in there, it's worth setting up
-                            an icon and a banner too.
+                            back to its page here, and set up an icon and a banner while you're
+                            there.
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Clear the Website field first: it's filled from this contract's own
+                            metadata, and objkt refuses to save the page until it's empty, since a
+                            website there needs a domain verified through tzprofiles.
                         </p>
                         <a
                             href={objktManageLink(done.generator)}
