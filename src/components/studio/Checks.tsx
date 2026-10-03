@@ -9,7 +9,7 @@ import { ISOLATE_ORIGIN } from "@/lib/config";
  * piece for real: determinism means the same seed drawn twice in two fresh
  * frames, compared.
  */
-type Status = "idle" | "running" | "pass" | "fail";
+type Status = "idle" | "running" | "pass" | "warn" | "fail";
 
 interface Check {
     id: string;
@@ -38,7 +38,19 @@ const INITIAL: Check[] = [
         detail: "Calls $alea.ready() so we know when to capture the image.",
         status: "idle",
     },
+    {
+        id: "performance",
+        label: "How long it takes to draw",
+        detail: "Times a real run on this screen. A denser display draws more pixels for the same size on screen, which can make a piece that felt instant elsewhere noticeably slower here.",
+        status: "idle",
+    },
 ];
+
+// Below this, a visitor on a similarly dense screen is unlikely to notice
+// anything — chosen against the isolate's own capture timeout (20s plus a 2s
+// margin, see CAPTURE_TIMEOUT below): a fifth of that is comfortably past
+// "feels instant" without flagging every piece that merely isn't instant.
+const SLOW_MS = 4_000;
 
 // Matches isolate's own default fallback (isolate/index.html, CFG.timeout ||
 // 20000) — this component never passes an explicit timeout, so that default
@@ -145,8 +157,10 @@ export function Checks({
             violations: string[];
             ready: boolean;
             autoCaptured: boolean;
+            ms: number;
         }> =>
             new Promise((resolve) => {
+                const started = performance.now();
                 const frame = document.createElement("iframe");
                 frame.setAttribute("sandbox", "allow-scripts");
                 frame.setAttribute("referrerpolicy", "no-referrer");
@@ -164,7 +178,14 @@ export function Checks({
                     done = true;
                     window.removeEventListener("message", onMessage);
                     frame.remove();
-                    resolve({ digest, image, violations, ready, autoCaptured });
+                    resolve({
+                        digest,
+                        image,
+                        violations,
+                        ready,
+                        autoCaptured,
+                        ms: performance.now() - started,
+                    });
                 }
 
                 function onMessage(e: MessageEvent) {
@@ -266,6 +287,17 @@ export function Checks({
                   : "Never called $alea.ready(), and the run never finished at all.",
         });
 
+        const dpr = window.devicePixelRatio || 1;
+        const seconds = (first.ms / 1000).toFixed(1);
+        set("performance", {
+            status: !first.ready ? "fail" : first.ms > SLOW_MS ? "warn" : "pass",
+            note: !first.ready
+                ? "Never finished, so there is nothing to time."
+                : first.ms > SLOW_MS
+                  ? `${seconds}s to draw at this screen's ${dpr}x pixel density — slow enough that a visitor on a similarly dense screen may notice the wait. A collector on a plain (1x) screen would see roughly 1/${dpr * dpr} as many pixels and likely a faster draw.`
+                  : `${seconds}s to draw at this screen's ${dpr}x pixel density.`,
+        });
+
         setRunning(false);
     }, [runOnce, seed, set]);
 
@@ -308,8 +340,10 @@ function Mark({ status }: { status: Status }) {
             ? "bg-success"
             : status === "fail"
               ? "bg-destructive"
-              : status === "running"
-                ? "bg-warning animate-pulse"
-                : "bg-muted";
+              : status === "warn"
+                ? "bg-warning"
+                : status === "running"
+                  ? "bg-warning animate-pulse"
+                  : "bg-muted";
     return <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${style}`} aria-hidden />;
 }
