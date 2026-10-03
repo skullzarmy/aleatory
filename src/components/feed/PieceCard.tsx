@@ -5,7 +5,7 @@ import type { FeedPiece } from "@/lib/feed";
 import { AccountName } from "@/components/account/AccountName";
 import { PieceImage } from "./PieceImage";
 
-// The artist renders as AccountName, not a link: the whole card is already a
+// The minter renders as AccountName, not a link: the whole card is already a
 // link to the piece, and an anchor inside an anchor won't hydrate.
 export function PieceCard({ piece }: { piece: FeedPiece }) {
     return (
@@ -22,7 +22,7 @@ export function PieceCard({ piece }: { piece: FeedPiece }) {
                 <p className="truncate text-xs text-muted-foreground">{piece.generatorName}</p>
                 <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
                     <span className="min-w-0 truncate">
-                        {piece.artist ? <AccountName address={piece.artist} /> : ""}
+                        {piece.minter ? <AccountName address={piece.minter} /> : ""}
                     </span>
                     {piece.mintedAt ? (
                         <span className="shrink-0">

@@ -12,7 +12,6 @@ import {
     fetchTokenUris,
     fetchEditionSizes,
     fetchPausedStates,
-    fetchArtists,
     type TzktToken,
 } from "./tzkt";
 import { isBlockedGenerator } from "./blocklist";
@@ -74,17 +73,6 @@ async function pendingState(
         if (c) out.set(key(t), { pendingUri: c.pending, tokenUri: c.uris.get(t.tokenId) });
     }
     return out;
-}
-
-/**
- * Each distinct generator's artist, one request per generator (`administrator`
- * is a top-level storage field TzKT cannot project in bulk, same limitation
- * `fetchArtists` already documents). Not `firstMinter`: that is whoever
- * minted the specific token, a collector as often as not, not the artist who
- * made the generator.
- */
-async function artistsFor(tokens: TzktToken[]): Promise<Map<string, string>> {
-    return fetchArtists([...new Set(tokens.map((t) => t.contract.address))]);
 }
 
 /** A generator's pending pointer. */
@@ -203,7 +191,8 @@ export interface FeedPiece {
     tokenId: string;
     name: string;
     generatorName: string;
-    artist?: string;
+    /** Whoever minted this specific token — a collector as often as not, not the generator's artist. */
+    minter?: string;
     mintedAt?: string;
     /** Rendered image, once a provider has published one. */
     imageUrl?: string;
@@ -219,7 +208,6 @@ function toPiece(
     resolved?: TokenDoc,
     /** The generator's pending pointer, and this token's, when known. */
     pendingState?: { pendingUri: string; tokenUri?: string },
-    artistByAddress?: Map<string, string>,
 ): FeedPiece {
     // TzKT resolves `ipfs://` metadata on its own schedule and on some networks
     // never, so the document fetched here fills in for it.
@@ -246,7 +234,7 @@ function toPiece(
         tokenId: t.tokenId,
         name,
         generatorName,
-        artist: artistByAddress?.get(t.contract.address),
+        minter: t.firstMinter?.address,
         mintedAt: t.firstTime,
         imageUrl: display ? ipfsImageUrl(display) : undefined,
         artifactUrl: m?.artifactUri ? ipfsImageUrl(m.artifactUri) : undefined,
@@ -278,22 +266,12 @@ export async function piecesFor(
         wanted.has(key(t)),
     );
 
-    const [docs, state, artists] = await Promise.all([
-        docsFor(tokens),
-        pendingState(tokens),
-        artistsFor(tokens),
-    ]);
+    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
 
     return new Map(
         tokens.map((t) => [
             key(t),
-            toPiece(
-                t,
-                names?.get(t.contract.address),
-                docs.get(key(t)),
-                state.get(key(t)),
-                artists,
-            ),
+            toPiece(t, names?.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
         ]),
     );
 }
@@ -395,20 +373,10 @@ export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Pr
         offset,
     );
     const tokens = window.slice(0, limit);
-    const [docs, state, artists] = await Promise.all([
-        docsFor(tokens),
-        pendingState(tokens),
-        artistsFor(tokens),
-    ]);
+    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
     return {
         pieces: tokens.map((t) =>
-            toPiece(
-                t,
-                aliasByAddress.get(t.contract.address),
-                docs.get(key(t)),
-                state.get(key(t)),
-                artists,
-            ),
+            toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
         ),
         generatorCount: all.length,
         unconfigured: false,
@@ -451,10 +419,9 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
 
     // The made side is a handful of generators, so the cover, the edition size
     // and the artist's own name are worth the extra reads.
-    const [docs, state, artists, metas, covers, editions, paused] = await Promise.all([
+    const [docs, state, metas, covers, editions, paused] = await Promise.all([
         docsFor(tokens),
         pendingState(tokens),
-        artistsFor(tokens),
         Promise.all(
             madeAddresses.map(
                 (a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({})),
@@ -467,13 +434,7 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
 
     return {
         held: tokens.map((t) =>
-            toPiece(
-                t,
-                aliasByAddress.get(t.contract.address),
-                docs.get(key(t)),
-                state.get(key(t)),
-                artists,
-            ),
+            toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
         ),
         made: mine.map((c, i) => {
             const own = metas[i].displayUri ?? metas[i].thumbnailUri;

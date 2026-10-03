@@ -48,6 +48,11 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
     const names = new Map(
         generators.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])),
     );
+    // Who made it, not who minted this particular token — the card shows the
+    // artist, and fetchAllGenerators already carries that per generator.
+    const artists = new Map(
+        generators.flatMap((c) => (c.artist ? [[c.address, c.artist] as const] : [])),
+    );
     const pieces = await piecesFor(listings, names).catch(() => new Map());
 
     const scopedName = generator ? (names.get(generator) ?? generator) : undefined;
@@ -142,6 +147,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
                                 key={`${l.marketplace}:${l.id}`}
                                 listing={l}
                                 piece={pieces.get(`${l.generator}:${l.tokenId}`)}
+                                artist={artists.get(l.generator)}
                             />
                         ))}
                     </AutoGrid>
