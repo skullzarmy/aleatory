@@ -97,6 +97,11 @@ export function templateParamsFor(kindId: number): ParamSpec[] {
     }));
 }
 
+/** Every kind's default ids today is a plain word, but an id built into a regex source still earns this. */
+function escapeRegExp(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * The kind's default parameters that `html` reads, by `param("id")` or through
  * `params`. An uploaded file is published as it stands once these are written
@@ -104,9 +109,10 @@ export function templateParamsFor(kindId: number): ParamSpec[] {
  * control wired to nothing.
  */
 export function templateParamsReadBy(html: string, kindId: number): ParamSpec[] {
-    return templateParamsFor(kindId).filter((p) =>
-        new RegExp(
-            `\\bparam\\s*\\(\\s*(["'\`])${p.id}\\1|\\bparams\\s*(?:\\.\\s*${p.id}\\b|\\[\\s*(["'\`])${p.id}\\2\\s*\\])`,
-        ).test(html),
-    );
+    return templateParamsFor(kindId).filter((p) => {
+        const id = escapeRegExp(p.id);
+        return new RegExp(
+            `\\bparam\\s*\\(\\s*(["'\`])${id}\\1|\\bparams\\s*(?:\\.\\s*${id}\\b|\\[\\s*(["'\`])${id}\\2\\s*\\])`,
+        ).test(html);
+    });
 }
