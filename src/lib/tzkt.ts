@@ -222,6 +222,35 @@ export async function fetchPausedStates(generators: string[]): Promise<Map<strin
 }
 
 /**
+ * Who administers each generator. Same shape as `fetchPausedStates` and the
+ * same reason: `administrator` is a top-level storage field, but TzKT cannot
+ * project it in bulk, so this is one narrow request per generator. Cached
+ * longer than paused — transferring admin is rare, toggling sales isn't.
+ */
+const ARTIST_CONCURRENCY = 8;
+export async function fetchArtists(generators: string[]): Promise<Map<string, string>> {
+    const artists = new Map<string, string>();
+    const queue = [...generators];
+    async function worker() {
+        for (;;) {
+            const address = queue.shift();
+            if (address === undefined) return;
+            const a = await fetch(
+                `${tzktApi()}/v1/contracts/${address}/storage?path=administrator`,
+                {
+                    next: { revalidate: 300 },
+                },
+            )
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null);
+            if (typeof a === "string") artists.set(address, a);
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(ARTIST_CONCURRENCY, queue.length) }, worker));
+    return artists;
+}
+
+/**
  * Every generator one artist deployed.
  *
  * The factory originates a generator, so `creator` is the factory. The artist

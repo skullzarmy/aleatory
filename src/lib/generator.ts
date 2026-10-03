@@ -13,6 +13,7 @@ import {
     fetchGeneratorMeta,
     fetchEditionSizes,
     fetchPausedStates,
+    fetchArtists,
     type GeneratorMeta,
     indexerFetch,
     isAddress,
@@ -243,6 +244,7 @@ export async function fetchGeneratorPieces(address: string, limit = 48): Promise
 
 export interface GeneratorSummary {
     address: string;
+    artist?: string;
     name?: string;
     description?: string;
     /**
@@ -275,7 +277,7 @@ export async function fetchAllGenerators(opts?: { paused?: boolean }): Promise<G
         // factory rather than one order.
         .sort((a, b) => (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""));
     const addresses = rows.map((c) => c.address);
-    const [metas, covers, editions, paused] = await Promise.all([
+    const [metas, covers, editions, paused, artists] = await Promise.all([
         Promise.all(
             addresses.map((a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({}))),
         ),
@@ -284,10 +286,12 @@ export async function fetchAllGenerators(opts?: { paused?: boolean }): Promise<G
         opts?.paused
             ? fetchPausedStates(addresses).catch(() => new Map<string, boolean>())
             : Promise.resolve(new Map<string, boolean>()),
+        fetchArtists(addresses).catch(() => new Map<string, string>()),
     ]);
 
     return rows.map((c, i) => ({
         address: c.address,
+        artist: artists.get(c.address),
         // `alias` is TzKT's, set for contracts it happens to know.
         name: metas[i].name || c.alias,
         description: metas[i].description,

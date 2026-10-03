@@ -10,7 +10,9 @@ import {
     fetchOwner,
     fetchMintOperation,
     fetchStorage,
+    fetchGeneratorMeta,
     type TokenMetadata,
+    type GeneratorMeta,
 } from "./tzkt";
 import {
     bytesToString,
@@ -109,10 +111,11 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
     const token = await fetchToken(contract, tokenId);
     if (!token) return null;
 
-    const [owner, mint, storage] = await Promise.all([
+    const [owner, mint, storage, generatorMeta] = await Promise.all([
         fetchOwner(contract, tokenId).catch(() => null),
         fetchMintOperation(contract, tokenId).catch(() => null),
         fetchStorage<GeneratorStorage>(contract).catch(() => null),
+        fetchGeneratorMeta(contract).catch((): GeneratorMeta => ({})),
     ]);
 
     // The token's own metadata pointer, off chain state, which is what decides
@@ -158,8 +161,13 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
 
     // The pending document is one CID shared by every unrevealed token, so its
     // `name` is the generator's. Built here in the form the real document
-    // uses, so the name does not change when the render lands.
-    const generatorName = (pending ? m?.name : undefined) ?? token.contract.alias;
+    // uses, so the name does not change when the render lands. Falling back to
+    // `token.contract.alias` alone left most pieces showing a raw address:
+    // that's TzKT's own alias, set only for contracts it happens to know,
+    // never for a generator. The generator's own declared name, the same
+    // source the generator page and its card read, resolves every one of them.
+    const generatorName =
+        (pending ? m?.name : undefined) ?? generatorMeta.name ?? token.contract.alias;
     const name = pending
         ? `${generatorName ?? "Untitled generator"} ${edition}`
         : m?.name || edition;

@@ -3,6 +3,7 @@ import { tzktLink } from "@/lib/config";
 import { shortAddress } from "@/lib/utils";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { Piece } from "@/lib/piece";
+import type { Listing } from "@/lib/market";
 import { AccountLink } from "@/components/account/AccountLink";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -16,8 +17,12 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 // Seed, parameters, and code hash are the three inputs that determine the
 // piece: anyone holding them can reproduce the output and check it.
-export function PieceFacts({ piece }: { piece: Piece }) {
+export function PieceFacts({ piece, listing }: { piece: Piece; listing?: Listing | null }) {
     const params = piece.params ? safeParse(piece.params) : null;
+    // Listing escrows the token to the marketplace contract, so `piece.owner`
+    // is the marketplace itself while a piece is listed — not who actually
+    // holds it. The listing names the real holder, same as the market grid.
+    const holder = listing?.seller ?? piece.owner;
 
     return (
         <div className="divide-y divide-border">
@@ -33,9 +38,9 @@ export function PieceFacts({ piece }: { piece: Piece }) {
             <Row label="Artist">
                 <AccountLink address={piece.artist} />
             </Row>
-            {piece.owner && (
-                <Row label="Owner">
-                    <AccountLink address={piece.owner} />
+            {holder && (
+                <Row label={listing ? "Listed by" : "Owner"}>
+                    <AccountLink address={holder} />
                 </Row>
             )}
             {piece.mintedAt && (
