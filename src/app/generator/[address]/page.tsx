@@ -95,18 +95,6 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                         {shortAddress(generator.address)}
                     </a>
                 </div>
-
-                {generator.description && (
-                    <p className="mt-3 max-w-prose whitespace-pre-line break-words text-sm text-muted-foreground">
-                        {generator.description}
-                    </p>
-                )}
-
-                {generator.tags && generator.tags.length > 0 && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                        Tags: {generator.tags.join(", ")}
-                    </p>
-                )}
             </header>
 
             <MintView generator={generator} schema={generator.paramsSchema} />
