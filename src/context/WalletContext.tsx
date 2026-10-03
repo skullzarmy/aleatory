@@ -60,7 +60,15 @@ function buildNetwork(sdk: SDKModule) {
 const FEATURED_WALLETS =
     NETWORK === "mainnet" ? undefined : ["kukai", "temple", "umami", "metamask"];
 
-let client: DAppClient | null = null;
+/**
+ * The in-flight build, not just the built client: two callers racing
+ * `getClient()` before either's `await` resolves both see no client yet and
+ * each construct their own, which is what the SDK's own "multiple Client
+ * instances" warning was catching. Caching the promise itself, the same way
+ * `src/lib/identity.ts` dedupes concurrent lookups, means the second caller
+ * awaits the first's construction instead of starting a second one.
+ */
+let clientPromise: Promise<DAppClient> | null = null;
 
 /**
  * Where an account change is delivered, set by the provider on mount. Module
@@ -69,9 +77,18 @@ let client: DAppClient | null = null;
 let onActiveAccount: ((address: string | null) => void) | null = null;
 
 async function getClient(): Promise<DAppClient> {
-    if (client) return client;
+    if (!clientPromise) {
+        clientPromise = buildClient().catch((e) => {
+            clientPromise = null;
+            throw e;
+        });
+    }
+    return clientPromise;
+}
+
+async function buildClient(): Promise<DAppClient> {
     const sdk = await loadSDK();
-    client = new sdk.DAppClient({
+    const c = new sdk.DAppClient({
         name: BRAND.name,
         description: BRAND.description,
         iconUrl: `${BRAND.url}/web-app-manifest-192x192.png`,
@@ -82,12 +99,12 @@ async function getClient(): Promise<DAppClient> {
 
     // The wallet can change the active account without being asked, and nothing
     // here polls, so without this the page shows the old account until reload.
-    await client.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
+    await c.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
         const next = account && matchesNetwork(account) ? account.address : null;
         onActiveAccount?.(next);
     });
 
-    return client;
+    return c;
 }
 
 /**
@@ -107,7 +124,7 @@ async function resetClient(c: DAppClient): Promise<void> {
     } catch {
         /* older SDKs have no destroy */
     }
-    client = null;
+    clientPromise = null;
 }
 
 interface WalletState {
