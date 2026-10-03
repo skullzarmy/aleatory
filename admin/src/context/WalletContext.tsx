@@ -53,7 +53,14 @@ function buildNetwork(sdk: SDKModule) {
 const FEATURED_WALLETS =
     NETWORK === "mainnet" ? undefined : ["kukai", "temple", "umami", "metamask"];
 
-let client: DAppClient | null = null;
+/**
+ * The in-flight build, not just the built client: two callers racing
+ * `getClient()` before either's `await` resolves both see no client yet and
+ * each construct their own, the SDK's own "multiple Client instances"
+ * warning. Caching the promise itself means the second caller awaits the
+ * first's construction instead of starting a second one.
+ */
+let clientPromise: Promise<DAppClient> | null = null;
 let onActiveAccount: ((address: string | null) => void) | null = null;
 
 /**
@@ -96,9 +103,18 @@ async function warmStorage(c: DAppClient): Promise<void> {
 }
 
 async function getClient(): Promise<DAppClient> {
-    if (client) return client;
+    if (!clientPromise) {
+        clientPromise = buildClient().catch((e) => {
+            clientPromise = null;
+            throw e;
+        });
+    }
+    return clientPromise;
+}
+
+async function buildClient(): Promise<DAppClient> {
     const sdk = await loadSDK();
-    client = new sdk.DAppClient({
+    const c = new sdk.DAppClient({
         name: BRAND.name,
         description: BRAND.description,
         iconUrl: `${window.location.origin}/favicon.svg`,
@@ -106,11 +122,11 @@ async function getClient(): Promise<DAppClient> {
         network: buildNetwork(sdk),
         featuredWallets: FEATURED_WALLETS,
     });
-    await client.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
+    await c.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
         onActiveAccount?.(account && matchesNetwork(account) ? account.address : null);
     });
-    await warmStorage(client);
-    return client;
+    await warmStorage(c);
+    return c;
 }
 
 /**
@@ -130,7 +146,7 @@ async function resetClient(c: DAppClient): Promise<void> {
     } catch {
         /* older SDKs have no destroy */
     }
-    client = null;
+    clientPromise = null;
 }
 
 interface WalletState {
