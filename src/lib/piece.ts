@@ -14,6 +14,7 @@ import {
     type TokenMetadata,
     type GeneratorMeta,
 } from "./tzkt";
+import { fetchProvider } from "./providers";
 import {
     bytesToString,
     convertIpfsToGatewayUrl,
@@ -64,6 +65,8 @@ export interface Piece {
     imageUrl?: string;
     /** The provider that rendered it, when the document says. */
     provider?: string;
+    /** The provider's own declared name, when it has one. */
+    providerName?: string;
     /** Live render of the generator, always available. */
     renderUrl?: string;
     pending: boolean;
@@ -172,6 +175,12 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         ? `${generatorName ?? "Untitled generator"} ${edition}`
         : m?.name || edition;
 
+    // Not known until `m` resolves above, so this cannot join the first
+    // Promise.all with the rest of the page's independent reads.
+    const providerName = m?.aleaProvider
+        ? (await fetchProvider(m.aleaProvider).catch(() => null))?.name
+        : undefined;
+
     return {
         contract,
         tokenId,
@@ -194,6 +203,7 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         minted: storage ? parseInt(storage.next_token_id, 10) : 0,
         imageUrl: display ? ipfsImageUrl(display) : undefined,
         provider: m?.aleaProvider,
+        providerName,
         renderUrl: codeUri
             ? renderUrl(codeUri, mint?.hash, mint?.params || m?.aleaParams)
             : undefined,

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { fetchMintedTokenId } from "@/lib/tzkt";
 import { tzktLink } from "@/lib/config";
-import { formatTez } from "@/lib/utils";
+import { formatTez, shortAddress } from "@/lib/utils";
 import type { Generator } from "@/lib/generator";
 import {
     resolveParams,
@@ -152,6 +152,12 @@ export function MintPanel({
             <div className="flex items-baseline justify-between text-xs text-muted-foreground">
                 <span>Render gas</span>
                 <span>{formatTez(generator.renderGasMutez)} ꜩ</span>
+            </div>
+            <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                <span>Rendered by</span>
+                <Link href={`/providers/${generator.provider}`} className="hover:underline">
+                    {generator.providerName || shortAddress(generator.provider)}
+                </Link>
             </div>
             <div className="flex items-baseline justify-between border-t border-border pt-2 text-sm">
                 <span>You pay</span>

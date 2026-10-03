@@ -52,7 +52,7 @@ export function PieceFacts({ piece, listing }: { piece: Piece; listing?: Listing
             {piece.provider && (
                 <Row label="Rendered by">
                     <Link href={`/providers/${piece.provider}`} className="hover:underline">
-                        {shortAddress(piece.provider)}
+                        {piece.providerName || shortAddress(piece.provider)}
                     </Link>
                 </Row>
             )}
