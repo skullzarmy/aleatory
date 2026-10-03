@@ -11,14 +11,22 @@ import { PieceImage } from "./PieceImage";
  *
  * The artist renders as AccountName, not a link, same as PieceCard: the whole
  * card is already a link, and an anchor inside an anchor won't hydrate.
+ *
+ * `artist` is its own prop, not read off `piece`: `FeedPiece.minter` is
+ * whoever minted this specific token (a collector as often as not), the right
+ * thing for a feed of mint activity but the wrong thing here, where the point
+ * is to show who made it, not who is selling it.
  */
 export function ListingCard({
     listing,
     piece,
+    artist,
 }: {
     listing: Listing;
     /** Absent when the indexer has not caught up with the token yet. */
     piece?: FeedPiece;
+    /** The generator's own artist, looked up separately from the piece. */
+    artist?: string;
 }) {
     return (
         <Link
@@ -46,7 +54,7 @@ export function ListingCard({
                 </p>
                 <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
                     <span className="min-w-0 truncate">
-                        {piece?.artist ? <AccountName address={piece.artist} /> : ""}
+                        {artist ? <AccountName address={artist} /> : ""}
                     </span>
                     {piece?.mintedAt ? (
                         <span className="shrink-0">
