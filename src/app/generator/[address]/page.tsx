@@ -99,22 +99,6 @@ export default async function GeneratorPage({ params }: { params: Params }) {
 
             <MintView generator={generator} schema={generator.paramsSchema} />
 
-            {generator.royalties.length > 0 && (
-                <div className="mt-6 max-w-sm rounded-lg border border-border p-4">
-                    <p className="pb-2 text-sm text-muted-foreground">Royalties</p>
-                    {generator.royalties.map((r) => (
-                        <div key={r.address} className="flex justify-between gap-4 text-sm">
-                            <span className="min-w-0 text-muted-foreground">
-                                <AccountLink address={r.address} />
-                            </span>
-                            <span className="shrink-0 font-medium">
-                                {(r.bps / 100).toFixed(2)}%
-                            </span>
-                        </div>
-                    ))}
-                </div>
-            )}
-
             {pieces.length > 0 && (
                 <div className="mt-12">
                     <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
