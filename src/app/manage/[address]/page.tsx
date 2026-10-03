@@ -10,6 +10,7 @@ import { missingTzipFields, patchTzipFields } from "@/lib/tzip";
 import { useLive } from "@/components/LiveRefresh";
 import { tzktLink, objktManageLink, objktTokenLinkTemplate } from "@/lib/config";
 import { AccountLink } from "@/components/account/AccountLink";
+import { CopyField } from "@/components/CopyField";
 import { formatTez, parseTez, shortAddress } from "@/lib/utils";
 import {
     pushContent,
@@ -352,26 +353,6 @@ export default function ManageGeneratorPage({ params }: { params: Promise<{ addr
                 </div>
             </section>
         </div>
-    );
-}
-
-function CopyField({ value, label }: { value: string; label: string }) {
-    const [copied, setCopied] = useState(false);
-    return (
-        <button
-            type="button"
-            onClick={() => {
-                void navigator.clipboard.writeText(value).then(() => {
-                    setCopied(true);
-                    window.setTimeout(() => setCopied(false), 1600);
-                });
-            }}
-            className="flex w-full items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-left text-xs hover:bg-accent"
-        >
-            <span className="shrink-0 text-muted-foreground">{label}</span>
-            <span className="min-w-0 flex-1 truncate font-mono">{value}</span>
-            <span className="shrink-0 text-muted-foreground">{copied ? "Copied" : "Copy"}</span>
-        </button>
     );
 }
 

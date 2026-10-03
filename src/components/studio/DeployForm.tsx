@@ -14,7 +14,8 @@ import { useWallet } from "@/context/WalletContext";
 import { addresses } from "@/lib/router";
 import { royaltyPreview, type RoyaltySplit } from "@provider/metadata";
 import { parseTez, shortAddress } from "@/lib/utils";
-import { tzktApi, tzktLink } from "@/lib/config";
+import { tzktApi, tzktLink, objktManageLink, objktTokenLinkTemplate } from "@/lib/config";
+import { CopyField } from "@/components/CopyField";
 import type { Provider } from "@/lib/providers";
 import { saveDraft, type Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
@@ -420,6 +421,31 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     </a>
                     .
                 </p>
+
+                {done.generator && (
+                    <div className="space-y-2 border-t border-success/40 pt-4">
+                        <h3 className="text-sm font-medium">List nicely on objkt</h3>
+                        <p className="text-xs text-muted-foreground">
+                            A logo, a banner and a token link live on objkt's own collection page,
+                            not in anything your contract carries. Open your collection there and
+                            paste this into its Token link field, so a piece viewed on objkt links
+                            back to its page here — and while you're in there, it's worth setting up
+                            an icon and a banner too.
+                        </p>
+                        <a
+                            href={objktManageLink(done.generator)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-block rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+                        >
+                            Open on objkt
+                        </a>
+                        <CopyField
+                            value={objktTokenLinkTemplate(done.generator)}
+                            label="Token link"
+                        />
+                    </div>
+                )}
             </div>
         );
     }
