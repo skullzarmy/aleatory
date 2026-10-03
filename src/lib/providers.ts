@@ -181,9 +181,9 @@ export async function fetchProvidersOperatedBy(account: string): Promise<OwnedPr
  */
 export async function fetchProvider(
     address: string,
-): Promise<{ address: string; endpoint?: string } | null> {
+): Promise<{ address: string; name?: string; endpoint?: string } | null> {
     const meta = await fetchProviderMetadata(address);
-    return meta ? { address, endpoint: meta.endpoint } : null;
+    return meta ? { address, name: meta.name, endpoint: meta.endpoint } : null;
 }
 
 interface ProviderMeta {

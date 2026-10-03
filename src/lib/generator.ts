@@ -13,6 +13,7 @@ import {
     fetchGeneratorMeta,
     fetchEditionSizes,
     fetchPausedStates,
+    fetchArtists,
     type GeneratorMeta,
     indexerFetch,
     isAddress,
@@ -31,6 +32,7 @@ import {
 import { coversFor, type FeedPiece } from "./feed";
 import type { ParamsSchema } from "./params";
 import { decodeCode } from "./piece";
+import { fetchProvider } from "./providers";
 
 interface RawStorage {
     administrator: string;
@@ -77,6 +79,8 @@ export interface Generator {
     paused: boolean;
     soldOut: boolean;
     provider: string;
+    /** The provider's own declared name, when it has one. */
+    providerName?: string;
     /**
      * Whether the provider still answers. A mint asks them what they charge and
      * fails if they cannot say, so a provider that has gone takes the
@@ -115,7 +119,10 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
     // The provider's price now, which is what the contract asks them for. The
     // recorded price is what they charged when they were chosen, and stands in
     // when they cannot be reached.
-    const quoted = await fetchProviderGas(s.render.provider);
+    const [quoted, providerMeta] = await Promise.all([
+        fetchProviderGas(s.render.provider),
+        fetchProvider(s.render.provider).catch(() => null),
+    ]);
     const gas = quoted ?? BigInt(s.render.render_gas);
     const royalties = Object.entries(s.art.royalties).map(([a, bps]) => ({
         address: a,
@@ -145,6 +152,7 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
         paused: s.sale.paused,
         soldOut: editionSize > 0 && minted >= editionSize,
         provider: s.render.provider,
+        providerName: providerMeta?.name,
         providerReachable: quoted !== null,
         resolver: s.render.resolver,
         trustResolver: Boolean(s.render.trust_resolver),
@@ -243,6 +251,7 @@ export async function fetchGeneratorPieces(address: string, limit = 48): Promise
 
 export interface GeneratorSummary {
     address: string;
+    artist?: string;
     name?: string;
     description?: string;
     /**
@@ -275,7 +284,7 @@ export async function fetchAllGenerators(opts?: { paused?: boolean }): Promise<G
         // factory rather than one order.
         .sort((a, b) => (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""));
     const addresses = rows.map((c) => c.address);
-    const [metas, covers, editions, paused] = await Promise.all([
+    const [metas, covers, editions, paused, artists] = await Promise.all([
         Promise.all(
             addresses.map((a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({}))),
         ),
@@ -284,10 +293,12 @@ export async function fetchAllGenerators(opts?: { paused?: boolean }): Promise<G
         opts?.paused
             ? fetchPausedStates(addresses).catch(() => new Map<string, boolean>())
             : Promise.resolve(new Map<string, boolean>()),
+        fetchArtists(addresses).catch(() => new Map<string, string>()),
     ]);
 
     return rows.map((c, i) => ({
         address: c.address,
+        artist: artists.get(c.address),
         // `alias` is TzKT's, set for contracts it happens to know.
         name: metas[i].name || c.alias,
         description: metas[i].description,

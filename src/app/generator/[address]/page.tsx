@@ -95,37 +95,9 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                         {shortAddress(generator.address)}
                     </a>
                 </div>
-
-                {generator.description && (
-                    <p className="mt-3 max-w-prose whitespace-pre-line break-words text-sm text-muted-foreground">
-                        {generator.description}
-                    </p>
-                )}
-
-                {generator.tags && generator.tags.length > 0 && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                        Tags: {generator.tags.join(", ")}
-                    </p>
-                )}
             </header>
 
             <MintView generator={generator} schema={generator.paramsSchema} />
-
-            {generator.royalties.length > 0 && (
-                <div className="mt-6 max-w-sm rounded-lg border border-border p-4">
-                    <p className="pb-2 text-sm text-muted-foreground">Royalties</p>
-                    {generator.royalties.map((r) => (
-                        <div key={r.address} className="flex justify-between gap-4 text-sm">
-                            <span className="min-w-0 text-muted-foreground">
-                                <AccountLink address={r.address} />
-                            </span>
-                            <span className="shrink-0 font-medium">
-                                {(r.bps / 100).toFixed(2)}%
-                            </span>
-                        </div>
-                    ))}
-                </div>
-            )}
 
             {pieces.length > 0 && (
                 <div className="mt-12">

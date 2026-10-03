@@ -10,8 +10,11 @@ import {
     fetchOwner,
     fetchMintOperation,
     fetchStorage,
+    fetchGeneratorMeta,
     type TokenMetadata,
+    type GeneratorMeta,
 } from "./tzkt";
+import { fetchProvider } from "./providers";
 import {
     bytesToString,
     convertIpfsToGatewayUrl,
@@ -62,6 +65,8 @@ export interface Piece {
     imageUrl?: string;
     /** The provider that rendered it, when the document says. */
     provider?: string;
+    /** The provider's own declared name, when it has one. */
+    providerName?: string;
     /** Live render of the generator, always available. */
     renderUrl?: string;
     pending: boolean;
@@ -109,10 +114,11 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
     const token = await fetchToken(contract, tokenId);
     if (!token) return null;
 
-    const [owner, mint, storage] = await Promise.all([
+    const [owner, mint, storage, generatorMeta] = await Promise.all([
         fetchOwner(contract, tokenId).catch(() => null),
         fetchMintOperation(contract, tokenId).catch(() => null),
         fetchStorage<GeneratorStorage>(contract).catch(() => null),
+        fetchGeneratorMeta(contract).catch((): GeneratorMeta => ({})),
     ]);
 
     // The token's own metadata pointer, off chain state, which is what decides
@@ -158,11 +164,22 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
 
     // The pending document is one CID shared by every unrevealed token, so its
     // `name` is the generator's. Built here in the form the real document
-    // uses, so the name does not change when the render lands.
-    const generatorName = (pending ? m?.name : undefined) ?? token.contract.alias;
+    // uses, so the name does not change when the render lands. Falling back to
+    // `token.contract.alias` alone left most pieces showing a raw address:
+    // that's TzKT's own alias, set only for contracts it happens to know,
+    // never for a generator. The generator's own declared name, the same
+    // source the generator page and its card read, resolves every one of them.
+    const generatorName =
+        (pending ? m?.name : undefined) ?? generatorMeta.name ?? token.contract.alias;
     const name = pending
         ? `${generatorName ?? "Untitled generator"} ${edition}`
         : m?.name || edition;
+
+    // Not known until `m` resolves above, so this cannot join the first
+    // Promise.all with the rest of the page's independent reads.
+    const providerName = m?.aleaProvider
+        ? (await fetchProvider(m.aleaProvider).catch(() => null))?.name
+        : undefined;
 
     return {
         contract,
@@ -186,6 +203,7 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         minted: storage ? parseInt(storage.next_token_id, 10) : 0,
         imageUrl: display ? ipfsImageUrl(display) : undefined,
         provider: m?.aleaProvider,
+        providerName,
         renderUrl: codeUri
             ? renderUrl(codeUri, mint?.hash, mint?.params || m?.aleaParams)
             : undefined,

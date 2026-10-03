@@ -44,6 +44,16 @@ export function MintView({
             </div>
 
             <div className="min-w-0 space-y-4">
+                {generator.description && (
+                    <p className="whitespace-pre-line break-words text-sm text-muted-foreground">
+                        {generator.description}
+                    </p>
+                )}
+                {generator.tags && generator.tags.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                        Tags: {generator.tags.join(", ")}
+                    </p>
+                )}
                 <MintPanel
                     generator={generator}
                     schema={schema}

@@ -177,7 +177,7 @@ export default async function PiecePage({
                     </div>
 
                     <div className="mt-4">
-                        <PieceFacts piece={piece} />
+                        <PieceFacts piece={piece} listing={listing} />
                     </div>
 
                     {!justMinted && (

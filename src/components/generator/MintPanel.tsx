@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { fetchMintedTokenId } from "@/lib/tzkt";
 import { tzktLink } from "@/lib/config";
-import { formatTez } from "@/lib/utils";
+import { formatTez, shortAddress } from "@/lib/utils";
 import type { Generator } from "@/lib/generator";
 import {
     resolveParams,
@@ -18,6 +18,7 @@ import {
 import * as ops from "@/lib/ops";
 import { IsolateFrame } from "@/components/IsolateFrame";
 import { useDeps } from "@/components/useDeps";
+import { AccountLink } from "@/components/account/AccountLink";
 
 /**
  * Buy one piece. One signature covers the price and the render gas, and the
@@ -153,6 +154,12 @@ export function MintPanel({
                 <span>Render gas</span>
                 <span>{formatTez(generator.renderGasMutez)} ꜩ</span>
             </div>
+            <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                <span>Rendered by</span>
+                <Link href={`/providers/${generator.provider}`} className="hover:underline">
+                    {generator.providerName || shortAddress(generator.provider)}
+                </Link>
+            </div>
             <div className="flex items-baseline justify-between border-t border-border pt-2 text-sm">
                 <span>You pay</span>
                 <span className="font-medium">{formatTez(generator.totalMutez)} ꜩ</span>
@@ -163,6 +170,22 @@ export function MintPanel({
                     ? `${generator.minted} minted, open edition`
                     : `${remaining} of ${generator.editionSize} remaining`}
             </p>
+
+            {generator.royalties.length > 0 && (
+                <div className="space-y-1 rounded-md bg-muted/50 px-3 py-2 text-xs">
+                    <p className="text-muted-foreground">Royalties</p>
+                    {generator.royalties.map((r) => (
+                        <div key={r.address} className="flex justify-between gap-4">
+                            <span className="min-w-0 text-muted-foreground">
+                                <AccountLink address={r.address} />
+                            </span>
+                            <span className="shrink-0 font-medium">
+                                {(r.bps / 100).toFixed(2)}%
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             <div className="space-y-3 border-t border-border pt-3">
                 <div className="flex items-center justify-between gap-3">
