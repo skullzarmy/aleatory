@@ -1,13 +1,28 @@
 import type { NextConfig } from "next";
 
 /**
+ * NEXT_PUBLIC_ISOLATE_ORIGIN is set in the Netlify UI with one value shared
+ * across every deploy context, so a deploy preview's build otherwise inlines
+ * the production isolate's origin, which refuses to frame it. Netlify
+ * injects CONTEXT and REVIEW_ID into this build already; overwriting the
+ * variable here, before anything below reads it, lands before both this
+ * file's own `frame-src` and Next's build-time inlining of
+ * `NEXT_PUBLIC_ISOLATE_ORIGIN` into the client bundle (src/lib/config.ts),
+ * since this module is loaded before either runs. Outside deploy-preview
+ * context this is a no-op: the Netlify-set value passes through untouched.
+ */
+if (process.env.CONTEXT === "deploy-preview" && process.env.REVIEW_ID) {
+    process.env.NEXT_PUBLIC_ISOLATE_ORIGIN = `https://deploy-preview-${process.env.REVIEW_ID}--isolated-aleatory.netlify.app`;
+}
+
+/**
  * Security headers, derived from `NEXT_PUBLIC_ISOLATE_ORIGIN`, the same
  * configuration the app reads. A static policy naming the production host would
  * block every local preview, and a policy that only holds in production is one
  * nobody tests.
  */
 const ISOLATE_ORIGIN =
-    process.env.NEXT_PUBLIC_ISOLATE_ORIGIN || "https://isolate.aleatory.art";
+    process.env.NEXT_PUBLIC_ISOLATE_ORIGIN || "https://isolated.aleatory.art";
 
 const NETWORK = process.env.NEXT_PUBLIC_TEZOS_NETWORK || "shadownet";
 const isDev = process.env.NODE_ENV !== "production";
