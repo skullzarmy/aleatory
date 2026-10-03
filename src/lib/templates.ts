@@ -96,3 +96,17 @@ export function templateParamsFor(kindId: number): ParamSpec[] {
         options: p.options ? [...p.options] : undefined,
     }));
 }
+
+/**
+ * The kind's default parameters that `html` reads, by `param("id")` or through
+ * `params`. An uploaded file is published as it stands once these are written
+ * into it, so a default the code never reads would change its bytes and add a
+ * control wired to nothing.
+ */
+export function templateParamsReadBy(html: string, kindId: number): ParamSpec[] {
+    return templateParamsFor(kindId).filter((p) =>
+        new RegExp(
+            `\\bparam\\s*\\(\\s*(["'\`])${p.id}\\1|\\bparams\\s*(?:\\.\\s*${p.id}\\b|\\[\\s*(["'\`])${p.id}\\2\\s*\\])`,
+        ).test(html),
+    );
+}

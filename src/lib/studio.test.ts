@@ -5,7 +5,7 @@
  * Run: npx tsx src/lib/studio.test.ts
  */
 import { getKind, RUNTIME_KINDS } from "./runtimes";
-import { templateFor, templateParamsFor } from "./templates";
+import { templateFor, templateParamsFor, templateParamsReadBy } from "./templates";
 import { resolveParams, validateSchema } from "./params";
 import { newDraft, seedAt } from "./draft";
 import { packageFromHtml, packageFromZip } from "./project";
@@ -247,6 +247,60 @@ window.ALEA_MAIN=piece;window.ALEA_PARAMS=Z;if(window.$alea&&window.ALEA_PARAMS)
             `${kind.name}: reads a declaration added under the harness`,
             declared?.params.map((p) => p.id).join(",") === "fold,roast",
             declared ? declared.params.map((p) => p.id).join(",") : "read nothing",
+        );
+    }
+
+    // Opening an upload that declares nothing writes in only the kind's
+    // defaults the code reads. Every pristine template reads all of its own.
+    for (const kind of RUNTIME_KINDS) {
+        check(
+            `${kind.name}: a pristine template is given every default it reads`,
+            templateParamsReadBy(templateFor(kind.kindId), kind.kindId)
+                .map((p) => p.id)
+                .join(",") ===
+                templateParamsFor(kind.kindId)
+                    .map((p) => p.id)
+                    .join(","),
+        );
+    }
+    {
+        const canvas =
+            RUNTIME_KINDS.find((k) => k.name === "vanilla")?.kindId ?? RUNTIME_KINDS[0].kindId;
+        // A finished generator with no parameters: an empty declaration, and
+        // no read of any default.
+        const paramless = `<!doctype html><html><head><title>Roots</title></head><body><canvas id="c"></canvas><script>window.$alea.paramsSchema=[];</script><script>!function(){var e=window.$alea;e.features({Tips:210}),e.ready()}();</script></body></html>`;
+        check(
+            "an upload that reads no defaults is given none",
+            templateParamsReadBy(paramless, canvas).length === 0,
+        );
+        check(
+            "and opens byte for byte as uploaded",
+            newDraft(
+                "Roots",
+                canvas,
+                packageFromHtml(paramless),
+                templateParamsReadBy(paramless, canvas),
+            ).html === packageFromHtml(paramless).html,
+        );
+        const ids = (html: string) =>
+            templateParamsReadBy(html, canvas)
+                .map((p) => p.id)
+                .join(",");
+        check(
+            "is given only the defaults it reads",
+            ids(`<script>$alea.param("spread", 0.3)</script>`) === "spread",
+        );
+        check(
+            "reads minified, single-quoted and params-object reads",
+            ids(`<script>e.param('density',.5);</script>`) === "density" &&
+                ids(`<script>var s=$alea.params.spread;</script>`) === "spread" &&
+                ids(`<script>var d=alea.params["density"];</script>`) === "density",
+        );
+        check(
+            "a mention that is not a read gives nothing",
+            ids(
+                `<script>// density and spread are not used here\nvar x={"id":"density"};</script>`,
+            ) === "",
         );
     }
 

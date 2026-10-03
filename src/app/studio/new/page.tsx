@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getKind, RUNTIME_KINDS } from "@/lib/runtimes";
-import { templateFor, templateParamsFor } from "@/lib/templates";
+import { templateFor, templateParamsFor, templateParamsReadBy } from "@/lib/templates";
 import { packageFromFile, packageFromHtml, type PackagedProject } from "@/lib/project";
 import { detectKind, detectParams } from "@/lib/detect";
 import { newDraft, saveDraft } from "@/lib/draft";
@@ -111,12 +111,14 @@ export default function NewGeneratorPage() {
         try {
             // A file that declares its own parameters already carries them, so
             // nothing is written over them. One that declares none gets the
-            // kind's defaults, on whatever kind the artist settled on.
+            // kind's defaults it reads, on whatever kind the artist settled on.
             const draft = newDraft(
                 held.name,
                 kindId,
                 held.project,
-                detectParams(held.project.html) ? [] : templateParamsFor(kindId),
+                detectParams(held.project.html)
+                    ? []
+                    : templateParamsReadBy(held.project.html, kindId),
             );
             await saveDraft(draft);
             router.push(`/studio/${draft.id}`);
