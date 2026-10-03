@@ -17,7 +17,7 @@ import dotenv from "dotenv";
 import { platformStats } from "./stats";
 import { channelsFromEnv, writeAll } from "./discord";
 import { network, router, provider } from "./chain";
-import { announce, generatorsChannel, mintsChannel, type Marks } from "./announce";
+import { announce, generatorsChannel, mintsChannel, marketChannel, type Marks } from "./announce";
 import { highWaterMark } from "./feed";
 import { heartbeat } from "../provider/heartbeat";
 
@@ -62,12 +62,13 @@ async function main() {
     );
 
     // Where the chain is now. Everything before this point is history.
-    const announcing = Boolean(generatorsChannel() || mintsChannel());
-    let marks: Marks = { generators: 0, mints: 0 };
+    const announcing = Boolean(generatorsChannel() || mintsChannel() || marketChannel());
+    let marks: Marks = { generators: 0, mints: 0, market: 0 };
     if (announcing) {
         marks = await highWaterMark();
         log(
-            `announcing from generator ${marks.generators}, mint ${marks.mints}, every ${ANNOUNCE_MS / 1000}s`,
+            `announcing from generator ${marks.generators}, mint ${marks.mints}, ` +
+                `market ${marks.market}, every ${ANNOUNCE_MS / 1000}s`,
         );
     } else {
         log("no announce channels, stats only");
