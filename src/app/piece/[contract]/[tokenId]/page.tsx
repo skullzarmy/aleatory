@@ -12,6 +12,7 @@ import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
 import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
+import { maxDprFor } from "@/lib/renderLimits";
 import { resolveName, fetchProfile, socialHandle } from "@/lib/identity";
 import { shortAddress } from "@/lib/utils";
 import { LiveRefresh } from "@/components/LiveRefresh";
@@ -143,6 +144,7 @@ export default async function PiecePage({
                         params={decodeParams(generator?.paramsSchema?.params ?? [], piece.params)}
                         imageUrl={cachedImage}
                         name={piece.name}
+                        maxDpr={maxDprFor(contract)}
                     />
                 </div>
 

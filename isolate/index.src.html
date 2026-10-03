@@ -20,7 +20,9 @@
  * it does not fetch: the code arrives from whoever framed it, already in hand.
  *
  *   parent -> isolate   { type: "alea:run", code, seed, params, deps,
- *                         freezeClock }  omit to freeze, false to let it run
+ *                         freezeClock, maxDpr }  freezeClock: omit to
+ *                         freeze, false to let it run. maxDpr: caps what
+ *                         devicePixelRatio reports, omit for the real one
  *   isolate -> parent   { type: "alea:hello" }        ready to receive
  *                       { type: "alea:ready", ... }   the piece signalled
  *                       { type: "alea:violation", … } it reached for something
@@ -74,7 +76,7 @@
     ran = true;
 
     try {
-      run(String(d.code || ""), String(d.seed || ""), d.params || {}, d.paramsSchema || [], d.deps || [], Boolean(d.wantImage), d.freezeClock);
+      run(String(d.code || ""), String(d.seed || ""), d.params || {}, d.paramsSchema || [], d.deps || [], Boolean(d.wantImage), d.freezeClock, d.maxDpr);
     } catch (err) {
       fail(String((err && err.message) || err));
     }
@@ -107,7 +109,7 @@
    * srcdoc child intersects its parent's policy, so it can only ever be
    * stricter than this page. Stricter is the direction we want.
    */
-  function run(code, seed, params, paramsSchema, deps, wantImage, freezeClock) {
+  function run(code, seed, params, paramsSchema, deps, wantImage, freezeClock, maxDpr) {
     var CSP = [
       "default-src 'none'",
       "script-src 'unsafe-inline' 'unsafe-eval'",
@@ -133,7 +135,8 @@
       params: params,
       paramsSchema: paramsSchema,
       wantImage: wantImage,
-      freezeClock: freezeClock !== false
+      freezeClock: freezeClock !== false,
+      maxDpr: maxDpr
     }).replace(/<\/script/gi, "<\\/script");
 
     var harness = HARNESS.replace("__ALEA_CONFIG__", config);
@@ -188,6 +191,17 @@
 (function () {
   "use strict";
   var CFG = __ALEA_CONFIG__;
+
+  // A capped device pixel ratio, for a generator whose cost scales with
+  // canvas area, same reasoning as the Math.random and Date substitutions
+  // below: the piece reads the real-looking value, gets the one this page
+  // decided it should have.
+  if (CFG.maxDpr) {
+    Object.defineProperty(window, "devicePixelRatio", {
+      get: function () { return CFG.maxDpr; }
+    });
+  }
+
   var t0 = Date.now();
   var violations = [];
   var featureStore = {};

@@ -516,7 +516,7 @@ function auditIsolation() {
         const fallbackDefault = Number(fallbackMatch[1]);
         // A literal value here would always win over the harness's own
         // default, exactly like `timeout: 8000` did.
-        const code = `var seed="s",params={},paramsSchema=[],wantImage=false,freezeClock=true;
+        const code = `var seed="s",params={},paramsSchema=[],wantImage=false,freezeClock=true,maxDpr=undefined;
             var config = JSON.parse(JSON.stringify({${configSrc}}));
             var CFG = config;
             return CFG.timeout || ${fallbackDefault};`;

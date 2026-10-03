@@ -5,6 +5,7 @@ import { ArtifactFrame } from "@/components/piece/ArtifactFrame";
 import { MintPanel } from "./MintPanel";
 import type { Generator } from "@/lib/generator";
 import type { ParamsSchema } from "@/lib/params";
+import { maxDprFor } from "@/lib/renderLimits";
 
 /**
  * The preview and the mint form, which share state: Randomize changes what is
@@ -34,6 +35,7 @@ export function MintView({
                     seed={previewSeed}
                     params={values}
                     name="Generator preview"
+                    maxDpr={maxDprFor(generator.address)}
                 />
                 <p className="mt-2 text-xs text-muted-foreground">
                     One draw from this generator. Yours will be different, and nobody knows how

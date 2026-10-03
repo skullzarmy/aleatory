@@ -24,6 +24,7 @@ export function ArtifactFrame({
     params,
     imageUrl,
     name,
+    maxDpr,
 }: {
     /** The generator, decoded from contract storage. */
     code?: string;
@@ -31,6 +32,8 @@ export function ArtifactFrame({
     params?: Record<string, unknown>;
     imageUrl?: string;
     name: string;
+    /** Caps what `devicePixelRatio` reports inside the piece. Unset for the real one. */
+    maxDpr?: number;
 }) {
     const runnable = Boolean(code && seed);
     /** True once the published image has actually arrived. */
@@ -67,6 +70,7 @@ export function ArtifactFrame({
                     params={params}
                     deps={deps}
                     liveClock
+                    maxDpr={maxDpr}
                     title={name}
                     className="h-full w-full border-0"
                 />

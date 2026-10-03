@@ -19,6 +19,7 @@ export function IsolateFrame({
     deps,
     wantImage,
     liveClock,
+    maxDpr,
     className,
     title = "Piece",
     onReady,
@@ -41,6 +42,8 @@ export function IsolateFrame({
     liveClock?: boolean;
     /** Ask for the pixels back, not just a digest. Used to capture a cover. */
     wantImage?: boolean;
+    /** Caps what `devicePixelRatio` reports inside the piece. Unset for the real one. */
+    maxDpr?: number;
     className?: string;
     title?: string;
     onReady?: (detail: {
@@ -70,8 +73,9 @@ export function IsolateFrame({
                 deps: deps ?? [],
                 wantImage: Boolean(wantImage),
                 freezeClock: !liveClock,
+                maxDpr,
             }),
-        [code, seed, params, paramsSchema, deps, wantImage, liveClock],
+        [code, seed, params, paramsSchema, deps, wantImage, liveClock, maxDpr],
     );
 
     // A fresh document per change. Swapping the source under a piece that has
