@@ -157,9 +157,9 @@ async function docsFor(tokens: TzktToken[]): Promise<Map<string, TokenDoc>> {
 }
 
 /**
- * The newest piece with an image, per generator, in one request:
+ * The newest rendered piece's image, per generator, in one request:
  * `contract.in` returns tokens across every generator at once, newest first,
- * and the first hit per generator wins.
+ * and the first rendered token per generator wins.
  *
  * A generator whose pieces are all still rendering has no cover, and the
  * caller shows its source instead.
@@ -178,6 +178,10 @@ export async function coversFor(generators: string[]): Promise<Map<string, strin
     for (const t of tokens) {
         const address = t.contract.address;
         if (out.has(address)) continue;
+        // A pending document carries an image too. Rendered means the token no
+        // longer points at its generator's pending document.
+        const s = state.get(key(t));
+        if (s?.pendingUri && s.tokenUri === s.pendingUri) continue;
         const m = t.metadata ?? docs.get(key(t));
         const display = m?.displayUri || m?.thumbnailUri;
         if (display) out.set(address, ipfsImageUrl(display));
