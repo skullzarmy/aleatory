@@ -57,7 +57,7 @@ fetch 279 kB.
 
 ## Size
 
-`npm run build` prints the size against 32,068 bytes, which is what one
+`npm run build` prints the size against 29,768 bytes, which is what one
 operation can carry. Under it, your generator is stored on chain in a single
 signature. Over it, it is compressed and walked into storage a chunk at a time,
 one signature per chunk — still fully on chain, just more wallet prompts. Only

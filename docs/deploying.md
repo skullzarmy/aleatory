@@ -338,7 +338,7 @@ that dies stays dead until the next trigger.
 ### Docker, any OS
 
 ```dockerfile
-FROM node:22-slim
+FROM node:24-slim
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci

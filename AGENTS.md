@@ -38,7 +38,7 @@ Five things ship from one checkout.
 
 | | | |
 |---|---|---|
-| the site | `src/` | Next 15, App Router. Reads public chain state. |
+| the site | `src/` | Next 16, App Router. Reads public chain state. |
 | the isolate | `isolate/` | A separate origin where artwork runs. |
 | the admin console | `admin/` | Its own Next app and its own Netlify site. |
 | the render provider | `provider/provider.mts` | Renders pieces, pins them, publishes. Run as a process by `provider/daemon.mts`. |
