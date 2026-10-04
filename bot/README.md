@@ -57,7 +57,7 @@ tag=deploy              collection_id, address, artist, code, code_encoding,
 tag=mint                token_id, buyer, params, paid, render_gas
 tag=set_token_metadata  token_id, metadata_uri, renderer
 tag=list                listing_id, seller, collection, token_id, price
-tag=delist              listing_id
+tag=delist              the listing id, bare
 tag=sale                listing_id or offer_id, collection, token_id, seller,
                         buyer, price
 ```
@@ -104,11 +104,12 @@ left off rather than filled in from the collection's current price.
 
 ## A cancellation says what it cancelled
 
-`delist`'s own payload carries only `listing_id`: the listing is gone from
-storage by the time it fires, and the contract never repeats what it already
-said in `list`. So a cancellation is announced from the earlier `list` event
-instead, correlated by marketplace and listing id together, since every
-marketplace numbers its listings from zero.
+`delist`'s own payload is the listing id and nothing else. SmartPy compiles a
+one-field record to its bare field, so TzKT returns it as a plain string such
+as `"1"`. The listing is gone from storage by the time it fires, and the
+contract never repeats what it already said in `list`. So a cancellation is
+announced from the earlier `list` event instead, correlated by marketplace and
+listing id together, since every marketplace numbers its listings from zero.
 
 **Seen this session, held in memory.** The common case: a listing made and
 later cancelled while this process has been running costs nothing beyond what

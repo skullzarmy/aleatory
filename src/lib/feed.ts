@@ -15,8 +15,8 @@ import {
     type TzktToken,
 } from "./tzkt";
 import { isBlockedGenerator } from "./blocklist";
-// Type only, so the cycle with generator.ts (which imports coversFor from
-// here) is erased at compile time and never exists at runtime.
+// Type only, so the cycle with generator.ts (which imports from here) is
+// erased at compile time and never exists at runtime.
 import type { GeneratorSummary } from "./generator";
 import {
     bytesToString,
@@ -242,6 +242,18 @@ function toPiece(
     };
 }
 
+/** Tokens as cards, resolved and named the same way on every page. */
+export async function piecesOf(
+    tokens: TzktToken[],
+    /** Generator names, from each generator's own metadata. */
+    names?: Map<string, string>,
+): Promise<FeedPiece[]> {
+    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
+    return tokens.map((t) =>
+        toPiece(t, names?.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
+    );
+}
+
 /**
  * Turn a set of (generator, token) pairs into real pieces. A listing carries a
  * generator, a token id and a price, so the image, the name and the artist are
@@ -266,14 +278,8 @@ export async function piecesFor(
         wanted.has(key(t)),
     );
 
-    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
-
-    return new Map(
-        tokens.map((t) => [
-            key(t),
-            toPiece(t, names?.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
-        ]),
-    );
+    const pieces = await piecesOf(tokens, names);
+    return new Map(pieces.map((p) => [p.key, p]));
 }
 
 /** How many generators the scope offers before it stops being scannable. */
@@ -372,12 +378,8 @@ export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Pr
         limit + 1,
         offset,
     );
-    const tokens = window.slice(0, limit);
-    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
     return {
-        pieces: tokens.map((t) =>
-            toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
-        ),
+        pieces: await piecesOf(window.slice(0, limit), aliasByAddress),
         generatorCount: all.length,
         unconfigured: false,
         hasMore: window.length > limit,
@@ -419,9 +421,8 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
 
     // The made side is a handful of generators, so the cover, the edition size
     // and the artist's own name are worth the extra reads.
-    const [docs, state, metas, covers, editions, paused] = await Promise.all([
-        docsFor(tokens),
-        pendingState(tokens),
+    const [held, metas, covers, editions, paused] = await Promise.all([
+        piecesOf(tokens, aliasByAddress),
         Promise.all(
             madeAddresses.map(
                 (a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({})),
@@ -433,9 +434,7 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
     ]);
 
     return {
-        held: tokens.map((t) =>
-            toPiece(t, aliasByAddress.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
-        ),
+        held,
         made: mine.map((c, i) => {
             const own = metas[i].displayUri ?? metas[i].thumbnailUri;
             return {
