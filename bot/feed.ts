@@ -46,7 +46,7 @@ interface PiecePayload {
     renderer?: string;
 }
 
-/** `list`, `delist` and `sale`, all from a marketplace. `delist` carries only `listing_id`. */
+/** `list` and `sale`, from a marketplace. `delist` is a bare listing id; see `idOf`. */
 interface MarketPayload {
     listing_id?: string;
     collection?: string;
@@ -407,9 +407,9 @@ interface PendingListing {
 
 /**
  * Listings this process has seen created, so a cancellation can say what was
- * cancelled without a second read: `delist`'s own payload carries only
- * `listing_id`. Keyed on marketplace and listing id together, since every
- * marketplace numbers its listings from zero.
+ * cancelled without a second read: `delist`'s own payload is only the listing
+ * id. Keyed on marketplace and listing id together, since every marketplace
+ * numbers its listings from zero.
  */
 const pendingListings = new Map<string, PendingListing>();
 
@@ -438,6 +438,20 @@ async function listingAt(marketplace: string, listingId: string): Promise<Pendin
 }
 
 /**
+ * The id an event names. SmartPy compiles a one-field record to its bare field,
+ * so `delist` reaches TzKT as a plain string ("1") and every wider record
+ * carries the id under `field`.
+ */
+export function idOf(payload: unknown, field: string): string {
+    if (typeof payload === "string") return payload;
+    if (payload && typeof payload === "object") {
+        const id = (payload as Record<string, unknown>)[field];
+        if (typeof id === "string") return id;
+    }
+    return "";
+}
+
+/**
  * `list`, `delist` and `sale`, across every marketplace the router has ever
  * held. Retired ones are watched too: a listing made before a marketplace
  * generation changed can still be cancelled or sold on it after.
@@ -452,7 +466,7 @@ export async function newMarketEvents(
     const { marketplaces } = await watched();
     if (marketplaces.length === 0) return { items: [], consumed: since };
 
-    const rows = await tzkt<EventRow<MarketPayload>[]>(
+    const rows = await tzkt<EventRow<MarketPayload | string>[]>(
         `/v1/contracts/events?contract.in=${marketplaces.join(",")}` +
             `&tag.in=list,delist,sale&id.gt=${since}&sort.asc=id&limit=${LIMIT}`,
     );
@@ -463,14 +477,15 @@ export async function newMarketEvents(
     for (const row of rows) {
         consumed = row.id;
         const marketplace = row.contract?.address ?? "";
-        const listingId = row.payload?.listing_id ?? "";
+        const listingId = idOf(row.payload, "listing_id");
+        const p: MarketPayload = row.payload && typeof row.payload === "object" ? row.payload : {};
 
         if (row.tag === "list") {
-            const collection = row.payload?.collection ?? "";
-            const tokenId = row.payload?.token_id ?? "";
+            const collection = p.collection ?? "";
+            const tokenId = p.token_id ?? "";
             if (!marketplace || !listingId || !collection || tokenId === "") continue;
-            const seller = row.payload?.seller ?? "";
-            const priceMutez = Number(row.payload?.price ?? 0);
+            const seller = p.seller ?? "";
+            const priceMutez = Number(p.price ?? 0);
             pendingListings.set(`${marketplace}:${listingId}`, {
                 collection,
                 tokenId,
@@ -532,8 +547,8 @@ export async function newMarketEvents(
         }
 
         // row.tag === "sale"
-        const collection = row.payload?.collection ?? "";
-        const tokenId = row.payload?.token_id ?? "";
+        const collection = p.collection ?? "";
+        const tokenId = p.token_id ?? "";
         if (!collection || tokenId === "") continue;
         if (marketplace && listingId) pendingListings.delete(`${marketplace}:${listingId}`);
 
@@ -546,9 +561,9 @@ export async function newMarketEvents(
             kind: "sold",
             collection,
             tokenId,
-            seller: row.payload?.seller ?? "",
-            buyer: row.payload?.buyer ?? "",
-            priceMutez: Number(row.payload?.price ?? 0),
+            seller: p.seller ?? "",
+            buyer: p.buyer ?? "",
+            priceMutez: Number(p.price ?? 0),
             name: meta.name || "",
             imageUri: meta.displayUri || meta.thumbnailUri || "",
             generatorName: facts.name,
