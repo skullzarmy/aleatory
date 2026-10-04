@@ -1,36 +1,23 @@
 import { NextResponse } from "next/server";
 
 /**
- * Pin an artist's source, and the documents that go with it. Publishing
- * needs an `ipfs://` pointer before the deploy operation is built, and pinning
- * needs a credential that cannot be in a browser.
+ * Pin the documents a publish needs: the pending document every generator
+ * carries, and a cover capture. Pinning needs a credential that cannot be in
+ * a browser.
  *
  * Unauthenticated, because requiring an account to publish would undo what the
  * studio is for, which makes this an open pinning endpoint on our account. The
  * limits are the whole defence:
  *
- *   - a ceiling on source, well above anything publishable
- *   - JSON documents capped far below that
+ *   - JSON documents capped well below anything a cover or pending doc needs
  *   - `content-type` fixed here, so nothing decides its own media type
- *
- * An artist can pin anywhere else and publish through the `ipfs://` field on
- * the deploy form.
  */
 
 const PINATA_JWT = process.env.PINATA_JWT || "";
 
-/**
- * Source is pinned for one case only: a generator too big to walk on chain,
- * which publishes behind an `ipfs://` pointer instead. So this cannot be one
- * operation's worth of bytes — everything that reaches this path is larger
- * than that by definition, and while it was, the pointer route answered 413
- * for every generator that needed it.
- */
-const MAX_SOURCE_BYTES = 1_000_000;
 const MAX_DOCUMENT_BYTES = 8_192;
 
 type Body =
-    | { kind: "source"; content: string; name?: string }
     | { kind: "document"; content: unknown; name?: string }
     | { kind: "image"; content: string; name?: string };
 
@@ -50,24 +37,6 @@ export async function POST(request: Request) {
     }
 
     try {
-        if (body.kind === "source") {
-            if (typeof body.content !== "string") {
-                return NextResponse.json({ error: "Expected a string." }, { status: 400 });
-            }
-            const bytes = new TextEncoder().encode(body.content);
-            if (bytes.length > MAX_SOURCE_BYTES) {
-                return NextResponse.json(
-                    {
-                        error: `That source is ${bytes.length.toLocaleString()} bytes, past the ${MAX_SOURCE_BYTES.toLocaleString()} this accepts.`,
-                    },
-                    { status: 413 },
-                );
-            }
-            const uri = await pinFile(bytes, body.name);
-            await warmGateway(uri);
-            return NextResponse.json({ uri });
-        }
-
         if (body.kind === "image") {
             // A generator cover, captured in the artist's own browser.
             const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(body.content ?? "");
@@ -81,7 +50,7 @@ export async function POST(request: Request) {
             if (bytes.length > MAX_IMAGE_BYTES) {
                 return NextResponse.json({ error: "Image too large." }, { status: 413 });
             }
-            const uri = await pinFile(bytes, body.name, "image/png");
+            const uri = await pinFile(bytes, body.name);
             await warmGateway(uri);
             return NextResponse.json({ uri });
         }
@@ -104,14 +73,12 @@ export async function POST(request: Request) {
     }
 }
 
-async function pinFile(bytes: Uint8Array, name?: string, type = "text/html"): Promise<string> {
+async function pinFile(bytes: Uint8Array, name?: string): Promise<string> {
     const form = new FormData();
-    // The type is ours, not the caller's: it is decided by which branch above
-    // accepted the body, never by anything the caller sent.
     form.append(
         "file",
-        new Blob([bytes.buffer as ArrayBuffer], { type }),
-        safeName(name) || (type === "image/png" ? "cover.png" : "source.html"),
+        new Blob([bytes.buffer as ArrayBuffer], { type: "image/png" }),
+        safeName(name) || "cover.png",
     );
     const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
         method: "POST",
