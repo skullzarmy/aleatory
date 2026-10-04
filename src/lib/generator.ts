@@ -1,13 +1,7 @@
 /**
  * A generator, read from its own storage.
  */
-import {
-    fetchStorage,
-    fetchRecentTokens,
-    fetchTokenUris,
-    type TokenMetadata,
-    type TzktToken,
-} from "./tzkt";
+import { fetchStorage, fetchRecentTokens } from "./tzkt";
 import {
     fetchGenerators,
     fetchGeneratorMeta,
@@ -23,13 +17,8 @@ export { fetchGeneratorMeta, type GeneratorMeta };
 import { tzktApi } from "./config";
 import { allFactories } from "./router";
 import { isBlockedGenerator } from "./blocklist";
-import {
-    bytesToString,
-    convertIpfsToGatewayUrl,
-    GATEWAY_TIMEOUT_MS,
-    ipfsImageUrl,
-} from "@/utils/ipfs";
-import { coversFor, type FeedPiece } from "./feed";
+import { bytesToString, ipfsImageUrl } from "@/utils/ipfs";
+import { coversFor, piecesOf, type FeedPiece } from "./feed";
 import type { ParamsSchema } from "./params";
 import { decodeCode } from "./piece";
 import { fetchProvider } from "./providers";
@@ -208,45 +197,11 @@ async function fetchParamsSchema(address: string): Promise<ParamsSchema | null> 
 }
 
 export async function fetchGeneratorPieces(address: string, limit = 48): Promise<FeedPiece[]> {
-    const tokens = await fetchRecentTokens([address], limit);
-
-    // The chain's own pointers, for anything TzKT has not resolved. It fetches
-    // `ipfs://` metadata on its own schedule and on some networks never.
-    const uris = await fetchTokenUris(address).catch(() => new Map<string, string>());
-    const docs = new Map<string, TokenMetadata>();
-    await Promise.all(
-        tokens
-            .filter((t) => !t.metadata?.displayUri && !t.metadata?.thumbnailUri)
-            .map(async (t) => {
-                const uri = uris.get(t.tokenId);
-                if (!uri?.startsWith("ipfs://")) return;
-                const doc = await fetch(convertIpfsToGatewayUrl(uri), {
-                    next: { revalidate: 300 },
-                    // A gateway that is slow must not hold the page open.
-                    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
-                })
-                    .then((r) => (r.ok ? (r.json() as Promise<TokenMetadata>) : null))
-                    .catch(() => null);
-                if (doc) docs.set(t.tokenId, doc);
-            }),
-    );
-
-    return tokens.map((t: TzktToken) => {
-        const m = t.metadata ?? docs.get(t.tokenId);
-        const display = m?.displayUri || m?.thumbnailUri;
-        return {
-            key: `${address}:${t.tokenId}`,
-            contract: address,
-            tokenId: t.tokenId,
-            name: m?.name || `#${Number(t.tokenId) + 1}`,
-            generatorName: t.contract.alias || "",
-            artist: t.firstMinter?.address,
-            mintedAt: t.firstTime,
-            imageUrl: display ? ipfsImageUrl(display) : undefined,
-            artifactUrl: m?.artifactUri ? ipfsImageUrl(m.artifactUri) : undefined,
-            pending: !display,
-        };
-    });
+    const [tokens, meta] = await Promise.all([
+        fetchRecentTokens([address], limit),
+        fetchGeneratorMeta(address).catch((): GeneratorMeta => ({})),
+    ]);
+    return piecesOf(tokens, new Map([[address, meta.name ?? ""]]));
 }
 
 export interface GeneratorSummary {
