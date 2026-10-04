@@ -11,8 +11,8 @@ Aleatory's numbers, written into Discord channel names.
 ```
 
 It also announces. A generator published on chain gets a message in one
-channel, a piece minted gets one in another, each with its picture and a link
-to its page.
+channel, a piece minted gets one in another, and a piece listed, cancelled or
+sold gets one in a third, each with its picture and a link to its page.
 
 A process, run wherever the provider runs. Nothing here imports from the site,
 so it keeps working if the site is deleted.
@@ -56,7 +56,17 @@ tag=deploy              collection_id, address, artist, code, code_encoding,
                         code_hash, code_uri, edition_size
 tag=mint                token_id, buyer, params, paid, render_gas
 tag=set_token_metadata  token_id, metadata_uri, renderer
+tag=list                listing_id, seller, collection, token_id, price
+tag=delist              listing_id
+tag=sale                listing_id or offer_id, collection, token_id, seller,
+                        buyer, price
 ```
+
+The marketplace is not the only contract on a network that emits `sale`: an
+unrelated collection used the same tag for something else entirely. Every
+market read here is scoped to `contract.in=<the router's marketplaces>`, same
+as every other feed is scoped to the factories or generators it actually
+watches, never a bare tag with no contract filter.
 
 So the price and the traits in an announcement are what the contract published,
 rather than figures reconstructed from an indexer's tables.
@@ -91,6 +101,29 @@ Across a restart, a piece minted before startup and rendered after it arrives
 with no `mint` event. The traits come off the piece's own document instead,
 which the chain published just the same. **`paid` does not**, so that field is
 left off rather than filled in from the collection's current price.
+
+## A cancellation says what it cancelled
+
+`delist`'s own payload carries only `listing_id`: the listing is gone from
+storage by the time it fires, and the contract never repeats what it already
+said in `list`. So a cancellation is announced from the earlier `list` event
+instead, correlated by marketplace and listing id together, since every
+marketplace numbers its listings from zero.
+
+**Seen this session, held in memory.** The common case: a listing made and
+later cancelled while this process has been running costs nothing beyond what
+`list` already read.
+
+**Not seen this session, read directly.** A restart, or a cancellation of
+something listed before this pass started: the in-memory map has nothing, so
+one narrow read asks the event log for that exact listing id's `list` row.
+Cheap and specific, the same shape as every other read here, not a backfill.
+
+**Neither:** nothing coherent to say, so it is skipped, the same way a piece
+that is never rendered is never announced.
+
+`sale` needs none of this. Both `buy` and `accept_offer` emit it with the
+collection, the token, the seller and the buyer already in the payload.
 
 ## The reads on top
 
@@ -169,9 +202,11 @@ with a 404 that looks like a wrong channel ID.
 
 ### 4. The announcement channels
 
-Two ordinary **text** channels, wherever you want them. They are separate from
-the stat category on purpose: this is the half of the bot that talks, and a
-channel that is only ever announcements is a channel somebody can mute.
+Ordinary **text** channels, wherever you want them: one each for generators,
+mints and the market, or fewer if you only want some of them announced. They
+are separate from the stat category on purpose: this is the half of the bot
+that talks, and a channel that is only ever announcements is a channel
+somebody can mute.
 
 | Role | Permission | |
 | --- | --- | --- |
@@ -200,6 +235,7 @@ DISCORD_BOT_TOKEN=
 DISCORD_STAT_CHANNELS=[{"id":"…","label":"🎨 Generators: {generators}"},{"id":"…","label":"🖼 Pieces: {pieces}"},{"id":"…","label":"💸 Minted: {minted} ꜩ"},{"id":"…","label":"🏦 Earned: {earned} ꜩ"}]
 DISCORD_GENERATORS_CHANNEL=
 DISCORD_MINTS_CHANNEL=
+DISCORD_MARKET_CHANNEL=
 ```
 
 Optional:
@@ -209,8 +245,8 @@ ALEA_BOT_TICK_MS=          # the rename clock. Ten minutes, and its own floor.
 ALEA_BOT_ANNOUNCE_MS=      # the announcement clock. A minute, floor of fifteen seconds.
 ```
 
-Leave either announcement channel empty and that half stays quiet. Leave both
-empty and the bot is what it was before: stat channels on the slow clock.
+Leave any announcement channel empty and that half stays quiet. Leave all
+three empty and the bot is what it was before: stat channels on the slow clock.
 
 `ALEA_SITE_URL` is what an announcement links to and where it loads pictures
 from, through the site's own `/api/img` route. It has nothing to do with which

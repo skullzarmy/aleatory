@@ -10,7 +10,7 @@
  */
 import dotenv from "dotenv";
 import { channelsFromEnv } from "./discord";
-import { generatorsChannel, mintsChannel } from "./announce";
+import { generatorsChannel, mintsChannel, marketChannel } from "./announce";
 
 dotenv.config();
 
@@ -142,6 +142,7 @@ async function main() {
             ? [{ id: generatorsChannel(), need: ANNOUNCE, job: "generators" }]
             : []),
         ...(mintsChannel() ? [{ id: mintsChannel(), need: ANNOUNCE, job: "mints" }] : []),
+        ...(marketChannel() ? [{ id: marketChannel(), need: ANNOUNCE, job: "market" }] : []),
     ];
 
     if (targets.length === 0) {

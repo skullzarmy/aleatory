@@ -10,7 +10,7 @@
  * post is tried again on the next pass.
  */
 import { post, type Embed, type Result } from "./discord";
-import { newGenerators, newMints } from "./feed";
+import { newGenerators, newMints, newMarketEvents, type NewMarketEvent } from "./feed";
 
 /** The mark's gold, so a message is recognisably ours in a feed. */
 const GOLD = 0xd9b46a;
@@ -18,6 +18,7 @@ const GOLD = 0xd9b46a;
 export interface Marks {
     generators: number;
     mints: number;
+    market: number;
 }
 
 export const site = (): string =>
@@ -25,6 +26,7 @@ export const site = (): string =>
 
 export const generatorsChannel = () => process.env.DISCORD_GENERATORS_CHANNEL || "";
 export const mintsChannel = () => process.env.DISCORD_MINTS_CHANNEL || "";
+export const marketChannel = () => process.env.DISCORD_MARKET_CHANNEL || "";
 
 /** tz1abc…wxyz, because a full address in an embed field wraps. */
 function short(a: string): string {
@@ -141,6 +143,50 @@ export function mintEmbed(m: {
     return embed;
 }
 
+const MARKET_FOOTER: Record<NewMarketEvent["kind"], string> = {
+    listed: "Listed",
+    cancelled: "Listing cancelled",
+    sold: "Sold",
+};
+
+/** A listing, a cancellation or a sale: the seller, the price, and the buyer for a sale. */
+export function marketEmbed(e: NewMarketEvent): Embed {
+    const embed: Embed = {
+        title: e.name || `#${Number(e.tokenId) + 1}`,
+        url: `${site()}/piece/${e.collection}/${e.tokenId}`,
+        color: GOLD,
+        timestamp: e.at,
+        author: by(e.artist),
+        footer: { text: MARKET_FOOTER[e.kind] },
+        fields: [
+            {
+                name: "Edition",
+                value: `${Number(e.tokenId) + 1} of ${edition(e.editionSize)}`,
+                inline: true,
+            },
+            {
+                name: "Generator",
+                value: `[${e.generatorName || short(e.collection)}](${site()}/generator/${e.collection})`,
+                inline: true,
+            },
+            { name: "Seller", value: short(e.seller) || "unknown", inline: true },
+        ],
+    };
+
+    if (e.kind === "sold") {
+        embed.fields?.push({
+            name: "Buyer",
+            value: short(e.buyer ?? "") || "unknown",
+            inline: true,
+        });
+    }
+    embed.fields?.push({ name: "Price", value: tez(e.priceMutez), inline: true });
+
+    const picture = image(e.imageUri);
+    if (picture) embed.image = { url: picture };
+    return embed;
+}
+
 export interface Pass {
     posted: number;
     results: Result[];
@@ -231,6 +277,32 @@ export async function announce(token: string, marks: Marks): Promise<Pass> {
             if (complete) next.mints = Math.max(next.mints, consumed);
         } catch (e) {
             results.push({ id: mints, outcome: "failed", detail: said(e) });
+        }
+    }
+
+    const market = marketChannel();
+    if (market) {
+        try {
+            const { items, consumed } = await newMarketEvents(next.market);
+            let complete = true;
+            for (const e of items) {
+                const embed = marketEmbed(e);
+                await waitForImage(embed.image?.url);
+                const result = await post(token, market, embed);
+                results.push(result);
+                if (result.outcome !== "wrote") {
+                    complete = false;
+                    break;
+                }
+                next.market = e.cursor;
+                posted++;
+            }
+            // A cancellation with no listing in memory or in the log posts
+            // nothing and carries no cursor out, the same gap `newMints`
+            // has for a mint still waiting on its render.
+            if (complete) next.market = Math.max(next.market, consumed);
+        } catch (e) {
+            results.push({ id: market, outcome: "failed", detail: said(e) });
         }
     }
 

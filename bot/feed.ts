@@ -46,6 +46,17 @@ interface PiecePayload {
     renderer?: string;
 }
 
+/** `list`, `delist` and `sale`, all from a marketplace. `delist` carries only `listing_id`. */
+interface MarketPayload {
+    listing_id?: string;
+    collection?: string;
+    token_id?: string;
+    seller?: string;
+    price?: string;
+    /** `sale` only. */
+    buyer?: string;
+}
+
 export interface NewGenerator {
     cursor: number;
     address: string;
@@ -75,6 +86,24 @@ export interface NewMint {
     name: string;
     imageUri: string;
     /** The generator this belongs to, so a mint can name it rather than a KT1. */
+    generatorName: string;
+    artist: string;
+    editionSize: number;
+    at: string;
+}
+
+export interface NewMarketEvent {
+    cursor: number;
+    kind: "listed" | "cancelled" | "sold";
+    collection: string;
+    tokenId: string;
+    seller: string;
+    /** `sold` only. */
+    buyer?: string;
+    priceMutez: number;
+    /** From the piece's own metadata. */
+    name: string;
+    imageUri: string;
     generatorName: string;
     artist: string;
     editionSize: number;
@@ -201,33 +230,42 @@ function asRecord(json: string): Record<string, unknown> {
 /** The parameters the collector picked, as the event carries them. */
 const decodeParams = (hex?: string) => (hex ? asRecord(bytesToString(hex)) : {});
 
-async function watched(): Promise<{ factories: string[]; generators: string[] }> {
+async function watched(): Promise<{
+    factories: string[];
+    generators: string[];
+    marketplaces: string[];
+}> {
     const where = await addresses();
     const factories = [...new Set(where.factories.filter(Boolean))];
-    if (factories.length === 0) return { factories: [], generators: [] };
-    return { factories, generators: await generatorsOf(factories) };
+    const marketplaces = [...new Set(where.marketplaces.filter(Boolean))];
+    if (factories.length === 0) return { factories: [], generators: [], marketplaces };
+    return { factories, generators: await generatorsOf(factories), marketplaces };
 }
 
+const newestEvent = async (contracts: string[], tags: string): Promise<number> => {
+    if (contracts.length === 0) return 0;
+    const rows = await tzkt<EventRow<unknown>[]>(
+        `/v1/contracts/events?contract.in=${contracts.join(",")}&tag.in=${tags}` +
+            `&sort.desc=id&limit=1`,
+    );
+    return rows[0]?.id ?? 0;
+};
+
 /** The newest event id on each feed. What a start records and goes on from. */
-export async function highWaterMark(): Promise<{ generators: number; mints: number }> {
-    const { factories, generators: served } = await watched();
-    if (factories.length === 0) return { generators: 0, mints: 0 };
+export async function highWaterMark(): Promise<{
+    generators: number;
+    mints: number;
+    market: number;
+}> {
+    const { factories, generators: served, marketplaces } = await watched();
 
-    const newest = async (contracts: string[], tags: string): Promise<number> => {
-        if (contracts.length === 0) return 0;
-        const rows = await tzkt<EventRow<unknown>[]>(
-            `/v1/contracts/events?contract.in=${contracts.join(",")}&tag.in=${tags}` +
-                `&sort.desc=id&limit=1`,
-        );
-        return rows[0]?.id ?? 0;
-    };
-
-    const [generators, mints] = await Promise.all([
-        newest(factories, "deploy"),
+    const [generators, mints, market] = await Promise.all([
+        newestEvent(factories, "deploy"),
         // One mark over both tags, because one cursor reads both.
-        newest(served, "mint,set_token_metadata"),
+        newestEvent(served, "mint,set_token_metadata"),
+        newestEvent(marketplaces, "list,delist,sale"),
     ]);
-    return { generators, mints };
+    return { generators, mints, market };
 }
 
 /** `deploy` events from any factory the router has ever named. */
@@ -348,6 +386,169 @@ export async function newMints(since: number): Promise<{ items: NewMint[]; consu
             collector: sale?.collector ?? meta.firstMinter ?? "",
             paidMutez: sale ? sale.paidMutez : null,
             params: sale?.params ?? asRecord(meta.aleaParams ?? ""),
+            name: meta.name || "",
+            imageUri: meta.displayUri || meta.thumbnailUri || "",
+            generatorName: facts.name,
+            artist: facts.artist,
+            editionSize: facts.editionSize,
+            at: row.timestamp,
+        });
+    }
+
+    return { items, consumed };
+}
+
+interface PendingListing {
+    collection: string;
+    tokenId: string;
+    seller: string;
+    priceMutez: number;
+}
+
+/**
+ * Listings this process has seen created, so a cancellation can say what was
+ * cancelled without a second read: `delist`'s own payload carries only
+ * `listing_id`. Keyed on marketplace and listing id together, since every
+ * marketplace numbers its listings from zero.
+ */
+const pendingListings = new Map<string, PendingListing>();
+
+/**
+ * A listing this process did not see created: a restart, or a cancellation of
+ * something listed before this pass started. The event log is the only
+ * remaining record of it, so one direct, narrow read recovers it.
+ */
+async function listingAt(marketplace: string, listingId: string): Promise<PendingListing | null> {
+    try {
+        const rows = await tzkt<EventRow<MarketPayload>[]>(
+            `/v1/contracts/events?contract=${marketplace}&tag=list` +
+                `&payload.listing_id=${listingId}&limit=1`,
+        );
+        const p = rows[0]?.payload;
+        if (!p?.collection || p.token_id === undefined) return null;
+        return {
+            collection: p.collection,
+            tokenId: p.token_id,
+            seller: p.seller ?? "",
+            priceMutez: Number(p.price ?? 0),
+        };
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * `list`, `delist` and `sale`, across every marketplace the router has ever
+ * held. Retired ones are watched too: a listing made before a marketplace
+ * generation changed can still be cancelled or sold on it after.
+ *
+ * `sale` carries `collection`, `token_id`, `seller` and `buyer` on its own,
+ * whichever of `buy` or `accept_offer` emitted it, so only `delist` needs the
+ * lookup above.
+ */
+export async function newMarketEvents(
+    since: number,
+): Promise<{ items: NewMarketEvent[]; consumed: number }> {
+    const { marketplaces } = await watched();
+    if (marketplaces.length === 0) return { items: [], consumed: since };
+
+    const rows = await tzkt<EventRow<MarketPayload>[]>(
+        `/v1/contracts/events?contract.in=${marketplaces.join(",")}` +
+            `&tag.in=list,delist,sale&id.gt=${since}&sort.asc=id&limit=${LIMIT}`,
+    );
+
+    const items: NewMarketEvent[] = [];
+    let consumed = since;
+
+    for (const row of rows) {
+        consumed = row.id;
+        const marketplace = row.contract?.address ?? "";
+        const listingId = row.payload?.listing_id ?? "";
+
+        if (row.tag === "list") {
+            const collection = row.payload?.collection ?? "";
+            const tokenId = row.payload?.token_id ?? "";
+            if (!marketplace || !listingId || !collection || tokenId === "") continue;
+            const seller = row.payload?.seller ?? "";
+            const priceMutez = Number(row.payload?.price ?? 0);
+            pendingListings.set(`${marketplace}:${listingId}`, {
+                collection,
+                tokenId,
+                seller,
+                priceMutez,
+            });
+
+            const [meta, facts] = await Promise.all([
+                tokenMeta(collection, tokenId),
+                generatorFacts(collection),
+            ]);
+            items.push({
+                cursor: row.id,
+                kind: "listed",
+                collection,
+                tokenId,
+                seller,
+                priceMutez,
+                name: meta.name || "",
+                imageUri: meta.displayUri || meta.thumbnailUri || "",
+                generatorName: facts.name,
+                artist: facts.artist,
+                editionSize: facts.editionSize,
+                at: row.timestamp,
+            });
+            continue;
+        }
+
+        if (row.tag === "delist") {
+            if (!marketplace || !listingId) continue;
+            const key = `${marketplace}:${listingId}`;
+            const known = pendingListings.get(key) ?? (await listingAt(marketplace, listingId));
+            pendingListings.delete(key);
+            // Nothing in memory and nothing in the log: the listing predates
+            // this process by more than it kept, with nothing coherent left
+            // to say. Skipped the same way a piece never rendered is never
+            // announced.
+            if (!known) continue;
+
+            const [meta, facts] = await Promise.all([
+                tokenMeta(known.collection, known.tokenId),
+                generatorFacts(known.collection),
+            ]);
+            items.push({
+                cursor: row.id,
+                kind: "cancelled",
+                collection: known.collection,
+                tokenId: known.tokenId,
+                seller: known.seller,
+                priceMutez: known.priceMutez,
+                name: meta.name || "",
+                imageUri: meta.displayUri || meta.thumbnailUri || "",
+                generatorName: facts.name,
+                artist: facts.artist,
+                editionSize: facts.editionSize,
+                at: row.timestamp,
+            });
+            continue;
+        }
+
+        // row.tag === "sale"
+        const collection = row.payload?.collection ?? "";
+        const tokenId = row.payload?.token_id ?? "";
+        if (!collection || tokenId === "") continue;
+        if (marketplace && listingId) pendingListings.delete(`${marketplace}:${listingId}`);
+
+        const [meta, facts] = await Promise.all([
+            tokenMeta(collection, tokenId),
+            generatorFacts(collection),
+        ]);
+        items.push({
+            cursor: row.id,
+            kind: "sold",
+            collection,
+            tokenId,
+            seller: row.payload?.seller ?? "",
+            buyer: row.payload?.buyer ?? "",
+            priceMutez: Number(row.payload?.price ?? 0),
             name: meta.name || "",
             imageUri: meta.displayUri || meta.thumbnailUri || "",
             generatorName: facts.name,
