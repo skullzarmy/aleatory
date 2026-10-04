@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, formatTez } from "@/lib/utils";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { FeedPiece } from "@/lib/feed";
 import { AccountName } from "@/components/account/AccountName";
@@ -7,7 +7,15 @@ import { PieceImage } from "./PieceImage";
 
 // The minter renders as AccountName, not a link: the whole card is already a
 // link to the piece, and an anchor inside an anchor won't hydrate.
-export function PieceCard({ piece }: { piece: FeedPiece }) {
+export function PieceCard({
+    piece,
+    priceMutez,
+}: {
+    piece: FeedPiece;
+    /** This piece's current listing, when it has one. The grid is pieces from
+     * a mint, not pieces for sale, so most calls pass nothing. */
+    priceMutez?: bigint;
+}) {
     return (
         <Link
             href={`/piece/${piece.contract}/${piece.tokenId}`}
@@ -15,6 +23,11 @@ export function PieceCard({ piece }: { piece: FeedPiece }) {
         >
             <div className="relative aspect-square bg-muted">
                 <PieceImage src={piece.imageUrl} pending={piece.pending} />
+                {priceMutez !== undefined && (
+                    <span className="absolute bottom-2 right-2 rounded-md bg-background/90 px-2 py-1 text-sm font-semibold tabular-nums shadow-sm backdrop-blur">
+                        {formatTez(priceMutez)} ꜩ
+                    </span>
+                )}
             </div>
 
             <div className="space-y-1 p-3">

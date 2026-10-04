@@ -54,10 +54,19 @@ export default async function GeneratorPage({ params }: { params: Params }) {
     const [generator, pieces, market] = await Promise.all([
         fetchGenerator(address),
         fetchGeneratorPieces(address),
-        fetchListingPage({ generator: address, limit: 1 }).catch(() => ({ total: 0 })),
+        // The full list, not just the count: the grid below prices whichever
+        // of these pieces are listed. 500 matches the row cap `fetchListingPage`
+        // already reads per marketplace, so this never pages.
+        fetchListingPage({ generator: address, limit: 500 }).catch(() => ({
+            total: 0,
+            listings: [],
+        })),
     ]);
     if (!generator) return notFound();
     const listed = market.total;
+    const prices = new Map(
+        market.listings.map((l) => [`${l.generator}:${l.tokenId}`, l.priceMutez] as const),
+    );
 
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
@@ -114,7 +123,7 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                             </Link>
                         )}
                     </div>
-                    <FeedGrid pieces={pieces} />
+                    <FeedGrid pieces={pieces} prices={prices} />
                 </div>
             )}
         </div>
