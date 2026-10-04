@@ -72,6 +72,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [upload, setUpload] = useState<UploadProgress | null>(null);
     const [signatures, setSignatures] = useState(1);
     const [error, setError] = useState<string | null>(null);
+    const [pendingUpload, setPendingUpload] = useState(draft?.pendingUpload);
+    const [abandoning, setAbandoning] = useState(false);
     // Recipients that will never be paid, shown once and deployed past on a
     // second click.
     const [royaltyWarnings, setRoyaltyWarnings] = useState<string[]>([]);
@@ -297,6 +299,20 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         return { fatal, warnings };
     }
 
+    // No contract entrypoint clears `code`, so this cannot touch the stuck
+    // generator. It only stops this draft from resuming into it. The
+    // generator itself stays on chain, unsealed, abandoned.
+    async function abandonPendingUpload() {
+        if (!draft || !pendingUpload) return;
+        setAbandoning(true);
+        try {
+            await saveDraft({ ...draft, pendingUpload: undefined });
+            setPendingUpload(undefined);
+        } finally {
+            setAbandoning(false);
+        }
+    }
+
     async function submit() {
         const bad = problem();
         if (bad) {
@@ -335,7 +351,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             const result = await publishGenerator(
                 await getClient(),
                 {
-                    draft,
+                    draft: { ...draft, pendingUpload },
                     name: name.trim(),
                     description: description.trim(),
                     tags: tagsList,
@@ -463,6 +479,37 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 void submit();
             }}
         >
+            {pendingUpload && (
+                <div className="space-y-3 rounded-lg border border-warning/40 bg-warning/10 p-4 text-xs">
+                    <p>
+                        An earlier publish of this draft stopped partway through sending code on
+                        chain, to{" "}
+                        <a
+                            href={tzktLink(pendingUpload)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                        >
+                            {shortAddress(pendingUpload)}
+                        </a>
+                        . Publishing again resumes it from exactly where it stopped.
+                    </p>
+                    <p>
+                        To deploy fresh instead, abandon it first. The unfinished contract stays on
+                        chain, unsealed, and can never mint. There is nothing to undo, it just sits
+                        unused.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => void abandonPendingUpload()}
+                        disabled={abandoning}
+                        className="rounded-md border border-border px-3 py-1.5 font-medium hover:bg-accent disabled:opacity-50"
+                    >
+                        {abandoning ? "Abandoning…" : "Abandon it, deploy fresh instead"}
+                    </button>
+                </div>
+            )}
+
             <Field label="Generator name" permanent>
                 <input
                     value={name}
