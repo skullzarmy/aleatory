@@ -73,9 +73,7 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
             <div>
                 <p className="text-3xl font-semibold tracking-tight">{formatTez(burn)} ꜩ</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    {plan.route === "pointer"
-                        ? `one-off. Your ${bytes.toLocaleString("en-US")}-byte generator is stored off chain, so there is no storage burn for it.`
-                        : `one-off, to store your ${bytes.toLocaleString("en-US")}-byte generator on chain.`}
+                    one-off, to store your {bytes.toLocaleString("en-US")}-byte generator on chain.
                 </p>
             </div>
 
@@ -108,14 +106,6 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
                     Bigger than one operation, so it is compressed and walked on chain a chunk at a
                     time. That is {plan.signatures} wallet prompts instead of one, and the art is
                     still fully on chain.
-                </p>
-            )}
-
-            {plan.route === "pointer" && (
-                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
-                    Too big to walk on chain in a reasonable number of signatures, so the source
-                    would be stored off chain and the contract would hold a pointer to it. Trim it
-                    down, or move a library out of it, to keep the art on chain.
                 </p>
             )}
 

@@ -13,7 +13,7 @@ import { declaredIn, librariesIn, recordFor, specFor, withLibraries } from "./li
 import { P5_DEP, THREE_DEP } from "./kinds";
 import { detectParams } from "./detect";
 import { MAX_PARAMS } from "./params";
-import { MAX_CHUNK_BYTES, MAX_INLINE_CODE_BYTES, MAX_WALK_CHUNKS, publishPlan } from "./plan";
+import { MAX_INLINE_CODE_BYTES, publishPlan } from "./plan";
 import { randomBytes } from "node:crypto";
 import { strToU8, zipSync } from "fflate";
 import { readFileSync } from "node:fs";
@@ -761,7 +761,7 @@ async function publishingChecks() {
     const reported = await publishPlan(document(49_000));
     check(
         `49KB publishes rather than being refused (${reported.route}, ${reported.signatures} signatures)`,
-        reported.route !== "pointer",
+        reported.route === "walked",
         "this is the generator the studio called too big to publish",
     );
     check(
@@ -770,26 +770,19 @@ async function publishingChecks() {
     );
 
     // Far enough past one operation that no implementation of gzip brings it
-    // back under, and far short of the walk budget.
+    // back under.
     const walked = await publishPlan(document(120_000));
     check(
         `past one operation it walks on chain (${walked.chunks} chunks, ${walked.signatures} signatures)`,
         walked.route === "walked" && walked.signatures === walked.chunks + 2,
     );
 
+    // There is no size past which this falls back to a pointer: a generator
+    // this large just asks for more chunks, not a different route.
     const huge = await publishPlan(document(600_000));
-    check("past the walk budget it goes behind a pointer", huge.route === "pointer");
-    check("and nothing is burned for code that is not in storage", huge.codeBytes === 0);
-
-    // The pointer route pins the source, and the pinning endpoint used to cap
-    // that at one operation's worth of bytes: every generator that needed a
-    // pointer was refused by the only path that could carry it.
-    const pin = readFileSync("src/app/api/pin/route.ts", "utf8");
-    const ceiling = Number(/MAX_SOURCE_BYTES = ([\d_]+)/.exec(pin)?.[1].replace(/_/g, "") ?? 0);
     check(
-        "the pinning endpoint accepts a generator large enough to need it",
-        ceiling > MAX_CHUNK_BYTES * MAX_WALK_CHUNKS,
-        `pin accepts ${ceiling.toLocaleString()}, the pointer route starts above ${(MAX_CHUNK_BYTES * MAX_WALK_CHUNKS).toLocaleString()}`,
+        `no ceiling on chunk count (${huge.chunks} chunks)`,
+        huge.route === "walked" && huge.codeBytes > 0,
     );
 }
 
