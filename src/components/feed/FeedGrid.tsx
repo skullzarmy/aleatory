@@ -2,11 +2,18 @@ import { PieceCard, PieceCardSkeleton } from "./PieceCard";
 import { AutoGrid } from "./AutoGrid";
 import type { FeedPiece } from "@/lib/feed";
 
-export function FeedGrid({ pieces }: { pieces: FeedPiece[] }) {
+export function FeedGrid({
+    pieces,
+    prices,
+}: {
+    pieces: FeedPiece[];
+    /** Active listings among these pieces, keyed the same way `FeedPiece.key` is. */
+    prices?: Map<string, bigint>;
+}) {
     return (
         <AutoGrid className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {pieces.map((p) => (
-                <PieceCard key={p.key} piece={p} />
+                <PieceCard key={p.key} piece={p} priceMutez={prices?.get(p.key)} />
             ))}
         </AutoGrid>
     );
