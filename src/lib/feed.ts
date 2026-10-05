@@ -12,6 +12,7 @@ import {
     fetchTokenUris,
     fetchEditionSizes,
     fetchPausedStates,
+    fetchSealedStates,
     type TzktToken,
 } from "./tzkt";
 import { isBlockedGenerator } from "./blocklist";
@@ -425,7 +426,7 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
 
     // The made side is a handful of generators, so the cover, the edition size
     // and the artist's own name are worth the extra reads.
-    const [held, metas, covers, editions, paused] = await Promise.all([
+    const [held, metas, covers, editions, paused, sealed] = await Promise.all([
         piecesOf(tokens, aliasByAddress),
         Promise.all(
             madeAddresses.map(
@@ -435,23 +436,27 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
         coversFor(madeAddresses).catch(() => new Map<string, string>()),
         fetchEditionSizes(factories, madeAddresses).catch(() => new Map<string, number>()),
         fetchPausedStates(madeAddresses).catch(() => new Map<string, boolean>()),
+        fetchSealedStates(madeAddresses).catch(() => new Map<string, boolean>()),
     ]);
 
     return {
         held,
-        made: mine.map((c, i) => {
-            const own = metas[i].displayUri ?? metas[i].thumbnailUri;
-            return {
-                address: c.address,
-                name: metas[i].name || aliasByAddress.get(c.address) || c.alias,
-                description: metas[i].description,
-                coverUrl: own ? ipfsImageUrl(own) : covers.get(c.address),
-                minted: c.tokensCount ?? 0,
-                editionSize: editions.get(c.address) ?? 0,
-                firstActivity: c.firstActivityTime,
-                paused: paused.get(c.address) ?? false,
-            };
-        }),
+        made: mine
+            .map((c, i) => {
+                const own = metas[i].displayUri ?? metas[i].thumbnailUri;
+                return {
+                    address: c.address,
+                    name: metas[i].name || aliasByAddress.get(c.address) || c.alias,
+                    description: metas[i].description,
+                    coverUrl: own ? ipfsImageUrl(own) : covers.get(c.address),
+                    minted: c.tokensCount ?? 0,
+                    editionSize: editions.get(c.address) ?? 0,
+                    firstActivity: c.firstActivityTime,
+                    paused: paused.get(c.address) ?? false,
+                    sealed: sealed.get(c.address) ?? true,
+                };
+            })
+            .filter((g) => !g.paused && g.sealed),
         unconfigured: false,
     };
 }

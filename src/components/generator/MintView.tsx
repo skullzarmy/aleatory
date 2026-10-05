@@ -6,6 +6,7 @@ import { MintPanel } from "./MintPanel";
 import type { Generator } from "@/lib/generator";
 import type { ParamsSchema } from "@/lib/params";
 import { maxDprFor } from "@/lib/renderLimits";
+import { ShareButtons, type ArtistHandles } from "@/components/ShareButtons";
 
 /**
  * The preview and the mint form, which share state: Randomize changes what is
@@ -21,11 +22,17 @@ export function MintView({
     generator,
     schema,
     coverUrl,
+    shareUrl,
+    shareText,
+    artistHandles,
 }: {
     generator: Generator;
     schema?: ParamsSchema | null;
     /** The artist's cover, or the newest rendered piece. */
     coverUrl?: string;
+    shareUrl: string;
+    shareText: string;
+    artistHandles?: ArtistHandles;
 }) {
     // Starts on the generator's own address, so every visitor sees the same
     // first draw and the page is stable rather than reshuffling on load.
@@ -55,16 +62,6 @@ export function MintView({
             </div>
 
             <div className="min-w-0 space-y-4">
-                {generator.description && (
-                    <p className="whitespace-pre-line break-words text-sm text-muted-foreground">
-                        {generator.description}
-                    </p>
-                )}
-                {generator.tags && generator.tags.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                        Tags: {generator.tags.join(", ")}
-                    </p>
-                )}
                 <MintPanel
                     generator={generator}
                     schema={schema}
@@ -76,6 +73,17 @@ export function MintView({
                         if (seed) setPreviewSeed(seed);
                     }}
                 />
+                {generator.description && (
+                    <p className="whitespace-pre-line break-words text-sm text-muted-foreground">
+                        {generator.description}
+                    </p>
+                )}
+                {generator.tags && generator.tags.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                        Tags: {generator.tags.join(", ")}
+                    </p>
+                )}
+                <ShareButtons url={shareUrl} text={shareText} artistHandles={artistHandles} />
             </div>
         </div>
     );
