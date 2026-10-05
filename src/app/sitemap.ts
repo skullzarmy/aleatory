@@ -2,7 +2,12 @@ import type { MetadataRoute } from "next";
 import { unstable_cache } from "next/cache";
 import { BRAND } from "@/lib/config";
 import { allFactories } from "@/lib/router";
-import { fetchGenerators, fetchRecentTokens } from "@/lib/tzkt";
+import {
+    fetchGenerators,
+    fetchRecentTokens,
+    fetchPausedStates,
+    fetchSealedStates,
+} from "@/lib/tzkt";
 import { isBlockedGenerator } from "@/lib/blocklist";
 
 /**
@@ -23,7 +28,7 @@ export const dynamic = "force-static";
  */
 const crawl = unstable_cache(
     async () => {
-        const generators = await allFactories()
+        const deployed = await allFactories()
             .then((f) => Promise.all(f.map((x) => fetchGenerators(x).catch(() => []))))
             .then((lists) => {
                 const seen = new Set<string>();
@@ -33,6 +38,15 @@ const crawl = unstable_cache(
                     .filter((c) => !isBlockedGenerator(c.address));
             })
             .catch(() => []);
+
+        const addresses = deployed.map((c) => c.address);
+        const [paused, sealed] = await Promise.all([
+            fetchPausedStates(addresses).catch(() => new Map<string, boolean>()),
+            fetchSealedStates(addresses).catch(() => new Map<string, boolean>()),
+        ]);
+        const generators = deployed.filter(
+            (c) => !(paused.get(c.address) ?? false) && (sealed.get(c.address) ?? true),
+        );
 
         const tokens = await fetchRecentTokens(
             generators.map((c) => c.address),

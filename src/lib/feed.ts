@@ -441,20 +441,22 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
 
     return {
         held,
-        made: mine.map((c, i) => {
-            const own = metas[i].displayUri ?? metas[i].thumbnailUri;
-            return {
-                address: c.address,
-                name: metas[i].name || aliasByAddress.get(c.address) || c.alias,
-                description: metas[i].description,
-                coverUrl: own ? ipfsImageUrl(own) : covers.get(c.address),
-                minted: c.tokensCount ?? 0,
-                editionSize: editions.get(c.address) ?? 0,
-                firstActivity: c.firstActivityTime,
-                paused: paused.get(c.address) ?? false,
-                sealed: sealed.get(c.address) ?? true,
-            };
-        }),
+        made: mine
+            .map((c, i) => {
+                const own = metas[i].displayUri ?? metas[i].thumbnailUri;
+                return {
+                    address: c.address,
+                    name: metas[i].name || aliasByAddress.get(c.address) || c.alias,
+                    description: metas[i].description,
+                    coverUrl: own ? ipfsImageUrl(own) : covers.get(c.address),
+                    minted: c.tokensCount ?? 0,
+                    editionSize: editions.get(c.address) ?? 0,
+                    firstActivity: c.firstActivityTime,
+                    paused: paused.get(c.address) ?? false,
+                    sealed: sealed.get(c.address) ?? true,
+                };
+            })
+            .filter((g) => !g.paused && g.sealed),
         unconfigured: false,
     };
 }
