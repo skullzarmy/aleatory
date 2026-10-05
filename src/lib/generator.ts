@@ -84,6 +84,8 @@ export interface Generator {
     royaltyTotalBps: number;
     /** Declared parameters, when the source declares any. */
     paramsSchema: ParamsSchema | null;
+    /** The cover the artist chose at deploy. */
+    coverUrl?: string;
 }
 
 /** A provider's price, now. The same number `get_render_gas` returns. */
@@ -147,6 +149,10 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
         trustResolver: Boolean(s.render.trust_resolver),
         royalties,
         royaltyTotalBps: royalties.reduce((n, r) => n + r.bps, 0),
+        coverUrl: (() => {
+            const own = meta.displayUri ?? meta.thumbnailUri;
+            return own ? ipfsImageUrl(own) : undefined;
+        })(),
     };
 }
 
