@@ -6,6 +6,7 @@ import { fetchListingPage } from "@/lib/market";
 import { MintView } from "@/components/generator/MintView";
 import { FeedGrid } from "@/components/feed/FeedGrid";
 import { shortAddress } from "@/lib/utils";
+import { fetchProfile, socialHandle } from "@/lib/identity";
 import { BRAND, tzktLink } from "@/lib/config";
 import { coversFor } from "@/lib/feed";
 import { AccountLink } from "@/components/account/AccountLink";
@@ -67,6 +68,15 @@ export default async function GeneratorPage({ params }: { params: Params }) {
     const prices = new Map(
         market.listings.map((l) => [`${l.generator}:${l.tokenId}`, l.priceMutez] as const),
     );
+    const artistProfile = generator.artist
+        ? await fetchProfile(generator.artist).catch(() => null)
+        : null;
+    const artistHandles = {
+        twitter: socialHandle(artistProfile, "twitter") ?? undefined,
+        bluesky: socialHandle(artistProfile, "bluesky") ?? undefined,
+        farcaster: socialHandle(artistProfile, "farcaster") ?? undefined,
+        telegram: socialHandle(artistProfile, "telegram") ?? undefined,
+    };
 
     return (
         <div className="mx-auto max-w-6xl px-4 py-8">
@@ -106,7 +116,13 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                 </div>
             </header>
 
-            <MintView generator={generator} schema={generator.paramsSchema} />
+            <MintView
+                generator={generator}
+                schema={generator.paramsSchema}
+                shareUrl={`${BRAND.url}/generator/${address}`}
+                shareText={generator.name || shortAddress(generator.address)}
+                artistHandles={artistHandles}
+            />
 
             {pieces.length > 0 && (
                 <div className="mt-12">
