@@ -31,12 +31,8 @@ interface Limits {
     bytes?: number;
 }
 
-/**
- * `hard_gas_limit_per_operation`, read live and cached: shadownet and mainnet
- * do not agree on it, and `appendCode` below needs the real ceiling to clamp
- * against. A generous fallback for the one case this can't be asked, rather
- * than refusing to send.
- */
+/** `hard_gas_limit_per_operation`, read live and cached: shadownet and
+ *  mainnet do not agree on it. */
 let gasCeiling: Promise<number> | null = null;
 async function hardGasCeiling(): Promise<number> {
     if (!gasCeiling) {
@@ -763,15 +759,9 @@ export async function isOurGenerator(generator: string): Promise<boolean> {
  * and the artist pays the burn, the same way the inline path pays it inside
  * the deploy.
  *
- * The gas limit is not flat and not guessed. `self.data.art.code =
- * sp.concat([...])` costs gas on the combined length of both sides, not just
- * the new chunk, because Michelson CONCAT copies the whole result, and that
- * cost does not move in a straight line with size: measured against real
- * unsealed generators on shadownet, a chunk landing on an empty generator
- * cost under 3,000 gas while one landing past a megabyte already stored cost
- * near 30,000, with no clean formula connecting the two. A constant, or a
- * padded one, is a guess either way. `simulateAppendGas` asks the chain what
- * this exact call actually costs before sending it for real.
+ * The gas limit comes from `simulateAppendGas`, not a constant:
+ * `self.data.art.code = sp.concat([...])` costs gas on the combined length of
+ * both sides, and that cost is not linear in size.
  */
 export async function appendCode(
     client: DAppClient,
@@ -794,18 +784,11 @@ export async function appendCode(
 }
 
 /**
- * The real gas `append_code` is about to cost, read from the chain rather
- * than estimated. A dummy signature is enough: `simulateOperation` never
- * checks it, only runs the contract against the parameters given, which is
- * what makes this safe to ask on every single chunk with no signature of the
- * artist's own.
+ * What `append_code` is about to cost, from a live simulation. A dummy
+ * signature is enough: `simulateOperation` does not check it.
  *
- * The provisional limits are for the trial run only, generous enough that
- * the simulation itself cannot run out partway through and hide the real
- * number. `consumed_milligas` is the actual cost of exactly this call, at
- * exactly this offset; a small margin covers what a live signed operation can
- * cost beyond a simulated one (signature-check gas chief among them), not
- * uncertainty about the main figure.
+ * `provisional` is for the trial run only, sized off the live ceiling so the
+ * simulation itself cannot run out and truncate the real number.
  */
 async function simulateAppendGas(
     generator: string,
@@ -856,8 +839,9 @@ async function simulateAppendGas(
         );
     }
     const consumed = Math.ceil(Number(op.consumed_milligas) / 1000);
-    // A thin real-world margin over a measured figure, not a guess at it.
-    return Math.min(Math.ceil(consumed * 1.1) + 500, provisional);
+    // The margin is generous: it costs a fraction of a cent, and running out
+    // strands the generator unsealed for good.
+    return Math.min(Math.ceil(consumed * 2.5) + 10_000, provisional);
 }
 
 interface OperationResult {
