@@ -31,6 +31,25 @@ interface Limits {
     bytes?: number;
 }
 
+/**
+ * `hard_gas_limit_per_operation`, read live and cached: shadownet and mainnet
+ * do not agree on it, and `appendCode` below needs the real ceiling to clamp
+ * against. A generous fallback for the one case this can't be asked, rather
+ * than refusing to send.
+ */
+let gasCeiling: Promise<number> | null = null;
+async function hardGasCeiling(): Promise<number> {
+    if (!gasCeiling) {
+        gasCeiling = fetch(`${rpcUrl()}/chains/main/blocks/head/context/constants`)
+            .then((r) => r.json())
+            .then((c: { hard_gas_limit_per_operation: string }) =>
+                Number(c.hard_gas_limit_per_operation),
+            )
+            .catch(() => 1_040_000);
+    }
+    return gasCeiling;
+}
+
 /** Creating a token: ledger, token_metadata, and two payouts. */
 const MINT: Limits = { gas: 90_000, storage: 700 };
 /** A big_map write or a small storage change. */
@@ -743,7 +762,19 @@ export async function isOurGenerator(generator: string): Promise<boolean> {
  * The storage limit is the chunk: these bytes land in the contract's storage
  * and the artist pays the burn, the same way the inline path pays it inside
  * the deploy.
+ *
+ * The gas limit is not flat. `self.data.art.code = sp.concat([...])` costs
+ * gas on the combined length of both sides, not just the new chunk, because
+ * Michelson CONCAT copies the whole result: the chain re-copies everything
+ * already written on every single chunk. A constant big enough for an early
+ * chunk runs out partway through a long walk. `CONCAT_GAS_PER_BYTE` is a
+ * deliberate overshoot, not a measured figure. Unused gas only costs a
+ * sliver more fee, where guessing low strands the generator unsealed. Clamped
+ * to the real per-operation ceiling so a huge `at` asks for a lot rather than
+ * an amount the node refuses outright.
  */
+const CONCAT_GAS_PER_BYTE = 50;
+
 export async function appendCode(
     client: DAppClient,
     generator: string,
@@ -752,7 +783,9 @@ export async function appendCode(
 ): Promise<OpResult> {
     const hex = chunkHex.replace(/^0x/, "");
     const size = Math.ceil(hex.length / 2);
-    const limits: Limits = { gas: 30_000, storage: size + 100, bytes: size + 500 };
+    const wanted = 30_000 + Math.ceil((at + size) * CONCAT_GAS_PER_BYTE);
+    const gas = Math.min(wanted, Math.floor((await hardGasCeiling()) * 0.9));
+    const limits: Limits = { gas, storage: size + 100, bytes: size + 500 };
 
     const p = await encode(generator, "append_code", { chunk: hex, at }).catch(() =>
         // A template from before the offset, which takes the bytes alone.
