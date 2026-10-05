@@ -358,6 +358,16 @@ export async function fetchTokensHeldBy(
     return rows.map((r) => r.token).filter(Boolean);
 }
 
+/** How many tokens an account holds, same filter as `fetchTokensHeldBy`, without the page cap. */
+export async function fetchHeldCount(account: string, generators: string[]): Promise<number> {
+    if (generators.length === 0 || !isAddress(account)) return 0;
+    return get<number>("/v1/tokens/balances/count", {
+        account: requireAddress(account),
+        "token.contract.in": generators.join(","),
+        "balance.gt": 0,
+    });
+}
+
 /**
  * Which of a specific set of tokens an account holds, as `generator:tokenId`
  * keys.

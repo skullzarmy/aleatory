@@ -6,7 +6,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { FeedPiece } from "@/lib/feed";
 import type { GeneratorSummary } from "@/lib/generator";
 
-export function WalletTabs({ made, held }: { made: GeneratorSummary[]; held: FeedPiece[] }) {
+export function WalletTabs({
+    made,
+    held,
+    heldCount,
+}: {
+    made: GeneratorSummary[];
+    held: FeedPiece[];
+    heldCount: number;
+}) {
     // "Created" leads by default, but only when there's something to show there.
     const first = made.length > 0 ? "created" : "collected";
 
@@ -19,7 +27,7 @@ export function WalletTabs({ made, held }: { made: GeneratorSummary[]; held: Fee
                 </TabsTrigger>
                 <TabsTrigger value="collected">
                     Collected
-                    <Count n={held.length} />
+                    <Count n={heldCount} />
                 </TabsTrigger>
             </TabsList>
 

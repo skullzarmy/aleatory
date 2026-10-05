@@ -9,6 +9,7 @@ import {
     fetchGeneratorMeta,
     type GeneratorMeta,
     fetchTokensHeldBy,
+    fetchHeldCount,
     fetchTokenUris,
     fetchEditionSizes,
     fetchPausedStates,
@@ -394,8 +395,10 @@ export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Pr
 }
 
 export interface WalletView {
-    /** Pieces this account holds now. */
+    /** Pieces this account holds now, up to `limit`. */
     held: FeedPiece[];
+    /** The real total, not capped at `limit`. */
+    heldCount: number;
     /** Generators this account deployed, as the generators wall shows them. */
     made: GeneratorSummary[];
     unconfigured: boolean;
@@ -405,7 +408,7 @@ export interface WalletView {
 export async function fetchWallet(account: string, limit = 48): Promise<WalletView> {
     const factories = await allFactories();
     if (factories.length === 0) {
-        return { held: [], made: [], unconfigured: true };
+        return { held: [], heldCount: 0, made: [], unconfigured: true };
     }
     const generators = (await generatorsFrom(factories)).filter(
         (c) => !isBlockedGenerator(c.address),
@@ -413,8 +416,9 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
     const aliasByAddress = await namesFor(generators.map((c) => c.address));
     const addresses = generators.map((c) => c.address);
 
-    const [tokens, deployed] = await Promise.all([
+    const [tokens, heldCount, deployed] = await Promise.all([
         fetchTokensHeldBy(account, addresses, limit).catch(() => []),
+        fetchHeldCount(account, addresses).catch(() => 0),
         Promise.all(
             factories.map((f) => fetchGeneratorsDeployedBy(account, f).catch(() => [])),
         ).then((lists) => lists.flat()),
@@ -441,6 +445,7 @@ export async function fetchWallet(account: string, limit = 48): Promise<WalletVi
 
     return {
         held,
+        heldCount,
         made: mine
             .map((c, i) => {
                 const own = metas[i].displayUri ?? metas[i].thumbnailUri;
