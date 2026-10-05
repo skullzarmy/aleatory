@@ -222,6 +222,31 @@ export async function fetchPausedStates(generators: string[]): Promise<Map<strin
 }
 
 /**
+ * Whether each generator has finished walking its code on chain. Same shape
+ * as `fetchPausedStates`, same reason: `art.code_sealed` is a nested storage
+ * path TzKT cannot project in bulk.
+ */
+export async function fetchSealedStates(generators: string[]): Promise<Map<string, boolean>> {
+    const sealed = new Map<string, boolean>();
+    const queue = [...generators];
+    async function worker() {
+        for (;;) {
+            const address = queue.shift();
+            if (address === undefined) return;
+            const s = await fetch(
+                `${tzktApi()}/v1/contracts/${address}/storage?path=art.code_sealed`,
+                { next: { revalidate: 30 } },
+            )
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null);
+            if (typeof s === "boolean") sealed.set(address, s);
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(PAUSED_CONCURRENCY, queue.length) }, worker));
+    return sealed;
+}
+
+/**
  * Who administers each generator. Same shape as `fetchPausedStates` and the
  * same reason: `administrator` is a top-level storage field, but TzKT cannot
  * project it in bulk, so this is one narrow request per generator. Cached

@@ -7,6 +7,7 @@ import {
     fetchGeneratorMeta,
     fetchEditionSizes,
     fetchPausedStates,
+    fetchSealedStates,
     fetchArtists,
     type GeneratorMeta,
     indexerFetch,
@@ -219,14 +220,20 @@ export interface GeneratorSummary {
     editionSize: number;
     firstActivity?: string;
     paused: boolean;
+    /** False while the source is still arriving in chunks. Nothing mints. */
+    sealed: boolean;
 }
 
 /**
- * `paused` defaults off: it is one uncached TzKT request per generator, and
- * the market page calls this just to build a name map, never reads it. Only
- * a caller that filters on it (the home page) or renders the badge pays for it.
+ * `paused` and `sealed` default off: each is one uncached TzKT request per
+ * generator, and the market page calls this just to build a name map, never
+ * reads either. Only a caller that filters on them (the home page) or
+ * renders a badge pays for it.
  */
-export async function fetchAllGenerators(opts?: { paused?: boolean }): Promise<GeneratorSummary[]> {
+export async function fetchAllGenerators(opts?: {
+    paused?: boolean;
+    sealed?: boolean;
+}): Promise<GeneratorSummary[]> {
     const factories = await allFactories();
     if (factories.length === 0) return [];
     const lists = await Promise.all(factories.map((f) => fetchGenerators(f).catch(() => [])));
@@ -239,7 +246,7 @@ export async function fetchAllGenerators(opts?: { paused?: boolean }): Promise<G
         // factory rather than one order.
         .sort((a, b) => (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""));
     const addresses = rows.map((c) => c.address);
-    const [metas, covers, editions, paused, artists] = await Promise.all([
+    const [metas, covers, editions, paused, sealed, artists] = await Promise.all([
         Promise.all(
             addresses.map((a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({}))),
         ),
@@ -247,6 +254,9 @@ export async function fetchAllGenerators(opts?: { paused?: boolean }): Promise<G
         fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
         opts?.paused
             ? fetchPausedStates(addresses).catch(() => new Map<string, boolean>())
+            : Promise.resolve(new Map<string, boolean>()),
+        opts?.sealed
+            ? fetchSealedStates(addresses).catch(() => new Map<string, boolean>())
             : Promise.resolve(new Map<string, boolean>()),
         fetchArtists(addresses).catch(() => new Map<string, string>()),
     ]);
@@ -269,5 +279,7 @@ export async function fetchAllGenerators(opts?: { paused?: boolean }): Promise<G
         // Unknown reads as not-paused: a missing badge is a cosmetic miss, a
         // false "paused" on every row this failed for would be worse.
         paused: paused.get(c.address) ?? false,
+        // Unknown reads as sealed, the same fail-open bias as paused above.
+        sealed: sealed.get(c.address) ?? true,
     }));
 }
