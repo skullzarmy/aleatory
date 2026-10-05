@@ -10,6 +10,8 @@ import { decodeParams } from "@/lib/params";
 import { PieceFacts } from "@/components/piece/PieceFacts";
 import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
+import { fetchProvenance } from "@/lib/provenance";
+import { Provenance } from "@/components/piece/Provenance";
 import { ShareButtons } from "@/components/ShareButtons";
 import { BRAND } from "@/lib/config";
 import { maxDprFor } from "@/lib/renderLimits";
@@ -77,11 +79,12 @@ export default async function PiecePage({
         return <PieceArriving contract={contract} tokenId={tokenId} />;
     }
 
-    const [listing, offers, generator, artistProfile] = await Promise.all([
+    const [listing, offers, generator, artistProfile, provenance] = await Promise.all([
         fetchListingFor(contract, tokenId).catch(() => null),
         fetchOffersFor(contract, tokenId).catch(() => []),
         fetchGenerator(contract).catch(() => null),
         piece.artist ? fetchProfile(piece.artist).catch(() => null) : Promise.resolve(null),
+        fetchProvenance(contract, tokenId).catch(() => []),
     ]);
     const royaltyTotal = piece.royalties.reduce((n, r) => n + r.bps, 0);
     const artistHandles = {
@@ -161,7 +164,7 @@ export default async function PiecePage({
                     {piece.pending && (
                         <p className="mt-4 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
                             The image is still being made. You own this piece and can trade it now,
-                            and it is running live above.
+                            and you can run it above.
                         </p>
                     )}
 
@@ -190,6 +193,10 @@ export default async function PiecePage({
                         </div>
                     )}
                 </div>
+            </div>
+
+            <div className="mt-12 max-w-sm">
+                <Provenance events={provenance} />
             </div>
         </div>
     );

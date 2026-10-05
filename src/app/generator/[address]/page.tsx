@@ -119,6 +119,9 @@ export default async function GeneratorPage({ params }: { params: Params }) {
             <MintView
                 generator={generator}
                 schema={generator.paramsSchema}
+                coverUrl={
+                    generator.coverUrl ?? pieces.find((p) => !p.pending && p.imageUrl)?.imageUrl
+                }
                 shareUrl={`${BRAND.url}/generator/${address}`}
                 shareText={generator.name || shortAddress(generator.address)}
                 artistHandles={artistHandles}
