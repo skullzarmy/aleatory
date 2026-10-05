@@ -31,6 +31,21 @@ interface Limits {
     bytes?: number;
 }
 
+/** `hard_gas_limit_per_operation`, read live and cached: shadownet and
+ *  mainnet do not agree on it. */
+let gasCeiling: Promise<number> | null = null;
+async function hardGasCeiling(): Promise<number> {
+    if (!gasCeiling) {
+        gasCeiling = fetch(`${rpcUrl()}/chains/main/blocks/head/context/constants`)
+            .then((r) => r.json())
+            .then((c: { hard_gas_limit_per_operation: string }) =>
+                Number(c.hard_gas_limit_per_operation),
+            )
+            .catch(() => 1_040_000);
+    }
+    return gasCeiling;
+}
+
 /** Creating a token: ledger, token_metadata, and two payouts. */
 const MINT: Limits = { gas: 90_000, storage: 700 };
 /** A big_map write or a small storage change. */
@@ -743,6 +758,10 @@ export async function isOurGenerator(generator: string): Promise<boolean> {
  * The storage limit is the chunk: these bytes land in the contract's storage
  * and the artist pays the burn, the same way the inline path pays it inside
  * the deploy.
+ *
+ * The gas limit comes from `simulateAppendGas`, not a constant:
+ * `self.data.art.code = sp.concat([...])` costs gas on the combined length of
+ * both sides, and that cost is not linear in size.
  */
 export async function appendCode(
     client: DAppClient,
@@ -752,13 +771,82 @@ export async function appendCode(
 ): Promise<OpResult> {
     const hex = chunkHex.replace(/^0x/, "");
     const size = Math.ceil(hex.length / 2);
-    const limits: Limits = { gas: 30_000, storage: size + 100, bytes: size + 500 };
 
     const p = await encode(generator, "append_code", { chunk: hex, at }).catch(() =>
         // A template from before the offset, which takes the bytes alone.
         encode(generator, "append_code", [hex]),
     );
+    const account = await client.getActiveAccount();
+    if (!account) throw new Error("No wallet is connected.");
+    const gas = await simulateAppendGas(generator, p.entrypoint, p.value, account.address);
+    const limits: Limits = { gas, storage: size + 100, bytes: size + 500 };
     return send(client, generator, p.entrypoint, p.value, 0, limits);
+}
+
+/**
+ * What `append_code` is about to cost, from a live simulation. A dummy
+ * signature is enough: `simulateOperation` does not check it.
+ *
+ * `provisional` is for the trial run only, sized off the live ceiling so the
+ * simulation itself cannot run out and truncate the real number.
+ */
+async function simulateAppendGas(
+    generator: string,
+    entrypoint: string,
+    value: unknown,
+    source: string,
+): Promise<number> {
+    const { TezosToolkit } = await import("@taquito/taquito");
+    const tezos = new TezosToolkit(rpcUrl());
+    const rpc = tezos.rpc;
+
+    const [account, header, chainId, ceiling] = await Promise.all([
+        rpc.getContract(source),
+        rpc.getBlockHeader(),
+        rpc.getChainId(),
+        hardGasCeiling(),
+    ]);
+    const provisional = Math.floor(ceiling * 0.9);
+
+    const result = await rpc.simulateOperation({
+        operation: {
+            branch: header.hash,
+            contents: [
+                {
+                    kind: "transaction",
+                    source,
+                    fee: "0",
+                    counter: String(Number(account.counter) + 1),
+                    gas_limit: String(provisional),
+                    storage_limit: "60000",
+                    amount: "0",
+                    destination: generator,
+                    parameters: { entrypoint, value },
+                } as never,
+            ],
+            signature:
+                "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
+        },
+        chain_id: chainId,
+    });
+
+    const op = (
+        result.contents[0] as unknown as { metadata?: { operation_result?: OperationResult } }
+    ).metadata?.operation_result;
+    if (!op || op.status !== "applied") {
+        throw new Error(
+            `Could not price this chunk: the chain's own simulation reported ${op?.status ?? "no result"}.`,
+        );
+    }
+    const consumed = Math.ceil(Number(op.consumed_milligas) / 1000);
+    // The margin is generous: it costs a fraction of a cent, and running out
+    // strands the generator unsealed for good.
+    return Math.min(Math.ceil(consumed * 2.5) + 10_000, provisional);
+}
+
+interface OperationResult {
+    status: string;
+    consumed_milligas?: string;
 }
 
 /**

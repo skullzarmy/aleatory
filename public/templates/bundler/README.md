@@ -60,10 +60,8 @@ fetch 279 kB.
 `npm run build` prints the size against 29,768 bytes, which is what one
 operation can carry. Under it, your generator is stored on chain in a single
 signature. Over it, it is compressed and walked into storage a chunk at a time,
-one signature per chunk — still fully on chain, just more wallet prompts. Only
-past eight chunks does the piece go to IPFS with the contract storing a
-pointer. That works, and it is a different promise, so the build tells you
-which one you are about to make.
+one signature per chunk, still fully on chain, just more wallet prompts, as
+many chunks as it takes.
 
 ## The three rules
 

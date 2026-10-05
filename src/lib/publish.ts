@@ -373,25 +373,15 @@ export async function publishGenerator(
         if (resumed) return resumed;
     }
 
-    // Three ways in, decided by size alone, and decided in one place: the
+    // Two ways in, decided by size alone, and decided in one place: the
     // studio quotes the same plan before any of this is asked for.
     const plan = await publishPlan(draft.html);
     const codeBytes = plan.code;
     const codeEncoding = plan.codeEncoding;
     const inline = plan.route === "inline";
     const walked = plan.route === "walked";
-    const byPointer = plan.route === "pointer";
     const chunks = plan.chunks;
-
-    let codeUri = "";
-    if (byPointer) {
-        onStage?.("pinning-metadata");
-        codeUri = await pin({
-            kind: "source",
-            content: draft.html,
-            name: `${input.name || "generator"}.html`,
-        });
-    }
+    const codeUri = "";
 
     onStage?.("pinning-metadata");
     // Every piece mints carrying this document and a provider replaces it with
@@ -486,12 +476,12 @@ export async function publishGenerator(
     return {
         hash: result.hash,
         generator,
-        codeBytes: byPointer ? 0 : codeBytes.length,
+        codeBytes: codeBytes.length,
         codeEncoding,
         codeHashHex,
         codeUri,
         chunks: walked ? chunks : 0,
         pendingMetadataUri,
-        codeBurnMutez: byPointer ? 0 : codeBytes.length * COST_PER_BYTE,
+        codeBurnMutez: codeBytes.length * COST_PER_BYTE,
     };
 }

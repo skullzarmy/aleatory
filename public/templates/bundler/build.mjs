@@ -30,16 +30,15 @@ async function loadEsbuild() {
 const here = dirname(fileURLToPath(import.meta.url));
 
 /**
- * The three routes on chain, and the sizes between them. Matches
+ * The two routes on chain, and the size between them. Matches
  * `src/lib/plan.ts`, which is what the studio quotes and the publisher does.
  *
- * Past one operation a generator is not off chain: it is compressed and walked
- * into storage a chunk at a time, one signature per chunk. Only past the walk
- * budget does it go to IPFS with a pointer stored on chain instead.
+ * Past one operation a generator is not off chain: it is compressed and
+ * walked into storage a chunk at a time, one signature per chunk, as many
+ * chunks as the source needs.
  */
 const ON_CHAIN_CAP = 32_768 - 700;
 const CHUNK_CAP = 32_768 - 1_200;
-const MAX_WALK_CHUNKS = 8;
 
 export async function buildHtml() {
     const build = await loadEsbuild();
@@ -79,10 +78,7 @@ function report(html) {
 
     const chunks = Math.ceil(gz / CHUNK_CAP);
     console.log(
-        chunks <= MAX_WALK_CHUNKS
-            ? `  on chain, walked in ${chunks} chunk${chunks === 1 ? "" : "s"}: ${chunks + 2} signatures to publish`
-            : `  past the ${(CHUNK_CAP * MAX_WALK_CHUNKS).toLocaleString()} bytes ${MAX_WALK_CHUNKS} chunks carry.\n` +
-                  "  Publishable, but stored on IPFS with a pointer on chain rather than on chain.",
+        `  on chain, walked in ${chunks} chunk${chunks === 1 ? "" : "s"}: ${chunks + 2} signatures to publish`,
     );
 }
 
