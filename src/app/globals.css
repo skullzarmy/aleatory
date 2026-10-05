@@ -148,3 +148,24 @@ body {
         }
     }
 }
+
+/* The call to run a piece. A ring leaves the button three times and stops:
+   4.8s, inside the five seconds 2.2.2 allows motion to start on its own, and
+   none at all for a viewer who asked for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+    .run-beckon {
+        animation: run-beckon 1.6s ease-out 0.6s 3;
+    }
+}
+@keyframes run-beckon {
+    0% {
+        box-shadow:
+            0 10px 15px -3px rgb(0 0 0 / 0.1),
+            0 0 0 0 hsl(var(--primary) / 0.45);
+    }
+    100% {
+        box-shadow:
+            0 10px 15px -3px rgb(0 0 0 / 0.1),
+            0 0 0 18px hsl(var(--primary) / 0);
+    }
+}

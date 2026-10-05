@@ -106,7 +106,13 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                 </div>
             </header>
 
-            <MintView generator={generator} schema={generator.paramsSchema} />
+            <MintView
+                generator={generator}
+                schema={generator.paramsSchema}
+                coverUrl={
+                    generator.coverUrl ?? pieces.find((p) => !p.pending && p.imageUrl)?.imageUrl
+                }
+            />
 
             {pieces.length > 0 && (
                 <div className="mt-12">

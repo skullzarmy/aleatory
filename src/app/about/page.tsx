@@ -29,8 +29,8 @@ export default function AboutPage() {
             <Section title="Minting">
                 <p>
                     Minting is one approval, and the piece is yours before its image exists. A
-                    render provider draws it afterwards. Until that arrives your piece runs live in
-                    your browser, which is the artwork itself and not a placeholder for it.
+                    render provider draws it afterwards. Until that arrives you can run your piece
+                    in your browser, which is the artwork itself.
                 </p>
             </Section>
 

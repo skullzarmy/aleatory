@@ -164,7 +164,7 @@ export default async function PiecePage({
                     {piece.pending && (
                         <p className="mt-4 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
                             The image is still being made. You own this piece and can trade it now,
-                            and it is running live above.
+                            and you can run it above.
                         </p>
                     )}
 
