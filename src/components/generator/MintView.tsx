@@ -46,11 +46,12 @@ export function MintView({
                     running={running}
                     onRunningChange={setRunning}
                 />
-                <p className="mt-2 text-xs text-muted-foreground">
-                    {running
-                        ? "One draw from this generator. Yours will be different, and nobody knows how until you sign."
-                        : `${coverUrl ? "The cover. " : ""}Run the code to draw from this generator, and Randomize for another draw.`}
-                </p>
+                {running && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                        One draw from this generator. Yours will be different, and nobody knows how
+                        until you sign.
+                    </p>
+                )}
             </div>
 
             <div className="min-w-0 space-y-4">

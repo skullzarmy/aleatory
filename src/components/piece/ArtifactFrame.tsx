@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Play, Square } from "lucide-react";
 import { IsolateFrame } from "@/components/IsolateFrame";
 import { useDeps } from "@/components/useDeps";
@@ -10,8 +10,8 @@ import { useDeps } from "@/components/useDeps";
  *
  * The code is the piece and the image is a photograph of it. Running artist
  * code costs the viewer's CPU and can hold the main thread, so the page opens
- * on the photograph and the call to run the code sits on top of it, as the
- * largest thing in the frame. Nothing runs until somebody asks.
+ * on the photograph, with the call to run the code in its corner. Nothing runs
+ * until somebody asks.
  *
  * `running` and `onRunningChange` make it controlled, for a caller whose own
  * controls also ask for a draw (the generator page's Randomize and parameters).
@@ -79,7 +79,6 @@ export function ArtifactFrame({
     const { deps, ready: depsReady, error: depsError } = useDeps(running ? (code ?? "") : "");
     // A frame mounted before its libraries arrive runs once without them.
     const drawing = running && (depsReady || depsError !== null);
-    const hintId = useId();
 
     return (
         <div className="relative aspect-square overflow-hidden rounded-lg border border-border bg-card-background">
@@ -136,26 +135,15 @@ export function ArtifactFrame({
             )}
 
             {runnable && !running && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-t from-background/70 via-background/10 to-transparent p-4 text-center">
-                    <button
-                        ref={runRef}
-                        type="button"
-                        onClick={() => toggle(true)}
-                        aria-describedby={hintId}
-                        className="run-beckon inline-flex min-h-[44px] items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                    >
-                        <Play className="h-5 w-5 fill-current" aria-hidden />
-                        Run the code
-                    </button>
-                    <p
-                        id={hintId}
-                        className="max-w-[18rem] rounded-md bg-background/80 px-2.5 py-1 text-xs text-foreground backdrop-blur"
-                    >
-                        {ready
-                            ? "This is a still. The artwork is the program, and it runs in your browser."
-                            : "The artwork is the program, and it runs in your browser."}
-                    </p>
-                </div>
+                <button
+                    ref={runRef}
+                    type="button"
+                    onClick={() => toggle(true)}
+                    className="run-beckon absolute bottom-3 right-3 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                >
+                    <Play className="h-4 w-4 fill-current" aria-hidden />
+                    Run the code
+                </button>
             )}
 
             {running && (
