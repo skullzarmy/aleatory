@@ -133,6 +133,26 @@ export async function fetchGenerators(factory: string): Promise<TzktContract[]> 
     });
 }
 
+/** A known set of generators, by address, batched to stay under TzKT's row limit. */
+const CONTRACTS_IN_BATCH = 100;
+export async function fetchContractsByAddress(addresses: string[]): Promise<TzktContract[]> {
+    if (addresses.length === 0) return [];
+    const batches: string[][] = [];
+    for (let i = 0; i < addresses.length; i += CONTRACTS_IN_BATCH) {
+        batches.push(addresses.slice(i, i + CONTRACTS_IN_BATCH));
+    }
+    const pages = await Promise.all(
+        batches.map((batch) =>
+            get<TzktContract[]>("/v1/contracts", {
+                "address.in": batch.join(","),
+                limit: CONTRACTS_IN_BATCH,
+                select: "address,alias,firstActivityTime,lastActivityTime,tokensCount",
+            }).catch(() => []),
+        ),
+    );
+    return pages.flat();
+}
+
 /**
  * How large each generator's edition is. Zero is an open edition.
  *
@@ -276,30 +296,32 @@ export async function fetchArtists(generators: string[]): Promise<Map<string, st
 }
 
 /**
- * Every generator one artist deployed.
- *
- * The factory originates a generator, so `creator` is the factory. The artist
- * is `initiator`, the account whose operation caused the internal origination.
- * TzKT cannot filter on storage and ignores unknown query parameters, answering
- * with an unfiltered page that reads as success.
- *
- * A single-field `select` is flattened: the answer is the field's own value per
- * row, not a row containing that field.
+ * Every generator one artist deployed. TzKT ignores an unrecognized filter
+ * rather than erroring, so a wrong param here reads as success on an
+ * unfiltered page. `select` on one field flattens to that field's bare value.
  */
+const DEPLOYED_PAGE = 200;
+const DEPLOYED_CEILING = 2_000;
 export async function fetchGeneratorsDeployedBy(
     artist: string,
     factory: string,
 ): Promise<string[]> {
     if (!factory || !isAddress(artist)) return [];
-    const rows = await get<{ address?: string }[]>("/v1/operations/originations", {
-        initiator: requireAddress(artist),
-        sender: requireAddress(factory),
-        status: "applied",
-        "sort.desc": "id",
-        limit: 200,
-        select: "originatedContract",
-    });
-    return rows.map((r) => r?.address).filter((a): a is string => Boolean(a));
+    const out: string[] = [];
+    for (let offset = 0; offset < DEPLOYED_CEILING; offset += DEPLOYED_PAGE) {
+        const rows = await get<{ address?: string }[]>("/v1/operations/originations", {
+            initiator: requireAddress(artist),
+            sender: requireAddress(factory),
+            status: "applied",
+            "sort.desc": "id",
+            limit: DEPLOYED_PAGE,
+            offset,
+            select: "originatedContract",
+        });
+        out.push(...rows.map((r) => r?.address).filter((a): a is string => Boolean(a)));
+        if (rows.length < DEPLOYED_PAGE) break;
+    }
+    return out;
 }
 
 /** Tokens across a set of generators, newest first. */
@@ -346,6 +368,7 @@ export async function fetchTokensHeldBy(
     account: string,
     generators: string[],
     limit = 48,
+    offset = 0,
 ): Promise<TzktToken[]> {
     if (generators.length === 0 || !isAddress(account)) return [];
     const rows = await get<{ token: TzktToken }[]>("/v1/tokens/balances", {
@@ -354,6 +377,7 @@ export async function fetchTokensHeldBy(
         "balance.gt": 0,
         "sort.desc": "lastLevel",
         limit,
+        offset,
     });
     return rows.map((r) => r.token).filter(Boolean);
 }
