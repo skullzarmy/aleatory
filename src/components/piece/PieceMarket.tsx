@@ -8,6 +8,15 @@ import { proceeds, type Listing, type Offer } from "@/lib/market";
 import { addresses } from "@/lib/router";
 import * as ops from "@/lib/ops";
 import { AccountLink } from "@/components/account/AccountLink";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+    DialogClose,
+} from "@/components/ui/dialog";
 
 /**
  * Buying, listing and offers for one piece.
@@ -48,6 +57,7 @@ export function PieceMarket({
     const [error, setError] = useState<string | null>(null);
     const [price, setPrice] = useState("");
     const [offer, setOffer] = useState("");
+    const [confirmOffer, setConfirmOffer] = useState<bigint | null>(null);
 
     // Above the early return below, because hooks run in the same order every
     // render. Refreshes until the server's answer changes, capped so a stalled
@@ -113,6 +123,10 @@ export function PieceMarket({
         } finally {
             setBusy(null);
         }
+    }
+
+    async function submitOffer(mutez: bigint) {
+        return run("offer", async () => ops.makeOffer(await getClient(), contract, tokenId, mutez));
     }
 
     const tez = (mutez: bigint) => `${formatTez(mutez)} ꜩ`;
@@ -231,29 +245,18 @@ export function PieceMarket({
                             <button
                                 type="button"
                                 disabled={busy !== null || offerMutez === null}
-                                onClick={() =>
-                                    address
-                                        ? run("offer", async () => {
-                                              const mutez = offerMutez as bigint;
-                                              // An offer escrows the amount the
-                                              // moment it is signed.
-                                              if (
-                                                  mutez >= CONFIRM_ABOVE_MUTEZ &&
-                                                  !window.confirm(
-                                                      `Offer ${formatTez(mutez)} tez? This escrows the amount until the offer is accepted or cancelled.`,
-                                                  )
-                                              ) {
-                                                  return;
-                                              }
-                                              return ops.makeOffer(
-                                                  await getClient(),
-                                                  contract,
-                                                  tokenId,
-                                                  mutez,
-                                              );
-                                          })
-                                        : void connect()
-                                }
+                                onClick={() => {
+                                    if (!address) {
+                                        void connect();
+                                        return;
+                                    }
+                                    const mutez = offerMutez as bigint;
+                                    if (mutez >= CONFIRM_ABOVE_MUTEZ) {
+                                        setConfirmOffer(mutez);
+                                        return;
+                                    }
+                                    void submitOffer(mutez);
+                                }}
                                 className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-60"
                             >
                                 {busy === "offer" ? "Offering" : "Offer"}
@@ -347,6 +350,38 @@ export function PieceMarket({
                 </p>
             )}
             {error && <p className="text-xs text-destructive">{error}</p>}
+
+            <Dialog
+                open={confirmOffer !== null}
+                onOpenChange={(open) => !open && setConfirmOffer(null)}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>
+                            Offer {confirmOffer !== null ? tez(confirmOffer) : ""}?
+                        </DialogTitle>
+                        <DialogDescription>
+                            This escrows the amount until the offer is accepted or cancelled.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent">
+                            Cancel
+                        </DialogClose>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const mutez = confirmOffer as bigint;
+                                setConfirmOffer(null);
+                                void submitOffer(mutez);
+                            }}
+                            className="rounded-md bg-alea-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-alea-700"
+                        >
+                            Confirm offer
+                        </button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
