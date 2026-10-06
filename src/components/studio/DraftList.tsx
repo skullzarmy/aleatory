@@ -5,11 +5,21 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { deleteDraft, listDrafts, type Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+    DialogClose,
+} from "@/components/ui/dialog";
 
 // Drafts live only in this browser's IndexedDB. No account, no server copy.
 export function DraftList() {
     const [drafts, setDrafts] = useState<Draft[] | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [pending, setPending] = useState<Draft | null>(null);
 
     useEffect(() => {
         void listDrafts()
@@ -18,16 +28,9 @@ export function DraftList() {
     }, []);
 
     async function remove(draft: Draft) {
-        // Confirm before deleting: no server copy, no trash, no undo.
-        const name = draft.name || "Untitled";
-        if (
-            !window.confirm(
-                `Delete "${name}"? It is only in this browser, so this cannot be undone.`,
-            )
-        ) {
-            return;
-        }
+        setPending(null);
         setError(null);
+        const name = draft.name || "Untitled";
         try {
             await deleteDraft(draft.id);
             setDrafts((d) => (d ?? []).filter((x) => x.id !== draft.id));
@@ -85,7 +88,7 @@ export function DraftList() {
                         </Link>
                         <button
                             type="button"
-                            onClick={() => void remove(d)}
+                            onClick={() => setPending(d)}
                             aria-label={`Delete ${d.name || "Untitled"}`}
                             className="rounded p-2 text-muted-foreground hover:bg-accent hover:text-destructive"
                         >
@@ -94,6 +97,29 @@ export function DraftList() {
                     </li>
                 ))}
             </ul>
+
+            <Dialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete "{pending?.name || "Untitled"}"?</DialogTitle>
+                        <DialogDescription>
+                            It is only in this browser, so this cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent">
+                            Cancel
+                        </DialogClose>
+                        <button
+                            type="button"
+                            onClick={() => pending && void remove(pending)}
+                            className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Delete
+                        </button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
