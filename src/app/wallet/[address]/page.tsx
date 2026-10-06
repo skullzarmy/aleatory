@@ -51,7 +51,7 @@ export default async function WalletPage({ params }: { params: Promise<{ address
     const { address } = await params;
     if (!isAddress(address)) notFound();
 
-    const [{ held, made, unconfigured }, name, profile, source] = await Promise.all([
+    const [{ held, heldCount, made, unconfigured }, name, profile, source] = await Promise.all([
         fetchWallet(address),
         resolveName(address),
         fetchProfile(address),
@@ -69,7 +69,7 @@ export default async function WalletPage({ params }: { params: Promise<{ address
                     Nothing to show on this network yet.
                 </p>
             ) : (
-                <WalletTabs made={made} held={held} />
+                <WalletTabs made={made} held={held} heldCount={heldCount} />
             )}
         </div>
     );
