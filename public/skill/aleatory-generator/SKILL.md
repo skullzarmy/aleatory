@@ -143,6 +143,17 @@ names as `<Generator> #<n> · <trait value>`, fixed shape, no second trait, no
 custom separator. Left empty, or if that key is missing or empty for a given
 piece, the name is plain: `<Generator> #<n>`.
 
+For a custom layout, compute it yourself and give it its own key:
+
+```js
+alea.features({ Palette: name, Pattern: mode, Title: mode + " - " + name });
+```
+
+Point the field at `Title`. This also makes `Title` its own indexed trait,
+with a value as unique as the piece it names, which most rarity tooling
+either ignores or flags as noise. Worth it for the name; still a real cost,
+on every piece, forever.
+
 ## Runtime kinds
 
 A piece declares which kind it was written against: `vanilla` (Canvas 2D),
