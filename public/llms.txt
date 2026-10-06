@@ -182,6 +182,12 @@ alea.features({
 });
 ```
 
+The deploy form's "Name a piece from a trait" field takes one of these keys
+(`Palette`, not `paletteName`), never a value and never more than one. A piece
+then names as `<Generator> #<n> · <trait value>`, fixed shape: no second
+trait, no custom separator. Left empty, or if that key is missing or empty
+for a given piece, the name is plain: `<Generator> #<n>`.
+
 ---
 
 ## Runtime kinds

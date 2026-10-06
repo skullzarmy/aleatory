@@ -137,6 +137,12 @@ alea.features({ Palette: name, Density: density > 200 ? "Dense" : "Sparse" });
 Indexed and shown to collectors. Keep them meaningful. A trait derived from a
 parameter is honest, though two collectors can then share one.
 
+The deploy form's "Name a piece from a trait" field takes one of these keys
+(`Palette`, not `name`), never a value and never more than one. A piece then
+names as `<Generator> #<n> · <trait value>`, fixed shape, no second trait, no
+custom separator. Left empty, or if that key is missing or empty for a given
+piece, the name is plain: `<Generator> #<n>`.
+
 ## Runtime kinds
 
 A piece declares which kind it was written against: `vanilla` (Canvas 2D),
