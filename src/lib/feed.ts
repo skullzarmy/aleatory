@@ -3,6 +3,7 @@ import { allFactories } from "./router";
 import {
     fetchGenerators,
     fetchGeneratorsDeployedBy,
+    fetchContractsByAddress,
     fetchRecentTokens,
     fetchTokensIn,
     fetchStorage,
@@ -395,73 +396,99 @@ export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Pr
 }
 
 export interface WalletView {
-    /** Pieces this account holds now, up to `limit`. */
     held: FeedPiece[];
-    /** The real total, not capped at `limit`. */
     heldCount: number;
-    /** Generators this account deployed, as the generators wall shows them. */
+    heldPages: number;
     made: GeneratorSummary[];
+    madeCount: number;
+    madePages: number;
     unconfigured: boolean;
 }
 
-/** One account, both ways round: what they hold and what they made. */
-export async function fetchWallet(account: string, limit = 48): Promise<WalletView> {
+const EMPTY_WALLET: WalletView = {
+    held: [],
+    heldCount: 0,
+    heldPages: 0,
+    made: [],
+    madeCount: 0,
+    madePages: 0,
+    unconfigured: true,
+};
+
+export async function fetchWallet(
+    account: string,
+    opts: { tab?: "created" | "collected"; page?: number; perPage?: number } = {},
+): Promise<WalletView> {
+    const { tab = "collected", page = 1, perPage = 48 } = opts;
     const factories = await allFactories();
-    if (factories.length === 0) {
-        return { held: [], heldCount: 0, made: [], unconfigured: true };
-    }
+    if (factories.length === 0) return EMPTY_WALLET;
+
     const generators = (await generatorsFrom(factories)).filter(
         (c) => !isBlockedGenerator(c.address),
     );
-    const aliasByAddress = await namesFor(generators.map((c) => c.address));
     const addresses = generators.map((c) => c.address);
 
-    const [tokens, heldCount, deployed] = await Promise.all([
-        fetchTokensHeldBy(account, addresses, limit).catch(() => []),
+    const [heldCount, deployed] = await Promise.all([
         fetchHeldCount(account, addresses).catch(() => 0),
         Promise.all(
             factories.map((f) => fetchGeneratorsDeployedBy(account, f).catch(() => [])),
         ).then((lists) => lists.flat()),
     ]);
 
-    const madeSet = new Set(deployed);
-    const mine = generators.filter((c) => madeSet.has(c.address));
-    const madeAddresses = mine.map((c) => c.address);
-
-    // The made side is a handful of generators, so the cover, the edition size
-    // and the artist's own name are worth the extra reads.
-    const [held, metas, covers, editions, paused, sealed] = await Promise.all([
-        piecesOf(tokens, aliasByAddress),
-        Promise.all(
-            madeAddresses.map(
-                (a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({})),
-            ),
-        ),
-        coversFor(madeAddresses).catch(() => new Map<string, string>()),
-        fetchEditionSizes(factories, madeAddresses).catch(() => new Map<string, number>()),
-        fetchPausedStates(madeAddresses).catch(() => new Map<string, boolean>()),
-        fetchSealedStates(madeAddresses).catch(() => new Map<string, boolean>()),
+    const [paused, sealed] = await Promise.all([
+        fetchPausedStates(deployed).catch(() => new Map<string, boolean>()),
+        fetchSealedStates(deployed).catch(() => new Map<string, boolean>()),
     ]);
+    const madeAddresses = deployed.filter(
+        (a) => !(paused.get(a) ?? false) && (sealed.get(a) ?? true),
+    );
+    const madeCount = madeAddresses.length;
 
-    return {
-        held,
-        heldCount,
-        made: mine
-            .map((c, i) => {
-                const own = metas[i].displayUri ?? metas[i].thumbnailUri;
-                return {
-                    address: c.address,
-                    name: metas[i].name || aliasByAddress.get(c.address) || c.alias,
-                    description: metas[i].description,
-                    coverUrl: own ? ipfsImageUrl(own) : covers.get(c.address),
-                    minted: c.tokensCount ?? 0,
-                    editionSize: editions.get(c.address) ?? 0,
-                    firstActivity: c.firstActivityTime,
-                    paused: paused.get(c.address) ?? false,
-                    sealed: sealed.get(c.address) ?? true,
-                };
-            })
-            .filter((g) => !g.paused && g.sealed),
-        unconfigured: false,
-    };
+    const heldPages = Math.max(1, Math.ceil(heldCount / perPage));
+    const madePages = Math.max(1, Math.ceil(madeCount / perPage));
+
+    let held: FeedPiece[] = [];
+    if (tab === "collected") {
+        const aliasByAddress = await namesFor(addresses);
+        const tokens = await fetchTokensHeldBy(
+            account,
+            addresses,
+            perPage,
+            (page - 1) * perPage,
+        ).catch(() => []);
+        held = await piecesOf(tokens, aliasByAddress);
+    }
+
+    let made: GeneratorSummary[] = [];
+    if (tab === "created") {
+        const pageAddresses = madeAddresses.slice((page - 1) * perPage, page * perPage);
+        const [contracts, metas, covers, editions] = await Promise.all([
+            fetchContractsByAddress(pageAddresses),
+            Promise.all(
+                pageAddresses.map(
+                    (a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({})),
+                ),
+            ),
+            coversFor(pageAddresses).catch(() => new Map<string, string>()),
+            fetchEditionSizes(factories, pageAddresses).catch(() => new Map<string, number>()),
+        ]);
+        const byAddress = new Map(contracts.map((c) => [c.address, c]));
+        made = pageAddresses.map((address, i) => {
+            const c = byAddress.get(address);
+            const own = metas[i].displayUri ?? metas[i].thumbnailUri;
+            return {
+                address,
+                name: metas[i].name || c?.alias,
+                description: metas[i].description,
+                coverUrl: own ? ipfsImageUrl(own) : covers.get(address),
+                minted: c?.tokensCount ?? 0,
+                editionSize: editions.get(address) ?? 0,
+                firstActivity: c?.firstActivityTime,
+                paused: paused.get(address) ?? false,
+                sealed: sealed.get(address) ?? true,
+            };
+        });
+    }
+
+    return { held, heldCount, heldPages, made, madeCount, madePages, unconfigured: false };
 }

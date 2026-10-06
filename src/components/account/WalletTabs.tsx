@@ -1,63 +1,98 @@
-"use client";
-
+import Link from "next/link";
 import { FeedGrid } from "@/components/feed/FeedGrid";
 import { GeneratorGrid } from "@/components/generator/GeneratorCard";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { FeedPiece } from "@/lib/feed";
-import type { GeneratorSummary } from "@/lib/generator";
+import { Pager } from "@/components/feed/Pager";
+import type { WalletView } from "@/lib/feed";
 
 export function WalletTabs({
-    made,
-    held,
-    heldCount,
+    wallet,
+    tab,
+    page,
+    href,
 }: {
-    made: GeneratorSummary[];
-    held: FeedPiece[];
-    heldCount: number;
+    wallet: WalletView;
+    tab: "created" | "collected";
+    page: number;
+    href: (next: { tab?: "created" | "collected"; page?: number }) => string;
 }) {
-    // "Created" leads by default, but only when there's something to show there.
-    const first = made.length > 0 ? "created" : "collected";
+    const { made, madeCount, madePages, held, heldCount, heldPages } = wallet;
 
     return (
-        <Tabs defaultValue={first} className="mt-8">
-            <TabsList>
-                <TabsTrigger value="created">
-                    Created
-                    <Count n={made.length} />
-                </TabsTrigger>
-                <TabsTrigger value="collected">
-                    Collected
-                    <Count n={heldCount} />
-                </TabsTrigger>
-            </TabsList>
+        <div className="mt-8">
+            <div className="inline-flex h-10 items-center justify-center gap-1 rounded-md bg-muted p-1 text-muted-foreground">
+                <TabLink
+                    label="Created"
+                    count={madeCount}
+                    active={tab === "created"}
+                    href={href({ tab: "created", page: 1 })}
+                />
+                <TabLink
+                    label="Collected"
+                    count={heldCount}
+                    active={tab === "collected"}
+                    href={href({ tab: "collected", page: 1 })}
+                />
+            </div>
 
-            <TabsContent value="created">
-                {made.length === 0 ? (
-                    <p className="py-6 text-sm text-muted-foreground">
-                        No generators published from this address.
-                    </p>
-                ) : (
-                    <GeneratorGrid generators={made} />
-                )}
-            </TabsContent>
-
-            <TabsContent value="collected">
-                {held.length === 0 ? (
+            <div className="mt-4">
+                {tab === "created" ? (
+                    made.length === 0 ? (
+                        <p className="py-6 text-sm text-muted-foreground">
+                            No generators published from this address.
+                        </p>
+                    ) : (
+                        <>
+                            <GeneratorGrid generators={made} />
+                            <Pager
+                                page={page}
+                                hasMore={page < madePages}
+                                href={(p) => href({ page: p })}
+                                showing={`Page ${page} of ${madePages}`}
+                            />
+                        </>
+                    )
+                ) : held.length === 0 ? (
                     <p className="py-6 text-sm text-muted-foreground">
                         Pieces bought here show up on this page.
                     </p>
                 ) : (
-                    <FeedGrid pieces={held} />
+                    <>
+                        <FeedGrid pieces={held} />
+                        <Pager
+                            page={page}
+                            hasMore={page < heldPages}
+                            href={(p) => href({ page: p })}
+                            showing={`Page ${page} of ${heldPages}`}
+                        />
+                    </>
                 )}
-            </TabsContent>
-        </Tabs>
+            </div>
+        </div>
     );
 }
 
-function Count({ n }: { n: number }) {
+function TabLink({
+    label,
+    count,
+    active,
+    href,
+}: {
+    label: string;
+    count: number;
+    active: boolean;
+    href: string;
+}) {
     return (
-        <span className="rounded-full bg-muted px-1.5 text-xs font-normal tabular-nums text-muted-foreground">
-            {n}
-        </span>
+        <Link
+            href={href}
+            className={`inline-flex items-center gap-2 rounded-sm px-3 py-1.5 text-sm font-medium ${
+                active ? "bg-background text-foreground shadow-sm" : ""
+            }`}
+        >
+            {label}
+            <span className="rounded-full bg-muted px-1.5 text-xs font-normal tabular-nums text-muted-foreground">
+                {count}
+            </span>
+        </Link>
     );
 }
