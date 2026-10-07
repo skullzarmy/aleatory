@@ -16,8 +16,6 @@ import {
     type ParamSpec,
 } from "@/lib/params";
 import * as ops from "@/lib/ops";
-import { IsolateFrame } from "@/components/IsolateFrame";
-import { useDeps } from "@/components/useDeps";
 import { AccountLink } from "@/components/account/AccountLink";
 
 /**
@@ -45,10 +43,6 @@ export function MintPanel({
     const [hash, setHash] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [chosen, setChosen] = useState<Record<string, unknown>>({});
-
-    // Same as the piece page: the isolate cannot fetch a library or load one by
-    // URL, so the declared ones are resolved here and handed over as source.
-    const { deps } = useDeps(generator.code ?? "");
 
     /**
      * Reroll the parameters, and the seed the preview is drawn from. The
@@ -96,32 +90,16 @@ export function MintPanel({
         }
     }
 
-    // Reached when the operation landed and the indexer has not caught up. The
-    // seed is the hash they just signed and the generator came out of storage
-    // before they signed it, so the piece can be drawn here without waiting for
-    // the indexer, the provider or the pin.
+    // Reached when the operation landed and the indexer has not caught up yet,
+    // which `waitForToken` below is waiting out before the redirect.
     if (hash) {
         return (
             <div className="space-y-3 rounded-lg border border-border p-4">
-                {generator.code && (
-                    <div className="overflow-hidden rounded-lg border border-border">
-                        <div className="aspect-square">
-                            <IsolateFrame
-                                code={generator.code}
-                                seed={hash}
-                                params={resolveParams(schema?.params ?? [], chosen)}
-                                paramsSchema={schema?.params ?? []}
-                                deps={deps}
-                                liveClock
-                                title="Your piece"
-                            />
-                        </div>
-                    </div>
-                )}
-                <p className="text-sm font-medium">Yours. Here it is.</p>
+                <p className="text-sm font-medium">Yours. Taking you there.</p>
                 <p className="text-xs text-muted-foreground">
-                    Drawn from the seed your signature made. The permanent image is being published
-                    now, and your piece appears on your wallet page in a moment.
+                    Waiting on the indexer to place your piece, a few seconds. The permanent image
+                    is being published now, and your piece appears on your wallet page in a moment
+                    either way.
                 </p>
                 <div className="flex flex-wrap gap-2 pt-1">
                     <Link
