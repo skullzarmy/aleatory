@@ -105,10 +105,14 @@ export function ArtifactFrame({
                     alt={name}
                     onLoad={() => setReady(true)}
                     onError={() => {
-                        // Once, on the same URL. A failed response was not
-                        // cached, so this is a real second request.
-                        if (attempt > 0) return;
-                        timer.current = window.setTimeout(() => setAttempt((n) => n + 1), 1500);
+                        // A few more tries, backing off. A failed response was
+                        // not cached, so each is a real request, and a large
+                        // still through a slow gateway can miss more than once.
+                        if (attempt >= 3) return;
+                        timer.current = window.setTimeout(
+                            () => setAttempt((n) => n + 1),
+                            1500 * 2 ** attempt,
+                        );
                     }}
                     className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-200 ${
                         ready ? "opacity-100" : "pointer-events-none opacity-0"
@@ -124,12 +128,18 @@ export function ArtifactFrame({
 
             {!running && !ready && (
                 <div
-                    className={`flex h-full w-full items-center justify-center ${
+                    className={`flex h-full w-full items-center justify-center px-6 text-center ${
                         imageUrl ? "pending-shimmer" : "bg-muted"
                     }`}
                 >
-                    {!runnable && (
+                    {!runnable ? (
                         <span className="text-sm text-muted-foreground">Awaiting render</span>
+                    ) : (
+                        !imageUrl && (
+                            <span className="text-sm text-muted-foreground">
+                                No still yet, run the code to see this piece now.
+                            </span>
+                        )
                     )}
                 </div>
             )}
