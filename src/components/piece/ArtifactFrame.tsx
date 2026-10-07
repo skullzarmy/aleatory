@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Play, Square } from "lucide-react";
 import { IsolateFrame } from "@/components/IsolateFrame";
 import { useDeps } from "@/components/useDeps";
@@ -57,6 +57,22 @@ export function ArtifactFrame({
     }, [imageUrl]);
     useEffect(() => () => window.clearTimeout(timer.current), []);
 
+    function retry() {
+        if (attempt >= 3) return;
+        timer.current = window.setTimeout(() => setAttempt((n) => n + 1), 1500 * 2 ** attempt);
+    }
+
+    // A cached image can settle before onLoad/onError attach. complete plus
+    // naturalWidth distinguishes a cached hit from a cached miss.
+    const imgRef = useRef<HTMLImageElement>(null);
+    useLayoutEffect(() => {
+        const img = imgRef.current;
+        if (!img?.complete) return;
+        if (img.naturalWidth > 0) setReady(true);
+        else retry();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [imageUrl, attempt]);
+
     // The button that was pressed unmounts with the state it toggles, so focus
     // follows to its counterpart instead of falling to the document.
     const runRef = useRef<HTMLButtonElement>(null);
@@ -101,19 +117,11 @@ export function ArtifactFrame({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                     key={attempt}
+                    ref={imgRef}
                     src={imageUrl}
                     alt={name}
                     onLoad={() => setReady(true)}
-                    onError={() => {
-                        // A few more tries, backing off. A failed response was
-                        // not cached, so each is a real request, and a large
-                        // still through a slow gateway can miss more than once.
-                        if (attempt >= 3) return;
-                        timer.current = window.setTimeout(
-                            () => setAttempt((n) => n + 1),
-                            1500 * 2 ** attempt,
-                        );
-                    }}
+                    onError={retry}
                     className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-200 ${
                         ready ? "opacity-100" : "pointer-events-none opacity-0"
                     }`}
