@@ -68,6 +68,7 @@ export default async function GeneratorPage({ params }: { params: Params }) {
     const prices = new Map(
         market.listings.map((l) => [`${l.generator}:${l.tokenId}`, l.priceMutez] as const),
     );
+    const artists = new Map([[generator.address, generator.artist]]);
     const artistProfile = generator.artist
         ? await fetchProfile(generator.artist).catch(() => null)
         : null;
@@ -142,7 +143,7 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                             </Link>
                         )}
                     </div>
-                    <FeedGrid pieces={pieces} prices={prices} />
+                    <FeedGrid pieces={pieces} artists={artists} prices={prices} />
                 </div>
             )}
         </div>

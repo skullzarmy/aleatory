@@ -79,7 +79,7 @@ export default async function MintsPage({ searchParams }: { searchParams: Promis
                 </>
             ) : (
                 <>
-                    <FeedGrid pieces={feed.pieces} />
+                    <FeedGrid pieces={feed.pieces} artists={feed.artists} />
                     <Pager
                         page={page}
                         hasMore={feed.hasMore}

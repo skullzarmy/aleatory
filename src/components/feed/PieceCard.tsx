@@ -5,13 +5,19 @@ import type { FeedPiece } from "@/lib/feed";
 import { AccountName } from "@/components/account/AccountName";
 import { PieceImage } from "./PieceImage";
 
-// The minter renders as AccountName, not a link: the whole card is already a
-// link to the piece, and an anchor inside an anchor won't hydrate.
+// The artist and the minter render as AccountName, not a link: the whole
+// card is already a link to the piece, and an anchor inside an anchor won't
+// hydrate.
 export function PieceCard({
     piece,
+    artist,
     priceMutez,
 }: {
     piece: FeedPiece;
+    /** The generator's artist, when the caller has it. `FeedPiece` has no
+     * artist of its own, a feed spans many generators and resolving one per
+     * piece is the caller's cost to pay, not this component's. */
+    artist?: string;
     /** This piece's current listing, when it has one. The grid is pieces from
      * a mint, not pieces for sale, so most calls pass nothing. */
     priceMutez?: bigint;
@@ -33,9 +39,18 @@ export function PieceCard({
             <div className="space-y-1 p-3">
                 <p className="truncate text-sm font-medium">{piece.name}</p>
                 <p className="truncate text-xs text-muted-foreground">{piece.generatorName}</p>
-                <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
+                {artist && (
+                    <p className="truncate text-xs font-medium">
+                        <AccountName address={artist} />
+                    </p>
+                )}
+                <div className="flex items-center justify-between gap-2 pt-1 text-[11px] text-muted-foreground">
                     <span className="min-w-0 truncate">
-                        {piece.minter ? <AccountName address={piece.minter} /> : ""}
+                        {piece.minter && (
+                            <>
+                                Minted by <AccountName address={piece.minter} />
+                            </>
+                        )}
                     </span>
                     {piece.mintedAt ? (
                         <span className="shrink-0">
