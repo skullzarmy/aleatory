@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 import { fetchPiece } from "@/lib/piece";
 import { Suspense } from "react";
@@ -166,6 +168,16 @@ export default async function PiecePage({
                             The image is still being made. You own this piece and can trade it now,
                             and you can run it above.
                         </p>
+                    )}
+
+                    {generator && !generator.paused && !generator.soldOut && (
+                        <Link
+                            href={`/generator/${contract}`}
+                            className="mt-4 flex items-center justify-between rounded-md border border-alea-600/40 bg-alea-600/10 px-3 py-2 text-sm font-medium hover:bg-alea-600/15"
+                        >
+                            Generator open · Mint one
+                            <ChevronRight size={14} aria-hidden />
+                        </Link>
                     )}
 
                     <div className="mt-4">
