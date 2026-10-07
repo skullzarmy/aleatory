@@ -15,6 +15,7 @@ import {
     fetchEditionSizes,
     fetchPausedStates,
     fetchSealedStates,
+    fetchArtists,
     type TzktToken,
 } from "./tzkt";
 import { isBlockedGenerator } from "./blocklist";
@@ -335,6 +336,8 @@ export interface RecentFeed {
     generators: { address: string; name: string }[];
     /** How many have anything minted, so a capped picker can say so. */
     mintingGeneratorCount: number;
+    /** Each piece's generator's artist, keyed by generator address. */
+    artists: Map<string, string>;
 }
 
 export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Promise<RecentFeed> {
@@ -347,6 +350,7 @@ export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Pr
             hasMore: false,
             generators: [],
             mintingGeneratorCount: 0,
+            artists: new Map(),
         };
     }
     // Every factory, not only the current one: a redeploy retires a factory and
@@ -360,6 +364,7 @@ export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Pr
             hasMore: false,
             generators: [],
             mintingGeneratorCount: 0,
+            artists: new Map(),
         };
     }
     const aliasByAddress = await namesFor(all.map((c) => c.address));
@@ -377,14 +382,18 @@ export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Pr
             hasMore: false,
             generators: picker,
             mintingGeneratorCount: minting,
+            artists: new Map(),
         };
     }
 
-    const window = await fetchRecentTokens(
-        scoped.map((c) => c.address),
-        limit + 1,
-        offset,
-    );
+    const [window, artists] = await Promise.all([
+        fetchRecentTokens(
+            scoped.map((c) => c.address),
+            limit + 1,
+            offset,
+        ),
+        fetchArtists(scoped.map((c) => c.address)).catch(() => new Map<string, string>()),
+    ]);
     return {
         pieces: await piecesOf(window.slice(0, limit), aliasByAddress),
         generatorCount: all.length,
@@ -392,6 +401,7 @@ export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Pr
         hasMore: window.length > limit,
         generators: picker,
         mintingGeneratorCount: minting,
+        artists,
     };
 }
 
@@ -399,6 +409,8 @@ export interface WalletView {
     held: FeedPiece[];
     heldCount: number;
     heldPages: number;
+    /** Each held piece's generator's artist, keyed by generator address. */
+    heldArtists: Map<string, string>;
     made: GeneratorSummary[];
     madeCount: number;
     madePages: number;
@@ -409,6 +421,7 @@ const EMPTY_WALLET: WalletView = {
     held: [],
     heldCount: 0,
     heldPages: 0,
+    heldArtists: new Map(),
     made: [],
     madeCount: 0,
     madePages: 0,
@@ -448,6 +461,7 @@ export async function fetchWallet(
     const madePages = Math.max(1, Math.ceil(madeCount / perPage));
 
     let held: FeedPiece[] = [];
+    let heldArtists = new Map<string, string>();
     if (tab === "collected") {
         const aliasByAddress = await namesFor(addresses);
         const tokens = await fetchTokensHeldBy(
@@ -456,7 +470,13 @@ export async function fetchWallet(
             perPage,
             (page - 1) * perPage,
         ).catch(() => []);
-        held = await piecesOf(tokens, aliasByAddress);
+        const heldGenerators = [...new Set(tokens.map((t) => t.contract.address))];
+        const [pieces, artists] = await Promise.all([
+            piecesOf(tokens, aliasByAddress),
+            fetchArtists(heldGenerators).catch(() => new Map<string, string>()),
+        ]);
+        held = pieces;
+        heldArtists = artists;
     }
 
     let made: GeneratorSummary[] = [];
@@ -490,5 +510,14 @@ export async function fetchWallet(
         });
     }
 
-    return { held, heldCount, heldPages, made, madeCount, madePages, unconfigured: false };
+    return {
+        held,
+        heldCount,
+        heldPages,
+        heldArtists,
+        made,
+        madeCount,
+        madePages,
+        unconfigured: false,
+    };
 }

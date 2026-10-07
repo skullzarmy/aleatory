@@ -15,7 +15,7 @@ export function WalletTabs({
     page: number;
     href: (next: { tab?: "created" | "collected"; page?: number }) => string;
 }) {
-    const { made, madeCount, madePages, held, heldCount, heldPages } = wallet;
+    const { made, madeCount, madePages, held, heldCount, heldPages, heldArtists } = wallet;
 
     return (
         <div className="mt-8">
@@ -57,7 +57,7 @@ export function WalletTabs({
                     </p>
                 ) : (
                     <>
-                        <FeedGrid pieces={held} />
+                        <FeedGrid pieces={held} artists={heldArtists} />
                         <Pager
                             page={page}
                             hasMore={page < heldPages}
