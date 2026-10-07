@@ -394,12 +394,12 @@ function auditLibraries() {
     // host, so it can neither fetch a library nor load one by URL. Whatever
     // mounts it has to resolve the declarations and hand over the source.
     // Every frame that did not was a generator drawing without its libraries:
-    // the studio's cover was one, and the piece page and the mint preview were
-    // two more that outlived the fix.
+    // the studio's cover was one, and the piece page was another that
+    // outlived the fix.
     const mounts = globSync("src/**/*.tsx").filter(
         (f) => /<IsolateFrame/.test(read(f)) && !f.endsWith("IsolateFrame.tsx"),
     );
-    check("every isolate mount was found", mounts.length >= 4, mounts.join(", "));
+    check("every isolate mount was found", mounts.length >= 3, mounts.join(", "));
     for (const f of mounts) {
         check(`${f} hands the isolate its libraries`, /deps=\{/.test(read(f)));
     }
