@@ -35,7 +35,11 @@ export function PieceCard({
                 <p className="truncate text-xs text-muted-foreground">{piece.generatorName}</p>
                 <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
                     <span className="min-w-0 truncate">
-                        {piece.minter ? <AccountName address={piece.minter} /> : ""}
+                        {piece.minter && (
+                            <>
+                                Minted by <AccountName address={piece.minter} />
+                            </>
+                        )}
                     </span>
                     {piece.mintedAt ? (
                         <span className="shrink-0">
