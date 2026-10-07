@@ -3,18 +3,19 @@ import { IPFS_GATEWAYS } from "@/utils/ipfs";
 /**
  * Pinned images, served from here instead of from a gateway.
  *
- * A CID is a hash of the bytes it names, so this URL can be cached forever: the
- * first viewer pays one gateway round trip and the CDN serves everyone after
- * them. No visitor's address reaches a gateway, and a gateway that is down is
- * retried here rather than in a browser that has already painted a broken
- * image.
+ * A CID is a hash of the bytes it names, so a successful answer can be cached
+ * forever: the `cache-control` header below does that, not a route-level
+ * `force-static`. That segment config caches whatever the handler returns,
+ * success or a 502 alike, which pins a propagation delay as the permanent
+ * answer for every visitor after the first one who was early. The handler
+ * has to run every request; the response headers are what tell a downstream
+ * cache which answers are safe to keep.
  *
  * Nothing about the request is passed on: the CID is checked against a shape,
  * the gateway is ours to choose, and the caller cannot name a host.
  */
 
-export const dynamic = "force-static";
-export const revalidate = 31536000;
+export const dynamic = "force-dynamic";
 
 /** The shape TzKT and our own pinning produce. Anything else is not a CID. */
 const CID = /^[A-Za-z0-9]{46,64}$/;
