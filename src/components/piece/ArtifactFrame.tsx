@@ -128,23 +128,39 @@ export function ArtifactFrame({
 
             {!running && !ready && (
                 <div
-                    className={`flex h-full w-full items-center justify-center px-6 text-center ${
+                    className={`flex h-full w-full items-center justify-center ${
                         imageUrl ? "pending-shimmer" : "bg-muted"
                     }`}
                 >
-                    {!runnable ? (
+                    {!runnable && (
                         <span className="text-sm text-muted-foreground">Awaiting render</span>
-                    ) : (
-                        !imageUrl && (
-                            <span className="text-sm text-muted-foreground">
-                                No still yet, run the code to see this piece now.
-                            </span>
-                        )
                     )}
                 </div>
             )}
 
-            {runnable && !running && (
+            {runnable && !running && !imageUrl && (
+                // No photograph exists, so there is nothing for a centered
+                // overlay to obscure: the corner-pill sizing below is sized
+                // for staying out of a real still's way, which does not apply
+                // here. Centered and captioned instead, so the only way to
+                // see this piece right now reads as the main event.
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center">
+                    <button
+                        ref={runRef}
+                        type="button"
+                        onClick={() => toggle(true)}
+                        className="run-beckon inline-flex min-h-[44px] items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    >
+                        <Play className="h-5 w-5 fill-current" aria-hidden />
+                        Run the code
+                    </button>
+                    <p className="max-w-[18rem] text-xs text-muted-foreground">
+                        No still yet. The artwork is the program, run it to see this piece now.
+                    </p>
+                </div>
+            )}
+
+            {runnable && !running && imageUrl && (
                 <button
                     ref={runRef}
                     type="button"
