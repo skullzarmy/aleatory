@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { tzktLink } from "@/lib/config";
 import { shortAddress } from "@/lib/utils";
 import { TimeAgo } from "@/components/TimeAgo";
@@ -27,8 +28,12 @@ export function PieceFacts({ piece, listing }: { piece: Piece; listing?: Listing
     return (
         <div className="divide-y divide-border">
             <Row label="Generator">
-                <Link href={`/generator/${piece.contract}`} className="hover:underline">
-                    {piece.generatorName || shortAddress(piece.contract)}
+                <Link
+                    href={`/generator/${piece.contract}`}
+                    className="inline-flex items-center gap-0.5 hover:underline"
+                >
+                    {piece.generatorName || "View generator"}
+                    <ChevronRight size={12} aria-hidden className="shrink-0" />
                 </Link>
             </Row>
             <Row label="Edition">
