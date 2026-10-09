@@ -101,9 +101,39 @@ async function fetchProviderGas(provider: string): Promise<bigint | null> {
     }
 }
 
+interface CachedGenerator extends Omit<Generator, "priceMutez" | "renderGasMutez" | "totalMutez"> {
+    priceMutez: string;
+    renderGasMutez: string;
+    totalMutez: string;
+}
+
 /** Null when there is no such generator. Throws when the indexer could not be read. */
 export async function fetchGenerator(address: string): Promise<Generator | null> {
     if (!isAddress(address)) return null;
+    const cached = await cacheWrap<CachedGenerator | null>(
+        `generator:${address}`,
+        async () => {
+            const gen = await fetchGeneratorLive(address);
+            if (!gen) return null;
+            return {
+                ...gen,
+                priceMutez: gen.priceMutez.toString(),
+                renderGasMutez: gen.renderGasMutez.toString(),
+                totalMutez: gen.totalMutez.toString(),
+            };
+        },
+        { freshMs: 30_000, l1Ms: 15_000 },
+    );
+    if (!cached) return null;
+    return {
+        ...cached,
+        priceMutez: BigInt(cached.priceMutez),
+        renderGasMutez: BigInt(cached.renderGasMutez),
+        totalMutez: BigInt(cached.totalMutez),
+    };
+}
+
+async function fetchGeneratorLive(address: string): Promise<Generator | null> {
     const s = await fetchStorage<RawStorage>(address);
     if (!s || !s.art) return null;
 
@@ -207,11 +237,17 @@ async function fetchParamsSchema(address: string): Promise<ParamsSchema | null> 
 }
 
 export async function fetchGeneratorPieces(address: string, limit = 48): Promise<FeedPiece[]> {
-    const [tokens, meta] = await Promise.all([
-        fetchRecentTokens([address], limit),
-        fetchGeneratorMeta(address).catch((): GeneratorMeta => ({})),
-    ]);
-    return piecesOf(tokens, new Map([[address, meta.name ?? ""]]));
+    return cacheWrap(
+        `generator:pieces:${address}:${limit}`,
+        async () => {
+            const [tokens, meta] = await Promise.all([
+                fetchRecentTokens([address], limit),
+                fetchGeneratorMeta(address).catch((): GeneratorMeta => ({})),
+            ]);
+            return piecesOf(tokens, new Map([[address, meta.name ?? ""]]));
+        },
+        { freshMs: 30_000, l1Ms: 15_000 },
+    );
 }
 
 export interface GeneratorSummary {
