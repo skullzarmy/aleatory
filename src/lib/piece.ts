@@ -110,14 +110,19 @@ export function renderUrl(codeUri: string, seed?: string, params?: string): stri
     return u.toString();
 }
 
+/**
+ * Null when the indexer has no such token. Throws when a read the page cannot
+ * stand without fails: the mint operation holds the seed and storage holds the
+ * code, and a null for either reads as a piece still arriving.
+ */
 export async function fetchPiece(contract: string, tokenId: string): Promise<Piece | null> {
     const token = await fetchToken(contract, tokenId);
     if (!token) return null;
 
     const [owner, mint, storage, generatorMeta] = await Promise.all([
         fetchOwner(contract, tokenId).catch(() => null),
-        fetchMintOperation(contract, tokenId).catch(() => null),
-        fetchStorage<GeneratorStorage>(contract).catch(() => null),
+        fetchMintOperation(contract, tokenId),
+        fetchStorage<GeneratorStorage>(contract),
         fetchGeneratorMeta(contract).catch((): GeneratorMeta => ({})),
     ]);
 

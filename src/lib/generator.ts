@@ -16,7 +16,7 @@ import {
 
 export { fetchGeneratorMeta, type GeneratorMeta };
 import { tzktApi } from "./config";
-import { allFactories } from "./router";
+import { readAddresses } from "./router";
 import { isBlockedGenerator } from "./blocklist";
 import { bytesToString, ipfsImageUrl } from "@/utils/ipfs";
 import { coversFor, piecesOf, type FeedPiece } from "./feed";
@@ -100,8 +100,10 @@ async function fetchProviderGas(provider: string): Promise<bigint | null> {
     }
 }
 
+/** Null when there is no such generator. Throws when the indexer could not be read. */
 export async function fetchGenerator(address: string): Promise<Generator | null> {
-    const s = await fetchStorage<RawStorage>(address).catch(() => null);
+    if (!isAddress(address)) return null;
+    const s = await fetchStorage<RawStorage>(address);
     if (!s || !s.art) return null;
 
     const editionSize = parseInt(s.sale.edition_size, 10);
@@ -240,9 +242,13 @@ export async function fetchAllGenerators(opts?: {
     paused?: boolean;
     sealed?: boolean;
 }): Promise<GeneratorSummary[]> {
-    const factories = await allFactories();
+    const factories = (await readAddresses()).factories;
     if (factories.length === 0) return [];
-    const lists = await Promise.all(factories.map((f) => fetchGenerators(f).catch(() => [])));
+    // One factory failing costs its generators. All of them failing is an outage
+    // and throws, so it does not read as a catalog with nothing in it.
+    const settled = await Promise.allSettled(factories.map((f) => fetchGenerators(f)));
+    if (settled.every((r) => r.status === "rejected")) throw settled[0].reason;
+    const lists = settled.map((r) => (r.status === "fulfilled" ? r.value : []));
     const seen = new Set<string>();
     const rows = lists
         .flat()

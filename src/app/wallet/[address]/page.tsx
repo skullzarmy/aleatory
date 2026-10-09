@@ -9,6 +9,8 @@ import { shortAddress } from "@/lib/utils";
 import { resolveName, fetchProfile, avatarUrl, sourceFor } from "@/lib/identity";
 import { ipfsImageUrl } from "@/utils/ipfs";
 import { LiveRefresh } from "@/components/LiveRefresh";
+import { LastGood } from "@/components/LastGood";
+import { ReadFailed } from "@/components/ReadFailed";
 
 /**
  * Rendered per request. `revalidate` here made this a prerendered document, and
@@ -22,7 +24,10 @@ export async function generateMetadata({
     params: Promise<{ address: string }>;
 }): Promise<Metadata> {
     const { address } = await params;
-    const [name, profile] = await Promise.all([resolveName(address), fetchProfile(address)]);
+    const [name, profile] = await Promise.all([
+        resolveName(address).catch(() => null),
+        fetchProfile(address).catch(() => null),
+    ]);
     const title = profile?.name || name || shortAddress(address);
     const picture = avatarUrl(profile);
     const image = picture?.startsWith("ipfs://") ? ipfsImageUrl(picture) : picture;
@@ -65,16 +70,21 @@ export default async function WalletPage({
     const page = Math.max(1, Number.parseInt(rawPage ?? "1", 10) || 1);
 
     const [wallet, name, profile, source] = await Promise.all([
-        fetchWallet(address, { tab: tab ?? "collected", page }),
-        resolveName(address),
-        fetchProfile(address),
-        sourceFor(address),
+        fetchWallet(address, { tab: tab ?? "collected", page }).catch(() => null),
+        resolveName(address).catch(() => null),
+        fetchProfile(address).catch(() => null),
+        sourceFor(address).catch(() => null),
     ]);
+    if (!wallet) return <ReadFailed />;
 
     let view = wallet;
     if (!tab) {
         tab = view.heldCount === 0 && view.madeCount > 0 ? "created" : "collected";
-        if (tab === "created") view = await fetchWallet(address, { tab, page });
+        if (tab === "created") {
+            const created = await fetchWallet(address, { tab, page }).catch(() => null);
+            if (!created) return <ReadFailed />;
+            view = created;
+        }
     }
 
     const href = (next: { tab?: Tab; page?: number }) => {
@@ -88,18 +98,20 @@ export default async function WalletPage({
     };
 
     return (
-        <div className="mx-auto max-w-7xl px-4 py-8">
-            <LiveRefresh seconds={60} />
-            <ProfileCard address={address} name={name} profile={profile} source={source} />
-            <ProfileNudge address={address} profile={profile} />
+        <LastGood>
+            <div className="mx-auto max-w-7xl px-4 py-8">
+                <LiveRefresh seconds={60} />
+                <ProfileCard address={address} name={name} profile={profile} source={source} />
+                <ProfileNudge address={address} profile={profile} />
 
-            {view.unconfigured ? (
-                <p className="mt-8 text-sm text-muted-foreground">
-                    Nothing to show on this network yet.
-                </p>
-            ) : (
-                <WalletTabs wallet={view} tab={tab} page={page} href={href} />
-            )}
-        </div>
+                {view.unconfigured ? (
+                    <p className="mt-8 text-sm text-muted-foreground">
+                        Nothing to show on this network yet.
+                    </p>
+                ) : (
+                    <WalletTabs wallet={view} tab={tab} page={page} href={href} />
+                )}
+            </div>
+        </LastGood>
     );
 }
