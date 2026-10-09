@@ -225,6 +225,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 resolvedDeps.map((r) => r.spec),
             );
             if (!record.ok) return record.problems.join(" ");
+            if (draft.preflightPassedHtml !== draft.html) {
+                return "Pass pre-flight checks before publishing.";
+            }
         }
         if (draft && !cover) {
             return "Pick a cover. It is what your generator looks like everywhere it is listed.";

@@ -43,6 +43,8 @@ export interface Draft {
      * Cleared when it seals.
      */
     pendingUpload?: string;
+    /** The HTML code that passed pre-flight checks. */
+    preflightPassedHtml?: string;
 }
 
 /**

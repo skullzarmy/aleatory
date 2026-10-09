@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { getDraft, type Draft } from "@/lib/draft";
+import { getDraft, saveDraft, type Draft } from "@/lib/draft";
 import { detectParams } from "@/lib/detect";
 import { validateSchema } from "@/lib/params";
 import type { Provider } from "@/lib/providers";
+import { useDeps } from "@/components/useDeps";
 import { DeployForm } from "./DeployForm";
+import { PreflightModal } from "./PreflightModal";
 
 // Validated here because a broken parameter declaration, once deployed, can't
 // be corrected: the fields on the deploy form marked permanent are permanent.
@@ -15,6 +17,8 @@ export function PublishShell({ providers }: { providers: Provider[] }) {
     const params = useParams<{ draft: string }>();
     const id = params?.draft;
     const [draft, setDraft] = useState<Draft | null | undefined>(undefined);
+    const [showPreflight, setShowPreflight] = useState(false);
+    const { deps } = useDeps(draft?.html ?? "");
 
     useEffect(() => {
         if (!id) return;
@@ -63,6 +67,23 @@ export function PublishShell({ providers }: { providers: Provider[] }) {
                 changed.
             </p>
 
+            {draft.preflightPassedHtml !== draft.html && (
+                <div className="mt-6 rounded-lg border border-destructive/40 bg-destructive/10 p-4">
+                    <p className="text-sm font-medium">Pre-flight checks required</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        This generator has not passed pre-flight checks for its current code.
+                        Passing checks is required before deploying.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => setShowPreflight(true)}
+                        className="mt-3 inline-block rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-white hover:bg-destructive/90"
+                    >
+                        Run pre-flight checks
+                    </button>
+                </div>
+            )}
+
             {errors.length > 0 && (
                 <div className="mt-6 rounded-lg border border-destructive/40 bg-destructive/10 p-4">
                     <p className="text-sm font-medium">Fix your parameters first.</p>
@@ -85,6 +106,21 @@ export function PublishShell({ providers }: { providers: Provider[] }) {
             <div className="mt-8">
                 <DeployForm providers={providers} draft={draft} />
             </div>
+
+            <PreflightModal
+                open={showPreflight}
+                html={draft.html}
+                seed={draft.seed}
+                params={detectParams(draft.html)?.params ?? []}
+                deps={deps}
+                onClose={() => setShowPreflight(false)}
+                onProceed={async () => {
+                    const updated = { ...draft, preflightPassedHtml: draft.html };
+                    setDraft(updated);
+                    await saveDraft(updated);
+                    setShowPreflight(false);
+                }}
+            />
         </div>
     );
 }

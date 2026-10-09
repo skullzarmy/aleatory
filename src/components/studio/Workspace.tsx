@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CodePane } from "./CodePane";
 import { Frame } from "./Frame";
 import { SeedGrid } from "./SeedGrid";
 import { Checks } from "./Checks";
+import { PreflightModal } from "./PreflightModal";
 import { Cost } from "./Cost";
 import { ParamsPanel } from "./ParamsPanel";
 import { LibraryPicker } from "./LibraryPicker";
@@ -48,10 +50,12 @@ const TOOLS: { id: Tool; label: string }[] = [
 ];
 
 export function Workspace({ draft: initial }: { draft: Draft }) {
+    const router = useRouter();
     const [draft, setDraft] = useState(initial);
     const [tool, setTool] = useState<Tool>("preview");
     const [values, setValues] = useState<Record<string, unknown>>({});
     const [saved, setSaved] = useState(true);
+    const [showPreflight, setShowPreflight] = useState(false);
     // What the piece last threw. Cleared on every re-run, since the point of
     // editing is that the previous error may be the one you just fixed.
     const [error, setError] = useState<string | null>(null);
@@ -107,6 +111,14 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
         [update],
     );
 
+    const handlePreflightPassed = useCallback(async () => {
+        const updated = { ...draft, preflightPassedHtml: draft.html };
+        setDraft(updated);
+        await saveDraft(updated);
+        setShowPreflight(false);
+        router.push(`/studio/${draft.id}/publish`);
+    }, [draft, router]);
+
     return (
         // Full height, not a column of content. This is a workbench.
         <div className="flex h-[calc(100vh-5rem)] flex-col">
@@ -137,13 +149,14 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                         Export
                     </button>
 
-                    <Link
-                        href={`/studio/${draft.id}/publish`}
+                    <button
+                        type="button"
+                        onClick={() => setShowPreflight(true)}
                         className="inline-flex items-center gap-1.5 rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700"
                     >
                         Publish
                         <ArrowRight size={14} aria-hidden />
-                    </Link>
+                    </button>
                 </div>
             </header>
 
@@ -307,6 +320,16 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                     seed={draft.seed}
                                     params={params}
                                     values={values}
+                                    onCompleted={(passed) => {
+                                        if (passed) {
+                                            const updated = {
+                                                ...draft,
+                                                preflightPassedHtml: draft.html,
+                                            };
+                                            setDraft(updated);
+                                            void saveDraft(updated);
+                                        }
+                                    }}
                                 />
                             )}
 
@@ -315,6 +338,17 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                     )}
                 </section>
             </div>
+
+            <PreflightModal
+                open={showPreflight}
+                html={draft.html}
+                seed={draft.seed}
+                params={params}
+                values={values}
+                deps={deps}
+                onClose={() => setShowPreflight(false)}
+                onProceed={handlePreflightPassed}
+            />
         </div>
     );
 }
