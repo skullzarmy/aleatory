@@ -21,12 +21,14 @@ export function ListingCard({
     listing,
     piece,
     artist,
+    priority = false,
 }: {
     listing: Listing;
     /** Absent when the indexer has not caught up with the token yet. */
     piece?: FeedPiece;
     /** The generator's own artist, looked up separately from the piece. */
     artist?: string;
+    priority?: boolean;
 }) {
     return (
         <Link
@@ -38,6 +40,7 @@ export function ListingCard({
                     src={piece?.imageUrl}
                     pending={piece?.pending}
                     missingLabel={piece ? "Awaiting render" : "Loading"}
+                    priority={priority}
                 />
 
                 <span className="absolute bottom-2 right-2 rounded-md bg-background/90 px-2 py-1 text-sm font-semibold tabular-nums shadow-sm backdrop-blur">
