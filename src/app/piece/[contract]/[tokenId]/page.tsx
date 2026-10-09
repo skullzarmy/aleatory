@@ -20,7 +20,12 @@ import { maxDprFor } from "@/lib/renderLimits";
 import { resolveName, fetchProfile, socialHandle } from "@/lib/identity";
 import { shortAddress } from "@/lib/utils";
 import { LiveRefresh } from "@/components/LiveRefresh";
+import { LastGood } from "@/components/LastGood";
+import { ReadFailed } from "@/components/ReadFailed";
 import { PieceJsonLd } from "@/components/JsonLd";
+import { isAddress } from "@/lib/tzkt";
+import type { Piece } from "@/lib/piece";
+import type { Generator } from "@/lib/generator";
 
 /**
  * Rendered per request. `revalidate` here made this a prerendered document, and
@@ -69,16 +74,32 @@ export default async function PiecePage({
     searchParams: Search;
 }) {
     const { contract, tokenId } = await params;
+    if (!isAddress(contract) || !/^\d+$/.test(tokenId)) notFound();
     const justMinted = (await searchParams).minted !== undefined;
-    const piece = await fetchPiece(contract, tokenId);
+
+    let piece: Piece | null;
+    try {
+        piece = await fetchPiece(contract, tokenId);
+    } catch {
+        return <ReadFailed />;
+    }
 
     // The indexer may not have caught up yet; check the contract's next_token_id
     // (the count it has issued) before treating a token as not existing.
     if (!piece?.seed) {
-        const generator = await fetchGenerator(contract).catch(() => null);
+        let generator: Generator | null;
+        try {
+            generator = await fetchGenerator(contract);
+        } catch {
+            return <ReadFailed />;
+        }
         const minted = generator ? Number(tokenId) < generator.minted : false;
         if (!minted) return notFound();
-        return <PieceArriving contract={contract} tokenId={tokenId} />;
+        return (
+            <LastGood>
+                <PieceArriving contract={contract} tokenId={tokenId} />
+            </LastGood>
+        );
     }
 
     const [listing, offers, generator, artistProfile, provenance] = await Promise.all([
@@ -111,31 +132,32 @@ export default async function PiecePage({
     const schemaUnknown = !generator && Boolean(cachedImage);
 
     return (
-        <div className="mx-auto max-w-6xl px-4 py-8">
-            <LiveRefresh seconds={30} />
-            <PieceJsonLd
-                name={piece.name}
-                description={piece.description}
-                imageUrl={piece.imageUrl}
-                creator={piece.artist}
-                mintedAt={piece.mintedAt}
-                generatorName={piece.generatorName}
-                url={`${BRAND.url}/piece/${contract}/${tokenId}`}
-            />
-            {/* Only for whoever arrived here from the mint; a shared link gets the plain page. */}
-            <Suspense fallback={null}>
-                <JustMinted
-                    contract={contract}
-                    remaining={remaining}
-                    shareUrl={`${BRAND.url}/piece/${contract}/${tokenId}`}
-                    shareText={`I minted ${piece.name} on ${BRAND.name}`}
-                    artistHandles={artistHandles}
+        <LastGood>
+            <div className="mx-auto max-w-6xl px-4 py-8">
+                <LiveRefresh seconds={30} />
+                <PieceJsonLd
+                    name={piece.name}
+                    description={piece.description}
+                    imageUrl={piece.imageUrl}
+                    creator={piece.artist}
+                    mintedAt={piece.mintedAt}
+                    generatorName={piece.generatorName}
+                    url={`${BRAND.url}/piece/${contract}/${tokenId}`}
                 />
-            </Suspense>
+                {/* Only for whoever arrived here from the mint; a shared link gets the plain page. */}
+                <Suspense fallback={null}>
+                    <JustMinted
+                        contract={contract}
+                        remaining={remaining}
+                        shareUrl={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                        shareText={`I minted ${piece.name} on ${BRAND.name}`}
+                        artistHandles={artistHandles}
+                    />
+                </Suspense>
 
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-                <div className="min-w-0">
-                    {/* Params must be passed, or the frame renders the generator's fallbacks
+                <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                    <div className="min-w-0">
+                        {/* Params must be passed, or the frame renders the generator's fallbacks
                         instead of the piece on the token.
 
                         No image while it is pending. The pending document
@@ -143,73 +165,77 @@ export default async function PiecePage({
                         `imageUrl` at this point is a picture of a different
                         piece, and showing it under this token's name says it is
                         this one. */}
-                    <ArtifactFrame
-                        code={schemaUnknown ? undefined : piece.code}
-                        seed={schemaUnknown ? undefined : piece.seed}
-                        params={decodeParams(generator?.paramsSchema?.params ?? [], piece.params)}
-                        imageUrl={cachedImage}
-                        name={piece.name}
-                        maxDpr={maxDprFor(contract)}
-                    />
-                </div>
-
-                <div className="min-w-0">
-                    <h1 className="break-words text-xl font-semibold tracking-tight">
-                        {piece.name}
-                    </h1>
-                    {piece.description && (
-                        <p className="mt-2 break-words text-sm text-muted-foreground">
-                            {piece.description}
-                        </p>
-                    )}
-
-                    {piece.pending && (
-                        <p className="mt-4 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                            The image is still being made. You own this piece and can trade it now,
-                            and you can run it above.
-                        </p>
-                    )}
-
-                    {generator && !generator.paused && !generator.soldOut && (
-                        <Link
-                            href={`/generator/${contract}`}
-                            className="mt-4 flex items-center justify-between rounded-md border border-alea-600/40 bg-alea-600/10 px-3 py-2 text-sm font-medium hover:bg-alea-600/15"
-                        >
-                            Generator open · Mint one
-                            <ChevronRight size={14} aria-hidden />
-                        </Link>
-                    )}
-
-                    <div className="mt-4">
-                        <PieceMarket
-                            contract={contract}
-                            tokenId={tokenId}
-                            owner={piece.owner}
-                            listing={listing}
-                            offers={offers}
-                            royaltyBps={royaltyTotal}
+                        <ArtifactFrame
+                            code={schemaUnknown ? undefined : piece.code}
+                            seed={schemaUnknown ? undefined : piece.seed}
+                            params={decodeParams(
+                                generator?.paramsSchema?.params ?? [],
+                                piece.params,
+                            )}
+                            imageUrl={cachedImage}
+                            name={piece.name}
+                            maxDpr={maxDprFor(contract)}
                         />
                     </div>
 
-                    <div className="mt-4">
-                        <PieceFacts piece={piece} listing={listing} />
-                    </div>
+                    <div className="min-w-0">
+                        <h1 className="break-words text-xl font-semibold tracking-tight">
+                            {piece.name}
+                        </h1>
+                        {piece.description && (
+                            <p className="mt-2 break-words text-sm text-muted-foreground">
+                                {piece.description}
+                            </p>
+                        )}
 
-                    {!justMinted && (
+                        {piece.pending && (
+                            <p className="mt-4 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                                The image is still being made. You own this piece and can trade it
+                                now, and you can run it above.
+                            </p>
+                        )}
+
+                        {generator && !generator.paused && !generator.soldOut && (
+                            <Link
+                                href={`/generator/${contract}`}
+                                className="mt-4 flex items-center justify-between rounded-md border border-alea-600/40 bg-alea-600/10 px-3 py-2 text-sm font-medium hover:bg-alea-600/15"
+                            >
+                                Generator open · Mint one
+                                <ChevronRight size={14} aria-hidden />
+                            </Link>
+                        )}
+
                         <div className="mt-4">
-                            <ShareButtons
-                                url={`${BRAND.url}/piece/${contract}/${tokenId}`}
-                                text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
-                                artistHandles={artistHandles}
+                            <PieceMarket
+                                contract={contract}
+                                tokenId={tokenId}
+                                owner={piece.owner}
+                                listing={listing}
+                                offers={offers}
+                                royaltyBps={royaltyTotal}
                             />
                         </div>
-                    )}
+
+                        <div className="mt-4">
+                            <PieceFacts piece={piece} listing={listing} />
+                        </div>
+
+                        {!justMinted && (
+                            <div className="mt-4">
+                                <ShareButtons
+                                    url={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                                    text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
+                                    artistHandles={artistHandles}
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-12 max-w-sm">
+                    <Provenance events={provenance} />
                 </div>
             </div>
-
-            <div className="mt-12 max-w-sm">
-                <Provenance events={provenance} />
-            </div>
-        </div>
+        </LastGood>
     );
 }

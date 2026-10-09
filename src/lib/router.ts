@@ -35,37 +35,34 @@ const TTL_MS = 60_000;
 /**
  * Read the router's storage. The on-chain view carries the same values and
  * needs an RPC round trip per call, and this is on the path of every page.
+ * Throws when the router is configured and cannot be read.
  */
 async function fromChain(): Promise<Addresses> {
     if (!CONTRACTS.router) return EMPTY;
-    try {
-        const res = await indexerFetch(`${tzktApi()}/v1/contracts/${CONTRACTS.router}/storage`, {
-            next: { revalidate: 60 },
-        } as RequestInit);
-        if (!res.ok) return EMPTY;
-        const s = (await res.json()) as {
-            factories?: string[];
-            marketplace?: string;
-            registry?: string;
-            resolver?: string;
-        };
-        const current = s.marketplace ?? "";
-        const previous = await marketplaceHistory();
+    const res = await indexerFetch(`${tzktApi()}/v1/contracts/${CONTRACTS.router}/storage`, {
+        next: { revalidate: 60 },
+    } as RequestInit);
+    if (!res.ok || res.status === 204) throw new Error(`router storage: TzKT ${res.status}`);
+    const s = (await res.json()) as {
+        factories?: string[];
+        marketplace?: string;
+        registry?: string;
+        resolver?: string;
+    };
+    const current = s.marketplace ?? "";
+    const previous = await marketplaceHistory();
 
-        return {
-            // `add_factory` conses on, so re-pointing at an earlier factory
-            // leaves it in the list twice and every read that fans out over
-            // factories queries it twice. Shadownet names one twice today.
-            factories: [...new Set(Array.isArray(s.factories) ? s.factories : [])],
-            marketplaces: [
-                ...new Set([current, ...previous.filter((m) => m !== current)].filter(Boolean)),
-            ],
-            registry: s.registry ?? "",
-            resolver: s.resolver ?? "",
-        };
-    } catch {
-        return EMPTY;
-    }
+    return {
+        // `add_factory` conses on, so re-pointing at an earlier factory
+        // leaves it in the list twice and every read that fans out over
+        // factories queries it twice. Shadownet names one twice today.
+        factories: [...new Set(Array.isArray(s.factories) ? s.factories : [])],
+        marketplaces: [
+            ...new Set([current, ...previous.filter((m) => m !== current)].filter(Boolean)),
+        ],
+        registry: s.registry ?? "",
+        resolver: s.resolver ?? "",
+    };
 }
 
 /**
@@ -96,15 +93,11 @@ async function marketplaceHistory(): Promise<string[]> {
     }
 }
 
-export async function addresses(): Promise<Addresses> {
-    if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
-
-    const chain = await fromChain();
-
+function withEnv(chain: Addresses): Addresses {
     // An env address goes to the front of its list and does not replace it, or
     // overriding one would hide every generator the others made.
     const envFactory = CONTRACTS.factory;
-    const value: Addresses = {
+    return {
         factories: envFactory
             ? [envFactory, ...chain.factories.filter((f) => f !== envFactory)]
             : chain.factories,
@@ -117,9 +110,28 @@ export async function addresses(): Promise<Addresses> {
         registry: CONTRACTS.registry || chain.registry,
         resolver: CONTRACTS.resolver || chain.resolver,
     };
+}
 
-    cached = { at: Date.now(), value };
-    return value;
+/**
+ * The addresses, for a caller that needs to tell an unreadable router from one
+ * naming nothing. A failed read is never cached: the last good answer stands in
+ * when there is one, and this throws when there is not.
+ */
+export async function readAddresses(): Promise<Addresses> {
+    if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
+    try {
+        const value = withEnv(await fromChain());
+        cached = { at: Date.now(), value };
+        return value;
+    } catch (e) {
+        if (cached) return cached.value;
+        throw e;
+    }
+}
+
+/** The addresses, or only what the environment names when the router cannot be read. */
+export async function addresses(): Promise<Addresses> {
+    return readAddresses().catch(() => withEnv(EMPTY));
 }
 
 /** Where a new generator is deployed. */
