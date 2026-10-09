@@ -3,6 +3,7 @@ import { CONTRACTS, tzktApi } from "./config";
 import { isBlockedGenerator } from "./blocklist";
 import { addresses } from "./router";
 import { fetchHeldAmong, indexerFetch } from "./tzkt";
+import { cacheWrap } from "./cache";
 
 export interface Listing {
     id: number;
@@ -71,27 +72,41 @@ type RawOffer = {
     fee_bps: string;
 };
 
-function toListing(r: BigMapRow<RawListing>, marketplace: string): Listing {
+function toListing(r: BigMapRow<RawListing>, marketplace: string): Listing | null {
+    if (!r?.value?.seller || !r?.value?.collection || r?.value?.price === undefined) return null;
+    let priceMutez: bigint;
+    try {
+        priceMutez = BigInt(r.value.price);
+    } catch {
+        return null;
+    }
     return {
         id: parseInt(r.key, 10),
         marketplace,
         seller: r.value.seller,
         generator: r.value.collection,
-        tokenId: r.value.token_id,
-        priceMutez: BigInt(r.value.price),
-        feeBps: parseInt(r.value.fee_bps, 10),
+        tokenId: r.value.token_id ?? "0",
+        priceMutez,
+        feeBps: parseInt(r.value.fee_bps ?? "0", 10) || 0,
     };
 }
 
-function toOffer(r: BigMapRow<RawOffer>, marketplace: string): Offer {
+function toOffer(r: BigMapRow<RawOffer>, marketplace: string): Offer | null {
+    if (!r?.value?.buyer || !r?.value?.collection || r?.value?.amount === undefined) return null;
+    let amountMutez: bigint;
+    try {
+        amountMutez = BigInt(r.value.amount);
+    } catch {
+        return null;
+    }
     return {
         marketplace,
         id: parseInt(r.key, 10),
         buyer: r.value.buyer,
         generator: r.value.collection,
-        tokenId: r.value.token_id,
-        amountMutez: BigInt(r.value.amount),
-        feeBps: parseInt(r.value.fee_bps, 10),
+        tokenId: r.value.token_id ?? "0",
+        amountMutez,
+        feeBps: parseInt(r.value.fee_bps ?? "0", 10) || 0,
     };
 }
 
@@ -108,6 +123,43 @@ async function acrossMarketplaces<T>(read: (marketplace: string) => Promise<T[]>
     if (marketplaces.length === 0) return [];
     const results = await Promise.all(marketplaces.map((m) => read(m).catch(() => [] as T[])));
     return results.flat();
+}
+
+interface SerializedListing {
+    id: number;
+    marketplace: string;
+    seller: string;
+    generator: string;
+    tokenId: string;
+    priceMutez: string;
+    feeBps: number;
+}
+
+/**
+ * All active listings across marketplaces, cached with process memory and Upstash Redis SWR.
+ * BigInt prices are serialized as strings to preserve precision across cache transports.
+ */
+async function fetchAllActiveListings(): Promise<Listing[]> {
+    const raw = await cacheWrap<SerializedListing[]>(
+        "market:active_listings",
+        async () => {
+            const all = await acrossMarketplaces(async (m) => {
+                const rows = await bigmap<RawListing>(bigmapPath(m, "listings"), {
+                    active: "true",
+                    "sort.desc": "id",
+                    limit: 500,
+                });
+                return rows
+                    .map((r) => toListing(r, m))
+                    .filter((l): l is Listing => l !== null)
+                    .map((l) => ({ ...l, priceMutez: l.priceMutez.toString() }));
+            });
+            return all;
+        },
+        { freshMs: 20_000, l1Ms: 10_000, redisTtlSec: 3600 },
+    );
+
+    return (raw ?? []).map((l) => ({ ...l, priceMutez: BigInt(l.priceMutez) }));
 }
 
 export type ListingSort = "recent" | "price";
@@ -130,14 +182,7 @@ export async function fetchListingPage(
 ): Promise<ListingPage> {
     const { sort = "recent", generator, limit = 48, offset = 0 } = options;
 
-    const all = await acrossMarketplaces(async (m) => {
-        const rows = await bigmap<RawListing>(bigmapPath(m, "listings"), {
-            active: "true",
-            "sort.desc": "id",
-            limit: 500,
-        });
-        return rows.map((r) => toListing(r, m));
-    });
+    const all = await fetchAllActiveListings();
 
     const scoped = all
         .filter((l) => !isBlockedGenerator(l.generator))
@@ -171,7 +216,7 @@ export async function fetchListingFor(generator: string, tokenId: string): Promi
             "value.token_id": tokenId,
             limit: 1,
         });
-        return rows.map((r) => toListing(r, m));
+        return rows.map((r) => toListing(r, m)).filter((l): l is Listing => l !== null);
     });
     // A token can only be escrowed by one marketplace at a time, since listing
     // transfers it. More than one means something is wrong; take the newest.
@@ -187,7 +232,7 @@ export async function fetchOffersFor(generator: string, tokenId: string): Promis
             "sort.desc": "id",
             limit: 20,
         });
-        return rows.map((r) => toOffer(r, m));
+        return rows.map((r) => toOffer(r, m)).filter((o): o is Offer => o !== null);
     });
     return all.sort((a, b) => Number(b.amountMutez - a.amountMutez));
 }
@@ -201,7 +246,7 @@ export async function fetchListingsBy(seller: string): Promise<Listing[]> {
             "sort.desc": "id",
             limit: 200,
         });
-        return rows.map((r) => toListing(r, m));
+        return rows.map((r) => toListing(r, m)).filter((l): l is Listing => l !== null);
     });
     return all.filter((l) => !isBlockedGenerator(l.generator)).sort((a, b) => b.id - a.id);
 }
@@ -214,7 +259,7 @@ async function fetchAllOffers(limit = 200): Promise<Offer[]> {
             "sort.desc": "id",
             limit,
         });
-        return rows.map((r) => toOffer(r, m));
+        return rows.map((r) => toOffer(r, m)).filter((o): o is Offer => o !== null);
     });
     return all
         .filter((o) => !isBlockedGenerator(o.generator))

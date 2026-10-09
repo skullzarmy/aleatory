@@ -15,6 +15,7 @@ import {
     type GeneratorMeta,
 } from "./tzkt";
 import { fetchProvider } from "./providers";
+import { cacheWrap } from "./cache";
 import {
     bytesToString,
     convertIpfsToGatewayUrl,
@@ -116,6 +117,14 @@ export function renderUrl(codeUri: string, seed?: string, params?: string): stri
  * code, and a null for either reads as a piece still arriving.
  */
 export async function fetchPiece(contract: string, tokenId: string): Promise<Piece | null> {
+    return cacheWrap<Piece | null>(
+        `piece:${contract}:${tokenId}`,
+        async () => fetchPieceLive(contract, tokenId),
+        { freshMs: 20_000, l1Ms: 10_000 },
+    );
+}
+
+async function fetchPieceLive(contract: string, tokenId: string): Promise<Piece | null> {
     const token = await fetchToken(contract, tokenId);
     if (!token) return null;
 

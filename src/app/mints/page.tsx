@@ -4,10 +4,14 @@ import { FeedGrid } from "@/components/feed/FeedGrid";
 import { EmptyFeed } from "@/components/feed/EmptyFeed";
 import { Pager } from "@/components/feed/Pager";
 import { LiveRefresh } from "@/components/LiveRefresh";
+import { LastGood } from "@/components/LastGood";
+import { ReadFailed } from "@/components/ReadFailed";
 import type { Metadata } from "next";
 import { BRAND } from "@/lib/config";
 
 const PER_PAGE = 48;
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
     title: "Mints",
@@ -32,10 +36,12 @@ export default async function MintsPage({ searchParams }: { searchParams: Promis
     );
     if (!feed) {
         return (
-            <Shell>
-                <LiveRefresh seconds={5} />
-                <EmptyFeed reason="unreachable" />
-            </Shell>
+            <LastGood failed fallback={<ReadFailed />}>
+                <Shell>
+                    <LiveRefresh seconds={5} />
+                    <EmptyFeed reason="unreachable" />
+                </Shell>
+            </LastGood>
         );
     }
     if (feed.unconfigured) {
@@ -65,31 +71,33 @@ export default async function MintsPage({ searchParams }: { searchParams: Promis
     const first = (page - 1) * PER_PAGE + 1;
 
     return (
-        <Shell
-            scope={scoped?.name}
-            generators={feed.generators}
-            selected={generator}
-            total={feed.mintingGeneratorCount}
-        >
-            <LiveRefresh seconds={30} />
+        <LastGood>
+            <Shell
+                scope={scoped?.name}
+                generators={feed.generators}
+                selected={generator}
+                total={feed.mintingGeneratorCount}
+            >
+                <LiveRefresh seconds={30} />
 
-            {feed.pieces.length === 0 ? (
-                <>
-                    <EmptyFeed reason={page > 1 ? "past-the-end" : "no-pieces"} />
-                    <Pager page={page} hasMore={false} href={href} showing="" />
-                </>
-            ) : (
-                <>
-                    <FeedGrid pieces={feed.pieces} artists={feed.artists} />
-                    <Pager
-                        page={page}
-                        hasMore={feed.hasMore}
-                        href={href}
-                        showing={`${first}–${first + feed.pieces.length - 1}`}
-                    />
-                </>
-            )}
-        </Shell>
+                {feed.pieces.length === 0 ? (
+                    <>
+                        <EmptyFeed reason={page > 1 ? "past-the-end" : "no-pieces"} />
+                        <Pager page={page} hasMore={false} href={href} showing="" />
+                    </>
+                ) : (
+                    <>
+                        <FeedGrid pieces={feed.pieces} artists={feed.artists} />
+                        <Pager
+                            page={page}
+                            hasMore={feed.hasMore}
+                            href={href}
+                            showing={`${first}–${first + feed.pieces.length - 1}`}
+                        />
+                    </>
+                )}
+            </Shell>
+        </LastGood>
     );
 }
 

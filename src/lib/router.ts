@@ -1,5 +1,6 @@
 import { CONTRACTS, tzktApi } from "./config";
 import { indexerFetch } from "./tzkt";
+import { cacheWrap } from "./cache";
 
 /**
  * Where everything is, according to the chain. One address in the environment,
@@ -118,15 +119,11 @@ function withEnv(chain: Addresses): Addresses {
  * when there is one, and this throws when there is not.
  */
 export async function readAddresses(): Promise<Addresses> {
-    if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
-    try {
-        const value = withEnv(await fromChain());
-        cached = { at: Date.now(), value };
-        return value;
-    } catch (e) {
-        if (cached) return cached.value;
-        throw e;
-    }
+    return cacheWrap("router:addresses", async () => withEnv(await fromChain()), {
+        freshMs: 60_000,
+        l1Ms: 30_000,
+        redisTtlSec: 86_400,
+    });
 }
 
 /** The addresses, or only what the environment names when the router cannot be read. */

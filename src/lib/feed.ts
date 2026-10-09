@@ -1,5 +1,6 @@
 /** Pieces minted across every Aleatory generator, newest first. */
 import { allFactories } from "./router";
+import { cacheWrap } from "./cache";
 import {
     fetchGenerators,
     fetchGeneratorsDeployedBy,
@@ -340,25 +341,36 @@ export interface RecentFeed {
     artists: Map<string, string>;
 }
 
-const feedCache = new Map<string, RecentFeed>();
+interface CachedRecentFeed {
+    pieces: FeedPiece[];
+    generatorCount: number;
+    unconfigured: boolean;
+    hasMore: boolean;
+    generators: { address: string; name: string }[];
+    mintingGeneratorCount: number;
+    artists: [string, string][];
+}
 
 export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Promise<RecentFeed> {
-    const cacheKey = `${limit}:${offset}:${only ?? ""}`;
-    try {
-        const feed = await fetchRecentFeedLive(limit, offset, only);
-        if (feed.pieces.length > 0 || feed.generatorCount > 0) {
-            feedCache.set(cacheKey, feed);
-        }
-        return feed;
-    } catch (err) {
-        const cached = feedCache.get(cacheKey);
-        if (cached) return cached;
-        throw err;
-    }
+    const key = `feed:mints:${limit}:${offset}:${only ?? "all"}`;
+    const cached = await cacheWrap<CachedRecentFeed>(
+        key,
+        async () => {
+            const feed = await fetchRecentFeedLive(limit, offset, only);
+            return {
+                ...feed,
+                artists: Array.from(feed.artists.entries()),
+            };
+        },
+        { freshMs: 20_000, l1Ms: 10_000 },
+    );
+    return {
+        ...cached,
+        artists: new Map(cached.artists),
+    };
 }
 
 async function fetchRecentFeedLive(limit = 48, offset = 0, only?: string): Promise<RecentFeed> {
-    const cacheKey = `${limit}:${offset}:${only ?? ""}`;
     const factories = await allFactories();
     if (factories.length === 0) {
         return {
@@ -375,8 +387,6 @@ async function fetchRecentFeedLive(limit = 48, offset = 0, only?: string): Promi
     // the generators it made stay real.
     const all = (await generatorsFrom(factories)).filter((c) => !isBlockedGenerator(c.address));
     if (all.length === 0) {
-        const cached = feedCache.get(cacheKey);
-        if (cached) return cached;
         return {
             pieces: [],
             generatorCount: 0,
@@ -448,7 +458,41 @@ const EMPTY_WALLET: WalletView = {
     unconfigured: true,
 };
 
+interface CachedWalletView {
+    held: FeedPiece[];
+    heldCount: number;
+    heldPages: number;
+    heldArtists: [string, string][];
+    made: GeneratorSummary[];
+    madeCount: number;
+    madePages: number;
+    unconfigured: boolean;
+}
+
 export async function fetchWallet(
+    account: string,
+    opts: { tab?: "created" | "collected"; page?: number; perPage?: number } = {},
+): Promise<WalletView> {
+    const { tab = "collected", page = 1, perPage = 48 } = opts;
+    const key = `wallet:${account}:${tab}:${page}:${perPage}`;
+    const cached = await cacheWrap<CachedWalletView>(
+        key,
+        async () => {
+            const view = await fetchWalletLive(account, opts);
+            return {
+                ...view,
+                heldArtists: Array.from(view.heldArtists.entries()),
+            };
+        },
+        { freshMs: 30_000, l1Ms: 15_000 },
+    );
+    return {
+        ...cached,
+        heldArtists: new Map(cached.heldArtists),
+    };
+}
+
+async function fetchWalletLive(
     account: string,
     opts: { tab?: "created" | "collected"; page?: number; perPage?: number } = {},
 ): Promise<WalletView> {
