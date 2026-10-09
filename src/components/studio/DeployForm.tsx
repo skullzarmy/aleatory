@@ -67,6 +67,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         thumbUri: string;
         seed: string;
     } | null>(null);
+    const [coverConfirmed, setCoverConfirmed] = useState(false);
 
     const [stage, setStage] = useState<PublishStage | null>(null);
     const [upload, setUpload] = useState<UploadProgress | null>(null);
@@ -231,6 +232,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         }
         if (draft && !cover) {
             return "Pick a cover. It is what your generator looks like everywhere it is listed.";
+        }
+        if (draft && !coverConfirmed) {
+            return "Check your cover image and confirm it cannot be changed later.";
         }
         const size = Number.parseInt(editionSize, 10);
         if (!Number.isFinite(size) || size < 0) return "Edition size must be 0 or more.";
@@ -811,10 +815,52 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 </div>
             )}
 
+            <aside className="rounded-md border border-alea-600/30 bg-alea-600/5 p-3.5 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Start development on Shadownet</p>
+                <p className="mt-1 leading-relaxed">
+                    Start development on{" "}
+                    <a
+                        href="https://shadownet.aleatory.art"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium underline hover:text-foreground"
+                    >
+                        shadownet.aleatory.art
+                    </a>{" "}
+                    and test fully there through the minting process before deploying to mainnet.
+                    Shadownet tez is free and can be requested at{" "}
+                    <a
+                        href="https://faucet.shadownet.teztnets.com/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium underline hover:text-foreground"
+                    >
+                        https://faucet.shadownet.teztnets.com/
+                    </a>
+                    .
+                </p>
+            </aside>
+
+            {draft && (
+                <label className="flex cursor-pointer select-none items-start gap-2.5 rounded-md border border-border bg-card p-3 text-xs">
+                    <input
+                        type="checkbox"
+                        checked={coverConfirmed}
+                        onChange={(e) => setCoverConfirmed(e.target.checked)}
+                        className="mt-0.5 rounded border-border accent-alea-600"
+                    />
+                    <span className="font-medium leading-relaxed text-foreground">
+                        I have checked my cover image and understand this cannot be changed later.
+                    </span>
+                </label>
+            )}
+
             <button
                 type={address ? "submit" : "button"}
                 onClick={address ? undefined : () => void connect()}
-                disabled={stage !== null || checking}
+                disabled={
+                    stage !== null || checking || (Boolean(address) && draft && !coverConfirmed)
+                }
                 className="w-full rounded-md bg-alea-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
             >
                 {!address

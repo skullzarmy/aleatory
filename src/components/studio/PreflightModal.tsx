@@ -139,6 +139,32 @@ export function PreflightModal({
                     </div>
                 )}
 
+                <aside className="rounded-lg border border-alea-600/30 bg-alea-600/5 p-3 text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground">Test on Shadownet first</p>
+                    <p className="mt-0.5 leading-relaxed">
+                        Start development on{" "}
+                        <a
+                            href="https://shadownet.aleatory.art"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium underline hover:text-foreground"
+                        >
+                            shadownet.aleatory.art
+                        </a>{" "}
+                        and test fully there through the minting process before deploying to
+                        mainnet. Shadownet tez is free and can be requested at{" "}
+                        <a
+                            href="https://faucet.shadownet.teztnets.com/"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium underline hover:text-foreground"
+                        >
+                            https://faucet.shadownet.teztnets.com/
+                        </a>
+                        .
+                    </p>
+                </aside>
+
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                     <button
                         type="button"
