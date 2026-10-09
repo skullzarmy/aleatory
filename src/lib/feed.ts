@@ -187,7 +187,7 @@ export async function coversFor(generators: string[]): Promise<Map<string, strin
         const s = state.get(key(t));
         if (s?.pendingUri && s.tokenUri === s.pendingUri) continue;
         const m = t.metadata ?? docs.get(key(t));
-        const display = m?.displayUri || m?.thumbnailUri;
+        const display = m?.thumbnailUri || m?.displayUri;
         if (display) out.set(address, ipfsImageUrl(display));
     }
     return out;
@@ -220,7 +220,7 @@ function toPiece(
     // TzKT resolves `ipfs://` metadata on its own schedule and on some networks
     // never, so the document fetched here fills in for it.
     const m = t.metadata ?? resolved;
-    const display = m?.displayUri || m?.thumbnailUri;
+    const display = m?.thumbnailUri || m?.displayUri;
     // The pointer comparison, which is the provider's own queue rule, so the
     // site and the daemon cannot disagree. "Has no image" is not the test: a
     // pending document carries the generator cover as its displayUri.

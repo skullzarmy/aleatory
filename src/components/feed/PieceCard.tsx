@@ -12,6 +12,7 @@ export function PieceCard({
     piece,
     artist,
     priceMutez,
+    priority = false,
 }: {
     piece: FeedPiece;
     /** The generator's artist, when the caller has it. `FeedPiece` has no
@@ -21,6 +22,7 @@ export function PieceCard({
     /** This piece's current listing, when it has one. The grid is pieces from
      * a mint, not pieces for sale, so most calls pass nothing. */
     priceMutez?: bigint;
+    priority?: boolean;
 }) {
     return (
         <Link
@@ -28,7 +30,7 @@ export function PieceCard({
             className="group block overflow-hidden rounded-lg border border-border bg-card-background transition-shadow hover:shadow-lg"
         >
             <div className="relative aspect-square bg-muted">
-                <PieceImage src={piece.imageUrl} pending={piece.pending} />
+                <PieceImage src={piece.imageUrl} pending={piece.pending} priority={priority} />
                 {priceMutez !== undefined && (
                     <span className="absolute bottom-2 right-2 rounded-md bg-background/90 px-2 py-1 text-sm font-semibold tabular-nums shadow-sm backdrop-blur">
                         {formatTez(priceMutez)} ꜩ

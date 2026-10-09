@@ -238,60 +238,78 @@ export interface GeneratorSummary {
  * reads either. Only a caller that filters on them (the home page) or
  * renders a badge pays for it.
  */
+const GENERATORS_CACHE_TTL_MS = 30_000;
+const generatorsCache = new Map<string, { at: number; value: GeneratorSummary[] }>();
+
 export async function fetchAllGenerators(opts?: {
     paused?: boolean;
     sealed?: boolean;
 }): Promise<GeneratorSummary[]> {
-    const factories = (await readAddresses()).factories;
-    if (factories.length === 0) return [];
-    // One factory failing costs its generators. All of them failing is an outage
-    // and throws, so it does not read as a catalog with nothing in it.
-    const settled = await Promise.allSettled(factories.map((f) => fetchGenerators(f)));
-    if (settled.every((r) => r.status === "rejected")) throw settled[0].reason;
-    const lists = settled.map((r) => (r.status === "fulfilled" ? r.value : []));
-    const seen = new Set<string>();
-    const rows = lists
-        .flat()
-        .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
-        .filter((c) => !isBlockedGenerator(c.address))
-        // Each factory's list is newest first, so flattening leaves one run per
-        // factory rather than one order.
-        .sort((a, b) => (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""));
-    const addresses = rows.map((c) => c.address);
-    const [metas, covers, editions, paused, sealed, artists] = await Promise.all([
-        Promise.all(
-            addresses.map((a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({}))),
-        ),
-        coversFor(addresses).catch(() => new Map<string, string>()),
-        fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
-        opts?.paused
-            ? fetchPausedStates(addresses).catch(() => new Map<string, boolean>())
-            : Promise.resolve(new Map<string, boolean>()),
-        opts?.sealed
-            ? fetchSealedStates(addresses).catch(() => new Map<string, boolean>())
-            : Promise.resolve(new Map<string, boolean>()),
-        fetchArtists(addresses).catch(() => new Map<string, string>()),
-    ]);
+    const cacheKey = `${opts?.paused ?? false}:${opts?.sealed ?? false}`;
+    const cached = generatorsCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < GENERATORS_CACHE_TTL_MS) {
+        return cached.value;
+    }
 
-    return rows.map((c, i) => ({
-        address: c.address,
-        artist: artists.get(c.address),
-        // `alias` is TzKT's, set for contracts it happens to know.
-        name: metas[i].name || c.alias,
-        description: metas[i].description,
-        // The artist's own cover first, pinned at deploy, so a generator has a
-        // face before its first piece finishes rendering.
-        coverUrl: (() => {
-            const own = metas[i].displayUri ?? metas[i].thumbnailUri;
-            return own ? ipfsImageUrl(own) : covers.get(c.address);
-        })(),
-        minted: c.tokensCount ?? 0,
-        editionSize: editions.get(c.address) ?? 0,
-        firstActivity: c.firstActivityTime,
-        // Unknown reads as not-paused: a missing badge is a cosmetic miss, a
-        // false "paused" on every row this failed for would be worse.
-        paused: paused.get(c.address) ?? false,
-        // Unknown reads as sealed, the same fail-open bias as paused above.
-        sealed: sealed.get(c.address) ?? true,
-    }));
+    try {
+        const factories = (await readAddresses()).factories;
+        if (factories.length === 0) return [];
+        // One factory failing costs its generators. All of them failing is an outage
+        // and throws, so it does not read as a catalog with nothing in it.
+        const settled = await Promise.allSettled(factories.map((f) => fetchGenerators(f)));
+        if (settled.every((r) => r.status === "rejected")) throw settled[0].reason;
+        const lists = settled.map((r) => (r.status === "fulfilled" ? r.value : []));
+        const seen = new Set<string>();
+        const rows = lists
+            .flat()
+            .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
+            .filter((c) => !isBlockedGenerator(c.address))
+            // Each factory's list is newest first, so flattening leaves one run per
+            // factory rather than one order.
+            .sort((a, b) => (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""));
+        const addresses = rows.map((c) => c.address);
+        const [metas, covers, editions, paused, sealed, artists] = await Promise.all([
+            Promise.all(
+                addresses.map(
+                    (a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({})),
+                ),
+            ),
+            coversFor(addresses).catch(() => new Map<string, string>()),
+            fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
+            opts?.paused
+                ? fetchPausedStates(addresses).catch(() => new Map<string, boolean>())
+                : Promise.resolve(new Map<string, boolean>()),
+            opts?.sealed
+                ? fetchSealedStates(addresses).catch(() => new Map<string, boolean>())
+                : Promise.resolve(new Map<string, boolean>()),
+            fetchArtists(addresses).catch(() => new Map<string, string>()),
+        ]);
+
+        const value = rows.map((c, i) => ({
+            address: c.address,
+            artist: artists.get(c.address),
+            // `alias` is TzKT's, set for contracts it happens to know.
+            name: metas[i].name || c.alias,
+            description: metas[i].description,
+            // The artist's own cover first, pinned at deploy, so a generator has a
+            // face before its first piece finishes rendering.
+            coverUrl: (() => {
+                const own = metas[i].thumbnailUri || metas[i].displayUri;
+                return own ? ipfsImageUrl(own) : covers.get(c.address);
+            })(),
+            minted: c.tokensCount ?? 0,
+            editionSize: editions.get(c.address) ?? 0,
+            firstActivity: c.firstActivityTime,
+            // Unknown reads as not-paused: a missing badge is a cosmetic miss, a
+            // false "paused" on every row this failed for would be worse.
+            paused: paused.get(c.address) ?? false,
+            // Unknown reads as sealed, the same fail-open bias as paused above.
+            sealed: sealed.get(c.address) ?? true,
+        }));
+        generatorsCache.set(cacheKey, { at: Date.now(), value });
+        return value;
+    } catch (e) {
+        if (cached) return cached.value;
+        throw e;
+    }
 }
