@@ -23,11 +23,13 @@ export function PieceImage({
     missingLabel = "Awaiting render",
     /** A thumbnail too small for a sentence. */
     compact = false,
+    priority = false,
 }: {
     src?: string;
     pending?: boolean;
     missingLabel?: string;
     compact?: boolean;
+    priority?: boolean;
 }) {
     // `alt=""` so a failed load collapses onto the plate instead of painting
     // the browser's broken-image glyph; every caller names the link already.
@@ -47,7 +49,8 @@ export function PieceImage({
             <img
                 src={src}
                 alt=""
-                loading="lazy"
+                loading={priority ? "eager" : "lazy"}
+                fetchPriority={priority ? "high" : "auto"}
                 className={cn("h-full w-full object-cover", pending && "opacity-50 saturate-50")}
             />
             {pending &&

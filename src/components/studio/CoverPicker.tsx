@@ -5,6 +5,7 @@ import { IsolateFrame } from "@/components/IsolateFrame";
 import { seedAt, randomSeed } from "@/lib/draft";
 import type { ParamSpec } from "@/lib/params";
 import { resolveParams } from "@/lib/params";
+import { isBlankOrSolidBlack } from "@/lib/checks";
 
 /**
  * The generator's cover: captured in the artist's browser, from the same
@@ -56,6 +57,7 @@ export function CoverPicker({
     values,
     deps,
     baseSeed,
+    initialCover,
     onCaptured,
 }: {
     html: string;
@@ -64,23 +66,32 @@ export function CoverPicker({
     deps?: string[];
     /** The draft's seed, so the choices here match the grid the artist knows. */
     baseSeed: string;
+    initialCover?: { uri: string; thumbUri: string; seed: string } | null;
     onCaptured: (cover: { uri: string; thumbUri: string; seed: string } | null) => void;
 }) {
-    const [seed, setSeed] = useState(() => seedAt(baseSeed, 0));
+    const [seed, setSeed] = useState(() => initialCover?.seed ?? seedAt(baseSeed, 0));
     const [image, setImage] = useState<string | null>(null);
-    const [pinned, setPinned] = useState<string | null>(null);
+    const [pinned, setPinned] = useState<string | null>(() => initialCover?.uri ?? null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     // Why there are no pixels, when there are none. A disabled button with
     // nothing next to it is the same screen as a piece that has not drawn yet,
     // and an artist cannot tell which one they are looking at.
     const [uncapturable, setUncapturable] = useState<string | null>(null);
+    const [allowBlack, setAllowBlack] = useState(false);
 
     // Held from the last render so "use this one" needs no second run.
     const onReady = useCallback((d: { image: string | null; source: string }) => {
         setImage(d.image);
         if (d.image) {
             setUncapturable(null);
+            void isBlankOrSolidBlack(d.image).then((blank) => {
+                if (blank) {
+                    setUncapturable(
+                        "The captured image is completely black or empty. If using WebGL or Three.js, enable preserveDrawingBuffer: true. If drawing asynchronously, call $alea.ready() after rendering completes.",
+                    );
+                }
+            });
         } else if (d.source === "none") {
             setUncapturable(
                 "This piece draws in neither a canvas nor an SVG, so there is nothing here to photograph. A cover has to be captured from the piece itself, so give it one of the two and try again.",
@@ -114,6 +125,10 @@ export function CoverPicker({
             setError("The piece has not finished drawing yet.");
             return;
         }
+        if (uncapturable && !allowBlack) {
+            setError(uncapturable);
+            return;
+        }
         setBusy(true);
         setError(null);
         try {
@@ -140,6 +155,7 @@ export function CoverPicker({
         setImage(null);
         setPinned(null);
         setUncapturable(null);
+        setAllowBlack(false);
         onCaptured(null);
         setSeed(randomSeed());
     }
@@ -172,7 +188,9 @@ export function CoverPicker({
                 <button
                     type="button"
                     onClick={() => void pin()}
-                    disabled={busy || !image || Boolean(pinned)}
+                    disabled={
+                        busy || !image || Boolean(pinned) || (Boolean(uncapturable) && !allowBlack)
+                    }
                     className="rounded-md bg-alea-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
                 >
                     {busy ? "Pinning…" : pinned ? "Cover set" : "Use this one"}
@@ -183,9 +201,20 @@ export function CoverPicker({
             </div>
 
             {(error || uncapturable) && (
-                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
-                    {error ?? uncapturable}
-                </p>
+                <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
+                    <p>{error ?? uncapturable}</p>
+                    {uncapturable?.includes("completely black") && (
+                        <label className="flex items-center gap-2 pt-1 font-medium text-foreground">
+                            <input
+                                type="checkbox"
+                                checked={allowBlack}
+                                onChange={(e) => setAllowBlack(e.target.checked)}
+                                className="rounded border-border"
+                            />
+                            <span>My piece is intentionally solid black</span>
+                        </label>
+                    )}
+                </div>
             )}
 
             <p className="text-xs text-muted-foreground">

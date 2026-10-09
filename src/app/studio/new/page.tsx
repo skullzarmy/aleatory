@@ -135,6 +135,32 @@ export default function NewGeneratorPage() {
                 Pick what your piece is built with. This can&apos;t be changed after you publish.
             </p>
 
+            <aside className="mt-4 rounded-lg border border-alea-600/30 bg-alea-600/5 p-4 text-sm">
+                <p className="font-medium text-foreground">Start development on Shadownet</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Start development on{" "}
+                    <a
+                        href="https://shadownet.aleatory.art"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium underline hover:text-foreground"
+                    >
+                        shadownet.aleatory.art
+                    </a>{" "}
+                    and test fully there through the minting process before deploying to mainnet.
+                    Shadownet tez is free and can be requested at{" "}
+                    <a
+                        href="https://faucet.shadownet.teztnets.com/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium underline hover:text-foreground"
+                    >
+                        https://faucet.shadownet.teztnets.com/
+                    </a>
+                    .
+                </p>
+            </aside>
+
             {/* `certain` is false when nothing in the file matched and the
                 fallback was used. Saying "read from your file: Canvas 2D,
                 because nothing in the file identified it" claims to have read

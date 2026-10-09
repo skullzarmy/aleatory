@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 /**
  * Keeps the last successful render of a page across `router.refresh()`.
@@ -22,7 +22,9 @@ export function LastGood({
     failed?: boolean;
     fallback?: ReactNode;
 }) {
-    const [kept, setKept] = useState<ReactNode>(failed ? null : children);
-    if (!failed && children !== kept) setKept(children);
-    return <>{failed ? (kept ?? fallback) : children}</>;
+    const last = useRef<ReactNode>(failed ? null : children);
+    if (!failed && children !== undefined) {
+        last.current = children;
+    }
+    return <>{failed ? (last.current ?? fallback) : children}</>;
 }

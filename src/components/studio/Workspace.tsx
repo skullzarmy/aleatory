@@ -2,17 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CodePane } from "./CodePane";
 import { Frame } from "./Frame";
 import { SeedGrid } from "./SeedGrid";
 import { Checks } from "./Checks";
+import { PreflightModal } from "./PreflightModal";
 import { Cost } from "./Cost";
 import { ParamsPanel } from "./ParamsPanel";
+import { MetadataPanel } from "./MetadataPanel";
 import { LibraryPicker } from "./LibraryPicker";
 import { useDeps } from "@/components/useDeps";
 import { declaredIn } from "@/lib/libraries";
 import { getKind } from "@/lib/runtimes";
-import { saveDraft, randomSeed, type Draft } from "@/lib/draft";
+import { saveDraft, randomSeed, checkDraftDetails, type Draft } from "@/lib/draft";
 import { downloadText } from "@/lib/project";
 import { resolveParams } from "@/lib/params";
 import { detectParams, withParams } from "@/lib/detect";
@@ -34,7 +37,7 @@ import { ArrowRight, Dice5, Download } from "lucide-react";
  * All of it is local. The draft lives in this browser and nothing leaves it
  * until publish.
  */
-type Tool = "code" | "preview" | "seeds" | "params" | "libraries" | "checks" | "cost";
+type Tool = "code" | "preview" | "seeds" | "params" | "details" | "libraries" | "checks" | "cost";
 
 /** `code` is offered only below lg, where it has no column of its own. */
 const TOOLS: { id: Tool; label: string }[] = [
@@ -42,16 +45,19 @@ const TOOLS: { id: Tool; label: string }[] = [
     { id: "preview", label: "Preview" },
     { id: "seeds", label: "Seeds" },
     { id: "params", label: "Parameters" },
+    { id: "details", label: "Details" },
     { id: "libraries", label: "Libraries" },
     { id: "checks", label: "Checks" },
     { id: "cost", label: "Cost" },
 ];
 
 export function Workspace({ draft: initial }: { draft: Draft }) {
+    const router = useRouter();
     const [draft, setDraft] = useState(initial);
     const [tool, setTool] = useState<Tool>("preview");
     const [values, setValues] = useState<Record<string, unknown>>({});
     const [saved, setSaved] = useState(true);
+    const [showPreflight, setShowPreflight] = useState(false);
     // What the piece last threw. Cleared on every re-run, since the point of
     // editing is that the previous error may be the one you just fixed.
     const [error, setError] = useState<string | null>(null);
@@ -61,6 +67,7 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
     // nothing about why, so the failure is surfaced rather than swallowed.
     const { deps, ready: depsReady, error: depsError } = useDeps(draft.html);
     const kind = getKind(draft.kindId);
+    const detailsStatus = useMemo(() => checkDraftDetails(draft), [draft]);
 
     // Autosave. A draft that only survives an explicit save is a draft that
     // gets lost.
@@ -107,6 +114,14 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
         [update],
     );
 
+    const handlePreflightPassed = useCallback(async () => {
+        const updated = { ...draft, preflightPassedHtml: draft.html };
+        setDraft(updated);
+        await saveDraft(updated);
+        setShowPreflight(false);
+        router.push(`/studio/${draft.id}/publish`);
+    }, [draft, router]);
+
     return (
         // Full height, not a column of content. This is a workbench.
         <div className="flex h-[calc(100vh-5rem)] flex-col">
@@ -137,13 +152,14 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                         Export
                     </button>
 
-                    <Link
-                        href={`/studio/${draft.id}/publish`}
+                    <button
+                        type="button"
+                        onClick={() => setShowPreflight(true)}
                         className="inline-flex items-center gap-1.5 rounded-md bg-alea-600 px-4 py-2 text-sm font-medium text-white hover:bg-alea-700"
                     >
                         Publish
                         <ArrowRight size={14} aria-hidden />
-                    </Link>
+                    </button>
                 </div>
             </header>
 
@@ -191,6 +207,23 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                     <span className="ml-1.5 text-xs text-muted-foreground">
                                         {params.length}
                                     </span>
+                                )}
+                                {t.id === "details" && (
+                                    <span
+                                        className={`ml-1.5 inline-block h-2 w-2 rounded-full ${
+                                            detailsStatus.complete ? "bg-success" : "bg-destructive"
+                                        }`}
+                                        title={
+                                            detailsStatus.complete
+                                                ? "Details complete"
+                                                : "Details incomplete"
+                                        }
+                                        aria-label={
+                                            detailsStatus.complete
+                                                ? "Details complete"
+                                                : "Details incomplete"
+                                        }
+                                    />
                                 )}
                             </button>
                         ))}
@@ -296,6 +329,17 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                 </div>
                             )}
 
+                            {tool === "details" && (
+                                <MetadataPanel
+                                    draft={draft}
+                                    params={params}
+                                    deps={deps}
+                                    depsReady={depsReady}
+                                    depsError={depsError}
+                                    onUpdate={update}
+                                />
+                            )}
+
                             {tool === "libraries" && (
                                 <LibraryPicker html={draft.html} onChange={setHtml} />
                             )}
@@ -307,6 +351,16 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                     seed={draft.seed}
                                     params={params}
                                     values={values}
+                                    onCompleted={(passed) => {
+                                        if (passed) {
+                                            const updated = {
+                                                ...draft,
+                                                preflightPassedHtml: draft.html,
+                                            };
+                                            setDraft(updated);
+                                            void saveDraft(updated);
+                                        }
+                                    }}
                                 />
                             )}
 
@@ -315,6 +369,16 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                     )}
                 </section>
             </div>
+
+            <PreflightModal
+                open={showPreflight}
+                draft={draft}
+                params={params}
+                values={values}
+                deps={deps}
+                onClose={() => setShowPreflight(false)}
+                onProceed={handlePreflightPassed}
+            />
         </div>
     );
 }

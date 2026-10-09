@@ -33,6 +33,7 @@ export default async function MintsPage({ searchParams }: { searchParams: Promis
     if (!feed) {
         return (
             <Shell>
+                <LiveRefresh seconds={5} />
                 <EmptyFeed reason="unreachable" />
             </Shell>
         );

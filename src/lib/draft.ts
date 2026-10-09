@@ -29,6 +29,14 @@ export interface Draft {
     description?: string;
     /** Standard TZIP-21 tags, set on the deploy form. Empty until then. */
     tags?: string[];
+    /** Pinned cover image and thumbnail URIs. */
+    cover?: {
+        uri: string;
+        thumbUri: string;
+        seed: string;
+    };
+    /** Trait key whose value is appended to piece names. */
+    nameTrait?: string;
     createdAt: number;
     updatedAt: number;
     /**
@@ -43,6 +51,8 @@ export interface Draft {
      * Cleared when it seals.
      */
     pendingUpload?: string;
+    /** The HTML code that passed pre-flight checks. */
+    preflightPassedHtml?: string;
 }
 
 /**
@@ -180,4 +190,33 @@ export function randomSeed(): string {
 /** Seeds for the grid: derived from one base so a grid is reproducible. */
 export function seedAt(base: string, index: number): string {
     return `${base}:${index}`;
+}
+
+export interface DraftDetailsStatus {
+    complete: boolean;
+    hasCustomName: boolean;
+    hasDescription: boolean;
+    hasTags: boolean;
+    hasCover: boolean;
+}
+
+/**
+ * Checks whether generator metadata and cover image have been filled out.
+ * Name must be set and customized from the default. Description, tags,
+ * and a pinned cover image must be present.
+ */
+export function checkDraftDetails(draft: Draft): DraftDetailsStatus {
+    const hasCustomName = Boolean(
+        draft.name?.trim() && draft.name.trim().toLowerCase() !== "untitled",
+    );
+    const hasDescription = Boolean(draft.description?.trim());
+    const hasTags = Boolean(draft.tags && draft.tags.length > 0);
+    const hasCover = Boolean(draft.cover?.uri);
+    return {
+        complete: hasCustomName && hasDescription && hasTags && hasCover,
+        hasCustomName,
+        hasDescription,
+        hasTags,
+        hasCover,
+    };
 }

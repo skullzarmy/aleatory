@@ -50,10 +50,13 @@ const FRAME_ANCESTORS = [
     "https://*.aleatory.art",
     "http://localhost:*",
     "https://alea-mainnet.netlify.app",
+    "https://sn-aleatory-art.netlify.app",
+    "https://*.netlify.app",
 ];
 if (process.env.CONTEXT === "deploy-preview" && process.env.REVIEW_ID) {
     FRAME_ANCESTORS.push(
         `https://deploy-preview-${process.env.REVIEW_ID}--aleatoryart.netlify.app`,
+        `https://deploy-preview-${process.env.REVIEW_ID}--sn-aleatory-art.netlify.app`,
     );
 }
 

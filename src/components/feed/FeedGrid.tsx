@@ -15,12 +15,13 @@ export function FeedGrid({
 }) {
     return (
         <AutoGrid className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {pieces.map((p) => (
+            {pieces.map((p, i) => (
                 <PieceCard
                     key={p.key}
                     piece={p}
                     artist={artists?.get(p.contract)}
                     priceMutez={prices?.get(p.key)}
+                    priority={i < 4}
                 />
             ))}
         </AutoGrid>

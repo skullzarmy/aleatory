@@ -24,6 +24,9 @@ import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
 import { useDeps } from "@/components/useDeps";
 import { declaredIn, recordFor } from "@/lib/libraries";
+import { ipfsImageUrl } from "@/utils/ipfs";
+import { Pencil, Check } from "lucide-react";
+import { CoverThumbnail } from "./PreflightModal";
 import {
     estimateSignatures,
     publishGenerator,
@@ -54,11 +57,11 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [platformShare, setPlatformShare] = useState(false);
     const [platformPercent, setPlatformPercent] = useState("10");
     const [providerAddress, setProviderAddress] = useState(providers[0]?.address ?? "");
-    const [trustResolver, setTrustResolver] = useState(false);
+    const [trustResolver, setTrustResolver] = useState(true);
     // Opt-in, off by default. The feature key whose value becomes part of
     // each piece's name — empty means every piece keeps the plain
     // "<Generator> #<n>" form every indexer expects.
-    const [nameTrait, setNameTrait] = useState("");
+    const [nameTrait, setNameTrait] = useState(draft?.nameTrait ?? "");
     // Deploy, look at it, announce it, then open it. A generator that opens
     // the instant it exists cannot be checked before someone mints from it.
     const [startPaused, setStartPaused] = useState(true);
@@ -66,7 +69,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         uri: string;
         thumbUri: string;
         seed: string;
-    } | null>(null);
+    } | null>(draft?.cover ?? null);
+    const [editingMetadata, setEditingMetadata] = useState(false);
 
     const [stage, setStage] = useState<PublishStage | null>(null);
     const [upload, setUpload] = useState<UploadProgress | null>(null);
@@ -112,12 +116,26 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             const sameTags =
                 (draft.tags ?? []).length === tagsList.length &&
                 (draft.tags ?? []).every((v, i) => v === tagsList[i]);
-            if (draft.name === name && (draft.description ?? "") === description && sameTags)
+            const sameCover = draft.cover?.uri === cover?.uri;
+            if (
+                draft.name === name &&
+                (draft.description ?? "") === description &&
+                (draft.nameTrait ?? "") === nameTrait &&
+                sameCover &&
+                sameTags
+            )
                 return;
-            void saveDraft({ ...draft, name, description, tags: tagsList });
+            void saveDraft({
+                ...draft,
+                name,
+                description,
+                tags: tagsList,
+                nameTrait,
+                cover: cover ?? undefined,
+            });
         }, 600);
         return () => clearTimeout(t);
-    }, [draft, name, description, tagsList]);
+    }, [draft, name, description, tagsList, nameTrait, cover]);
 
     // The effect above cancels its own timer on every keystroke, by design —
     // that's the debounce. But its cleanup also runs on a real unmount, which
@@ -126,18 +144,32 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     // ever going to happen for it. A ref keeps the latest values reachable
     // from a cleanup that only fires on the real thing (empty deps), so an
     // unmount flushes immediately instead of just cancelling.
-    const latest = useRef({ draft, name, description, tagsList });
-    latest.current = { draft, name, description, tagsList };
+    const latest = useRef({ draft, name, description, tagsList, nameTrait, cover });
+    latest.current = { draft, name, description, tagsList, nameTrait, cover };
     useEffect(() => {
         return () => {
-            const { draft, name, description, tagsList } = latest.current;
+            const { draft, name, description, tagsList, nameTrait, cover } = latest.current;
             if (!draft) return;
             const sameTags =
                 (draft.tags ?? []).length === tagsList.length &&
                 (draft.tags ?? []).every((v, i) => v === tagsList[i]);
-            if (draft.name === name && (draft.description ?? "") === description && sameTags)
+            const sameCover = draft.cover?.uri === cover?.uri;
+            if (
+                draft.name === name &&
+                (draft.description ?? "") === description &&
+                (draft.nameTrait ?? "") === nameTrait &&
+                sameCover &&
+                sameTags
+            )
                 return;
-            void saveDraft({ ...draft, name, description, tags: tagsList });
+            void saveDraft({
+                ...draft,
+                name,
+                description,
+                tags: tagsList,
+                nameTrait,
+                cover: cover ?? undefined,
+            });
         };
     }, []);
 
@@ -225,6 +257,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 resolvedDeps.map((r) => r.spec),
             );
             if (!record.ok) return record.problems.join(" ");
+            if (draft.preflightPassedHtml !== draft.html) {
+                return "Pass pre-flight checks before publishing.";
+            }
         }
         if (draft && !cover) {
             return "Pick a cover. It is what your generator looks like everywhere it is listed.";
@@ -505,77 +540,184 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 </div>
             )}
 
-            <Field label="Generator name" permanent>
-                <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Drift"
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                />
-            </Field>
-
-            <Field label="Description" permanent hint="Shown on your generator and on every piece.">
-                <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={3}
-                    placeholder="What the generator does, in a sentence or two."
-                    className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm"
-                />
-            </Field>
-
-            <Field
-                label="Tags"
-                hint="Comma separated, e.g. generative, glitch, longform. Read by objkt and other marketplaces for discovery. Changeable later via set_metadata. A change only reaches pieces minted after it; a piece already published keeps what it had."
-            >
-                <input
-                    value={tags}
-                    onChange={(e) => setTags(e.target.value)}
-                    placeholder="generative, glitch"
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                />
-            </Field>
-
-            <Field
-                label="Name a piece from a trait (optional)"
-                permanent
-                hint={
-                    nameTrait.trim()
-                        ? `Pieces will be named "${name.trim() || "Generator"} #1 · <value of ${nameTrait.trim()}>" when that trait is present, and the plain form otherwise.`
-                        : 'Leave empty and every piece is named "Generator #1", "Generator #2", and so on — the form every marketplace expects. Fill in a key your code passes to $alea.features() and that trait\'s value is appended to the name.'
-                }
-            >
-                <input
-                    value={nameTrait}
-                    onChange={(e) => setNameTrait(e.target.value)}
-                    placeholder="e.g. Name"
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                />
-            </Field>
-
-            {draft && (
-                <Field label="Cover" hint="Shown wherever your generator is listed.">
-                    {/* A gate, not a prop that arrives late. A p5 sketch with no
-                        p5 still fills a canvas, so a cover captured early is a
-                        valid PNG of nothing and nothing downstream can tell. */}
-                    {depsError ? (
-                        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                            {depsError}
-                        </p>
-                    ) : !depsReady ? (
-                        <p className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
-                            Loading {declaredIn(draft.html).join(", ") || "libraries"}…
-                        </p>
-                    ) : (
-                        <CoverPicker
-                            html={draft.html}
-                            params={declared}
-                            deps={deps}
-                            baseSeed={draft.seed}
-                            onCaptured={setCover}
-                        />
+            {draft && !editingMetadata ? (
+                <div className="rounded-lg border border-border bg-card p-4">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                            {cover && (
+                                <CoverThumbnail
+                                    src={ipfsImageUrl(cover.thumbUri || cover.uri)}
+                                    alt="Cover thumbnail"
+                                    className="h-16 w-16"
+                                />
+                            )}
+                            <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <h3 className="font-semibold text-foreground truncate text-sm">
+                                        {name.trim() || "Untitled"}
+                                    </h3>
+                                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                        Cannot edit after deploy
+                                    </span>
+                                </div>
+                                {description.trim() ? (
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                        {description.trim()}
+                                    </p>
+                                ) : (
+                                    <p className="text-xs italic text-muted-foreground">
+                                        No description
+                                    </p>
+                                )}
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                    {tagsList.length > 0 ? (
+                                        tagsList.map((tag) => (
+                                            <span
+                                                key={tag}
+                                                className="rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+                                            >
+                                                #{tag}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-[11px] text-muted-foreground">
+                                            No tags
+                                        </span>
+                                    )}
+                                    {nameTrait.trim() && (
+                                        <span className="rounded bg-alea-600/10 px-2 py-0.5 text-[11px] font-medium text-alea-600">
+                                            Trait: {nameTrait.trim()}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setEditingMetadata(true)}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0"
+                            title="Edit generator details"
+                        >
+                            <Pencil size={13} aria-hidden />
+                            <span>Edit</span>
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    {draft && editingMetadata && (
+                        <div className="flex items-center justify-between pb-1 border-b border-border">
+                            <span className="text-xs font-semibold text-foreground">
+                                Edit generator details
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setEditingMetadata(false)}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-accent"
+                            >
+                                <Check size={12} aria-hidden />
+                                <span>Done</span>
+                            </button>
+                        </div>
                     )}
-                </Field>
+
+                    <Field label="Generator name" permanent>
+                        <input
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Drift"
+                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        />
+                    </Field>
+
+                    <Field
+                        label="Description"
+                        permanent
+                        hint="Shown on your generator and on every piece."
+                    >
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            rows={3}
+                            placeholder="What the generator does, in a sentence or two."
+                            className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        />
+                    </Field>
+
+                    <Field
+                        label="Tags"
+                        hint="Comma separated, e.g. generative, glitch, longform. Read by objkt and other marketplaces for discovery. Changeable later via set_metadata. A change only reaches pieces minted after it; a piece already published keeps what it had."
+                    >
+                        <input
+                            value={tags}
+                            onChange={(e) => setTags(e.target.value)}
+                            placeholder="generative, glitch"
+                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        />
+                    </Field>
+
+                    <Field
+                        label="Name a piece from a trait (optional)"
+                        permanent
+                        hint={
+                            nameTrait.trim()
+                                ? `Pieces will be named "${name.trim() || "Generator"} #1 · <value of ${nameTrait.trim()}>" when that trait is present, and the plain form otherwise.`
+                                : 'Leave empty and every piece is named "Generator #1", "Generator #2", and so on — the form every marketplace expects. Fill in a key your code passes to $alea.features() and that trait\'s value is appended to the name.'
+                        }
+                    >
+                        <input
+                            value={nameTrait}
+                            onChange={(e) => setNameTrait(e.target.value)}
+                            placeholder="e.g. Name"
+                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        />
+                    </Field>
+
+                    {draft && cover ? (
+                        <Field label="Cover" hint="Selected in the studio and pinned to IPFS.">
+                            <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+                                <CoverThumbnail
+                                    src={ipfsImageUrl(cover.thumbUri || cover.uri)}
+                                    alt="Cover thumbnail"
+                                    className="h-16 w-16"
+                                />
+                                <div className="min-w-0 flex-1 text-xs">
+                                    <p className="font-medium text-foreground">Cover image set</p>
+                                    <p className="truncate font-mono text-[11px] text-muted-foreground">
+                                        Seed: {cover.seed}
+                                    </p>
+                                    <p className="truncate font-mono text-[11px] text-muted-foreground">
+                                        {cover.uri}
+                                    </p>
+                                </div>
+                            </div>
+                        </Field>
+                    ) : draft ? (
+                        <Field label="Cover" hint="Shown wherever your generator is listed.">
+                            {/* A gate, not a prop that arrives late. A p5 sketch with no
+                                p5 still fills a canvas, so a cover captured early is a
+                                valid PNG of nothing and nothing downstream can tell. */}
+                            {depsError ? (
+                                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                                    {depsError}
+                                </p>
+                            ) : !depsReady ? (
+                                <p className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
+                                    Loading {declaredIn(draft.html).join(", ") || "libraries"}…
+                                </p>
+                            ) : (
+                                <CoverPicker
+                                    html={draft.html}
+                                    params={declared}
+                                    deps={deps}
+                                    baseSeed={draft.seed}
+                                    initialCover={cover}
+                                    onCaptured={setCover}
+                                />
+                            )}
+                        </Field>
+                    ) : null}
+                </>
             )}
 
             {draft ? (
@@ -673,7 +815,11 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     <button
                         type="button"
                         onClick={() => setTrustResolver((v) => !v)}
-                        className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+                        className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                            trustResolver
+                                ? "border-foreground/30 bg-accent text-foreground"
+                                : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                        }`}
                     >
                         {trustResolver ? "On" : "Off"}
                     </button>
@@ -808,6 +954,32 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 </div>
             )}
 
+            <aside className="rounded-md border border-alea-600/30 bg-alea-600/5 p-3.5 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Start development on Shadownet</p>
+                <p className="mt-1 leading-relaxed">
+                    Start development on{" "}
+                    <a
+                        href="https://shadownet.aleatory.art"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium underline hover:text-foreground"
+                    >
+                        shadownet.aleatory.art
+                    </a>{" "}
+                    and test fully there through the minting process before deploying to mainnet.
+                    Shadownet tez is free and can be requested at{" "}
+                    <a
+                        href="https://faucet.shadownet.teztnets.com/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium underline hover:text-foreground"
+                    >
+                        https://faucet.shadownet.teztnets.com/
+                    </a>
+                    .
+                </p>
+            </aside>
+
             <button
                 type={address ? "submit" : "button"}
                 onClick={address ? undefined : () => void connect()}
@@ -903,7 +1075,7 @@ function Field({
                 </label>
                 {permanent && (
                     <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                        permanent
+                        cannot edit after deploy
                     </span>
                 )}
             </div>

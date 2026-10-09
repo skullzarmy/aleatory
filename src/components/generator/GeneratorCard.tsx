@@ -4,7 +4,13 @@ import { AccountName } from "@/components/account/AccountName";
 import { shortAddress, timeAgoShort } from "@/lib/utils";
 import type { GeneratorSummary } from "@/lib/generator";
 
-export function GeneratorCard({ generator: c }: { generator: GeneratorSummary }) {
+export function GeneratorCard({
+    generator: c,
+    priority = false,
+}: {
+    generator: GeneratorSummary;
+    priority?: boolean;
+}) {
     const soldOut = c.editionSize > 0 && c.minted >= c.editionSize;
 
     return (
@@ -28,7 +34,8 @@ export function GeneratorCard({ generator: c }: { generator: GeneratorSummary })
                     <img
                         src={c.coverUrl}
                         alt=""
-                        loading="lazy"
+                        loading={priority ? "eager" : "lazy"}
+                        fetchPriority={priority ? "high" : "auto"}
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                     />
                 ) : (
@@ -66,9 +73,9 @@ export function GeneratorCard({ generator: c }: { generator: GeneratorSummary })
 export function GeneratorGrid({ generators }: { generators: GeneratorSummary[] }) {
     return (
         <AutoList className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {generators.map((c) => (
+            {generators.map((c, i) => (
                 <li key={c.address}>
-                    <GeneratorCard generator={c} />
+                    <GeneratorCard generator={c} priority={i < 4} />
                 </li>
             ))}
         </AutoList>
