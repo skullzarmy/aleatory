@@ -57,7 +57,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [platformShare, setPlatformShare] = useState(false);
     const [platformPercent, setPlatformPercent] = useState("10");
     const [providerAddress, setProviderAddress] = useState(providers[0]?.address ?? "");
-    const [trustResolver, setTrustResolver] = useState(false);
+    const [trustResolver, setTrustResolver] = useState(true);
     // Opt-in, off by default. The feature key whose value becomes part of
     // each piece's name — empty means every piece keeps the plain
     // "<Generator> #<n>" form every indexer expects.
@@ -815,7 +815,11 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     <button
                         type="button"
                         onClick={() => setTrustResolver((v) => !v)}
-                        className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+                        className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                            trustResolver
+                                ? "border-foreground/30 bg-accent text-foreground"
+                                : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                        }`}
                     >
                         {trustResolver ? "On" : "Off"}
                     </button>
