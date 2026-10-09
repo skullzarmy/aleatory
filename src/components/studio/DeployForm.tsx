@@ -24,6 +24,7 @@ import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
 import { useDeps } from "@/components/useDeps";
 import { declaredIn, recordFor } from "@/lib/libraries";
+import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
 import {
     estimateSignatures,
     publishGenerator,
@@ -58,7 +59,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     // Opt-in, off by default. The feature key whose value becomes part of
     // each piece's name — empty means every piece keeps the plain
     // "<Generator> #<n>" form every indexer expects.
-    const [nameTrait, setNameTrait] = useState("");
+    const [nameTrait, setNameTrait] = useState(draft?.nameTrait ?? "");
     // Deploy, look at it, announce it, then open it. A generator that opens
     // the instant it exists cannot be checked before someone mints from it.
     const [startPaused, setStartPaused] = useState(true);
@@ -66,8 +67,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         uri: string;
         thumbUri: string;
         seed: string;
-    } | null>(null);
-    const [coverConfirmed, setCoverConfirmed] = useState(false);
+    } | null>(draft?.cover ?? null);
 
     const [stage, setStage] = useState<PublishStage | null>(null);
     const [upload, setUpload] = useState<UploadProgress | null>(null);
@@ -113,12 +113,26 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             const sameTags =
                 (draft.tags ?? []).length === tagsList.length &&
                 (draft.tags ?? []).every((v, i) => v === tagsList[i]);
-            if (draft.name === name && (draft.description ?? "") === description && sameTags)
+            const sameCover = draft.cover?.uri === cover?.uri;
+            if (
+                draft.name === name &&
+                (draft.description ?? "") === description &&
+                (draft.nameTrait ?? "") === nameTrait &&
+                sameCover &&
+                sameTags
+            )
                 return;
-            void saveDraft({ ...draft, name, description, tags: tagsList });
+            void saveDraft({
+                ...draft,
+                name,
+                description,
+                tags: tagsList,
+                nameTrait,
+                cover: cover ?? undefined,
+            });
         }, 600);
         return () => clearTimeout(t);
-    }, [draft, name, description, tagsList]);
+    }, [draft, name, description, tagsList, nameTrait, cover]);
 
     // The effect above cancels its own timer on every keystroke, by design —
     // that's the debounce. But its cleanup also runs on a real unmount, which
@@ -127,18 +141,32 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     // ever going to happen for it. A ref keeps the latest values reachable
     // from a cleanup that only fires on the real thing (empty deps), so an
     // unmount flushes immediately instead of just cancelling.
-    const latest = useRef({ draft, name, description, tagsList });
-    latest.current = { draft, name, description, tagsList };
+    const latest = useRef({ draft, name, description, tagsList, nameTrait, cover });
+    latest.current = { draft, name, description, tagsList, nameTrait, cover };
     useEffect(() => {
         return () => {
-            const { draft, name, description, tagsList } = latest.current;
+            const { draft, name, description, tagsList, nameTrait, cover } = latest.current;
             if (!draft) return;
             const sameTags =
                 (draft.tags ?? []).length === tagsList.length &&
                 (draft.tags ?? []).every((v, i) => v === tagsList[i]);
-            if (draft.name === name && (draft.description ?? "") === description && sameTags)
+            const sameCover = draft.cover?.uri === cover?.uri;
+            if (
+                draft.name === name &&
+                (draft.description ?? "") === description &&
+                (draft.nameTrait ?? "") === nameTrait &&
+                sameCover &&
+                sameTags
+            )
                 return;
-            void saveDraft({ ...draft, name, description, tags: tagsList });
+            void saveDraft({
+                ...draft,
+                name,
+                description,
+                tags: tagsList,
+                nameTrait,
+                cover: cover ?? undefined,
+            });
         };
     }, []);
 
@@ -232,9 +260,6 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         }
         if (draft && !cover) {
             return "Pick a cover. It is what your generator looks like everywhere it is listed.";
-        }
-        if (draft && !coverConfirmed) {
-            return "Check your cover image and confirm it cannot be changed later.";
         }
         const size = Number.parseInt(editionSize, 10);
         if (!Number.isFinite(size) || size < 0) return "Edition size must be 0 or more.";
@@ -560,7 +585,26 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 />
             </Field>
 
-            {draft && (
+            {draft && cover ? (
+                <Field label="Cover" hint="Selected in the studio and pinned to IPFS.">
+                    <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+                        <img
+                            src={convertIpfsToGatewayUrl(cover.thumbUri || cover.uri)}
+                            alt="Cover thumbnail"
+                            className="h-16 w-16 rounded border border-border object-cover"
+                        />
+                        <div className="min-w-0 flex-1 text-xs">
+                            <p className="font-medium text-foreground">Cover image set</p>
+                            <p className="truncate font-mono text-[11px] text-muted-foreground">
+                                Seed: {cover.seed}
+                            </p>
+                            <p className="truncate font-mono text-[11px] text-muted-foreground">
+                                {cover.uri}
+                            </p>
+                        </div>
+                    </div>
+                </Field>
+            ) : draft ? (
                 <Field label="Cover" hint="Shown wherever your generator is listed.">
                     {/* A gate, not a prop that arrives late. A p5 sketch with no
                         p5 still fills a canvas, so a cover captured early is a
@@ -579,11 +623,12 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                             params={declared}
                             deps={deps}
                             baseSeed={draft.seed}
+                            initialCover={cover}
                             onCaptured={setCover}
                         />
                     )}
                 </Field>
-            )}
+            ) : null}
 
             {draft ? (
                 <Field label="Source" permanent hint="Stored in the contract when you publish.">
@@ -841,26 +886,10 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 </p>
             </aside>
 
-            {draft && (
-                <label className="flex cursor-pointer select-none items-start gap-2.5 rounded-md border border-border bg-card p-3 text-xs">
-                    <input
-                        type="checkbox"
-                        checked={coverConfirmed}
-                        onChange={(e) => setCoverConfirmed(e.target.checked)}
-                        className="mt-0.5 rounded border-border accent-alea-600"
-                    />
-                    <span className="font-medium leading-relaxed text-foreground">
-                        I have checked my cover image and understand this cannot be changed later.
-                    </span>
-                </label>
-            )}
-
             <button
                 type={address ? "submit" : "button"}
                 onClick={address ? undefined : () => void connect()}
-                disabled={
-                    stage !== null || checking || (Boolean(address) && draft && !coverConfirmed)
-                }
+                disabled={stage !== null || checking}
                 className="w-full rounded-md bg-alea-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
             >
                 {!address

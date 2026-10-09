@@ -57,6 +57,7 @@ export function CoverPicker({
     values,
     deps,
     baseSeed,
+    initialCover,
     onCaptured,
 }: {
     html: string;
@@ -65,11 +66,12 @@ export function CoverPicker({
     deps?: string[];
     /** The draft's seed, so the choices here match the grid the artist knows. */
     baseSeed: string;
+    initialCover?: { uri: string; thumbUri: string; seed: string } | null;
     onCaptured: (cover: { uri: string; thumbUri: string; seed: string } | null) => void;
 }) {
-    const [seed, setSeed] = useState(() => seedAt(baseSeed, 0));
+    const [seed, setSeed] = useState(() => initialCover?.seed ?? seedAt(baseSeed, 0));
     const [image, setImage] = useState<string | null>(null);
-    const [pinned, setPinned] = useState<string | null>(null);
+    const [pinned, setPinned] = useState<string | null>(() => initialCover?.uri ?? null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     // Why there are no pixels, when there are none. A disabled button with

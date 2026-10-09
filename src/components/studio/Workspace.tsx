@@ -10,6 +10,7 @@ import { Checks } from "./Checks";
 import { PreflightModal } from "./PreflightModal";
 import { Cost } from "./Cost";
 import { ParamsPanel } from "./ParamsPanel";
+import { MetadataPanel } from "./MetadataPanel";
 import { LibraryPicker } from "./LibraryPicker";
 import { useDeps } from "@/components/useDeps";
 import { declaredIn } from "@/lib/libraries";
@@ -36,7 +37,7 @@ import { ArrowRight, Dice5, Download } from "lucide-react";
  * All of it is local. The draft lives in this browser and nothing leaves it
  * until publish.
  */
-type Tool = "code" | "preview" | "seeds" | "params" | "libraries" | "checks" | "cost";
+type Tool = "code" | "preview" | "seeds" | "params" | "details" | "libraries" | "checks" | "cost";
 
 /** `code` is offered only below lg, where it has no column of its own. */
 const TOOLS: { id: Tool; label: string }[] = [
@@ -44,6 +45,7 @@ const TOOLS: { id: Tool; label: string }[] = [
     { id: "preview", label: "Preview" },
     { id: "seeds", label: "Seeds" },
     { id: "params", label: "Parameters" },
+    { id: "details", label: "Details" },
     { id: "libraries", label: "Libraries" },
     { id: "checks", label: "Checks" },
     { id: "cost", label: "Cost" },
@@ -309,6 +311,17 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                 </div>
                             )}
 
+                            {tool === "details" && (
+                                <MetadataPanel
+                                    draft={draft}
+                                    params={params}
+                                    deps={deps}
+                                    depsReady={depsReady}
+                                    depsError={depsError}
+                                    onUpdate={update}
+                                />
+                            )}
+
                             {tool === "libraries" && (
                                 <LibraryPicker html={draft.html} onChange={setHtml} />
                             )}
@@ -341,8 +354,7 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
 
             <PreflightModal
                 open={showPreflight}
-                html={draft.html}
-                seed={draft.seed}
+                draft={draft}
                 params={params}
                 values={values}
                 deps={deps}

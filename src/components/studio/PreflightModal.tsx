@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { X, ArrowRight, RotateCw, AlertCircle, CheckCircle2 } from "lucide-react";
+import type { Draft } from "@/lib/draft";
 import type { ParamSpec } from "@/lib/params";
-import { executeChecks, INITIAL_CHECKS, type Check, type CheckStatus } from "@/lib/checks";
+import { executeChecks, INITIAL_CHECKS, type Check } from "@/lib/checks";
+import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
 import { CheckMark } from "./Checks";
 
 export function PreflightModal({
     open,
-    html,
-    seed,
+    draft,
     params,
     values,
     deps,
@@ -17,8 +18,7 @@ export function PreflightModal({
     onProceed,
 }: {
     open: boolean;
-    html: string;
-    seed: string;
+    draft: Draft;
     params: ParamSpec[];
     values?: Record<string, unknown>;
     deps?: string[];
@@ -28,13 +28,14 @@ export function PreflightModal({
     const [checks, setChecks] = useState<Check[]>(INITIAL_CHECKS);
     const [running, setRunning] = useState(false);
     const [hasRun, setHasRun] = useState(false);
+    const [coverConfirmed, setCoverConfirmed] = useState(false);
 
     const run = useCallback(async () => {
         setRunning(true);
         try {
             await executeChecks({
-                html,
-                seed,
+                html: draft.html,
+                seed: draft.seed,
                 params,
                 values,
                 deps,
@@ -44,23 +45,26 @@ export function PreflightModal({
         } finally {
             setRunning(false);
         }
-    }, [html, seed, params, values, deps]);
+    }, [draft.html, draft.seed, params, values, deps]);
 
     useEffect(() => {
         if (!open) {
             setChecks(INITIAL_CHECKS);
             setHasRun(false);
             setRunning(false);
+            setCoverConfirmed(false);
             return;
         }
         void run();
     }, [open, run]);
 
     const hasFailed = checks.some((c) => c.status === "fail");
+    const hasCover = Boolean(draft.cover?.uri);
     const hasPassed =
         hasRun &&
         !running &&
         !hasFailed &&
+        hasCover &&
         checks.every((c) => c.status === "pass" || c.status === "warn");
 
     if (!open) return null;
@@ -72,7 +76,7 @@ export function PreflightModal({
             aria-modal="true"
             aria-labelledby="preflight-title"
         >
-            <div className="w-full max-w-lg space-y-5 rounded-xl border border-border bg-card p-6 shadow-2xl">
+            <div className="w-full max-w-lg space-y-4 rounded-xl border border-border bg-card p-6 shadow-2xl">
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <h2 id="preflight-title" className="text-lg font-semibold tracking-tight">
@@ -95,7 +99,7 @@ export function PreflightModal({
 
                 <ul className="divide-y divide-border rounded-lg border border-border">
                     {checks.map((c) => (
-                        <li key={c.id} className="flex gap-3 px-4 py-3">
+                        <li key={c.id} className="flex gap-3 px-4 py-2.5">
                             <CheckMark status={c.status} />
                             <div className="min-w-0 flex-1">
                                 <span className="block text-sm font-medium">{c.label}</span>
@@ -107,9 +111,32 @@ export function PreflightModal({
                     ))}
                 </ul>
 
-                {running && (
-                    <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-                        Testing determinism, network isolation, timing and image output…
+                {draft.cover ? (
+                    <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-2.5">
+                        <img
+                            src={convertIpfsToGatewayUrl(draft.cover.thumbUri || draft.cover.uri)}
+                            alt="Cover thumbnail"
+                            className="h-14 w-14 rounded border border-border object-cover"
+                        />
+                        <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-foreground">Cover image set</p>
+                            <p className="truncate font-mono text-[11px] text-muted-foreground">
+                                Seed: {draft.cover.seed}
+                            </p>
+                            <p className="truncate font-mono text-[11px] text-muted-foreground">
+                                {draft.cover.uri}
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                        <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
+                        <div>
+                            <p className="font-semibold">No cover image set</p>
+                            <p className="mt-0.5 text-muted-foreground">
+                                Select and pin a cover image in the Details tab before publishing.
+                            </p>
+                        </div>
                     </div>
                 )}
 
@@ -165,7 +192,24 @@ export function PreflightModal({
                     </p>
                 </aside>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <label
+                    className={`flex items-start gap-2.5 rounded-lg border border-border bg-card p-3 text-xs ${
+                        !hasCover ? "cursor-not-allowed opacity-50" : "cursor-pointer select-none"
+                    }`}
+                >
+                    <input
+                        type="checkbox"
+                        checked={coverConfirmed}
+                        disabled={!hasCover}
+                        onChange={(e) => setCoverConfirmed(e.target.checked)}
+                        className="mt-0.5 rounded border-border accent-alea-600"
+                    />
+                    <span className="font-medium leading-relaxed text-foreground">
+                        I have checked my cover image and understand this cannot be changed later.
+                    </span>
+                </label>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                     <button
                         type="button"
                         onClick={() => void run()}
@@ -187,7 +231,7 @@ export function PreflightModal({
                         <button
                             type="button"
                             onClick={onProceed}
-                            disabled={!hasPassed || running}
+                            disabled={!hasPassed || running || !coverConfirmed}
                             className="inline-flex items-center gap-1.5 rounded-md bg-alea-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-alea-700 disabled:opacity-50"
                         >
                             Continue to publish

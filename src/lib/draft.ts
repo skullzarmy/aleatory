@@ -29,6 +29,14 @@ export interface Draft {
     description?: string;
     /** Standard TZIP-21 tags, set on the deploy form. Empty until then. */
     tags?: string[];
+    /** Pinned cover image and thumbnail URIs. */
+    cover?: {
+        uri: string;
+        thumbUri: string;
+        seed: string;
+    };
+    /** Trait key whose value is appended to piece names. */
+    nameTrait?: string;
     createdAt: number;
     updatedAt: number;
     /**

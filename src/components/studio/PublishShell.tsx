@@ -67,11 +67,13 @@ export function PublishShell({ providers }: { providers: Provider[] }) {
                 changed.
             </p>
 
-            {draft.preflightPassedHtml !== draft.html && (
+            {(draft.preflightPassedHtml !== draft.html || !draft.cover?.uri) && (
                 <div className="mt-6 rounded-lg border border-destructive/40 bg-destructive/10 p-4">
                     <p className="text-sm font-medium">Pre-flight checks required</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                        This generator has not passed pre-flight checks for its current code.
+                        {!draft.cover?.uri
+                            ? "This generator needs a cover image before publishing."
+                            : "This generator has not passed pre-flight checks for its current code."}{" "}
                         Passing checks is required before deploying.
                     </p>
                     <button
@@ -109,8 +111,7 @@ export function PublishShell({ providers }: { providers: Provider[] }) {
 
             <PreflightModal
                 open={showPreflight}
-                html={draft.html}
-                seed={draft.seed}
+                draft={draft}
                 params={detectParams(draft.html)?.params ?? []}
                 deps={deps}
                 onClose={() => setShowPreflight(false)}
