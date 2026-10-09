@@ -4,6 +4,8 @@ import { isBlockedGenerator } from "./blocklist";
 import { addresses } from "./router";
 import { fetchHeldAmong, indexerFetch } from "./tzkt";
 import { cacheWrap } from "./cache";
+import { fetchAllGenerators } from "./generator";
+import { piecesFor, type FeedPiece } from "./feed";
 
 export interface Listing {
     id: number;
@@ -199,6 +201,85 @@ export async function fetchListingPage(
             (low, l) => (low === null || l.priceMutez < low ? l.priceMutez : low),
             null,
         ),
+    };
+}
+
+export interface MarketFeedData {
+    marketplace: string;
+    listings: Listing[];
+    total: number;
+    floorMutez: bigint | null;
+    pieces: Map<string, FeedPiece>;
+    names: Map<string, string>;
+    artists: Map<string, string>;
+}
+
+interface CachedMarketFeedData {
+    marketplace: string;
+    listings: (Omit<Listing, "priceMutez"> & { priceMutez: string })[];
+    total: number;
+    floorMutez: string | null;
+    pieces: [string, FeedPiece][];
+    names: [string, string][];
+    artists: [string, string][];
+}
+
+export async function fetchMarketFeed(
+    options: { sort?: ListingSort; generator?: string; page?: number; perPage?: number } = {},
+): Promise<MarketFeedData> {
+    const { sort = "recent", generator, page = 1, perPage = 48 } = options;
+    const cacheKey = `market:feed:${sort}:${generator ?? "all"}:${page}:${perPage}`;
+
+    const cached = await cacheWrap<CachedMarketFeedData>(
+        cacheKey,
+        async () => {
+            const [mPlace, lResult, generators] = await Promise.all([
+                addresses().then((a) => a.marketplaces[0] ?? ""),
+                fetchListingPage({
+                    sort,
+                    generator,
+                    limit: perPage,
+                    offset: (page - 1) * perPage,
+                }),
+                fetchAllGenerators().catch(() => []),
+            ]);
+
+            const names = new Map(
+                generators.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])),
+            );
+            const artists = new Map(
+                generators.flatMap((c) => (c.artist ? [[c.address, c.artist] as const] : [])),
+            );
+
+            const piecesMap = await piecesFor(lResult.listings, names).catch(() => new Map());
+
+            return {
+                marketplace: mPlace,
+                listings: lResult.listings.map((l) => ({
+                    ...l,
+                    priceMutez: l.priceMutez.toString(),
+                })),
+                total: lResult.total,
+                floorMutez: lResult.floorMutez !== null ? lResult.floorMutez.toString() : null,
+                pieces: Array.from(piecesMap.entries()),
+                names: Array.from(names.entries()),
+                artists: Array.from(artists.entries()),
+            };
+        },
+        { freshMs: 20_000, l1Ms: 10_000 },
+    );
+
+    return {
+        marketplace: cached.marketplace,
+        listings: cached.listings.map((l) => ({
+            ...l,
+            priceMutez: BigInt(l.priceMutez),
+        })),
+        total: cached.total,
+        floorMutez: cached.floorMutez !== null ? BigInt(cached.floorMutez) : null,
+        pieces: new Map(cached.pieces),
+        names: new Map(cached.names),
+        artists: new Map(cached.artists),
     };
 }
 

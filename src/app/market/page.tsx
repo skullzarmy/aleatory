@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { fetchListingPage, type ListingSort } from "@/lib/market";
-import { fetchAllGenerators } from "@/lib/generator";
-import { piecesFor } from "@/lib/feed";
+import { fetchMarketFeed, type ListingSort } from "@/lib/market";
 import { ListingCard } from "@/components/feed/ListingCard";
 import { AutoGrid } from "@/components/feed/AutoGrid";
 import { Pager } from "@/components/feed/Pager";
@@ -28,8 +26,6 @@ export const dynamic = "force-dynamic";
 
 type Query = { page?: string; sort?: string; generator?: string };
 
-// A listing carries only a generator, token id and price; images and names come
-// from a second, batched read rather than one query per row.
 export default async function MarketPage({ searchParams }: { searchParams: Promise<Query> }) {
     let rawPage: string | undefined;
     let rawSort: string | undefined;
@@ -47,36 +43,19 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
     const page = Math.max(1, Number.parseInt(rawPage ?? "1", 10) || 1);
     const sort: ListingSort = rawSort === "price" ? "price" : "recent";
 
-    let marketplace = "";
-    let result = { listings: [] as any[], total: 0, floorMutez: null as bigint | null };
-    let names = new Map<string, string>();
-    let artists = new Map<string, string>();
-    let pieces = new Map();
-
+    let data;
     try {
-        const [mPlace, lResult, generators] = await Promise.all([
-            addresses().then((a) => a.marketplaces[0] ?? ""),
-            fetchListingPage({
-                sort,
-                generator,
-                limit: PER_PAGE,
-                offset: (page - 1) * PER_PAGE,
-            }),
-            fetchAllGenerators().catch(() => []),
-        ]);
-        marketplace = mPlace;
-        result = lResult;
-
-        names = new Map(generators.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])));
-        artists = new Map(
-            generators.flatMap((c) => (c.artist ? [[c.address, c.artist] as const] : [])),
-        );
-        pieces = await piecesFor(result.listings, names).catch(() => new Map());
+        data = await fetchMarketFeed({
+            sort,
+            generator,
+            page,
+            perPage: PER_PAGE,
+        });
     } catch {
         return <ReadFailed />;
     }
 
-    const { listings, total, floorMutez } = result;
+    const { marketplace, listings, total, floorMutez, pieces, names, artists } = data;
 
     const scopedName = generator ? (names.get(generator) ?? generator) : undefined;
     const href = (over: Partial<Query>) => {

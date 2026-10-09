@@ -89,17 +89,14 @@ async function pendingUriOf(generator: string): Promise<string> {
     return raw ? bytesToString(raw) : "";
 }
 
+const docCache = new Map<string, TokenDoc>();
+
 async function resolveDocs(generator: string, tokenIds: string[]): Promise<Map<string, TokenDoc>> {
     const out = new Map<string, TokenDoc>();
     if (tokenIds.length === 0) return out;
 
     const uris = await fetchTokenUris(generator).catch(() => new Map<string, string>());
 
-    // A document that misses its deadline leaves its piece looking unrendered,
-    // which the next request recovers. A page that never returns does not.
-    //
-    // Measured: this gateway answers in 3.6 to 5.8 seconds, so the deadline has
-    // to clear the slow end. Concurrency is what keeps the page quick.
     const CONCURRENCY = 8;
     const TIMEOUT_MS = GATEWAY_TIMEOUT_MS;
 
@@ -110,13 +107,21 @@ async function resolveDocs(generator: string, tokenIds: string[]): Promise<Map<s
             if (id === undefined) return;
             const uri = uris.get(id);
             if (!uri || !uri.startsWith("ipfs://")) continue;
+            const cached = docCache.get(uri);
+            if (cached) {
+                out.set(id, cached);
+                continue;
+            }
             const doc = await fetch(convertIpfsToGatewayUrl(uri), {
                 next: { revalidate: 300 },
                 signal: AbortSignal.timeout(TIMEOUT_MS),
             })
                 .then((r) => (r.ok ? (r.json() as Promise<TokenDoc>) : null))
                 .catch(() => null);
-            if (doc) out.set(id, doc);
+            if (doc) {
+                docCache.set(uri, doc);
+                out.set(id, doc);
+            }
         }
     }
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
