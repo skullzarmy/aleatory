@@ -62,14 +62,14 @@ function requireAddress(a: string): string {
  * the reads that matter sit behind `Promise.all` or a `catch` that degrades to
  * empty.
  */
-const INDEXER_TIMEOUT_MS = 3_000;
-const INDEXER_ATTEMPTS = 2;
+const INDEXER_TIMEOUT_MS = 6_000;
+const INDEXER_ATTEMPTS = 5;
 
 /** Answers worth asking again about. Anything else is the indexer's real answer. */
 const TRANSIENT = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 /**
- * One read from the indexer, with a deadline and a second try. A 404 is an
+ * One read from the indexer, with a deadline and retries. A 404 is an
  * answer and comes straight back.
  *
  * The pause is jittered, because the failures worth retrying are the ones every
@@ -81,7 +81,7 @@ export async function indexerFetch(url: string, init: RequestInit = {}): Promise
 
     for (let attempt = 1; attempt <= INDEXER_ATTEMPTS; attempt++) {
         if (attempt > 1) {
-            const base = 150 * 2 ** (attempt - 2);
+            const base = 200 * 2 ** (attempt - 2);
             await new Promise((r) => setTimeout(r, base + Math.random() * base));
         }
         try {
@@ -100,23 +100,43 @@ export async function indexerFetch(url: string, init: RequestInit = {}): Promise
 }
 
 /**
- * Every read here is a question about chain state right now, so none of them are
- * cached. A shared server-side cache here is invisible from the browser and
- * outlives the thing it describes: a page asking again a minute later was told
- * the same answer, and the piece somebody just minted stayed missing until they
- * reloaded by hand.
+ * In-memory fallback cache for indexer responses.
  *
- * The reads that genuinely do not change — a generator's metadata, a document
- * behind a CID — set their own `revalidate` at the call site.
+ * When an indexer query fails or times out after all retries, the last successful
+ * response is served rather than failing the whole page render.
+ */
+const queryCache = new Map<string, { data: unknown; timestamp: number }>();
+const MAX_CACHE_ENTRIES = 500;
+
+/**
+ * Every read here asks about chain state. Queries fetch live from the indexer,
+ * updating the in-memory cache on success, and fall back to the last clean answer
+ * if the indexer is temporarily unreachable.
  */
 async function get<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
     const url = new URL(`${tzktApi()}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-    const res = await indexerFetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) {
-        throw new Error(`TzKT ${res.status} on ${path}`);
+    const cacheKey = url.toString();
+
+    try {
+        const res = await indexerFetch(cacheKey, { cache: "no-store" });
+        if (!res.ok) {
+            throw new Error(`TzKT ${res.status} on ${path}`);
+        }
+        const data = (await res.json()) as T;
+        if (queryCache.size >= MAX_CACHE_ENTRIES) {
+            const oldestKey = queryCache.keys().next().value;
+            if (oldestKey) queryCache.delete(oldestKey);
+        }
+        queryCache.set(cacheKey, { data, timestamp: Date.now() });
+        return data;
+    } catch (err) {
+        const cached = queryCache.get(cacheKey);
+        if (cached) {
+            return cached.data as T;
+        }
+        throw err;
     }
-    return (await res.json()) as T;
 }
 
 /**

@@ -340,7 +340,25 @@ export interface RecentFeed {
     artists: Map<string, string>;
 }
 
+const feedCache = new Map<string, RecentFeed>();
+
 export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Promise<RecentFeed> {
+    const cacheKey = `${limit}:${offset}:${only ?? ""}`;
+    try {
+        const feed = await fetchRecentFeedLive(limit, offset, only);
+        if (feed.pieces.length > 0 || feed.generatorCount > 0) {
+            feedCache.set(cacheKey, feed);
+        }
+        return feed;
+    } catch (err) {
+        const cached = feedCache.get(cacheKey);
+        if (cached) return cached;
+        throw err;
+    }
+}
+
+async function fetchRecentFeedLive(limit = 48, offset = 0, only?: string): Promise<RecentFeed> {
+    const cacheKey = `${limit}:${offset}:${only ?? ""}`;
     const factories = await allFactories();
     if (factories.length === 0) {
         return {
@@ -357,6 +375,8 @@ export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Pr
     // the generators it made stay real.
     const all = (await generatorsFrom(factories)).filter((c) => !isBlockedGenerator(c.address));
     if (all.length === 0) {
+        const cached = feedCache.get(cacheKey);
+        if (cached) return cached;
         return {
             pieces: [],
             generatorCount: 0,
