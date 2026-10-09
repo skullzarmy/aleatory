@@ -58,6 +58,15 @@ export function PreflightModal({
         void run();
     }, [open, run]);
 
+    useEffect(() => {
+        if (!open) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose();
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [open, onClose]);
+
     const hasFailed = checks.some((c) => c.status === "fail");
     const hasCover = Boolean(draft.cover?.uri);
     const hasPassed =
@@ -75,8 +84,12 @@ export function PreflightModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="preflight-title"
+            onClick={onClose}
         >
-            <div className="w-full max-w-lg space-y-4 rounded-xl border border-border bg-card p-6 shadow-2xl">
+            <div
+                className="w-full max-w-lg space-y-4 rounded-xl border border-border bg-card p-6 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <h2 id="preflight-title" className="text-lg font-semibold tracking-tight">
@@ -89,8 +102,7 @@ export function PreflightModal({
                     <button
                         type="button"
                         onClick={onClose}
-                        disabled={running}
-                        className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                        className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
                         aria-label="Close"
                     >
                         <X size={18} aria-hidden />

@@ -15,7 +15,7 @@ import { LibraryPicker } from "./LibraryPicker";
 import { useDeps } from "@/components/useDeps";
 import { declaredIn } from "@/lib/libraries";
 import { getKind } from "@/lib/runtimes";
-import { saveDraft, randomSeed, type Draft } from "@/lib/draft";
+import { saveDraft, randomSeed, checkDraftDetails, type Draft } from "@/lib/draft";
 import { downloadText } from "@/lib/project";
 import { resolveParams } from "@/lib/params";
 import { detectParams, withParams } from "@/lib/detect";
@@ -67,6 +67,7 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
     // nothing about why, so the failure is surfaced rather than swallowed.
     const { deps, ready: depsReady, error: depsError } = useDeps(draft.html);
     const kind = getKind(draft.kindId);
+    const detailsStatus = useMemo(() => checkDraftDetails(draft), [draft]);
 
     // Autosave. A draft that only survives an explicit save is a draft that
     // gets lost.
@@ -206,6 +207,23 @@ export function Workspace({ draft: initial }: { draft: Draft }) {
                                     <span className="ml-1.5 text-xs text-muted-foreground">
                                         {params.length}
                                     </span>
+                                )}
+                                {t.id === "details" && (
+                                    <span
+                                        className={`ml-1.5 inline-block h-2 w-2 rounded-full ${
+                                            detailsStatus.complete ? "bg-success" : "bg-destructive"
+                                        }`}
+                                        title={
+                                            detailsStatus.complete
+                                                ? "Details complete"
+                                                : "Details incomplete"
+                                        }
+                                        aria-label={
+                                            detailsStatus.complete
+                                                ? "Details complete"
+                                                : "Details incomplete"
+                                        }
+                                    />
                                 )}
                             </button>
                         ))}

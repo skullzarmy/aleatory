@@ -191,3 +191,32 @@ export function randomSeed(): string {
 export function seedAt(base: string, index: number): string {
     return `${base}:${index}`;
 }
+
+export interface DraftDetailsStatus {
+    complete: boolean;
+    hasCustomName: boolean;
+    hasDescription: boolean;
+    hasTags: boolean;
+    hasCover: boolean;
+}
+
+/**
+ * Checks whether generator metadata and cover image have been filled out.
+ * Name must be set and customized from the default. Description, tags,
+ * and a pinned cover image must be present.
+ */
+export function checkDraftDetails(draft: Draft): DraftDetailsStatus {
+    const hasCustomName = Boolean(
+        draft.name?.trim() && draft.name.trim().toLowerCase() !== "untitled",
+    );
+    const hasDescription = Boolean(draft.description?.trim());
+    const hasTags = Boolean(draft.tags && draft.tags.length > 0);
+    const hasCover = Boolean(draft.cover?.uri);
+    return {
+        complete: hasCustomName && hasDescription && hasTags && hasCover,
+        hasCustomName,
+        hasDescription,
+        hasTags,
+        hasCover,
+    };
+}

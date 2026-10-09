@@ -31,3 +31,11 @@
   from = "/render"
   to = "/index.html"
   status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; frame-src 'self'; child-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://aleatory.art https://*.aleatory.art http://localhost:* https://alea-mainnet.netlify.app https://sn-aleatory-art.netlify.app https://*.netlify.app"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=(), payment=(), usb=()"

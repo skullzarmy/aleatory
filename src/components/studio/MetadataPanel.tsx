@@ -1,7 +1,7 @@
 "use client";
 
 import { cloneElement, isValidElement, useId, type ReactElement } from "react";
-import type { Draft } from "@/lib/draft";
+import { checkDraftDetails, type Draft } from "@/lib/draft";
 import type { ParamSpec } from "@/lib/params";
 import { CoverPicker } from "./CoverPicker";
 import { declaredIn } from "@/lib/libraries";
@@ -21,10 +21,29 @@ export function MetadataPanel({
     depsError: string | null;
     onUpdate: (patch: Partial<Draft>) => void;
 }) {
+    const status = checkDraftDetails(draft);
+
     return (
         <div className="mx-auto max-w-xl space-y-6 p-4">
             <div>
-                <h2 className="text-base font-semibold tracking-tight">Generator Details</h2>
+                <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-base font-semibold tracking-tight">Generator Details</h2>
+                    <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
+                            status.complete
+                                ? "border border-success/40 bg-success/10 text-success"
+                                : "border border-destructive/40 bg-destructive/10 text-destructive"
+                        }`}
+                    >
+                        <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                                status.complete ? "bg-success" : "bg-destructive"
+                            }`}
+                            aria-hidden
+                        />
+                        {status.complete ? "Completed" : "Incomplete"}
+                    </span>
+                </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                     Set your generator&apos;s display metadata and cover image. These are saved
                     locally in your draft.
