@@ -556,8 +556,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                                     <h3 className="font-semibold text-foreground truncate text-sm">
                                         {name.trim() || "Untitled"}
                                     </h3>
-                                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                                        Permanent
+                                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                        Cannot edit after deploy
                                     </span>
                                 </div>
                                 {description.trim() ? (
@@ -1071,7 +1071,7 @@ function Field({
                 </label>
                 {permanent && (
                     <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                        permanent
+                        cannot edit after deploy
                     </span>
                 )}
             </div>
