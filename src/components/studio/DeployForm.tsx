@@ -24,7 +24,8 @@ import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
 import { useDeps } from "@/components/useDeps";
 import { declaredIn, recordFor } from "@/lib/libraries";
-import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
+import { ipfsImageUrl } from "@/utils/ipfs";
+import { CoverThumbnail } from "./PreflightModal";
 import {
     estimateSignatures,
     publishGenerator,
@@ -588,10 +589,10 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             {draft && cover ? (
                 <Field label="Cover" hint="Selected in the studio and pinned to IPFS.">
                     <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-                        <img
-                            src={convertIpfsToGatewayUrl(cover.thumbUri || cover.uri)}
+                        <CoverThumbnail
+                            src={ipfsImageUrl(cover.thumbUri || cover.uri)}
                             alt="Cover thumbnail"
-                            className="h-16 w-16 rounded border border-border object-cover"
+                            className="h-16 w-16"
                         />
                         <div className="min-w-0 flex-1 text-xs">
                             <p className="font-medium text-foreground">Cover image set</p>

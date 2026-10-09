@@ -5,7 +5,7 @@ import { X, ArrowRight, RotateCw, AlertCircle, CheckCircle2 } from "lucide-react
 import type { Draft } from "@/lib/draft";
 import type { ParamSpec } from "@/lib/params";
 import { executeChecks, INITIAL_CHECKS, type Check } from "@/lib/checks";
-import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
+import { ipfsImageUrl } from "@/utils/ipfs";
 import { CheckMark } from "./Checks";
 
 export function PreflightModal({
@@ -125,10 +125,9 @@ export function PreflightModal({
 
                 {draft.cover ? (
                     <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-2.5">
-                        <img
-                            src={convertIpfsToGatewayUrl(draft.cover.thumbUri || draft.cover.uri)}
+                        <CoverThumbnail
+                            src={ipfsImageUrl(draft.cover.thumbUri || draft.cover.uri)}
                             alt="Cover thumbnail"
-                            className="h-14 w-14 rounded border border-border object-cover"
                         />
                         <div className="min-w-0 flex-1">
                             <p className="text-xs font-semibold text-foreground">Cover image set</p>
@@ -252,6 +251,51 @@ export function PreflightModal({
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+export function CoverThumbnail({
+    src,
+    alt,
+    className = "h-14 w-14",
+}: {
+    src: string;
+    alt: string;
+    className?: string;
+}) {
+    const [loaded, setLoaded] = useState(false);
+    const [retries, setRetries] = useState(0);
+
+    const handleError = () => {
+        if (retries < 6) {
+            setTimeout(() => {
+                setRetries((r) => r + 1);
+            }, 1500);
+        }
+    };
+
+    const resolvedSrc = retries > 0 ? `${src}${src.includes("?") ? "&" : "?"}r=${retries}` : src;
+
+    return (
+        <div
+            className={`relative shrink-0 overflow-hidden rounded border border-border bg-muted/40 ${className}`}
+        >
+            {!loaded && (
+                <div className="absolute inset-0 flex items-center justify-center bg-muted/40 text-[10px] text-muted-foreground">
+                    <span className="animate-pulse">Loading…</span>
+                </div>
+            )}
+            <img
+                key={resolvedSrc}
+                src={resolvedSrc}
+                alt={alt}
+                onLoad={() => setLoaded(true)}
+                onError={handleError}
+                className={`h-full w-full object-cover transition-opacity duration-200 ${
+                    loaded ? "opacity-100" : "opacity-0"
+                }`}
+            />
         </div>
     );
 }
