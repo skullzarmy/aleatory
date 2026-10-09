@@ -11,7 +11,10 @@ import { BRAND, tzktLink } from "@/lib/config";
 import { coversFor } from "@/lib/feed";
 import { AccountLink } from "@/components/account/AccountLink";
 import { LiveRefresh } from "@/components/LiveRefresh";
+import { LastGood } from "@/components/LastGood";
+import { ReadFailed } from "@/components/ReadFailed";
 import { GeneratorJsonLd } from "@/components/JsonLd";
+import { isAddress } from "@/lib/tzkt";
 
 /**
  * Rendered per request. `revalidate` here made this a prerendered document, and
@@ -52,17 +55,24 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function GeneratorPage({ params }: { params: Params }) {
     const { address } = await params;
-    const [generator, pieces, market] = await Promise.all([
-        fetchGenerator(address),
-        fetchGeneratorPieces(address),
-        // The full list, not just the count: the grid below prices whichever
-        // of these pieces are listed. 500 matches the row cap `fetchListingPage`
-        // already reads per marketplace, so this never pages.
-        fetchListingPage({ generator: address, limit: 500 }).catch(() => ({
-            total: 0,
-            listings: [],
-        })),
-    ]);
+    if (!isAddress(address)) notFound();
+    let read;
+    try {
+        read = await Promise.all([
+            fetchGenerator(address),
+            fetchGeneratorPieces(address),
+            // The full list, not just the count: the grid below prices whichever
+            // of these pieces are listed. 500 matches the row cap `fetchListingPage`
+            // already reads per marketplace, so this never pages.
+            fetchListingPage({ generator: address, limit: 500 }).catch(() => ({
+                total: 0,
+                listings: [],
+            })),
+        ]);
+    } catch {
+        return <ReadFailed />;
+    }
+    const [generator, pieces, market] = read;
     if (!generator) return notFound();
     const listed = market.total;
     const prices = new Map(
@@ -80,72 +90,74 @@ export default async function GeneratorPage({ params }: { params: Params }) {
     };
 
     return (
-        <div className="mx-auto max-w-6xl px-4 py-8">
-            <LiveRefresh seconds={30} />
-            <GeneratorJsonLd
-                name={generator.name || shortAddress(generator.address)}
-                description={generator.description}
-                creator={generator.artist}
-                size={generator.editionSize || undefined}
-                url={`${BRAND.url}/generator/${address}`}
-            />
-            <header className="mb-6">
-                {/* The artist's name for it. They typed it, it is on chain, and
+        <LastGood>
+            <div className="mx-auto max-w-6xl px-4 py-8">
+                <LiveRefresh seconds={30} />
+                <GeneratorJsonLd
+                    name={generator.name || shortAddress(generator.address)}
+                    description={generator.description}
+                    creator={generator.artist}
+                    size={generator.editionSize || undefined}
+                    url={`${BRAND.url}/generator/${address}`}
+                />
+                <header className="mb-6">
+                    {/* The artist's name for it. They typed it, it is on chain, and
                     it is the first thing the page is about. The address is
                     here too, because this is the page somebody checks, but it
                     is not the title. */}
-                <h1 className="break-words text-xl font-semibold tracking-tight">
-                    {generator.name || shortAddress(generator.address)}
-                </h1>
+                    <h1 className="break-words text-xl font-semibold tracking-tight">
+                        {generator.name || shortAddress(generator.address)}
+                    </h1>
 
-                {/* A row rather than a paragraph with an inline-flex dropped
+                    {/* A row rather than a paragraph with an inline-flex dropped
                     into it: an avatar is taller than the text beside it, so on
                     a text baseline the name sits low and the gap where the
                     picture goes reads as a hole. */}
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                    <span>by</span>
-                    <AccountLink address={generator.artist} withAvatar />
-                    <span aria-hidden>·</span>
-                    <a
-                        href={tzktLink(generator.address)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono text-xs hover:text-foreground hover:underline"
-                    >
-                        {shortAddress(generator.address)}
-                    </a>
-                </div>
-            </header>
-
-            <MintView
-                generator={generator}
-                schema={generator.paramsSchema}
-                coverUrl={
-                    generator.coverUrl ?? pieces.find((p) => !p.pending && p.imageUrl)?.imageUrl
-                }
-                shareUrl={`${BRAND.url}/generator/${address}`}
-                shareText={generator.name || shortAddress(generator.address)}
-                artistHandles={artistHandles}
-            />
-
-            {pieces.length > 0 && (
-                <div className="mt-12">
-                    <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-                        <h2 className="text-lg font-semibold tracking-tight">
-                            Pieces ({generator.minted})
-                        </h2>
-                        {listed > 0 && (
-                            <Link
-                                href={`/market?generator=${address}`}
-                                className="text-sm text-muted-foreground underline hover:text-foreground"
-                            >
-                                {listed} for sale
-                            </Link>
-                        )}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                        <span>by</span>
+                        <AccountLink address={generator.artist} withAvatar />
+                        <span aria-hidden>·</span>
+                        <a
+                            href={tzktLink(generator.address)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-mono text-xs hover:text-foreground hover:underline"
+                        >
+                            {shortAddress(generator.address)}
+                        </a>
                     </div>
-                    <FeedGrid pieces={pieces} artists={artists} prices={prices} />
-                </div>
-            )}
-        </div>
+                </header>
+
+                <MintView
+                    generator={generator}
+                    schema={generator.paramsSchema}
+                    coverUrl={
+                        generator.coverUrl ?? pieces.find((p) => !p.pending && p.imageUrl)?.imageUrl
+                    }
+                    shareUrl={`${BRAND.url}/generator/${address}`}
+                    shareText={generator.name || shortAddress(generator.address)}
+                    artistHandles={artistHandles}
+                />
+
+                {pieces.length > 0 && (
+                    <div className="mt-12">
+                        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                            <h2 className="text-lg font-semibold tracking-tight">
+                                Pieces ({generator.minted})
+                            </h2>
+                            {listed > 0 && (
+                                <Link
+                                    href={`/market?generator=${address}`}
+                                    className="text-sm text-muted-foreground underline hover:text-foreground"
+                                >
+                                    {listed} for sale
+                                </Link>
+                            )}
+                        </div>
+                        <FeedGrid pieces={pieces} artists={artists} prices={prices} />
+                    </div>
+                )}
+            </div>
+        </LastGood>
     );
 }

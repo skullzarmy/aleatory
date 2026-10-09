@@ -123,6 +123,8 @@ async function get<T>(path: string, params: Record<string, string | number> = {}
         if (!res.ok) {
             throw new Error(`TzKT ${res.status} on ${path}`);
         }
+        // TzKT's answer for a single entity that does not exist is 204 and no body.
+        if (res.status === 204) return null as T;
         const data = (await res.json()) as T;
         if (queryCache.size >= MAX_CACHE_ENTRIES) {
             const oldestKey = queryCache.keys().next().value;
@@ -456,9 +458,12 @@ export async function fetchToken(contract: string, tokenId: string): Promise<Tzk
     return rows[0] ?? null;
 }
 
-/** Raw contract storage, for the fields TzKT does not model. */
-export async function fetchStorage<T = unknown>(address: string): Promise<T> {
-    return get<T>(`/v1/contracts/${requireAddress(address)}/storage`);
+/**
+ * Raw contract storage, for the fields TzKT does not model. Null when there is
+ * no such contract; throws when the indexer could not be read.
+ */
+export async function fetchStorage<T = unknown>(address: string): Promise<T | null> {
+    return get<T | null>(`/v1/contracts/${requireAddress(address)}/storage`);
 }
 
 /** Who holds a token now. */
