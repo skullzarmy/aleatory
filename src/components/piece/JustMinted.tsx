@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
-import type { ArtistHandles } from "@/components/ShareButtons";
+import { ShareButtons, type ArtistHandles } from "@/components/ShareButtons";
 
 /**
  * The moment after a mint, on the piece's own page. Marked by `?minted` on the
@@ -13,9 +13,9 @@ import type { ArtistHandles } from "@/components/ShareButtons";
 export function JustMinted({
     contract,
     remaining,
-    shareUrl: _shareUrl,
-    shareText: _shareText,
-    artistHandles: _artistHandles,
+    shareUrl,
+    shareText,
+    artistHandles,
 }: {
     contract: string;
     /** Unsold in the edition, or null for an open one. */
@@ -44,7 +44,7 @@ export function JustMinted({
             <aside
                 role="status"
                 aria-label="Mint confirmation"
-                className="pointer-events-auto w-full max-w-xl rounded-xl border border-alea-600/40 bg-background/95 p-4 shadow-2xl backdrop-blur-md animate-in fade-in-0 slide-in-from-top-2 duration-200"
+                className="pointer-events-auto max-h-[calc(100vh-5rem)] w-full max-w-xl overflow-y-auto rounded-xl border border-alea-600/40 bg-background/95 p-4 shadow-2xl backdrop-blur-md animate-in fade-in-0 slide-in-from-top-2 duration-200"
             >
                 <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -57,7 +57,7 @@ export function JustMinted({
                     <button
                         type="button"
                         onClick={dismiss}
-                        className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         aria-label="Dismiss notification"
                     >
                         <X size={14} aria-hidden />
@@ -98,6 +98,18 @@ export function JustMinted({
                         Dismiss
                     </button>
                 </div>
+                {shareUrl && shareText && (
+                    <div className="mt-4 border-t border-alea-600/20 pt-3">
+                        <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+                            Show it off
+                        </p>
+                        <ShareButtons
+                            url={shareUrl}
+                            text={shareText}
+                            artistHandles={artistHandles}
+                        />
+                    </div>
+                )}
             </aside>
         </div>
     );
