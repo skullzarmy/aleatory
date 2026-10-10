@@ -90,13 +90,6 @@ export function JustMinted({
                     >
                         Other generators
                     </Link>
-                    <button
-                        type="button"
-                        onClick={dismiss}
-                        className="rounded-md border border-border px-3 py-1.5 text-xs sm:text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    >
-                        Dismiss
-                    </button>
                 </div>
                 {shareUrl && shareText && (
                     <div className="mt-4 border-t border-alea-600/20 pt-3">
