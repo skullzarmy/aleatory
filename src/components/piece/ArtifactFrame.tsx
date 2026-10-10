@@ -21,6 +21,7 @@ export function ArtifactFrame({
     seed,
     params,
     imageUrl,
+    coverUrl,
     name,
     maxDpr,
     running: runningProp,
@@ -31,6 +32,8 @@ export function ArtifactFrame({
     seed?: string;
     params?: Record<string, unknown>;
     imageUrl?: string;
+    /** The generator's cover image, shown while a still is pending. */
+    coverUrl?: string;
     name: string;
     /** Caps what `devicePixelRatio` reports inside the piece. Unset for the real one. */
     maxDpr?: number;
@@ -134,37 +137,50 @@ export function ArtifactFrame({
                 </div>
             )}
 
+            {coverUrl && !imageUrl && !running && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                    src={coverUrl}
+                    alt=""
+                    aria-hidden
+                    className="absolute inset-0 h-full w-full scale-105 object-cover opacity-35 blur-md pointer-events-none select-none transition-opacity duration-300"
+                />
+            )}
+
             {!running && !ready && (
                 <div
                     className={`flex h-full w-full items-center justify-center ${
-                        imageUrl ? "pending-shimmer" : "bg-muted"
+                        imageUrl
+                            ? "pending-shimmer"
+                            : coverUrl
+                              ? "bg-card-background/40"
+                              : "bg-muted"
                     }`}
                 >
                     {!runnable && (
-                        <span className="text-sm text-muted-foreground">Awaiting render</span>
+                        <div className="relative z-10 rounded-xl border border-border/60 bg-background/80 px-4 py-2 text-sm text-muted-foreground shadow-md backdrop-blur-md">
+                            Awaiting render
+                        </div>
                     )}
                 </div>
             )}
 
             {runnable && !running && !imageUrl && (
-                // No photograph exists, so there is nothing for a centered
-                // overlay to obscure: the corner-pill sizing below is sized
-                // for staying out of a real still's way, which does not apply
-                // here. Centered and captioned instead, so the only way to
-                // see this piece right now reads as the main event.
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center">
-                    <button
-                        ref={runRef}
-                        type="button"
-                        onClick={() => toggle(true)}
-                        className="run-beckon inline-flex min-h-[44px] items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                    >
-                        <Play className="h-5 w-5 fill-current" aria-hidden />
-                        Run the code
-                    </button>
-                    <p className="max-w-[18rem] text-xs text-muted-foreground">
-                        No still yet. The artwork is the program, run it to see this piece now.
-                    </p>
+                <div className="absolute inset-0 flex items-center justify-center p-4">
+                    <div className="relative z-10 flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-background/80 p-6 text-center shadow-xl backdrop-blur-md max-w-xs">
+                        <button
+                            ref={runRef}
+                            type="button"
+                            onClick={() => toggle(true)}
+                            className="run-beckon inline-flex min-h-[44px] items-center gap-2 rounded-full bg-primary px-6 py-3 text-base font-semibold text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        >
+                            <Play className="h-5 w-5 fill-current" aria-hidden />
+                            Run the code
+                        </button>
+                        <p className="text-xs text-muted-foreground">
+                            No still yet. The artwork is the program, run it to see this piece now.
+                        </p>
+                    </div>
                 </div>
             )}
 
