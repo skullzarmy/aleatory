@@ -34,7 +34,6 @@ import type { Generator } from "@/lib/generator";
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ contract: string; tokenId: string }>;
-type Search = Promise<{ minted?: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
     const { contract, tokenId } = await params;
@@ -66,16 +65,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     };
 }
 
-export default async function PiecePage({
-    params,
-    searchParams,
-}: {
-    params: Params;
-    searchParams: Search;
-}) {
+export default async function PiecePage({ params }: { params: Params }) {
     const { contract, tokenId } = await params;
     if (!isAddress(contract) || !/^\d+$/.test(tokenId)) notFound();
-    const justMinted = (await searchParams).minted !== undefined;
 
     let piece: Piece | null;
     try {
@@ -173,6 +165,7 @@ export default async function PiecePage({
                                 piece.params,
                             )}
                             imageUrl={cachedImage}
+                            coverUrl={generator?.coverUrl}
                             name={piece.name}
                             maxDpr={maxDprFor(contract)}
                         />
@@ -220,15 +213,13 @@ export default async function PiecePage({
                             <PieceFacts piece={piece} listing={listing} />
                         </div>
 
-                        {!justMinted && (
-                            <div className="mt-4">
-                                <ShareButtons
-                                    url={`${BRAND.url}/piece/${contract}/${tokenId}`}
-                                    text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
-                                    artistHandles={artistHandles}
-                                />
-                            </div>
-                        )}
+                        <div className="mt-4">
+                            <ShareButtons
+                                url={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                                text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
+                                artistHandles={artistHandles}
+                            />
+                        </div>
                     </div>
                 </div>
 
