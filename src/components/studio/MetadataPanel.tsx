@@ -4,6 +4,7 @@ import { cloneElement, isValidElement, useId, type ReactElement } from "react";
 import { checkDraftDetails, type Draft } from "@/lib/draft";
 import type { ParamSpec } from "@/lib/params";
 import { CoverPicker } from "./CoverPicker";
+import { TagInput } from "./TagInput";
 import { declaredIn } from "@/lib/libraries";
 
 export function MetadataPanel({
@@ -77,21 +78,9 @@ export function MetadataPanel({
 
             <Field
                 label="Tags"
-                hint="Comma separated, e.g. generative, glitch, 3d. Used for discovery across marketplaces."
+                hint="Press comma or Enter to add, e.g. generative, glitch, 3d. Used for discovery across marketplaces."
             >
-                <input
-                    value={(draft.tags ?? []).join(", ")}
-                    onChange={(e) =>
-                        onUpdate({
-                            tags: e.target.value
-                                .split(",")
-                                .map((t) => t.trim())
-                                .filter(Boolean),
-                        })
-                    }
-                    placeholder="generative, canvas, abstract"
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                />
+                <TagInput tags={draft.tags ?? []} onChange={(tags) => onUpdate({ tags })} />
             </Field>
 
             <Field

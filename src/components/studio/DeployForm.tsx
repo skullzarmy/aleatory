@@ -22,6 +22,7 @@ import { getKind } from "@/lib/runtimes";
 import { detectParams } from "@/lib/detect";
 import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
+import { TagInput } from "./TagInput";
 import { useDeps } from "@/components/useDeps";
 import { declaredIn, recordFor } from "@/lib/libraries";
 import { ipfsImageUrl } from "@/utils/ipfs";
@@ -49,7 +50,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
     const [name, setName] = useState(draft?.name ?? "");
     const [description, setDescription] = useState(draft?.description ?? "");
-    const [tags, setTags] = useState((draft?.tags ?? []).join(", "));
+    const [tags, setTags] = useState<string[]>(draft?.tags ?? []);
     const [codeUri, setCodeUri] = useState("");
     const [editionSize, setEditionSize] = useState("10");
     const [price, setPrice] = useState("1");
@@ -96,15 +97,6 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         };
     }, [draft?.html]);
 
-    const tagsList = useMemo(
-        () =>
-            tags
-                .split(",")
-                .map((t) => t.trim())
-                .filter(Boolean),
-        [tags],
-    );
-
     // This form remounts fresh every time the publish route loads, so name,
     // description and tags are otherwise ordinary local state. Navigate away
     // to check something and back, and whatever was typed is gone. Same
@@ -114,8 +106,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         if (!draft) return;
         const t = setTimeout(() => {
             const sameTags =
-                (draft.tags ?? []).length === tagsList.length &&
-                (draft.tags ?? []).every((v, i) => v === tagsList[i]);
+                (draft.tags ?? []).length === tags.length &&
+                (draft.tags ?? []).every((v, i) => v === tags[i]);
             const sameCover = draft.cover?.uri === cover?.uri;
             if (
                 draft.name === name &&
@@ -129,13 +121,13 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 ...draft,
                 name,
                 description,
-                tags: tagsList,
+                tags,
                 nameTrait,
                 cover: cover ?? undefined,
             });
         }, 600);
         return () => clearTimeout(t);
-    }, [draft, name, description, tagsList, nameTrait, cover]);
+    }, [draft, name, description, tags, nameTrait, cover]);
 
     // The effect above cancels its own timer on every keystroke, by design —
     // that's the debounce. But its cleanup also runs on a real unmount, which
@@ -144,15 +136,15 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     // ever going to happen for it. A ref keeps the latest values reachable
     // from a cleanup that only fires on the real thing (empty deps), so an
     // unmount flushes immediately instead of just cancelling.
-    const latest = useRef({ draft, name, description, tagsList, nameTrait, cover });
-    latest.current = { draft, name, description, tagsList, nameTrait, cover };
+    const latest = useRef({ draft, name, description, tags, nameTrait, cover });
+    latest.current = { draft, name, description, tags, nameTrait, cover };
     useEffect(() => {
         return () => {
-            const { draft, name, description, tagsList, nameTrait, cover } = latest.current;
+            const { draft, name, description, tags, nameTrait, cover } = latest.current;
             if (!draft) return;
             const sameTags =
-                (draft.tags ?? []).length === tagsList.length &&
-                (draft.tags ?? []).every((v, i) => v === tagsList[i]);
+                (draft.tags ?? []).length === tags.length &&
+                (draft.tags ?? []).every((v, i) => v === tags[i]);
             const sameCover = draft.cover?.uri === cover?.uri;
             if (
                 draft.name === name &&
@@ -166,7 +158,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 ...draft,
                 name,
                 description,
-                tags: tagsList,
+                tags,
                 nameTrait,
                 cover: cover ?? undefined,
             });
@@ -389,7 +381,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     draft: { ...draft, pendingUpload },
                     name: name.trim(),
                     description: description.trim(),
-                    tags: tagsList,
+                    tags,
                     artist: address as string,
                     editionSize: Number.parseInt(editionSize, 10),
                     priceMutez: parseTez(price) as bigint,
@@ -570,8 +562,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                                     </p>
                                 )}
                                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                    {tagsList.length > 0 ? (
-                                        tagsList.map((tag) => (
+                                    {tags.length > 0 ? (
+                                        tags.map((tag) => (
                                             <span
                                                 key={tag}
                                                 className="rounded bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
@@ -646,14 +638,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
                     <Field
                         label="Tags"
-                        hint="Comma separated, e.g. generative, glitch, longform. Read by objkt and other marketplaces for discovery. Changeable later via set_metadata. A change only reaches pieces minted after it; a piece already published keeps what it had."
+                        hint="Press comma or Enter to add, e.g. generative, glitch, longform. Read by objkt and other marketplaces for discovery. Changeable later via set_metadata. A change only reaches pieces minted after it; a piece already published keeps what it had."
                     >
-                        <input
-                            value={tags}
-                            onChange={(e) => setTags(e.target.value)}
-                            placeholder="generative, glitch"
-                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                        />
+                        <TagInput tags={tags} onChange={setTags} />
                     </Field>
 
                     <Field
