@@ -450,8 +450,16 @@ export interface WalletView {
     made: GeneratorSummary[];
     madeCount: number;
     madePages: number;
+    /**
+     * Generators somebody named this account on that it has not accepted.
+     * Already being paid; what is waiting is the credit.
+     */
+    invitations: { address: string; name?: string }[];
     unconfigured: boolean;
 }
+
+/** Enough to act on. A wallet named on more than this has a different problem. */
+const INVITATION_MAX = 12;
 
 const EMPTY_WALLET: WalletView = {
     held: [],
@@ -461,6 +469,7 @@ const EMPTY_WALLET: WalletView = {
     made: [],
     madeCount: 0,
     madePages: 0,
+    invitations: [],
     unconfigured: true,
 };
 
@@ -472,6 +481,7 @@ interface CachedWalletView {
     made: GeneratorSummary[];
     madeCount: number;
     madePages: number;
+    invitations: { address: string; name?: string }[];
     unconfigured: boolean;
 }
 
@@ -511,9 +521,10 @@ async function fetchWalletLive(
     );
     const addresses = generators.map((c) => c.address);
 
-    // What you made, which is what you originated plus what somebody else
-    // originated and named you on. Deduplicated, because the deployer is
-    // named on their own generator and would otherwise appear twice.
+    // What you made is what you originated, plus what somebody else
+    // originated and named you on and you accepted. Being named is not the
+    // same as being credited, so the ones still waiting on you are separated
+    // out below rather than counted here.
     const [heldCount, originated, namedOn] = await Promise.all([
         fetchHeldCount(account, addresses).catch(() => 0),
         Promise.all(
@@ -521,9 +532,21 @@ async function fetchWalletLive(
         ).then((lists) => lists.flat()),
         fetchGeneratorsNaming(account, factories).catch(() => []),
     ]);
-    const deployed = [...new Set([...originated, ...namedOn])].filter(
-        (a) => !isBlockedGenerator(a),
-    );
+    const unseen = namedOn.filter((a) => !originated.includes(a) && !isBlockedGenerator(a));
+    const credits = await fetchCreators(unseen).catch(() => new Map<string, string[]>());
+    const invited = unseen.filter((a) => !(credits.get(a) ?? []).includes(account));
+    const deployed = [
+        ...new Set([...originated, ...unseen.filter((a) => !invited.includes(a))]),
+    ].filter((a) => !isBlockedGenerator(a));
+
+    const invitations = (
+        await Promise.all(
+            invited.map(async (address) => ({
+                address,
+                name: (await fetchGeneratorMeta(address).catch((): GeneratorMeta => ({}))).name,
+            })),
+        )
+    ).slice(0, INVITATION_MAX);
 
     const [paused, sealed] = await Promise.all([
         fetchPausedStates(deployed).catch(() => new Map<string, boolean>()),
@@ -595,6 +618,7 @@ async function fetchWalletLive(
         made,
         madeCount,
         madePages,
+        invitations,
         unconfigured: false,
     };
 }

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { WalletTabs } from "@/components/account/WalletTabs";
 import { ProfileCard } from "@/components/account/ProfileCard";
 import { ProfileNudge } from "@/components/account/ProfileNudge";
+import { CollabInvitations } from "@/components/account/CollabInvitations";
 import { fetchWallet } from "@/lib/feed";
 import { isAddress } from "@/lib/tzkt";
 import { shortAddress } from "@/lib/utils";
@@ -103,6 +104,7 @@ export default async function WalletPage({
                 <LiveRefresh seconds={60} />
                 <ProfileCard address={address} name={name} profile={profile} source={source} />
                 <ProfileNudge address={address} profile={profile} />
+                <CollabInvitations address={address} invitations={view.invitations} />
 
                 {view.unconfigured ? (
                     <p className="mt-8 text-sm text-muted-foreground">
