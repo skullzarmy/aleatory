@@ -12,6 +12,7 @@ import {
     buildPendingDocument,
     buildPieceDocument,
     cleanTags,
+    cleanCreators,
     GENERATOR_SYMBOL,
 } from "./metadata";
 
@@ -114,7 +115,7 @@ console.log("\npiece document");
 check("edition numbers display 1-based over 0-based token ids", () => {
     const doc = buildPieceDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({
             totalPercent: 10,
             recipients: [{ address: A, percent: 100 }],
@@ -130,7 +131,7 @@ check("edition numbers display 1-based over 0-based token ids", () => {
 check("parameters land in aleaParams and in attributes", () => {
     const doc = buildPieceDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 41,
         imageUri: "ipfs://image",
@@ -149,7 +150,7 @@ check("parameters land in aleaParams and in attributes", () => {
 check("features land in attributes, ahead of params", () => {
     const doc = buildPieceDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 0,
         imageUri: "ipfs://image",
@@ -168,7 +169,7 @@ check("features land in attributes, ahead of params", () => {
 check("no features reported is attributes built from params alone", () => {
     const doc = buildPieceDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 0,
         imageUri: "ipfs://image",
@@ -185,7 +186,7 @@ console.log("\nper-piece names, opt-in");
 check("not declared at all: the plain form, unaffected", () => {
     const doc = buildPieceDocument({
         generatorName: "Prancers",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 11,
         imageUri: "ipfs://image",
@@ -200,7 +201,7 @@ check("not declared at all: the plain form, unaffected", () => {
 check("declared and present: the trait value is appended", () => {
     const doc = buildPieceDocument({
         generatorName: "Prancers",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 11,
         imageUri: "ipfs://image",
@@ -215,7 +216,7 @@ check("declared and present: the trait value is appended", () => {
 check("declared, but this piece's features don't have it: falls back to plain", () => {
     const doc = buildPieceDocument({
         generatorName: "Prancers",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 11,
         imageUri: "ipfs://image",
@@ -230,7 +231,7 @@ check("declared, but this piece's features don't have it: falls back to plain", 
 check("declared, no features reported at all: falls back to plain", () => {
     const doc = buildPieceDocument({
         generatorName: "Prancers",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 11,
         imageUri: "ipfs://image",
@@ -246,7 +247,7 @@ check(
     () => {
         const doc = buildPieceDocument({
             generatorName: "Prancers",
-            artist: A,
+            creators: [A],
             royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
             tokenId: 11,
             imageUri: "ipfs://image",
@@ -262,7 +263,7 @@ check(
 check("declared, trait value is a number: coerced to a string, not dropped", () => {
     const doc = buildPieceDocument({
         generatorName: "Prancers",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 11,
         imageUri: "ipfs://image",
@@ -278,7 +279,7 @@ check("declared, trait value is absurdly long: truncated, never a broken or gian
     const long = "x".repeat(500);
     const doc = buildPieceDocument({
         generatorName: "Prancers",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 11,
         imageUri: "ipfs://image",
@@ -297,7 +298,7 @@ console.log("\nartifactUri, objkt reads a missing one as no real content");
 check("piece document: artifactUri always equals imageUri", () => {
     const doc = buildPieceDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 0,
         imageUri: "ipfs://image",
@@ -310,7 +311,7 @@ check("piece document: artifactUri always equals imageUri", () => {
 check("pending document: carries artifactUri too, same as displayUri/thumbnailUri", () => {
     const doc = buildPendingDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         placeholderImageUri: "ipfs://placeholder",
         split: { totalPercent: 0, recipients: [] },
     });
@@ -322,7 +323,7 @@ check("pending document: carries artifactUri too, same as displayUri/thumbnailUr
 check("pending document: carries the token-level symbol objkt reads", () => {
     const doc = buildPendingDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         placeholderImageUri: "ipfs://placeholder",
         split: { totalPercent: 0, recipients: [] },
     });
@@ -332,7 +333,7 @@ check("pending document: carries the token-level symbol objkt reads", () => {
 check("piece document: carries the same symbol as the pending one did", () => {
     const doc = buildPieceDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 0,
         imageUri: "ipfs://image",
@@ -347,7 +348,7 @@ console.log("\ntags");
 check("not declared at all: no tags key on the document", () => {
     const doc = buildPieceDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 0,
         imageUri: "ipfs://image",
@@ -360,7 +361,7 @@ check("not declared at all: no tags key on the document", () => {
 check("declared: lands on the document as-is", () => {
     const doc = buildPieceDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 0,
         imageUri: "ipfs://image",
@@ -374,7 +375,7 @@ check("declared: lands on the document as-is", () => {
 check("pending document: not declared at all: no tags key", () => {
     const doc = buildPendingDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         placeholderImageUri: "ipfs://placeholder",
         split: { totalPercent: 0, recipients: [] },
     });
@@ -384,7 +385,7 @@ check("pending document: not declared at all: no tags key", () => {
 check("pending document: declared: lands on the document, cleaned", () => {
     const doc = buildPendingDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         placeholderImageUri: "ipfs://placeholder",
         split: { totalPercent: 0, recipients: [] },
         tags: ["Generative", "  glitch  ", "generative"],
@@ -395,7 +396,7 @@ check("pending document: declared: lands on the document, cleaned", () => {
 check("pending document: empty array: same as not declared", () => {
     const doc = buildPendingDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         placeholderImageUri: "ipfs://placeholder",
         split: { totalPercent: 0, recipients: [] },
         tags: [],
@@ -406,7 +407,7 @@ check("pending document: empty array: same as not declared", () => {
 check("empty array: same as not declared, no tags key", () => {
     const doc = buildPieceDocument({
         generatorName: "Drift",
-        artist: A,
+        creators: [A],
         royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
         tokenId: 0,
         imageUri: "ipfs://image",
@@ -463,6 +464,73 @@ check("cleanTags: capped at 10 tags total, earliest kept", () => {
     const tags = Array.from({ length: 20 }, (_, i) => `tag${i}`);
     assert.equal(cleanTags(tags).length, 10);
     assert.deepEqual(cleanTags(tags), tags.slice(0, 10));
+});
+
+console.log("\ncreators");
+
+check("one creator, which is every solo generator", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        creators: [A],
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+    });
+    assert.deepEqual(doc.creators, [A]);
+});
+
+check("several creators, in the order given", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        creators: [B, A, C],
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+    });
+    assert.deepEqual(doc.creators, [B, A, C]);
+});
+
+check("the pending document credits the same way", () => {
+    const doc = buildPendingDocument({
+        generatorName: "Drift",
+        creators: [A, B],
+        placeholderImageUri: "ipfs://placeholder",
+        split: { totalPercent: 0, recipients: [] },
+    });
+    assert.deepEqual(doc.creators, [A, B]);
+});
+
+check("nobody credited yet is an empty list, never a missing key", () => {
+    const doc = buildPendingDocument({
+        generatorName: "Drift",
+        creators: [],
+        placeholderImageUri: "ipfs://placeholder",
+        split: { totalPercent: 0, recipients: [] },
+    });
+    assert.deepEqual(doc.creators, [], "objkt reads an absent creators and a [] the same way");
+});
+
+check("cleanCreators: one address twice is credited once", () => {
+    assert.deepEqual(cleanCreators([A, A, B]), [A, B]);
+});
+
+check("cleanCreators: blank and non-string entries are dropped", () => {
+    assert.deepEqual(cleanCreators([A, "", "   ", 7, null, B]), [A, B]);
+});
+
+check("cleanCreators: capped at 8, which is the contract's own ceiling", () => {
+    const many = Array.from({ length: 12 }, (_, i) => `tz1${String(i).repeat(33)}`);
+    assert.equal(cleanCreators(many).length, 8);
+    assert.deepEqual(cleanCreators(many), many.slice(0, 8));
+});
+
+check("cleanCreators: anything that is not a list is nobody", () => {
+    assert.deepEqual(cleanCreators(undefined), []);
+    assert.deepEqual(cleanCreators("tz1"), []);
 });
 
 console.log(failures === 0 ? "\nall passed" : `\n${failures} failed`);

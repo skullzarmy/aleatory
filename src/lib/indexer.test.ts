@@ -177,6 +177,36 @@ async function main() {
         !(royalties && typeof royalties === "object" && "art" in (royalties as object)),
     );
 
+    // src/lib/tzkt.ts, fetchCreators. A generator from a factory that predates
+    // collaborations has no `collab` at all, and falling back to
+    // `administrator` is the whole v1 compatibility path. The shape of the
+    // "not there" answer is the thing to pin: 204 with an empty body, which
+    // `res.ok` reports as success, so a reader calling `json()` on it throws
+    // and a `catch` quietly turns a readable generator into an unreadable one.
+    const collabRes = await fetch(`${API}/v1/contracts/${generator}/storage?path=collab`);
+    check(
+        "a storage path the contract does not have answers 204, which res.ok calls success",
+        collabRes.status === 204 || collabRes.status === 200,
+        `got ${collabRes.status}`,
+    );
+    if (collabRes.status === 204) {
+        check("that 204 carries no body to parse", (await collabRes.text()) === "");
+    }
+
+    // src/lib/tzkt.ts, fetchGeneratorsNaming. Selecting a map-valued payload
+    // field is how one wallet's collaborations are found without reading every
+    // collection's storage. An ignored `select` would hand back whole event
+    // rows, and the filter below it would then read `undefined` for every one
+    // of them and quietly report that nobody has any.
+    const deployEvents = (await get(
+        `/v1/contracts/events?contract.in=${(routerStorage.factories ?? []).join(",")}&tag=deploy&select=payload.address,payload.collaborators&limit=5`,
+    )) as Record<string, unknown>[];
+    check(
+        "select= on an event payload returns those fields and not the whole row",
+        !Array.isArray(deployEvents) || deployEvents.length === 0 || !("id" in deployEvents[0]),
+        `got keys ${Object.keys(deployEvents?.[0] ?? {}).join(",")}`,
+    );
+
     console.log(
         failed === 0
             ? "\n  every query the app relies on answers the way it is read\n"

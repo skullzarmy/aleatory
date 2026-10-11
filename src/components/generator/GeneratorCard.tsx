@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AutoList } from "@/components/feed/AutoGrid";
-import { AccountName } from "@/components/account/AccountName";
+import { CreatorNames } from "@/components/account/CreatorNames";
 import { shortAddress, timeAgoShort } from "@/lib/utils";
 import type { GeneratorSummary } from "@/lib/generator";
 
@@ -47,9 +47,9 @@ export function GeneratorCard({
 
             <div className="p-3">
                 <p className="truncate text-sm font-medium">{c.name || shortAddress(c.address)}</p>
-                {c.artist && (
+                {c.artists && c.artists.length > 0 && (
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        <AccountName address={c.artist} />
+                        <CreatorNames creators={c.artists} />
                     </p>
                 )}
                 <p className="mt-0.5 flex items-baseline justify-between gap-2 text-xs text-muted-foreground">

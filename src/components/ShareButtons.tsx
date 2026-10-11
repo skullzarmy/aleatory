@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { Check, Link2, Share2 } from "lucide-react";
 
-/** The artist's handle on each network, from their own profile, when they have one. */
-export type ArtistHandles = Partial<
-    Record<"twitter" | "bluesky" | "farcaster" | "telegram", string>
->;
+type Network = "twitter" | "bluesky" | "farcaster" | "telegram";
+
+/** One creator's handle on each network, from their own profile, when they have one. */
+export type ArtistHandles = Partial<Record<Network, string>> & { address?: string };
 
 /**
  * Share a piece. The URL is the piece's permanent page, never the one a
@@ -22,7 +22,8 @@ export function ShareButtons({
 }: {
     url: string;
     text: string;
-    artistHandles?: ArtistHandles;
+    /** One entry per credited creator, in the order the post should name them. */
+    artistHandles?: ArtistHandles[];
     className?: string;
 }) {
     const [copied, setCopied] = useState(false);
@@ -34,11 +35,14 @@ export function ShareButtons({
     }, []);
 
     const u = encodeURIComponent(url);
-    // A network that has the artist's handle for itself gets them tagged in
-    // the post; one that doesn't gets the plain text.
-    const tagged = (kind: keyof ArtistHandles) => {
-        const handle = artistHandles?.[kind];
-        return handle ? `${text} by ${handle}` : text;
+    // A network gets every credited creator who has a handle there tagged in
+    // the post. One with no handles at all gets the plain text, so a
+    // collaboration where nobody filled in a profile does not post "by".
+    const tagged = (kind: Network) => {
+        const handles = (artistHandles ?? [])
+            .map((a) => a[kind])
+            .filter((h): h is string => Boolean(h));
+        return handles.length > 0 ? `${text} by ${handles.join(" and ")}` : text;
     };
 
     const networks = [

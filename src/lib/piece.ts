@@ -16,6 +16,7 @@ import {
 } from "./tzkt";
 import { fetchProvider } from "./providers";
 import { cacheWrap } from "./cache";
+import { normalizeCollab } from "./collab";
 import {
     bytesToString,
     convertIpfsToGatewayUrl,
@@ -26,6 +27,8 @@ import {
 /** The shape of a generator's storage that this page reads. */
 interface GeneratorStorage {
     administrator: string;
+    template_version?: string;
+    collab?: { shares: Record<string, string>; confirmed: string[] };
     art: {
         code: string;
         code_encoding: string;
@@ -44,7 +47,11 @@ export interface Piece {
     name: string;
     description?: string;
     generatorName?: string;
-    artist: string;
+    /**
+     * Who the generator credits. One name for a solo generator, and the
+     * minter as a last resort when the generator's storage cannot be read.
+     */
+    artists: string[];
     owner?: string;
     /** The buy operation hash. This is the seed. */
     seed?: string;
@@ -201,7 +208,9 @@ async function fetchPieceLive(contract: string, tokenId: string): Promise<Piece 
         name,
         description: m?.description,
         generatorName,
-        artist: storage?.administrator || token.firstMinter?.address || "",
+        artists: storage
+            ? normalizeCollab(storage).collab.confirmed
+            : [token.firstMinter?.address].filter((a): a is string => Boolean(a)),
         owner: owner ?? undefined,
         seed: mint?.hash,
         mintedAt: mint?.timestamp ?? token.firstTime,

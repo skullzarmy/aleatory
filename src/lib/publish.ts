@@ -67,6 +67,13 @@ export interface PublishInput {
     /** Standard TZIP-21 tags. objkt reads this field directly. */
     tags?: string[];
     artist: string;
+    /**
+     * Who the mint price is divided between, in the same relative shape the
+     * royalty split uses. The artist deploying has to be one of them, which
+     * is what the factory asserts and what makes them the one confirmed
+     * collaborator from the start.
+     */
+    collab: RoyaltySplit;
     editionSize: number;
     priceMutez: bigint;
     split: RoyaltySplit;
@@ -394,7 +401,11 @@ export async function publishGenerator(
             generatorName: input.name,
             description: input.description,
             tags: input.tags,
-            artist: input.artist,
+            // The deployer alone: nobody else has confirmed yet, and this
+            // document is pinned once and pointed at from storage. A
+            // collaborator who confirms is credited on the pieces published
+            // after they do.
+            creators: [input.artist],
             placeholderImageUri: input.placeholderImageUri ?? input.coverUri ?? "",
             split: input.split,
         }),
@@ -416,6 +427,9 @@ export async function publishGenerator(
         editionSize: input.editionSize,
         priceMutez: input.priceMutez,
         royalties: royaltiesToBps(input.split),
+        // A whole division of the price, so the total is 100% rather than the
+        // royalty split's share of a smaller pot.
+        collabShares: royaltiesToBps({ ...input.collab, totalPercent: 100 }),
         pendingMetadataUri,
         startPaused: input.startPaused,
         trustResolver: input.trustResolver,

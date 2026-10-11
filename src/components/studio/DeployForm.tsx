@@ -23,6 +23,7 @@ import { detectParams } from "@/lib/detect";
 import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
 import { TagInput } from "./TagInput";
+import { SplitTable, isSplitAddress, type SplitRow } from "./SplitTable";
 import { useDeps } from "@/components/useDeps";
 import { declaredIn, recordFor } from "@/lib/libraries";
 import { ipfsImageUrl } from "@/utils/ipfs";
@@ -57,6 +58,13 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [royaltyTotal, setRoyaltyTotal] = useState("10");
     const [platformShare, setPlatformShare] = useState(false);
     const [platformPercent, setPlatformPercent] = useState("10");
+    /**
+     * Collaborators, and who gets what, on two tables that do not have to
+     * agree: the mint price and the resale royalty are separately negotiable.
+     * Neither list holds the connected wallet, which takes the remainder.
+     */
+    const [collabRows, setCollabRows] = useState<SplitRow[]>(draft?.collab ?? []);
+    const [royaltyRows, setRoyaltyRows] = useState<SplitRow[]>(draft?.royaltyRecipients ?? []);
     const [providerAddress, setProviderAddress] = useState(providers[0]?.address ?? "");
     const [trustResolver, setTrustResolver] = useState(true);
     // Opt-in, off by default. The feature key whose value becomes part of
@@ -102,32 +110,46 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     // to check something and back, and whatever was typed is gone. Same
     // debounced-save shape Workspace.tsx already uses for the rest of a draft.
     // No draft (the ipfs:// pointer path) has nothing to save into.
+    // One comparison, reached from the debounce and from the unmount flush
+    // below. Two copies of it drifted the moment a field was added to only
+    // one of them.
+    const editable = { name, description, tags, nameTrait, cover, collabRows, royaltyRows };
+    type Editable = typeof editable;
+    function flush(d: Draft, v: Editable) {
+        const sameList = (a: SplitRow[] | undefined, b: SplitRow[]) =>
+            (a ?? []).length === b.length &&
+            (a ?? []).every((r, i) => r.address === b[i].address && r.percent === b[i].percent);
+        const sameTags =
+            (d.tags ?? []).length === v.tags.length &&
+            (d.tags ?? []).every((t, i) => t === v.tags[i]);
+        if (
+            d.name === v.name &&
+            (d.description ?? "") === v.description &&
+            (d.nameTrait ?? "") === v.nameTrait &&
+            d.cover?.uri === v.cover?.uri &&
+            sameTags &&
+            sameList(d.collab, v.collabRows) &&
+            sameList(d.royaltyRecipients, v.royaltyRows)
+        )
+            return;
+        void saveDraft({
+            ...d,
+            name: v.name,
+            description: v.description,
+            tags: v.tags,
+            nameTrait: v.nameTrait,
+            cover: v.cover ?? undefined,
+            collab: v.collabRows,
+            royaltyRecipients: v.royaltyRows,
+        });
+    }
+
     useEffect(() => {
         if (!draft) return;
-        const t = setTimeout(() => {
-            const sameTags =
-                (draft.tags ?? []).length === tags.length &&
-                (draft.tags ?? []).every((v, i) => v === tags[i]);
-            const sameCover = draft.cover?.uri === cover?.uri;
-            if (
-                draft.name === name &&
-                (draft.description ?? "") === description &&
-                (draft.nameTrait ?? "") === nameTrait &&
-                sameCover &&
-                sameTags
-            )
-                return;
-            void saveDraft({
-                ...draft,
-                name,
-                description,
-                tags,
-                nameTrait,
-                cover: cover ?? undefined,
-            });
-        }, 600);
+        const t = setTimeout(() => flush(draft, latest.current.editable), 600);
         return () => clearTimeout(t);
-    }, [draft, name, description, tags, nameTrait, cover]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [draft, name, description, tags, nameTrait, cover, collabRows, royaltyRows]);
 
     // The effect above cancels its own timer on every keystroke, by design —
     // that's the debounce. But its cleanup also runs on a real unmount, which
@@ -136,33 +158,14 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     // ever going to happen for it. A ref keeps the latest values reachable
     // from a cleanup that only fires on the real thing (empty deps), so an
     // unmount flushes immediately instead of just cancelling.
-    const latest = useRef({ draft, name, description, tags, nameTrait, cover });
-    latest.current = { draft, name, description, tags, nameTrait, cover };
+    const latest = useRef({ draft, editable });
+    latest.current = { draft, editable };
     useEffect(() => {
         return () => {
-            const { draft, name, description, tags, nameTrait, cover } = latest.current;
-            if (!draft) return;
-            const sameTags =
-                (draft.tags ?? []).length === tags.length &&
-                (draft.tags ?? []).every((v, i) => v === tags[i]);
-            const sameCover = draft.cover?.uri === cover?.uri;
-            if (
-                draft.name === name &&
-                (draft.description ?? "") === description &&
-                (draft.nameTrait ?? "") === nameTrait &&
-                sameCover &&
-                sameTags
-            )
-                return;
-            void saveDraft({
-                ...draft,
-                name,
-                description,
-                tags,
-                nameTrait,
-                cover: cover ?? undefined,
-            });
+            const { draft, editable } = latest.current;
+            if (draft) flush(draft, editable);
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const provider = providers.find((p) => p.address === providerAddress);
@@ -186,12 +189,36 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             .catch(() => {});
     }, []);
 
+    /** Named rows that parse, with their percentages. */
+    const named = (rows: SplitRow[]) =>
+        rows
+            .filter((r) => isSplitAddress(r.address))
+            .map((r) => ({ address: r.address.trim(), percent: parseFloat(r.percent) || 0 }));
+
+    const collabNamed = useMemo(() => named(collabRows), [collabRows]);
+    const royaltyNamed = useMemo(() => named(royaltyRows), [royaltyRows]);
+
+    const platform = platformShare ? parseFloat(platformPercent) || 0 : 0;
+
+    /** What the connected wallet is left with on each table. */
+    const collabOwnerPercent = 100 - collabNamed.reduce((n, r) => n + r.percent, 0);
+    const royaltyOwnerPercent = 100 - platform - royaltyNamed.reduce((n, r) => n + r.percent, 0);
+
+    /** Who the mint price is divided between. Always totals 100%. */
+    const collab: RoyaltySplit = useMemo(
+        () => ({
+            totalPercent: 100,
+            recipients: address ? [{ address, percent: collabOwnerPercent }, ...collabNamed] : [],
+        }),
+        [address, collabOwnerPercent, collabNamed],
+    );
+
     const split: RoyaltySplit = useMemo(() => {
         const total = parseFloat(royaltyTotal) || 0;
         const recipients = [];
         if (address) {
-            const platform = platformShare ? parseFloat(platformPercent) || 0 : 0;
-            recipients.push({ address, percent: 100 - platform });
+            recipients.push({ address, percent: royaltyOwnerPercent });
+            recipients.push(...royaltyNamed);
             // Only when it is known. There is no fallback, because the wrong
             // address here is written into a map with no setter.
             if (platform > 0 && platformAddress) {
@@ -199,9 +226,10 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             }
         }
         return { totalPercent: total, recipients };
-    }, [address, royaltyTotal, platformShare, platformPercent, platformAddress]);
+    }, [address, royaltyTotal, royaltyOwnerPercent, royaltyNamed, platform, platformAddress]);
 
     const preview = useMemo(() => royaltyPreview(split), [split]);
+    const collabPreview = useMemo(() => royaltyPreview(collab), [collab]);
 
     // The same source the publish path reads, so the form shows what is about
     // to be written on chain.
@@ -222,7 +250,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
     // A new set of recipients is a new question, or acknowledging a warning
     // about one address deploys past an unchecked different one.
-    const recipientKey = split.recipients.map((r) => r.address).join(",");
+    const recipientKey = [...split.recipients, ...collab.recipients]
+        .map((r) => r.address)
+        .join(",");
     useEffect(() => {
         setRoyaltyWarnings([]);
         setAcknowledged(false);
@@ -260,9 +290,48 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         if (!Number.isFinite(size) || size < 0) return "Edition size must be 0 or more.";
         const tez = parseTez(price);
         if (tez === null) return "That price is not an amount.";
+
+        // The split map has no setter, so a row half typed or a share set to
+        // nothing is permanent. A zero share is dropped on the way to the
+        // contract, which would leave that person unable to accept the
+        // collaboration at all.
+        for (const [rows, what] of [
+            [collabRows, "collaborator"],
+            [royaltyRows, "royalty recipient"],
+        ] as const) {
+            for (const r of rows) {
+                if (!isSplitAddress(r.address)) {
+                    return `That ${what} address is not a Tezos address. Fix it or remove the row.`;
+                }
+                if (!((parseFloat(r.percent) || 0) > 0)) {
+                    return `Give every ${what} a share above 0, or remove them.`;
+                }
+            }
+        }
+        if (collabOwnerPercent < 0) {
+            return "Your collaborators add up to more than 100% of the mint price.";
+        }
+        // A zero share is dropped on the way to the contract, and the contract
+        // refuses a split the signer is not part of, because the signer is who
+        // the rounding remainder and any undeliverable share fall to.
+        if (collabOwnerPercent <= 0) {
+            return "Keep some share of the mint price for yourself. The contract refuses a split the person deploying is not part of.";
+        }
+        if (
+            new Set([address, ...collabNamed.map((r) => r.address)]).size !==
+            collabNamed.length + 1
+        ) {
+            return "One address appears twice in the collaborators.";
+        }
+        if (collabNamed.length + 1 > 8) {
+            return "A generator takes at most 8 collaborators, including you.";
+        }
         const royalty = parseFloat(royaltyTotal);
         if (!Number.isFinite(royalty) || royalty < 0 || royalty > 25) {
             return "Royalty must be between 0 and 25 percent, which is what marketplaces honour.";
+        }
+        if (royaltyOwnerPercent < 0) {
+            return "The royalty recipients and the platform share add up to more than the whole royalty.";
         }
         if (platformShare) {
             const share = parseFloat(platformPercent);
@@ -280,50 +349,76 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     }
 
     /**
-     * What each royalty recipient will actually receive.
+     * Whether every address on both splits can actually be paid.
      *
-     * The marketplace asks before it pays, so a recipient that cannot take a
-     * plain transfer is skipped and its share goes to the seller. `royalties`
-     * has no setter, so this form is the last moment the address is editable.
+     * Both maps are written at origination and have no setter, so this form
+     * is the last moment either address is editable. What a skipped share
+     * does differs by table, which is why the copy does: a royalty share
+     * that cannot be delivered goes to the seller on each resale, and a mint
+     * share that cannot be delivered goes to whoever deployed.
      *
-     * ALEATORY-001 §1 puts this on any front end that originates generators. A
-     * recipient whose entrypoint accepts the transfer and then throws is the
-     * case the contract cannot survive, and what the simulation catches.
+     * ALEATORY-001 §1 puts this on any front end that originates generators.
+     * A recipient whose entrypoint accepts the transfer and then throws is
+     * the case neither contract can survive, and what the simulation catches:
+     * it would revert every resale, or every mint, for good.
      */
-    async function royaltyProblems(): Promise<{ fatal: string[]; warnings: string[] }> {
+    async function recipientProblems(
+        addresses: string[],
+        skippedGoesTo: string,
+        revertsBreaks: string,
+    ): Promise<{ fatal: string[]; warnings: string[] }> {
         const fatal: string[] = [];
         const warnings: string[] = [];
-        const recipients = new Set(
-            split.recipients.map((r) => r.address).filter((a) => a.startsWith("KT1")),
-        );
+        const originated = [...new Set(addresses)].filter((a) => a.startsWith("KT1"));
 
-        for (const recipient of recipients) {
-            const where = shortAddress(recipient);
-            try {
-                const res = await fetch(
-                    `/api/payable?address=${recipient}&source=${address ?? ""}`,
-                );
-                const body = (await res.json()) as { verdict?: string; why?: string };
-                if (body.verdict === "reverts") {
-                    fatal.push(
-                        `${where} accepts a transfer and then fails (${body.why}). Every sale of this generator would revert, permanently. Use a different address.`,
+        await Promise.all(
+            originated.map(async (recipient) => {
+                const where = shortAddress(recipient);
+                try {
+                    const res = await fetch(
+                        `/api/payable?address=${recipient}&source=${address ?? ""}`,
                     );
-                } else if (body.verdict === "skipped") {
+                    const body = (await res.json()) as { verdict?: string; why?: string };
+                    if (body.verdict === "reverts") {
+                        fatal.push(
+                            `${where} accepts a transfer and then fails (${body.why}). Every ${revertsBreaks} would revert, permanently. Use a different address.`,
+                        );
+                    } else if (body.verdict === "skipped") {
+                        warnings.push(
+                            `${where} cannot be paid, because ${body.why}. Its share will go to ${skippedGoesTo}, and this cannot be changed after the generator exists.`,
+                        );
+                    } else if (body.verdict !== "payable") {
+                        warnings.push(
+                            `${where} could not be checked (${body.why ?? "no answer"}). If it cannot receive tez, its share goes to ${skippedGoesTo}.`,
+                        );
+                    }
+                } catch {
                     warnings.push(
-                        `${where} cannot be paid, because ${body.why}. Its share will go to the seller on every sale, and this cannot be changed after the generator exists.`,
-                    );
-                } else if (body.verdict !== "payable") {
-                    warnings.push(
-                        `${where} could not be checked (${body.why ?? "no answer"}). If it cannot receive tez, its share goes to the seller on every sale.`,
+                        `${where} could not be checked. If it cannot receive tez, its share goes to ${skippedGoesTo}.`,
                     );
                 }
-            } catch {
-                warnings.push(
-                    `${where} could not be checked. If it cannot receive tez, its share goes to the seller on every sale.`,
-                );
-            }
-        }
+            }),
+        );
         return { fatal, warnings };
+    }
+
+    async function royaltyProblems(): Promise<{ fatal: string[]; warnings: string[] }> {
+        const [royalty, mint] = await Promise.all([
+            recipientProblems(
+                split.recipients.map((r) => r.address),
+                "the seller on every sale",
+                "sale of this generator",
+            ),
+            recipientProblems(
+                collab.recipients.map((r) => r.address),
+                "you on every mint",
+                "mint of this generator",
+            ),
+        ]);
+        return {
+            fatal: [...royalty.fatal, ...mint.fatal],
+            warnings: [...royalty.warnings, ...mint.warnings],
+        };
     }
 
     // No contract entrypoint clears `code`, so this cannot touch the stuck
@@ -386,6 +481,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     editionSize: Number.parseInt(editionSize, 10),
                     priceMutez: parseTez(price) as bigint,
                     split,
+                    collab,
                     provider: provider!.address,
                     maxRenderGasMutez: BigInt(provider!.renderGasMutez),
                     resolvedLibraries: resolvedDeps.map((r) => r.spec),
@@ -813,6 +909,44 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 </div>
             </div>
 
+            <Field
+                label="Collaborators"
+                permanent
+                hint="Who made this with you, and what share of each mint they get. They are paid from the first mint; their name appears once they accept. Up to 8 people including you."
+            >
+                <SplitTable
+                    rows={collabRows}
+                    onChange={setCollabRows}
+                    owner={address ?? undefined}
+                    ownerPercent={collabOwnerPercent}
+                    max={8}
+                    addLabel="Add a collaborator"
+                    disabled={stage !== null}
+                />
+            </Field>
+
+            {collabNamed.length > 0 && (
+                <div className="space-y-1 rounded-lg bg-muted/50 p-4 text-sm">
+                    <p className="pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        On every mint
+                    </p>
+                    {collabPreview.map((r) => (
+                        <div key={r.address} className="flex justify-between gap-3">
+                            <span className="min-w-0 truncate text-muted-foreground">
+                                <AccountName address={r.address} />
+                            </span>
+                            <span className="shrink-0 font-medium">
+                                {r.percentOfSale.toFixed(2)}%
+                                <span className="hidden sm:inline"> of the mint price</span>
+                            </span>
+                        </div>
+                    ))}
+                    <p className="pt-2 text-xs text-muted-foreground">
+                        This split is fixed once you publish.
+                    </p>
+                </div>
+            )}
+
             <div className="space-y-3 rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-4">
                     <div>
@@ -880,6 +1014,22 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     />
                     <span className="shrink-0 text-sm text-muted-foreground">%</span>
                 </div>
+            </Field>
+
+            <Field
+                label="Who shares the royalty"
+                permanent
+                hint="A share of the royalty pool, not of the sale price. Separate from the mint split above, so an upfront share and a long-tail share can differ."
+            >
+                <SplitTable
+                    rows={royaltyRows}
+                    onChange={setRoyaltyRows}
+                    owner={address ?? undefined}
+                    ownerPercent={royaltyOwnerPercent}
+                    max={10}
+                    addLabel="Add a recipient"
+                    disabled={stage !== null}
+                />
             </Field>
 
             {preview.length > 0 && (

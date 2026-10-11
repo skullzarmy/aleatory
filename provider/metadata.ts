@@ -99,12 +99,37 @@ export function cleanTags(raw: unknown): string[] {
     return out;
 }
 
+/**
+ * Who made the generator: the collaborators who have confirmed being named
+ * on it, which for a solo generator is the one artist. Bounded the same way
+ * tags are, because this is pinned permanently.
+ */
+const MAX_CREATORS = 8;
+export function cleanCreators(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const c of raw) {
+        if (typeof c !== "string") continue;
+        const trimmed = c.trim();
+        if (!trimmed || seen.has(trimmed)) continue;
+        seen.add(trimmed);
+        out.push(trimmed);
+        if (out.length >= MAX_CREATORS) break;
+    }
+    return out;
+}
+
 export interface PendingDocInput {
     generatorName: string;
     description?: string;
     /** The generator's declared tags, standard TZIP-21. */
     tags?: string[];
-    artist: string;
+    /**
+     * TZIP-21 `creators`. One address for a solo generator, several for a
+     * collaboration, in the order the document should credit them.
+     */
+    creators: string[];
     placeholderImageUri: string;
     split: RoyaltySplit;
 }
@@ -120,7 +145,7 @@ export function buildPendingDocument(input: PendingDocInput) {
         isBooleanAmount: false,
         symbol: GENERATOR_SYMBOL,
         shouldPreferSymbol: false,
-        creators: [input.artist],
+        creators: cleanCreators(input.creators),
         // Same placeholder as displayUri/thumbnailUri. objkt reads a missing
         // artifactUri as no real content and excludes the token from the
         // grid, even though it is owned and tradeable now.
@@ -201,7 +226,7 @@ export function buildPieceDocument(input: PieceDocInput) {
         isBooleanAmount: false,
         symbol: GENERATOR_SYMBOL,
         shouldPreferSymbol: false,
-        creators: [input.artist],
+        creators: cleanCreators(input.creators),
         // No separate pinned artifact exists per piece, so the rendered
         // image is what objkt and other marketplaces get for both fields.
         artifactUri: input.imageUri,

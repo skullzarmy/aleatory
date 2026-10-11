@@ -46,11 +46,14 @@ def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
                      price=_PRICE, edition_size=10, start_paused=False,
                      agent=None, royalties=None, trust_resolver=True,
                      code=_CODE, code_hash=sp.bytes("0xaa"),
-                     code_encoding="identity"):
+                     code_encoding="identity", collab_shares=None):
     royalties = (
         sp.cast({}, sp.map[sp.address, sp.nat])
         if royalties is None
         else royalties
+    )
+    collab_shares = (
+        {artist.address: 10000} if collab_shares is None else collab_shares
     )
     return sp.record(
         administrator=artist.address,
@@ -65,6 +68,7 @@ def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
         edition_size=edition_size,
         price=sp.mutez(price),
         royalties=royalties,
+        collab_shares=sp.cast(collab_shares, sp.map[sp.address, sp.nat]),
         pending_metadata=_PENDING,
         start_paused=start_paused,
         trust_resolver=trust_resolver,
@@ -117,7 +121,16 @@ def _deploy_params(provider, price=_PRICE, edition_size=10,
                    max_render_gas=1_000_000, start_paused=False,
                    royalties=None, trust_resolver=True,
                    code=_CODE, code_encoding="identity",
-                   code_hash=sp.bytes("0xaa"), code_uri=""):
+                   code_hash=sp.bytes("0xaa"), code_uri="",
+                   collab_shares=None):
+    # The whole price to whoever deploys, which every scenario here does as
+    # "Artist". `deploy` refuses a split the sender is not part of, so the
+    # default has to name the same account the call will come from.
+    collab_shares = (
+        {sp.test_account("Artist").address: 10000}
+        if collab_shares is None
+        else collab_shares
+    )
     return sp.record(
         code=code,
         code_encoding=code_encoding,
@@ -130,6 +143,7 @@ def _deploy_params(provider, price=_PRICE, edition_size=10,
             if royalties is None
             else royalties
         ),
+        collab_shares=sp.cast(collab_shares, sp.map[sp.address, sp.nat]),
         pending_metadata=_PENDING,
         start_paused=start_paused,
         trust_resolver=trust_resolver,
@@ -1059,6 +1073,213 @@ def test_royalties_at_the_ceiling_and_empty():
     scenario.verify(factory.data.next_collection_id == 2)
 
 
+# === Collaborations ===
+
+
+@sp.add_test()
+def test_collaborators_split_the_mint():
+    """Two artists, one generator, paid in the collector's own operation.
+
+    The members here are provider contracts because a scenario tracks a
+    contract's balance and not an implicit account's, and a provider is the
+    payable KT1 already to hand.
+    """
+    scenario = sp.test_scenario("Collab split", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    one = _provider(scenario, admin, minter)
+    two = _provider(scenario, admin, minter)
+
+    c = _collection(
+        scenario, artist, resolver, provider, minter, edition_size=0,
+        collab_shares={one.address: 6000, two.address: 4000},
+    )
+    scenario.verify(c.data.collab.shares[one.address] == 6000)
+    scenario.verify(c.data.collab.shares[two.address] == 4000)
+
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    scenario.verify(one.balance == sp.mutez(600_000))
+    scenario.verify(two.balance == sp.mutez(400_000))
+    scenario.verify(c.balance == sp.mutez(0))
+
+
+@sp.add_test()
+def test_the_split_leaves_nothing_behind():
+    """A price that does not divide evenly.
+
+    `split_tokens` floors, and this contract has no withdraw entrypoint, so
+    a mutez it fails to send is a mutez locked in it forever.
+    """
+    scenario = sp.test_scenario("Collab rounding", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    one = _provider(scenario, admin, minter)
+    two = _provider(scenario, admin, minter)
+    three = _provider(scenario, admin, minter)
+
+    odd = 1_000_001
+    c = _collection(
+        scenario, artist, resolver, provider, minter, edition_size=0,
+        price=odd,
+        collab_shares={
+            one.address: 3333, two.address: 3333, three.address: 3334,
+        },
+    )
+
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(odd + _GAS))
+    # 333300 + 333300 + 333400 is 1,000,000, and the stray mutez went to the
+    # administrator rather than staying here.
+    scenario.verify(one.balance == sp.mutez(333_300))
+    scenario.verify(two.balance == sp.mutez(333_300))
+    scenario.verify(three.balance == sp.mutez(333_400))
+    scenario.verify(c.balance == sp.mutez(0))
+
+
+@sp.add_test()
+def test_an_unpayable_collaborator_does_not_stop_a_mint():
+    """`shares` has no setter, so one address written badly at origination
+    must not take the edition down with it. The resolver is the right shape
+    to test against: entrypoints, and no unit default."""
+    scenario = sp.test_scenario("Collab unpayable", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    alice = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    payable = _provider(scenario, admin, minter)
+
+    c = _collection(
+        scenario, artist, resolver, provider, minter, edition_size=0,
+        collab_shares={payable.address: 5000, resolver.address: 5000},
+    )
+
+    c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))
+    scenario.verify(payable.balance == sp.mutez(500_000))
+    scenario.verify(resolver.balance == sp.mutez(0))
+    scenario.verify(c.balance == sp.mutez(0))
+
+
+@sp.add_test()
+def test_deploy_refuses_a_split_that_does_not_work():
+    """Each of these is permanent once a generator exists, so the factory is
+    where they have to be caught."""
+    scenario = sp.test_scenario("Collab deploy rules", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    other = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    # Short of the whole price: the difference would go to the administrator
+    # on every mint, which is not the split anybody agreed to.
+    factory.deploy(
+        _deploy_params(provider, collab_shares={artist.address: 9999}),
+        _sender=artist, _valid=False,
+    )
+    # Over it.
+    factory.deploy(
+        _deploy_params(
+            provider,
+            collab_shares={artist.address: 6000, other.address: 5000},
+        ),
+        _sender=artist, _valid=False,
+    )
+    # Nine members. The payout loop is gas every collector pays.
+    nine = {
+        sp.test_account(f"Member{i}").address: 1111 for i in range(8)
+    }
+    nine[artist.address] = 1112
+    factory.deploy(
+        _deploy_params(provider, collab_shares=nine),
+        _sender=artist, _valid=False,
+    )
+    # A split the signer is not part of. They take the remainder, so they
+    # have to have a claim on the money.
+    factory.deploy(
+        _deploy_params(provider, collab_shares={other.address: 10000}),
+        _sender=artist, _valid=False,
+    )
+
+    # Eight is the ceiling, not a step past it.
+    eight = {
+        sp.test_account(f"Member{i}").address: 1250 for i in range(7)
+    }
+    eight[artist.address] = 1250
+    factory.deploy(
+        _deploy_params(provider, collab_shares=eight), _sender=artist,
+    )
+    scenario.verify(factory.data.next_collection_id == 1)
+
+
+@sp.add_test()
+def test_a_collaborator_takes_the_credit():
+    """Paid from the first mint either way. This is about whose name is on
+    it, which is why only the person themselves can say so."""
+    scenario = sp.test_scenario("Accept collaboration", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    bob = sp.test_account("Bob")
+    stranger = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    c = _collection(
+        scenario, artist, resolver, provider, minter,
+        collab_shares={artist.address: 7000, bob.address: 3000},
+    )
+
+    # The deployer signed for the split, so they are credited already.
+    scenario.verify(c.data.collab.confirmed.contains(artist.address))
+    scenario.verify(~c.data.collab.confirmed.contains(bob.address))
+
+    # Nobody can take credit for work they were not named on.
+    c.accept_collaboration(_sender=stranger, _valid=False)
+    c.accept_collaboration(_sender=bob, _amount=sp.mutez(1), _valid=False)
+
+    c.accept_collaboration(_sender=bob)
+    scenario.verify(c.data.collab.confirmed.contains(bob.address))
+
+    # Idempotent: a second call is a set insert that was already there.
+    c.accept_collaboration(_sender=bob)
+    scenario.verify(c.data.collab.confirmed.contains(bob.address))
+
+
+@sp.add_test()
+def test_the_template_says_which_build_it_is():
+    """A reader deciding which storage shape it has. Absent means 1, so the
+    number only ever appears on a generator that carries the field."""
+    scenario = sp.test_scenario("Template version", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    c = _collection(scenario, artist, resolver, provider, minter)
+    scenario.verify(c.data.template_version == 2)
+
+    # The factory stamps what it builds, and says what it stamps.
+    scenario.verify(sp.View(factory, "get_template_version")() == 2)
+    factory.deploy(_deploy_params(provider), _sender=artist)
+    scenario.verify(
+        sp.View(factory, "get_template_version")() == c.data.template_version
+    )
+
+
 # === Invariants ===
 
 
@@ -1074,8 +1295,17 @@ def test_collection_never_holds_tez():
     artist = sp.test_account("Artist")
     alice = sp.test_account("Alice")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+    # Split three ways, because one recipient is the case where nothing can
+    # be left over and the loop never has a remainder to get wrong.
+    one = _provider(scenario, admin, minter)
+    two = _provider(scenario, admin, minter)
     c = _collection(scenario, artist, resolver, provider, minter,
-                    edition_size=0)
+                    edition_size=0,
+                    collab_shares={
+                        artist.address: 3334,
+                        one.address: 3333,
+                        two.address: 3333,
+                    })
 
     for _ in range(5):
         c.mint(_NONE, _sender=alice, _amount=sp.mutez(_TOTAL))

@@ -53,11 +53,17 @@ Three parties, and only the first is required for a piece to exist.
 
 - **The seed is the mint operation's hash.** Nobody picks it and nobody can
   predict it, including the collector who caused it.
-- **A generator is immutable.** `code`, `code_hash`, `code_uri` and
-  `royalties` have no setter anywhere. `code` is appended to until `seal_code`
-  closes it, which must happen before anything can mint, and nothing writes it
-  afterwards. A mistake in a published piece is permanent, which is why the
-  checks happen before minting.
+- **A generator is immutable.** `code`, `code_hash`, `code_uri`, `royalties`
+  and `collab.shares` have no setter anywhere. `code` is appended to until
+  `seal_code` closes it, which must happen before anything can mint, and
+  nothing writes it afterwards. A mistake in a published piece is permanent,
+  which is why the checks happen before minting.
+- **A generator can have more than one artist.** `collab.shares` divides the
+  mint price between up to eight people, paid in the collector's own
+  operation. Being named pays; being credited takes a call to
+  `accept_collaboration` from that person, so nobody's name lands on work
+  they had nothing to do with. `administrator` stays one address holding every
+  authority.
 - **Display metadata is the exception.** `set_metadata` lets the artist edit
   the name, description and cover. It refuses `aleatory:libraries` and
   `aleatory:params`, so nothing deciding what a piece runs is ever editable.

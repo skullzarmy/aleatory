@@ -625,6 +625,12 @@ export interface DeployParams {
     priceMutez: bigint;
     /** Address to basis points. The contract caps the total at 2500. */
     royalties: Record<string, number>;
+    /**
+     * Address to basis points of the mint price. The contract requires these
+     * to total exactly 10000, to name at most eight recipients, and to
+     * include the signer.
+     */
+    collabShares: Record<string, number>;
     /** `ipfs://` pointer to the document every piece mints carrying. */
     pendingMetadataUri: string;
     startPaused: boolean;
@@ -857,6 +863,17 @@ export async function sealCode(client: DAppClient, generator: string): Promise<O
     return send(client, generator, "seal_code", { prim: "Unit" }, 0, SMALL);
 }
 
+/**
+ * Take the credit for a generator somebody named you on. Their share is
+ * already being paid; this is what puts their name on it.
+ */
+export async function acceptCollaboration(
+    client: DAppClient,
+    generator: string,
+): Promise<OpResult> {
+    return send(client, generator, "accept_collaboration", { prim: "Unit" }, 0, SMALL);
+}
+
 export async function deployGenerator(client: DAppClient, params: DeployParams): Promise<OpResult> {
     const factory = await currentFactory();
     if (!factory) throw new Error("No factory is configured for this network.");
@@ -867,6 +884,14 @@ export async function deployGenerator(client: DAppClient, params: DeployParams):
     const royalties = new MichelsonMap<string, number>();
     for (const [address, bps] of Object.entries(params.royalties)) {
         if (bps > 0) royalties.set(address, bps);
+    }
+
+    // Zero-share rows are dropped, like royalties: the contract wants the
+    // shares to total 10000, and a member at nothing could not accept the
+    // collaboration afterwards because they would not be in the map.
+    const collabShares = new MichelsonMap<string, number>();
+    for (const [address, bps] of Object.entries(params.collabShares)) {
+        if (bps > 0) collabShares.set(address, bps);
     }
 
     const metadata = new MichelsonMap<string, string>();
@@ -883,6 +908,7 @@ export async function deployGenerator(client: DAppClient, params: DeployParams):
             edition_size: params.editionSize,
             price: params.priceMutez.toString(),
             royalties,
+            collab_shares: collabShares,
             pending_metadata: utf8ToHex(params.pendingMetadataUri),
             start_paused: params.startPaused,
             trust_resolver: params.trustResolver,

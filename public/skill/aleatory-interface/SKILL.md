@@ -204,7 +204,25 @@ A marketplace paying them inside the sale should ask whether a recipient can
 take a plain transfer before sending: an implicit account always can, a `KT1`
 only through a `default` entrypoint of type unit. `royalties` has no setter, so
 one unpayable address would otherwise revert every sale of that collection
-forever.
+forever. The same obligation covers any map a generator divides its mint price
+between, where the payout runs inside `mint` and a recipient that accepts then
+fails breaks every mint of the edition.
+
+### Who made it
+
+`creators` in a piece's document, an array of addresses, the TZIP-21 field.
+One entry is the ordinary case and more than one is a collaboration, so do not
+assume the first is the only one, and do not assume the collection's
+administrator is among them: who administers a collection and who made the
+work are separate questions.
+
+Our collection keeps a collaborator set in storage. `collab.shares` is who the
+mint price is divided between, written at origination with no setter and
+summing to 10000 basis points; `collab.confirmed` is who has called
+`accept_collaboration`, which is who the documents credit. A named
+collaborator is paid from the first mint whether they have accepted or not, so
+the two-step is about credit alone. `template_version` in storage says which
+build of the template a collection is, and its absence means 1.
 
 ## 9. Being a provider
 

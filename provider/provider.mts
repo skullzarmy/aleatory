@@ -136,7 +136,8 @@ interface PendingPiece {
     codeUri: string;
     /** Libraries the generator says its source expects to be loaded. */
     libraries: DeclaredLibrary[];
-    artist: string;
+    /** Who the document credits: the collaborators who confirmed. */
+    creators: string[];
     /** For the document. A piece is "<generator> #<n>", never a bare number. */
     generatorName: string;
     description: string;
@@ -191,7 +192,20 @@ interface GeneratorStorage {
         /** Address to basis points. Published in the document, per TZIP-21. */
         royalties: Record<string, string | number>;
     };
+    /** Absent on a generator deployed before collaborations existed. */
+    collab?: { shares: Record<string, string | number>; confirmed: string[] };
     render: { provider: string };
+}
+
+/**
+ * Who a generator's documents credit. The confirmed collaborators, in a stable
+ * order so two publishes of one generator agree, and the administrator alone
+ * for a generator deployed before collaborations existed.
+ */
+function creatorsOf(storage: GeneratorStorage): string[] {
+    const confirmed = storage.collab?.confirmed ?? [];
+    if (confirmed.length === 0) return [storage.administrator];
+    return [...confirmed].sort();
 }
 
 /**
@@ -398,7 +412,7 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
                 libraries,
                 paramsSchema,
                 nameTrait,
-                artist: storage.administrator,
+                creators: creatorsOf(storage),
                 generatorName: facts.name,
                 description: facts.description,
                 tags: facts.tags,
@@ -722,7 +736,7 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
         libraries: parseLibraries(await metadataKey(generator, "aleatory:libraries")),
         paramsSchema: await paramsSchemaOf(generator),
         nameTrait: await nameTraitOf(generator),
-        artist: storage.administrator,
+        creators: creatorsOf(storage),
         generatorName: facts.name,
         description: facts.description,
         tags: facts.tags,
@@ -756,7 +770,7 @@ export async function handle(piece: PendingPiece): Promise<string> {
         generatorName: piece.generatorName,
         description: piece.description,
         tags: piece.tags,
-        artist: piece.artist,
+        creators: piece.creators,
         tokenId: Number(piece.tokenId),
         imageUri: imageUri,
         seed: piece.seed,

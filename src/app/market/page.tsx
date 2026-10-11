@@ -150,7 +150,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
                                     key={`${l.marketplace}:${l.id}`}
                                     listing={l}
                                     piece={pieces.get(`${l.generator}:${l.tokenId}`)}
-                                    artist={artists.get(l.generator)}
+                                    artists={artists.get(l.generator)}
                                     priority={i < 4}
                                 />
                             ))}

@@ -62,6 +62,16 @@ main = fa2.main
 def aleatory():
     import main
 
+    def template_version():
+        """Which build of this template a collection came from.
+
+        Written into storage at origination and returned by the factory's
+        own view, from here, so the two cannot disagree. A collection with
+        no `template_version` field at all is a version 1 collection:
+        readers treat the absence as 1, never as unknown.
+        """
+        return sp.cast(2, sp.nat)
+
     # What the factory writes into a new collection's storage. Everything
     # here except `administrator` is fixed for the life of the contract.
     t_collection_init: type = sp.record(
@@ -94,6 +104,10 @@ def aleatory():
         # have to trust whatever a lister passed in, and a seller could
         # list with royalties zeroed out. Teia's arrangement.
         royalties=sp.map[sp.address, sp.nat],
+        # Who the mint price is divided between, in basis points. Sums to
+        # exactly 10000, and a solo generator is one entry at 10000, so the
+        # payout in `mint` has one path to walk.
+        collab_shares=sp.map[sp.address, sp.nat],
         # The metadata URI every token is minted with, an ipfs:// pointer
         # to the collection's "not revealed yet" JSON. A provider replaces
         # it per token with that piece's real metadata once rendered.
@@ -163,6 +177,17 @@ def aleatory():
         paused=sp.bool,
     )
 
+    t_collab: type = sp.record(
+        # Basis points of the mint price per recipient, summing to 10000.
+        # No setter, the same guarantee `royalties` carries: a collector can
+        # read the split before buying and it cannot move underneath them.
+        shares=sp.map[sp.address, sp.nat],
+        # Who has acknowledged being named here. Shares are paid from the
+        # first mint whatever this says; being credited is what it governs,
+        # so nobody's name is attached to a generator without their say.
+        confirmed=sp.set[sp.address],
+    )
+
     t_render: type = sp.record(
         resolver=sp.address,
         trust_resolver=sp.bool,
@@ -175,8 +200,13 @@ def aleatory():
     t_collection_storage: type = sp.record(
         administrator=sp.address,
         proposed_admin=sp.option[sp.address],
+        # Read on its own by a front end deciding which storage shape it is
+        # looking at, so it sits at the top level where one narrow query
+        # reaches it.
+        template_version=sp.nat,
         art=t_art,
         sale=t_sale,
+        collab=t_collab,
         render=t_render,
         ledger=sp.big_map[sp.nat, sp.address],
         operators=sp.big_map[
@@ -291,6 +321,7 @@ def aleatory():
 
             self.data.administrator = init.administrator
             self.data.proposed_admin = sp.cast(None, sp.option[sp.address])
+            self.data.template_version = template_version()
 
             self.data.art = sp.record(
                 code=init.code,
@@ -305,6 +336,13 @@ def aleatory():
                 price=init.price,
                 edition_size=init.edition_size,
                 paused=init.start_paused,
+            )
+            self.data.collab = sp.record(
+                shares=init.collab_shares,
+                # The deployer signed for this split, which is the same
+                # thing every other member says by calling
+                # `accept_collaboration`.
+                confirmed={init.administrator},
             )
             self.data.render = sp.record(
                 # Where writer authorisation is resolved from. Fixed at
@@ -348,6 +386,23 @@ def aleatory():
             self.data.administrator = sp.sender
             self.data.proposed_admin = None
             sp.emit(sp.record(new_admin=sp.sender), tag="accept_admin")
+
+        @sp.entrypoint
+        def accept_collaboration(self):
+            """A named collaborator takes the credit.
+
+            Their share is paid from the first mint whether they call this
+            or not. What this governs is being named as one of the people
+            who made the work, so a deployer cannot put somebody else's
+            name on their generator by writing them a share they never
+            asked for.
+            """
+            assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
+            assert self.data.collab.shares.contains(
+                sp.sender
+            ), "NOT_A_COLLABORATOR"
+            self.data.collab.confirmed.add(sp.sender)
+            sp.emit(sp.record(member=sp.sender), tag="accept_collaboration")
 
         @sp.entrypoint
         def set_price(self, price):
@@ -603,9 +658,9 @@ def aleatory():
             what to render, and what anyone else reads to check the result.
 
             Payment is `price + render_gas`, split in this same operation:
-            the price to the artist, the render gas to the provider. The
-            contract holds nothing when it returns, no escrow, no
-            balance, no withdraw entrypoint.
+            the price between the collaborators per `collab.shares`, the
+            render gas to the provider. The contract holds nothing when it
+            returns, no escrow, no balance, no withdraw entrypoint.
             """
             sp.cast(params, sp.bytes)
             assert not self.data.sale.paused, "PAUSED"
@@ -646,15 +701,37 @@ def aleatory():
             self.data.ledger[token_id] = sp.sender
             self.data.next_token_id += 1
 
-            # Paid inline, both of them. A bad artist or provider address
-            # breaks that collection's own sales and nobody else's.
+            # Paid inline, all of it. A bad provider address breaks that
+            # collection's own sales and nobody else's.
             # Paid to the provider *contract*, not to the agent: the
             # signing key should never hold funds. Requires the provider to
             # accept tez, which is part of being a provider.
             if gas > sp.mutez(0):
                 sp.send(self.data.render.provider, gas)
+
+            # The price, divided between the collaborators. Whatever the
+            # shares do not account for goes to the administrator, which is
+            # two things at once: `split_tokens` floors, so an odd price
+            # across three members leaves dust, and this contract has no
+            # withdraw entrypoint, so dust it keeps is locked forever.
+            # Asked before it is paid, like the marketplace does with
+            # royalties: a member that cannot take a plain transfer has
+            # their share fall through here, because `shares` has no setter
+            # and one address written badly at origination must not make
+            # every mint revert for the life of the edition.
             if self.data.sale.price > sp.mutez(0):
-                sp.send(self.data.administrator, self.data.sale.price)
+                remaining = self.data.sale.price
+                for member in self.data.collab.shares.items():
+                    cut = sp.split_tokens(
+                        self.data.sale.price, member.value, 10000
+                    )
+                    if cut > sp.mutez(0):
+                        dest = sp.contract(sp.unit, member.key)
+                        if dest.is_some():
+                            remaining -= cut
+                            sp.transfer((), cut, dest.unwrap_some())
+                if remaining > sp.mutez(0):
+                    sp.send(self.data.administrator, remaining)
 
             sp.emit(
                 sp.record(
@@ -792,6 +869,9 @@ def aleatory():
             """Everything needed to rebuild the edition from chain state."""
             return sp.record(
                 artist=self.data.administrator,
+                collab_shares=self.data.collab.shares,
+                collab_confirmed=self.data.collab.confirmed,
+                template_version=self.data.template_version,
                 code=self.data.art.code,
                 code_encoding=self.data.art.code_encoding,
                 code_hash=self.data.art.code_hash,
@@ -1213,6 +1293,7 @@ def aleatory():
                     edition_size=sp.nat,
                     price=sp.mutez,
                     royalties=sp.map[sp.address, sp.nat],
+                    collab_shares=sp.map[sp.address, sp.nat],
                     pending_metadata=sp.bytes,
                     start_paused=sp.bool,
                     trust_resolver=sp.bool,
@@ -1254,6 +1335,27 @@ def aleatory():
                 total_royalty += share
             assert total_royalty <= 2500, "ROYALTY_TOO_HIGH"
 
+            # The mint price is divided, not taken a cut of, so these sum to
+            # the whole of it. A share map that came to anything else would
+            # quietly send the difference to the administrator on every mint.
+            total_shares = sp.cast(0, sp.nat)
+            for share in params.collab_shares.values():
+                total_shares += share
+            assert total_shares == 10000, "COLLAB_SHARES_NOT_WHOLE"
+
+            # The payout loop runs inside every collector's `mint`, so its
+            # gas is paid by collectors for the life of the edition and the
+            # artist is not the one who feels it. Nothing else here bounds
+            # the size of a map.
+            assert sp.len(params.collab_shares) <= 8, "TOO_MANY_COLLABORATORS"
+
+            # The administrator takes the rounding remainder and any share
+            # that cannot be delivered, so they have to be someone with a
+            # claim on the money.
+            assert params.collab_shares.contains(
+                sp.sender
+            ), "DEPLOYER_NOT_A_COLLABORATOR"
+
             # Every mint pays the artist directly, so an artist who cannot be
             # sent tez is a generator no piece can ever be bought from. The
             # same reason royalty recipients are checked before a generator
@@ -1289,6 +1391,7 @@ def aleatory():
                 sp.record(
                     administrator=sp.sender,
                     proposed_admin=None,
+                    template_version=template_version(),
                     art=sp.record(
                         code=params.code,
                         code_encoding=params.code_encoding,
@@ -1303,6 +1406,10 @@ def aleatory():
                         price=params.price,
                         edition_size=params.edition_size,
                         paused=params.start_paused,
+                    ),
+                    collab=sp.record(
+                        shares=params.collab_shares,
+                        confirmed={sp.sender},
                     ),
                     render=sp.record(
                         resolver=self.data.resolver,
@@ -1341,6 +1448,11 @@ def aleatory():
                     collection_id=collection_id,
                     address=address,
                     artist=sp.sender,
+                    # TzKT cannot filter inside a storage map, so this is
+                    # how "which generators named me" is answerable without
+                    # reading every collection's storage.
+                    collaborators=params.collab_shares,
+                    template_version=template_version(),
                     code=params.code,
                     code_encoding=params.code_encoding,
                     code_hash=params.code_hash,
@@ -1458,3 +1570,13 @@ def aleatory():
             return self.data.collections.get(
                 collection_id, error="NO_COLLECTION"
             )
+
+        @sp.onchain_view()
+        def get_template_version(self):
+            """Which template this factory builds.
+
+            The router lists every factory there has ever been, so this is
+            how one is told from another before `add_factory` points new
+            deploys at it.
+            """
+            return template_version()

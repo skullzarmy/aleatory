@@ -289,32 +289,51 @@ export async function fetchSealedStates(generators: string[]): Promise<Map<strin
 }
 
 /**
- * Who administers each generator. Same shape as `fetchPausedStates` and the
- * same reason: `administrator` is a top-level storage field, but TzKT cannot
- * project it in bulk, so this is one narrow request per generator. Cached
- * longer than paused — transferring admin is rare, toggling sales isn't.
+ * Who each generator credits: the collaborators who confirmed, or the one
+ * administrator for a generator deployed before collaborations existed.
+ *
+ * Same shape as `fetchPausedStates` and the same reason: TzKT cannot project
+ * a storage path in bulk, so this is one narrow request per generator. Cached
+ * longer than paused, because confirming a collaboration is rare and toggling
+ * sales isn't.
+ *
+ * `collab` is asked for first and `administrator` only when it is missing, so
+ * a current generator costs one request and an older one costs two.
  */
 const ARTIST_CONCURRENCY = 8;
-export async function fetchArtists(generators: string[]): Promise<Map<string, string>> {
-    const artists = new Map<string, string>();
+export async function fetchCreators(generators: string[]): Promise<Map<string, string[]>> {
+    const creators = new Map<string, string[]>();
     const queue = [...generators];
+    // A path the contract does not have answers 204 with an empty body, and
+    // `res.ok` is true for a 204, so `json()` on it throws. That is the normal
+    // case here, not an error: every generator deployed before collaborations
+    // existed answers this way for `collab`.
+    const read = (address: string, path: string) =>
+        fetch(`${tzktApi()}/v1/contracts/${address}/storage?path=${path}`, {
+            next: { revalidate: 300 },
+        })
+            .then((r) => (r.ok && r.status !== 204 ? r.json() : null))
+            .catch(() => null);
+
     async function worker() {
         for (;;) {
             const address = queue.shift();
             if (address === undefined) return;
-            const a = await fetch(
-                `${tzktApi()}/v1/contracts/${address}/storage?path=administrator`,
-                {
-                    next: { revalidate: 300 },
-                },
-            )
-                .then((r) => (r.ok ? r.json() : null))
-                .catch(() => null);
-            if (typeof a === "string") artists.set(address, a);
+            const collab = (await read(address, "collab")) as { confirmed?: unknown } | null;
+            const confirmed = Array.isArray(collab?.confirmed)
+                ? collab.confirmed.filter((a): a is string => typeof a === "string")
+                : [];
+            if (confirmed.length > 0) {
+                // Sorted so one generator credits in the same order every read.
+                creators.set(address, [...confirmed].sort());
+                continue;
+            }
+            const admin = await read(address, "administrator");
+            if (typeof admin === "string") creators.set(address, [admin]);
         }
     }
     await Promise.all(Array.from({ length: Math.min(ARTIST_CONCURRENCY, queue.length) }, worker));
-    return artists;
+    return creators;
 }
 
 /**
@@ -322,6 +341,41 @@ export async function fetchArtists(generators: string[]): Promise<Map<string, st
  * rather than erroring, so a wrong param here reads as success on an
  * unfiltered page. `select` on one field flattens to that field's bare value.
  */
+/**
+ * Generators that named one address as a collaborator, whoever deployed them.
+ *
+ * The factory emits the whole share map on `deploy` for exactly this: TzKT
+ * cannot filter inside a storage map, so the alternative is reading every
+ * collection's storage to answer one wallet's question. Filtered here rather
+ * than in the query, because a map payload is not something TzKT can match on
+ * either.
+ */
+export async function fetchGeneratorsNaming(
+    collaborator: string,
+    factories: string[],
+): Promise<string[]> {
+    if (factories.length === 0 || !isAddress(collaborator)) return [];
+    const out: string[] = [];
+    for (let offset = 0; offset < DEPLOYED_CEILING; offset += DEPLOYED_PAGE) {
+        const rows = await get<
+            { "payload.address"?: string; "payload.collaborators"?: Record<string, string> }[]
+        >("/v1/contracts/events", {
+            "contract.in": factories.join(","),
+            tag: "deploy",
+            "sort.desc": "id",
+            limit: DEPLOYED_PAGE,
+            offset,
+            select: "payload.address,payload.collaborators",
+        }).catch(() => []);
+        for (const row of rows) {
+            const address = row["payload.address"];
+            if (address && row["payload.collaborators"]?.[collaborator]) out.push(address);
+        }
+        if (rows.length < DEPLOYED_PAGE) break;
+    }
+    return out;
+}
+
 const DEPLOYED_PAGE = 200;
 const DEPLOYED_CEILING = 2_000;
 export async function fetchGeneratorsDeployedBy(

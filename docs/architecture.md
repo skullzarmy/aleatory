@@ -110,23 +110,51 @@ art    : code            the generator itself, bytes
 
 sale   : price, edition_size (0 is open), paused
 
+collab : shares          address to basis points of the mint price, summing to 10000
+         confirmed       who has acknowledged being named, which is who is credited
+
 render : provider        the provider contract the artist chose
          provider_agent  the agent snapshotted at deploy
          resolver, trust_resolver, local_writers
                          who else may write this generator's token metadata
 
-ledger, operators, token_metadata, administrator, proposed_admin, next_token_id
+ledger, operators, token_metadata, administrator, proposed_admin,
+template_version, next_token_id
 ```
 
 Set at deploy and immutable after it: `code`, `code_encoding`, `code_hash`,
-`code_uri` and `royalties`. There is no setter for any of them anywhere in the
-contract.
+`code_uri`, `royalties` and `collab.shares`. There is no setter for any of
+them anywhere in the contract.
+
+`template_version` is which build of this template a collection came from, 2
+being the one with `collab` in it. A collection deployed before the field
+existed does not carry it, and a reader treats its absence as 1. It versions
+this implementation and not ALEATORY-001, which versions itself through the
+interface name a generator declares in its TZIP-016 metadata.
+
+### More than one artist
+
+`collab.shares` is who the mint price is divided between, up to eight
+recipients, paid in the collector's own operation. The payout probes each one
+and routes an undeliverable share, plus the rounding remainder, to the
+administrator, so the collection never retains a balance and one address
+written badly at origination cannot stop the edition minting.
+
+`collab.confirmed` is the credit, and a separate question from the money.
+Being named pays from the first mint; appearing as one of a generator's
+`creators` takes a call to `accept_collaboration` from that person, which is
+what stops a deployer attaching a well-known artist's name to their own work.
+Same shape as `propose_admin`/`accept_admin`.
+
+Administration does not divide. `administrator` stays one address holding
+every authority a generator has, and a group wanting joint control transfers
+it to a contract that provides that, which needs no change here (§4a).
 
 ### The metadata big_map
 
 | Key | Holds |
 |---|---|
-| `content` | TZIP-16: name, description, interfaces, authors, `displayUri`, `thumbnailUri`, `aleaCoverSeed` |
+| `content` | TZIP-16: name, description, interfaces, authors, tags, `displayUri`, `thumbnailUri`, `aleaCoverSeed` |
 | `aleatory:params` | The mint-time parameter declaration, when the generator has one ([params.md](params.md)) |
 | `aleatory:libraries` | The libraries the generator declared, with npm coordinates and hashes ([libraries.md](libraries.md)) |
 

@@ -37,6 +37,13 @@ export interface Draft {
     };
     /** Trait key whose value is appended to piece names. */
     nameTrait?: string;
+    /**
+     * Collaborators on the deploy form, as typed, excluding the artist's own
+     * wallet. Two separate lists: who shares the mint price, and who shares
+     * the resale royalty.
+     */
+    collab?: { address: string; percent: string }[];
+    royaltyRecipients?: { address: string; percent: string }[];
     createdAt: number;
     updatedAt: number;
     /**

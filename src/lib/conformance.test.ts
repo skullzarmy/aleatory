@@ -367,6 +367,17 @@ function auditLibraries() {
         );
     }
 
+    // Same argument, for the same files. One artist per generator was true
+    // for long enough that every one of these states it somewhere, and a copy
+    // still saying it tells an agent to read `creators[0]` as the answer.
+    for (const path of ["public/skill/SKILL.md", "public/skill/aleatory-interface/SKILL.md"]) {
+        check(
+            `${path} says a generator can have more than one artist`,
+            /accept_collaboration|collab\.shares/.test(read(path)),
+            "credit is a list, and a file saying otherwise misattributes the work",
+        );
+    }
+
     // The fee floor was worked out separately in the app, the provider, the
     // admin console and two deploy scripts, and got a different answer each
     // time. One of them under-paid and the operation sat refused in the

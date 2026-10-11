@@ -16,7 +16,8 @@ import {
     fetchEditionSizes,
     fetchPausedStates,
     fetchSealedStates,
-    fetchArtists,
+    fetchCreators,
+    fetchGeneratorsNaming,
     type TzktToken,
 } from "./tzkt";
 import { isBlockedGenerator } from "./blocklist";
@@ -342,8 +343,8 @@ export interface RecentFeed {
     generators: { address: string; name: string }[];
     /** How many have anything minted, so a capped picker can say so. */
     mintingGeneratorCount: number;
-    /** Each piece's generator's artist, keyed by generator address. */
-    artists: Map<string, string>;
+    /** Each piece's generator's creators, keyed by generator address. */
+    artists: Map<string, string[]>;
 }
 
 interface CachedRecentFeed {
@@ -353,7 +354,7 @@ interface CachedRecentFeed {
     hasMore: boolean;
     generators: { address: string; name: string }[];
     mintingGeneratorCount: number;
-    artists: [string, string][];
+    artists: [string, string[]][];
 }
 
 export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Promise<RecentFeed> {
@@ -427,7 +428,7 @@ async function fetchRecentFeedLive(limit = 48, offset = 0, only?: string): Promi
             limit + 1,
             offset,
         ),
-        fetchArtists(scoped.map((c) => c.address)).catch(() => new Map<string, string>()),
+        fetchCreators(scoped.map((c) => c.address)).catch(() => new Map<string, string[]>()),
     ]);
     return {
         pieces: await piecesOf(window.slice(0, limit), aliasByAddress),
@@ -444,8 +445,8 @@ export interface WalletView {
     held: FeedPiece[];
     heldCount: number;
     heldPages: number;
-    /** Each held piece's generator's artist, keyed by generator address. */
-    heldArtists: Map<string, string>;
+    /** Each held piece's generator's creators, keyed by generator address. */
+    heldArtists: Map<string, string[]>;
     made: GeneratorSummary[];
     madeCount: number;
     madePages: number;
@@ -467,7 +468,7 @@ interface CachedWalletView {
     held: FeedPiece[];
     heldCount: number;
     heldPages: number;
-    heldArtists: [string, string][];
+    heldArtists: [string, string[]][];
     made: GeneratorSummary[];
     madeCount: number;
     madePages: number;
@@ -510,12 +511,19 @@ async function fetchWalletLive(
     );
     const addresses = generators.map((c) => c.address);
 
-    const [heldCount, deployed] = await Promise.all([
+    // What you made, which is what you originated plus what somebody else
+    // originated and named you on. Deduplicated, because the deployer is
+    // named on their own generator and would otherwise appear twice.
+    const [heldCount, originated, namedOn] = await Promise.all([
         fetchHeldCount(account, addresses).catch(() => 0),
         Promise.all(
             factories.map((f) => fetchGeneratorsDeployedBy(account, f).catch(() => [])),
         ).then((lists) => lists.flat()),
+        fetchGeneratorsNaming(account, factories).catch(() => []),
     ]);
+    const deployed = [...new Set([...originated, ...namedOn])].filter(
+        (a) => !isBlockedGenerator(a),
+    );
 
     const [paused, sealed] = await Promise.all([
         fetchPausedStates(deployed).catch(() => new Map<string, boolean>()),
@@ -530,7 +538,7 @@ async function fetchWalletLive(
     const madePages = Math.max(1, Math.ceil(madeCount / perPage));
 
     let held: FeedPiece[] = [];
-    let heldArtists = new Map<string, string>();
+    let heldArtists = new Map<string, string[]>();
     if (tab === "collected") {
         const aliasByAddress = await namesFor(addresses);
         const tokens = await fetchTokensHeldBy(
@@ -542,7 +550,7 @@ async function fetchWalletLive(
         const heldGenerators = [...new Set(tokens.map((t) => t.contract.address))];
         const [pieces, artists] = await Promise.all([
             piecesOf(tokens, aliasByAddress),
-            fetchArtists(heldGenerators).catch(() => new Map<string, string>()),
+            fetchCreators(heldGenerators).catch(() => new Map<string, string[]>()),
         ]);
         held = pieces;
         heldArtists = artists;

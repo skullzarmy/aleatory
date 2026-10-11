@@ -40,9 +40,15 @@ export function PieceFacts({ piece, listing }: { piece: Piece; listing?: Listing
                 {Number(piece.tokenId) + 1}
                 {piece.editionSize > 0 ? ` of ${piece.editionSize}` : " of an open edition"}
             </Row>
-            <Row label="Artist">
-                <AccountLink address={piece.artist} />
-            </Row>
+            {piece.artists.length > 0 && (
+                <Row label={piece.artists.length > 1 ? "Artists" : "Artist"}>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        {piece.artists.map((a) => (
+                            <AccountLink key={a} address={a} />
+                        ))}
+                    </span>
+                </Row>
+            )}
             {holder && (
                 <Row label={listing ? "Listed by" : "Owner"}>
                     <AccountLink address={holder} />
