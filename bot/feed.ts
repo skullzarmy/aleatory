@@ -192,15 +192,24 @@ interface Facts {
 }
 
 /**
- * What a generator is, looked up once and held for the life of the process. An
- * announcement wants the name and the edition size, neither of which is in the
- * `mint` event and neither of which changes per mint.
+ * What a generator is, for an announcement that needs more than the `mint`
+ * event carries.
+ *
+ * Held briefly and not for the life of the process. Every one of these three
+ * can change: an artist shrinks an edition with `set_edition_size`, renames
+ * with `set_metadata`, or hands the contract on with `accept_admin`. Kept
+ * forever, a bot that saw an edition of 50 goes on saying 50 after the artist
+ * cut it to 20, and the number it prints is wrong for as long as it runs.
+ *
+ * Short enough that a correction shows up in the next announcement, long
+ * enough that a drop of twenty pieces from one generator is one read.
  */
-const known = new Map<string, Facts>();
+const FACTS_TTL_MS = 30_000;
+const known = new Map<string, { at: number; facts: Facts }>();
 
 async function generatorFacts(address: string): Promise<Facts> {
     const hit = known.get(address);
-    if (hit) return hit;
+    if (hit && Date.now() - hit.at < FACTS_TTL_MS) return hit.facts;
 
     const [meta, storage] = await Promise.all([
         generatorMeta(address),
@@ -214,7 +223,7 @@ async function generatorFacts(address: string): Promise<Facts> {
         artist: storage.administrator || "",
         editionSize: Number(storage.sale?.edition_size ?? 0),
     };
-    known.set(address, facts);
+    known.set(address, { at: Date.now(), facts });
     return facts;
 }
 
