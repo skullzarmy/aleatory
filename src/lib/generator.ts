@@ -9,6 +9,7 @@ import {
     fetchPausedStates,
     fetchSealedStates,
     fetchCreators,
+    fetchGeneratorMetas,
     type GeneratorMeta,
     indexerFetch,
     isAddress,
@@ -318,11 +319,7 @@ export async function fetchAllGenerators(opts?: {
                 );
             const addresses = rows.map((c) => c.address);
             const [metas, covers, editions, paused, sealed, artists] = await Promise.all([
-                Promise.all(
-                    addresses.map(
-                        (a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({})),
-                    ),
-                ),
+                fetchGeneratorMetas(addresses),
                 coversFor(addresses).catch(() => new Map<string, string>()),
                 fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
                 opts?.paused
@@ -334,27 +331,30 @@ export async function fetchAllGenerators(opts?: {
                 fetchCreators(addresses).catch(() => new Map<string, string[]>()),
             ]);
 
-            return rows.map((c, i) => ({
-                address: c.address,
-                artists: artists.get(c.address),
-                // `alias` is TzKT's, set for contracts it happens to know.
-                name: metas[i].name || c.alias,
-                description: metas[i].description,
-                // The artist's own cover first, pinned at deploy, so a generator has a
-                // face before its first piece finishes rendering.
-                coverUrl: (() => {
-                    const own = metas[i].thumbnailUri || metas[i].displayUri;
-                    return own ? ipfsImageUrl(own) : covers.get(c.address);
-                })(),
-                minted: c.tokensCount ?? 0,
-                editionSize: editions.get(c.address) ?? 0,
-                firstActivity: c.firstActivityTime,
-                // Unknown reads as not-paused: a missing badge is a cosmetic miss, a
-                // false "paused" on every row this failed for would be worse.
-                paused: paused.get(c.address) ?? false,
-                // Unknown reads as sealed, the same fail-open bias as paused above.
-                sealed: sealed.get(c.address) ?? true,
-            }));
+            return rows.map((c) => {
+                const meta = metas.get(c.address) ?? {};
+                return {
+                    address: c.address,
+                    artists: artists.get(c.address),
+                    // `alias` is TzKT's, set for contracts it happens to know.
+                    name: meta.name || c.alias,
+                    description: meta.description,
+                    // The artist's own cover first, pinned at deploy, so a generator has a
+                    // face before its first piece finishes rendering.
+                    coverUrl: (() => {
+                        const own = meta.thumbnailUri || meta.displayUri;
+                        return own ? ipfsImageUrl(own) : covers.get(c.address);
+                    })(),
+                    minted: c.tokensCount ?? 0,
+                    editionSize: editions.get(c.address) ?? 0,
+                    firstActivity: c.firstActivityTime,
+                    // Unknown reads as not-paused: a missing badge is a cosmetic miss, a
+                    // false "paused" on every row this failed for would be worse.
+                    paused: paused.get(c.address) ?? false,
+                    // Unknown reads as sealed, the same fail-open bias as paused above.
+                    sealed: sealed.get(c.address) ?? true,
+                };
+            });
         },
         { freshMs: 30_000, l1Ms: 15_000, redisTtlSec: 86_400 },
     );

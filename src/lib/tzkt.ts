@@ -251,11 +251,10 @@ export async function fetchPausedStates(generators: string[]): Promise<Map<strin
         for (;;) {
             const address = queue.shift();
             if (address === undefined) return;
-            const p = await fetch(`${tzktApi()}/v1/contracts/${address}/storage?path=sale.paused`, {
-                next: { revalidate: 30 },
-            })
-                .then((r) => (r.ok ? r.json() : null))
-                .catch(() => null);
+            const p = await narrow<boolean>(
+                `/v1/contracts/${address}/storage?path=sale.paused`,
+                30,
+            );
             if (typeof p === "boolean") paused.set(address, p);
         }
     }
@@ -275,12 +274,10 @@ export async function fetchSealedStates(generators: string[]): Promise<Map<strin
         for (;;) {
             const address = queue.shift();
             if (address === undefined) return;
-            const s = await fetch(
-                `${tzktApi()}/v1/contracts/${address}/storage?path=art.code_sealed`,
-                { next: { revalidate: 30 } },
-            )
-                .then((r) => (r.ok ? r.json() : null))
-                .catch(() => null);
+            const s = await narrow<boolean>(
+                `/v1/contracts/${address}/storage?path=art.code_sealed`,
+                30,
+            );
             if (typeof s === "boolean") sealed.set(address, s);
         }
     }
@@ -300,6 +297,29 @@ export async function fetchSealedStates(generators: string[]): Promise<Map<strin
  * `collab` is asked for first and `administrator` only when it is missing, so
  * a current generator costs one request and an older one costs two.
  */
+/**
+ * One small read, retried, with the answers that mean "nothing there" kept
+ * apart from the ones that mean "ask again".
+ *
+ * These fan out one request per generator, so a catalog page sends dozens at
+ * once and an indexer answers some of them with 429. Plain `fetch` has no
+ * retry, and every caller here falls back to empty on failure, so a throttled
+ * response became a generator with no name and no artist on the page rather
+ * than an error anybody could see. `indexerFetch` waits and asks again.
+ *
+ * A 204 is an answer: the path is not in that contract's storage. It is not
+ * retried and it is not an error.
+ */
+async function narrow<T>(path: string, revalidate: number): Promise<T | null> {
+    try {
+        const res = await indexerFetch(`${tzktApi()}${path}`, { next: { revalidate } });
+        if (!res.ok || res.status === 204) return null;
+        return (await res.json()) as T;
+    } catch {
+        return null;
+    }
+}
+
 /**
  * Whoever holds the generator first, then everyone else alphabetically.
  *
@@ -326,11 +346,7 @@ export async function fetchCreators(generators: string[]): Promise<Map<string, s
     // case here, not an error: every generator deployed before collaborations
     // existed answers this way for `collab`.
     const read = (address: string, path: string) =>
-        fetch(`${tzktApi()}/v1/contracts/${address}/storage?path=${path}`, {
-            next: { revalidate: 300 },
-        })
-            .then((r) => (r.ok && r.status !== 204 ? r.json() : null))
-            .catch(() => null);
+        narrow<unknown>(`/v1/contracts/${address}/storage?path=${path}`, 300);
 
     async function worker() {
         for (;;) {
@@ -617,6 +633,32 @@ export interface GeneratorMeta {
     tags?: string[];
 }
 
+/**
+ * `fetchGeneratorMeta` across many generators, a few at a time.
+ *
+ * It is one request per generator, so a catalog of eighty sent eighty at once
+ * through `Promise.all` and collected the throttled answers as generators
+ * with no name. Bounded here so every caller gets the same ceiling rather
+ * than each deciding for itself.
+ */
+export async function fetchGeneratorMetas(
+    addresses: string[],
+): Promise<Map<string, GeneratorMeta>> {
+    const out = new Map<string, GeneratorMeta>();
+    const queue = [...addresses];
+    async function worker() {
+        for (;;) {
+            const address = queue.shift();
+            if (address === undefined) return;
+            out.set(address, await fetchGeneratorMeta(address).catch((): GeneratorMeta => ({})));
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(META_CONCURRENCY, queue.length) }, worker));
+    return out;
+}
+
+const META_CONCURRENCY = 8;
+
 export async function fetchGeneratorMeta(address: string): Promise<GeneratorMeta> {
     const doc = await fetchRawContent(address);
     if (!doc) return {};
@@ -635,11 +677,10 @@ export async function fetchGeneratorMeta(address: string): Promise<GeneratorMeta
  * with only that field changed.
  */
 export async function fetchRawContent(address: string): Promise<Record<string, unknown> | null> {
-    const row = await fetch(`${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/content`, {
-        next: { revalidate: 300 },
-    })
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null);
+    const row = await narrow<{ value?: string }>(
+        `/v1/contracts/${address}/bigmaps/metadata/keys/content`,
+        300,
+    );
 
     const raw = (row as { value?: string } | null)?.value;
     if (!raw) return null;
