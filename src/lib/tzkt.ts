@@ -289,32 +289,72 @@ export async function fetchSealedStates(generators: string[]): Promise<Map<strin
 }
 
 /**
- * Who administers each generator. Same shape as `fetchPausedStates` and the
- * same reason: `administrator` is a top-level storage field, but TzKT cannot
- * project it in bulk, so this is one narrow request per generator. Cached
- * longer than paused — transferring admin is rare, toggling sales isn't.
+ * Who each generator credits: the collaborators who confirmed, or the one
+ * administrator for a generator deployed before collaborations existed.
+ *
+ * Same shape as `fetchPausedStates` and the same reason: TzKT cannot project
+ * a storage path in bulk, so this is one narrow request per generator. Cached
+ * longer than paused, because confirming a collaboration is rare and toggling
+ * sales isn't.
+ *
+ * `collab` is asked for first and `administrator` only when it is missing, so
+ * a current generator costs one request and an older one costs two.
  */
+/**
+ * Whoever holds the generator first, then everyone else alphabetically.
+ *
+ * Stable, so one generator reads the same way every time, and the head is
+ * the person the work is attributed to rather than whichever address sorts
+ * lowest. Anywhere with room for one name shows that one.
+ *
+ * The administrator is in `confirmed` from origination and cannot leave it,
+ * so the only way they are missing here is a handover to somebody who has
+ * not accepted; plain alphabetical is the honest answer then.
+ */
+function orderCreators(confirmed: string[], admin: unknown): string[] {
+    const rest = [...confirmed].sort();
+    if (typeof admin !== "string" || !rest.includes(admin)) return rest;
+    return [admin, ...rest.filter((a) => a !== admin)];
+}
+
 const ARTIST_CONCURRENCY = 8;
-export async function fetchArtists(generators: string[]): Promise<Map<string, string>> {
-    const artists = new Map<string, string>();
+export async function fetchCreators(generators: string[]): Promise<Map<string, string[]>> {
+    const creators = new Map<string, string[]>();
     const queue = [...generators];
+    // A path the contract does not have answers 204 with an empty body, and
+    // `res.ok` is true for a 204, so `json()` on it throws. That is the normal
+    // case here, not an error: every generator deployed before collaborations
+    // existed answers this way for `collab`.
+    const read = (address: string, path: string) =>
+        fetch(`${tzktApi()}/v1/contracts/${address}/storage?path=${path}`, {
+            next: { revalidate: 300 },
+        })
+            .then((r) => (r.ok && r.status !== 204 ? r.json() : null))
+            .catch(() => null);
+
     async function worker() {
         for (;;) {
             const address = queue.shift();
             if (address === undefined) return;
-            const a = await fetch(
-                `${tzktApi()}/v1/contracts/${address}/storage?path=administrator`,
-                {
-                    next: { revalidate: 300 },
-                },
-            )
-                .then((r) => (r.ok ? r.json() : null))
-                .catch(() => null);
-            if (typeof a === "string") artists.set(address, a);
+            // Both, because the order matters as much as the membership: a
+            // card has room for one name and alphabetical order makes which
+            // one arbitrary.
+            const [collab, admin] = await Promise.all([
+                read(address, "collab") as Promise<{ confirmed?: unknown } | null>,
+                read(address, "administrator") as Promise<unknown>,
+            ]);
+            const confirmed = Array.isArray(collab?.confirmed)
+                ? collab.confirmed.filter((a): a is string => typeof a === "string")
+                : [];
+            if (confirmed.length > 0) {
+                creators.set(address, orderCreators(confirmed, admin));
+                continue;
+            }
+            if (typeof admin === "string") creators.set(address, [admin]);
         }
     }
     await Promise.all(Array.from({ length: Math.min(ARTIST_CONCURRENCY, queue.length) }, worker));
-    return artists;
+    return creators;
 }
 
 /**
@@ -322,6 +362,47 @@ export async function fetchArtists(generators: string[]): Promise<Map<string, st
  * rather than erroring, so a wrong param here reads as success on an
  * unfiltered page. `select` on one field flattens to that field's bare value.
  */
+/**
+ * Generators that named one address as an artist, whoever deployed them.
+ *
+ * Read off `payload.creditable` and not `payload.collaborators`: the two are
+ * different lists, and an artist who waived their share of the mint has
+ * nothing in the share map to be found by.
+ *
+ * The factory emits both on `deploy` for exactly this. TzKT cannot filter
+ * inside a map or a set, so the alternative is reading every collection's
+ * storage to answer one wallet's question, and the filtering happens here.
+ */
+export async function fetchGeneratorsNaming(
+    artist: string,
+    factories: string[],
+): Promise<string[]> {
+    if (factories.length === 0 || !isAddress(artist)) return [];
+    const out: string[] = [];
+    for (let offset = 0; offset < DEPLOYED_CEILING; offset += DEPLOYED_PAGE) {
+        const rows = await get<{ "payload.address"?: string; "payload.creditable"?: string[] }[]>(
+            "/v1/contracts/events",
+            {
+                "contract.in": factories.join(","),
+                tag: "deploy",
+                "sort.desc": "id",
+                limit: DEPLOYED_PAGE,
+                offset,
+                select: "payload.address,payload.creditable",
+            },
+        ).catch(() => []);
+        for (const row of rows) {
+            const address = row["payload.address"];
+            const creditable = row["payload.creditable"];
+            if (address && Array.isArray(creditable) && creditable.includes(artist)) {
+                out.push(address);
+            }
+        }
+        if (rows.length < DEPLOYED_PAGE) break;
+    }
+    return out;
+}
+
 const DEPLOYED_PAGE = 200;
 const DEPLOYED_CEILING = 2_000;
 export async function fetchGeneratorsDeployedBy(

@@ -89,6 +89,12 @@ async function main() {
     const royalties = new MichelsonMap<string, number>();
     if (royaltyBps > 0) royalties.set(artist, royaltyBps);
 
+    // The whole mint price to the signer. This script deploys one artist's
+    // generator; a collaboration is set up through the studio, which is where
+    // the per-member payability checks are.
+    const collabShares = new MichelsonMap<string, number>();
+    collabShares.set(artist, 10000);
+
     const collectionMeta = new MichelsonMap<string, string>();
     collectionMeta.set("", hex("tezos-storage:content"));
     collectionMeta.set(
@@ -126,6 +132,7 @@ async function main() {
         edition_size: editionSize,
         price,
         royalties,
+        collab_shares: collabShares,
         pending_metadata: hex(pending),
         start_paused: true, // deploy, check, announce, then open
         // Extends metadata-write authority to whoever the resolver vouches for,

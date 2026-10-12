@@ -26,7 +26,7 @@ export function PieceJsonLd({
     name,
     description,
     imageUrl,
-    creator,
+    creators,
     mintedAt,
     url,
     generatorName,
@@ -34,7 +34,8 @@ export function PieceJsonLd({
     name: string;
     description?: string;
     imageUrl?: string;
-    creator?: string;
+    /** Who made it. schema.org takes a list, which a collaboration needs. */
+    creators?: string[];
     mintedAt?: string;
     url: string;
     generatorName?: string;
@@ -49,7 +50,14 @@ export function PieceJsonLd({
                 ...(description ? { description } : {}),
                 ...(imageUrl ? { image: imageUrl } : {}),
                 ...(mintedAt ? { dateCreated: mintedAt } : {}),
-                ...(creator ? { creator: { "@type": "Person", identifier: creator } } : {}),
+                ...(creators?.length
+                    ? {
+                          creator: creators.map((c) => ({
+                              "@type": "Person",
+                              identifier: c,
+                          })),
+                      }
+                    : {}),
                 ...(generatorName
                     ? { isPartOf: { "@type": "Collection", name: generatorName } }
                     : {}),
@@ -65,14 +73,15 @@ export function GeneratorJsonLd({
     name,
     description,
     imageUrl,
-    creator,
+    creators,
     url,
     size,
 }: {
     name: string;
     description?: string;
     imageUrl?: string;
-    creator?: string;
+    /** Who made it. schema.org takes a list, which a collaboration needs. */
+    creators?: string[];
     url: string;
     size?: number;
 }) {
@@ -85,7 +94,14 @@ export function GeneratorJsonLd({
                 url,
                 ...(description ? { description } : {}),
                 ...(imageUrl ? { image: imageUrl } : {}),
-                ...(creator ? { creator: { "@type": "Person", identifier: creator } } : {}),
+                ...(creators?.length
+                    ? {
+                          creator: creators.map((c) => ({
+                              "@type": "Person",
+                              identifier: c,
+                          })),
+                      }
+                    : {}),
                 ...(size ? { collectionSize: size } : {}),
             }}
         />

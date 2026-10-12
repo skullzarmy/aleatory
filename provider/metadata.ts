@@ -99,12 +99,41 @@ export function cleanTags(raw: unknown): string[] {
     return out;
 }
 
+/**
+ * Who made the generator: the collaborators who have confirmed being named
+ * on it, which for a solo generator is the one artist.
+ *
+ * Bounded because this is pinned permanently and a document is fetched on
+ * every card, but far above any real collaboration: the chain puts no limit
+ * on how many people may be credited, and a cap that bites would drop
+ * somebody's authorship silently.
+ */
+const MAX_CREATORS = 64;
+export function cleanCreators(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const c of raw) {
+        if (typeof c !== "string") continue;
+        const trimmed = c.trim();
+        if (!trimmed || seen.has(trimmed)) continue;
+        seen.add(trimmed);
+        out.push(trimmed);
+        if (out.length >= MAX_CREATORS) break;
+    }
+    return out;
+}
+
 export interface PendingDocInput {
     generatorName: string;
     description?: string;
     /** The generator's declared tags, standard TZIP-21. */
     tags?: string[];
-    artist: string;
+    /**
+     * TZIP-21 `creators`. One address for a solo generator, several for a
+     * collaboration, in the order the document should credit them.
+     */
+    creators: string[];
     placeholderImageUri: string;
     split: RoyaltySplit;
 }
@@ -120,7 +149,7 @@ export function buildPendingDocument(input: PendingDocInput) {
         isBooleanAmount: false,
         symbol: GENERATOR_SYMBOL,
         shouldPreferSymbol: false,
-        creators: [input.artist],
+        creators: cleanCreators(input.creators),
         // Same placeholder as displayUri/thumbnailUri. objkt reads a missing
         // artifactUri as no real content and excludes the token from the
         // grid, even though it is owned and tradeable now.
@@ -155,6 +184,24 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
      */
     nameTrait?: string;
     codeHash: string;
+    /**
+     * Where the source actually is, and how to decode it once fetched.
+     *
+     * `aleaCodeHash` alone says whether bytes you already have are the right
+     * ones. It does not say where to get them, so a reader holding only this
+     * document had to know our storage layout to find a generator that is
+     * sitting on chain, and anything inspecting the token's URIs saw three
+     * IPFS pointers to a PNG and concluded the art was off chain.
+     *
+     * `art.code` for a generator in storage, which is the normal case, and
+     * the `ipfs://` pointer for one too large to carry there. A path rather
+     * than a `tezos-storage:` URI on purpose: that scheme resolves against
+     * the contract's metadata big_map, not an arbitrary storage path, and a
+     * URI that looks standard while meaning something else is worse than a
+     * field that is plainly ours.
+     */
+    codeStorage: string;
+    codeEncoding: string;
 }
 
 /** `[collection name] #[n]`, the convention every indexer expects (docs/decisions.md §11). */
@@ -201,7 +248,7 @@ export function buildPieceDocument(input: PieceDocInput) {
         isBooleanAmount: false,
         symbol: GENERATOR_SYMBOL,
         shouldPreferSymbol: false,
-        creators: [input.artist],
+        creators: cleanCreators(input.creators),
         // No separate pinned artifact exists per piece, so the rendered
         // image is what objkt and other marketplaces get for both fields.
         artifactUri: input.imageUri,
@@ -211,6 +258,9 @@ export function buildPieceDocument(input: PieceDocInput) {
         ...(tags.length > 0 ? { tags } : {}),
         aleaSeed: input.seed,
         aleaCodeHash: input.codeHash,
+        // Resolved against this token's own contract when it is a path.
+        aleaCode: input.codeStorage,
+        aleaCodeEncoding: input.codeEncoding,
         aleaParams: input.params ? JSON.stringify(input.params) : "",
         // Traits first, then params: declared features are what the artist
         // meant to be shown to a collector, params are inputs that happen to

@@ -16,7 +16,8 @@ import {
     fetchEditionSizes,
     fetchPausedStates,
     fetchSealedStates,
-    fetchArtists,
+    fetchCreators,
+    fetchGeneratorsNaming,
     type TzktToken,
 } from "./tzkt";
 import { isBlockedGenerator } from "./blocklist";
@@ -342,8 +343,8 @@ export interface RecentFeed {
     generators: { address: string; name: string }[];
     /** How many have anything minted, so a capped picker can say so. */
     mintingGeneratorCount: number;
-    /** Each piece's generator's artist, keyed by generator address. */
-    artists: Map<string, string>;
+    /** Each piece's generator's creators, keyed by generator address. */
+    artists: Map<string, string[]>;
 }
 
 interface CachedRecentFeed {
@@ -353,7 +354,7 @@ interface CachedRecentFeed {
     hasMore: boolean;
     generators: { address: string; name: string }[];
     mintingGeneratorCount: number;
-    artists: [string, string][];
+    artists: [string, string[]][];
 }
 
 export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Promise<RecentFeed> {
@@ -427,7 +428,7 @@ async function fetchRecentFeedLive(limit = 48, offset = 0, only?: string): Promi
             limit + 1,
             offset,
         ),
-        fetchArtists(scoped.map((c) => c.address)).catch(() => new Map<string, string>()),
+        fetchCreators(scoped.map((c) => c.address)).catch(() => new Map<string, string[]>()),
     ]);
     return {
         pieces: await piecesOf(window.slice(0, limit), aliasByAddress),
@@ -444,13 +445,21 @@ export interface WalletView {
     held: FeedPiece[];
     heldCount: number;
     heldPages: number;
-    /** Each held piece's generator's artist, keyed by generator address. */
-    heldArtists: Map<string, string>;
+    /** Each held piece's generator's creators, keyed by generator address. */
+    heldArtists: Map<string, string[]>;
     made: GeneratorSummary[];
     madeCount: number;
     madePages: number;
+    /**
+     * Generators somebody named this account on that it has not accepted.
+     * Already being paid; what is waiting is the credit.
+     */
+    invitations: { address: string; name?: string }[];
     unconfigured: boolean;
 }
+
+/** Enough to act on. A wallet named on more than this has a different problem. */
+const INVITATION_MAX = 12;
 
 const EMPTY_WALLET: WalletView = {
     held: [],
@@ -460,6 +469,7 @@ const EMPTY_WALLET: WalletView = {
     made: [],
     madeCount: 0,
     madePages: 0,
+    invitations: [],
     unconfigured: true,
 };
 
@@ -467,10 +477,11 @@ interface CachedWalletView {
     held: FeedPiece[];
     heldCount: number;
     heldPages: number;
-    heldArtists: [string, string][];
+    heldArtists: [string, string[]][];
     made: GeneratorSummary[];
     madeCount: number;
     madePages: number;
+    invitations: { address: string; name?: string }[];
     unconfigured: boolean;
 }
 
@@ -510,12 +521,32 @@ async function fetchWalletLive(
     );
     const addresses = generators.map((c) => c.address);
 
-    const [heldCount, deployed] = await Promise.all([
+    // What you made is what you originated, plus what somebody else
+    // originated and named you on and you accepted. Being named is not the
+    // same as being credited, so the ones still waiting on you are separated
+    // out below rather than counted here.
+    const [heldCount, originated, namedOn] = await Promise.all([
         fetchHeldCount(account, addresses).catch(() => 0),
         Promise.all(
             factories.map((f) => fetchGeneratorsDeployedBy(account, f).catch(() => [])),
         ).then((lists) => lists.flat()),
+        fetchGeneratorsNaming(account, factories).catch(() => []),
     ]);
+    const unseen = namedOn.filter((a) => !originated.includes(a) && !isBlockedGenerator(a));
+    const credits = await fetchCreators(unseen).catch(() => new Map<string, string[]>());
+    const invited = unseen.filter((a) => !(credits.get(a) ?? []).includes(account));
+    const deployed = [
+        ...new Set([...originated, ...unseen.filter((a) => !invited.includes(a))]),
+    ].filter((a) => !isBlockedGenerator(a));
+
+    const invitations = (
+        await Promise.all(
+            invited.map(async (address) => ({
+                address,
+                name: (await fetchGeneratorMeta(address).catch((): GeneratorMeta => ({}))).name,
+            })),
+        )
+    ).slice(0, INVITATION_MAX);
 
     const [paused, sealed] = await Promise.all([
         fetchPausedStates(deployed).catch(() => new Map<string, boolean>()),
@@ -530,7 +561,7 @@ async function fetchWalletLive(
     const madePages = Math.max(1, Math.ceil(madeCount / perPage));
 
     let held: FeedPiece[] = [];
-    let heldArtists = new Map<string, string>();
+    let heldArtists = new Map<string, string[]>();
     if (tab === "collected") {
         const aliasByAddress = await namesFor(addresses);
         const tokens = await fetchTokensHeldBy(
@@ -542,7 +573,7 @@ async function fetchWalletLive(
         const heldGenerators = [...new Set(tokens.map((t) => t.contract.address))];
         const [pieces, artists] = await Promise.all([
             piecesOf(tokens, aliasByAddress),
-            fetchArtists(heldGenerators).catch(() => new Map<string, string>()),
+            fetchCreators(heldGenerators).catch(() => new Map<string, string[]>()),
         ]);
         held = pieces;
         heldArtists = artists;
@@ -587,6 +618,7 @@ async function fetchWalletLive(
         made,
         madeCount,
         madePages,
+        invitations,
         unconfigured: false,
     };
 }

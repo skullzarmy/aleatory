@@ -7,6 +7,7 @@ import type { Generator } from "@/lib/generator";
 import type { ParamsSchema } from "@/lib/params";
 import { maxDprFor } from "@/lib/renderLimits";
 import { ShareButtons, type ArtistHandles } from "@/components/ShareButtons";
+import { AcceptCredit } from "./AcceptCredit";
 
 /**
  * The preview and the mint form, which share state: Randomize changes what is
@@ -32,7 +33,7 @@ export function MintView({
     coverUrl?: string;
     shareUrl: string;
     shareText: string;
-    artistHandles?: ArtistHandles;
+    artistHandles?: ArtistHandles[];
 }) {
     // Starts on the generator's own address, so every visitor sees the same
     // first draw and the page is stable rather than reshuffling on load.
@@ -62,6 +63,7 @@ export function MintView({
             </div>
 
             <div className="min-w-0 space-y-4">
+                <AcceptCredit generator={generator.address} collab={generator.collab} />
                 <MintPanel
                     generator={generator}
                     schema={schema}

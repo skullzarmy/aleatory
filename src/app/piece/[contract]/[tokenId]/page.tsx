@@ -40,12 +40,18 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     const piece = await fetchPiece(contract, tokenId).catch(() => null);
     if (!piece) return { title: "Piece" };
 
-    const artist = piece.artist
-        ? ((await resolveName(piece.artist).catch(() => null)) ?? shortAddress(piece.artist))
+    // The first creator only. A title is one line and a search result shows
+    // less of it than that.
+    const first = piece.artists[0];
+    const artist = first
+        ? ((await resolveName(first).catch(() => null)) ?? shortAddress(first))
         : null;
+    const others = piece.artists.length - 1;
 
     // The root template appends " · Aleatory".
-    const byline = artist ? `${piece.name} by ${artist}` : piece.name;
+    const byline = artist
+        ? `${piece.name} by ${artist}${others > 0 ? ` and ${others} ${others === 1 ? "other" : "others"}` : ""}`
+        : piece.name;
     const title = `${byline} · ${BRAND.name}`;
     const description = piece.description || BRAND.description;
     const images = piece.imageUrl ? [{ url: piece.imageUrl }] : undefined;
@@ -94,20 +100,22 @@ export default async function PiecePage({ params }: { params: Params }) {
         );
     }
 
-    const [listing, offers, generator, artistProfile, provenance] = await Promise.all([
+    const [listing, offers, generator, artistProfiles, provenance] = await Promise.all([
         fetchListingFor(contract, tokenId).catch(() => null),
         fetchOffersFor(contract, tokenId).catch(() => []),
         fetchGenerator(contract).catch(() => null),
-        piece.artist ? fetchProfile(piece.artist).catch(() => null) : Promise.resolve(null),
+        Promise.all(piece.artists.map((a) => fetchProfile(a).catch(() => null))),
         fetchProvenance(contract, tokenId).catch(() => []),
     ]);
     const royaltyTotal = piece.royalties.reduce((n, r) => n + r.bps, 0);
-    const artistHandles = {
-        twitter: socialHandle(artistProfile, "twitter") ?? undefined,
-        bluesky: socialHandle(artistProfile, "bluesky") ?? undefined,
-        farcaster: socialHandle(artistProfile, "farcaster") ?? undefined,
-        telegram: socialHandle(artistProfile, "telegram") ?? undefined,
-    };
+    // One entry per creator, so a share post tags everyone who made it.
+    const artistHandles = piece.artists.map((a, i) => ({
+        address: a,
+        twitter: socialHandle(artistProfiles[i], "twitter") ?? undefined,
+        bluesky: socialHandle(artistProfiles[i], "bluesky") ?? undefined,
+        farcaster: socialHandle(artistProfiles[i], "farcaster") ?? undefined,
+        telegram: socialHandle(artistProfiles[i], "telegram") ?? undefined,
+    }));
 
     // Null for an open edition, which has nothing to count down.
     const remaining = piece.editionSize > 0 ? Math.max(0, piece.editionSize - piece.minted) : null;
@@ -131,7 +139,7 @@ export default async function PiecePage({ params }: { params: Params }) {
                     name={piece.name}
                     description={piece.description}
                     imageUrl={piece.imageUrl}
-                    creator={piece.artist}
+                    creators={piece.artists}
                     mintedAt={piece.mintedAt}
                     generatorName={piece.generatorName}
                     url={`${BRAND.url}/piece/${contract}/${tokenId}`}

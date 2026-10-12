@@ -15,6 +15,7 @@ import { LastGood } from "@/components/LastGood";
 import { ReadFailed } from "@/components/ReadFailed";
 import { GeneratorJsonLd } from "@/components/JsonLd";
 import { isAddress } from "@/lib/tzkt";
+import { unconfirmedCount } from "@/lib/collab";
 
 /**
  * Rendered per request. `revalidate` here made this a prerendered document, and
@@ -78,16 +79,26 @@ export default async function GeneratorPage({ params }: { params: Params }) {
     const prices = new Map(
         market.listings.map((l) => [`${l.generator}:${l.tokenId}`, l.priceMutez] as const),
     );
-    const artists = new Map([[generator.address, generator.artist]]);
-    const artistProfile = generator.artist
-        ? await fetchProfile(generator.artist).catch(() => null)
-        : null;
-    const artistHandles = {
-        twitter: socialHandle(artistProfile, "twitter") ?? undefined,
-        bluesky: socialHandle(artistProfile, "bluesky") ?? undefined,
-        farcaster: socialHandle(artistProfile, "farcaster") ?? undefined,
-        telegram: socialHandle(artistProfile, "telegram") ?? undefined,
-    };
+    const credited = generator.collab.confirmed;
+    // Named but not yet confirmed. Counted, never listed: a name shown here
+    // before its owner agreed is the thing `accept_collaboration` exists to
+    // prevent.
+    const unconfirmed = unconfirmedCount(generator.collab);
+    const artists = new Map([[generator.address, credited]]);
+    // Handles for everyone credited, so a share post tags the collaboration
+    // and not just whoever deployed it.
+    const artistHandles = await Promise.all(
+        credited.map(async (a) => {
+            const profile = await fetchProfile(a).catch(() => null);
+            return {
+                address: a,
+                twitter: socialHandle(profile, "twitter") ?? undefined,
+                bluesky: socialHandle(profile, "bluesky") ?? undefined,
+                farcaster: socialHandle(profile, "farcaster") ?? undefined,
+                telegram: socialHandle(profile, "telegram") ?? undefined,
+            };
+        }),
+    );
 
     return (
         <LastGood>
@@ -96,7 +107,7 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                 <GeneratorJsonLd
                     name={generator.name || shortAddress(generator.address)}
                     description={generator.description}
-                    creator={generator.artist}
+                    creators={credited}
                     size={generator.editionSize || undefined}
                     url={`${BRAND.url}/generator/${address}`}
                 />
@@ -115,7 +126,19 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                     picture goes reads as a hole. */}
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                         <span>by</span>
-                        <AccountLink address={generator.artist} withAvatar />
+                        {credited.map((a, i) => (
+                            <span key={a} className="inline-flex items-center gap-x-2">
+                                {i > 0 && <span aria-hidden>and</span>}
+                                <AccountLink address={a} withAvatar />
+                            </span>
+                        ))}
+                        {unconfirmed > 0 && (
+                            <span>
+                                {`and ${unconfirmed} awaiting ${
+                                    unconfirmed === 1 ? "credit" : "credits"
+                                }`}
+                            </span>
+                        )}
                         <span aria-hidden>·</span>
                         <a
                             href={tzktLink(generator.address)}

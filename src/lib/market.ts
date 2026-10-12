@@ -211,7 +211,7 @@ export interface MarketFeedData {
     floorMutez: bigint | null;
     pieces: Map<string, FeedPiece>;
     names: Map<string, string>;
-    artists: Map<string, string>;
+    artists: Map<string, string[]>;
 }
 
 interface CachedMarketFeedData {
@@ -221,7 +221,7 @@ interface CachedMarketFeedData {
     floorMutez: string | null;
     pieces: [string, FeedPiece][];
     names: [string, string][];
-    artists: [string, string][];
+    artists: [string, string[]][];
 }
 
 export async function fetchMarketFeed(
@@ -248,7 +248,9 @@ export async function fetchMarketFeed(
                 generators.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])),
             );
             const artists = new Map(
-                generators.flatMap((c) => (c.artist ? [[c.address, c.artist] as const] : [])),
+                generators.flatMap((c) =>
+                    c.artists?.length ? [[c.address, c.artists] as const] : [],
+                ),
             );
 
             const piecesMap = await piecesFor(lResult.listings, names).catch(() => new Map());

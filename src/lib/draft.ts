@@ -37,6 +37,14 @@ export interface Draft {
     };
     /** Trait key whose value is appended to piece names. */
     nameTrait?: string;
+    /**
+     * Three independent answers from the deploy form, as typed, none of them
+     * holding the artist's own wallet: who made it, who shares the mint
+     * price, and who shares the resale royalty.
+     */
+    artists?: string[];
+    collab?: { address: string; percent: string }[];
+    royaltyRecipients?: { address: string; percent: string }[];
     createdAt: number;
     updatedAt: number;
     /**

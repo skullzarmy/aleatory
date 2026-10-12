@@ -134,9 +134,12 @@ interface PendingPiece {
     /** The generator source, out of contract storage. */
     code: string;
     codeUri: string;
+    /** `identity` or `gzip`, straight off storage, so a reader can decode it. */
+    codeEncoding: string;
     /** Libraries the generator says its source expects to be loaded. */
     libraries: DeclaredLibrary[];
-    artist: string;
+    /** Who the document credits: the collaborators who confirmed. */
+    creators: string[];
     /** For the document. A piece is "<generator> #<n>", never a bare number. */
     generatorName: string;
     description: string;
@@ -191,7 +194,33 @@ interface GeneratorStorage {
         /** Address to basis points. Published in the document, per TZIP-21. */
         royalties: Record<string, string | number>;
     };
+    /** Absent on a generator deployed before collaborations existed. */
+    collab?: {
+        shares: Record<string, string | number>;
+        /** Who may claim credit. Everyone else in `shares` is a cut. */
+        creditable: string[];
+        confirmed: string[];
+    };
     render: { provider: string };
+}
+
+/**
+ * Who a generator's documents credit. The confirmed collaborators, in a stable
+ * order so two publishes of one generator agree, and the administrator alone
+ * for a generator deployed before collaborations existed.
+ */
+function creatorsOf(storage: GeneratorStorage): string[] {
+    // `confirmed` is already only co-authors: the contract refuses
+    // `accept_collaboration` from anyone outside `creditable`, so somebody
+    // taking a cut cannot reach this list.
+    const confirmed = storage.collab?.confirmed ?? [];
+    if (confirmed.length === 0) return [storage.administrator];
+    // Administrator first, the rest alphabetically. Stable across publishes,
+    // and `creators[0]` is the person the work is attributed to rather than
+    // whichever address happens to sort lowest.
+    const rest = [...confirmed].sort();
+    if (!rest.includes(storage.administrator)) return rest;
+    return [storage.administrator, ...rest.filter((a) => a !== storage.administrator)];
 }
 
 /**
@@ -395,10 +424,11 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
                 params: buy.params,
                 code,
                 codeUri,
+                codeEncoding: storage.art.code_encoding ?? "identity",
                 libraries,
                 paramsSchema,
                 nameTrait,
-                artist: storage.administrator,
+                creators: creatorsOf(storage),
                 generatorName: facts.name,
                 description: facts.description,
                 tags: facts.tags,
@@ -719,10 +749,11 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
         params: mint.params,
         code,
         codeUri: storage.art.code_uri ?? "",
+        codeEncoding: storage.art.code_encoding ?? "identity",
         libraries: parseLibraries(await metadataKey(generator, "aleatory:libraries")),
         paramsSchema: await paramsSchemaOf(generator),
         nameTrait: await nameTraitOf(generator),
-        artist: storage.administrator,
+        creators: creatorsOf(storage),
         generatorName: facts.name,
         description: facts.description,
         tags: facts.tags,
@@ -756,7 +787,11 @@ export async function handle(piece: PendingPiece): Promise<string> {
         generatorName: piece.generatorName,
         description: piece.description,
         tags: piece.tags,
-        artist: piece.artist,
+        creators: piece.creators,
+        // The source is in this contract's storage unless it was too large
+        // to carry there, which is the only case a pointer exists for.
+        codeStorage: piece.codeUri || "art.code",
+        codeEncoding: piece.codeEncoding,
         tokenId: Number(piece.tokenId),
         imageUri: imageUri,
         seed: piece.seed,

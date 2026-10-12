@@ -22,7 +22,7 @@ export function JustMinted({
     remaining: number | null;
     shareUrl?: string;
     shareText?: string;
-    artistHandles?: ArtistHandles;
+    artistHandles?: ArtistHandles[];
 }) {
     const params = useSearchParams();
     const [dismissed, setDismissed] = useState(false);

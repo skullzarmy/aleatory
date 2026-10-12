@@ -129,10 +129,11 @@ able to harm only itself.
 A library that is not on a public registry has no independent authority behind
 it, so it belongs inside the document.
 
-### Royalty recipients must be payable
+### Everyone paid at origination must be payable
 
-**A front end that originates a generator must check that every royalty
-recipient can receive tez, before the generator exists.**
+**A front end that originates a generator must check that every address it
+writes into a payout map can receive tez, before the generator exists.** That
+is the royalty map, and any map the generator divides its mint price between.
 
 A sale pays each share in the same operation. The marketplace only sends to
 an address that can take a plain transfer: an implicit account always can,
@@ -143,16 +144,69 @@ recipient forfeits that share on every sale, forever. A contract that
 accepts the transfer and then fails while handling it still reverts the
 sale.
 
+A mint-price split is the same rule with a shorter fuse: the payout runs
+inside `mint`, so a recipient that accepts a transfer and then fails takes
+every mint of that edition with it, not every resale. Our own collection
+probes each recipient first and routes an undeliverable share to the
+administrator, which keeps the edition minting; what it cannot do is make
+that address receive the money.
+
 An implicit account, `tz1`, `tz2`, `tz3` or `tz4`, cannot refuse and needs no
 check. An originated account, `KT1`, can, so ask it by simulating a transfer
 (`run_operation` against a node): listing its entrypoints would miss a
-`default` of the wrong type, and one that fails when it runs. Split contracts
-used for collaborations normally pass.
+`default` of the wrong type, and one that fails when it runs. A split
+contract passes this, which is why naming one as a recipient has always
+worked.
 
 The marketplace enforces the part it can, which is not reverting. What it
 cannot do is pay an address that will not take the money, or change the map
 afterwards, so the obligation to catch a bad address while it is still
 correctable sits with whoever writes it down.
+
+### Say where the source is
+
+**A piece's document must point at its own source.**
+
+`aleaCodeHash` says whether bytes you already have are the right ones. It
+does not say where to get them. A reader holding only the document had to
+know an implementation's storage layout to find a generator sitting on chain,
+and a tool inspecting the token's `artifactUri`, `displayUri` and
+`thumbnailUri` saw three pointers to a PNG and concluded the art was off
+chain. It was not; it was in the contract the token belongs to, unreferenced.
+
+```json
+"aleaCode": "art.code",
+"aleaCodeEncoding": "gzip",
+"aleaCodeHash": "6bb556…"
+```
+
+A storage path is resolved against the token's own contract. A generator past
+the operation cap carries its `ipfs://` pointer here instead, which is the
+only case where the source is not on chain at all.
+
+A path and not a `tezos-storage:` URI: that scheme resolves against a
+contract's `metadata` big_map rather than an arbitrary storage path, and a URI
+that looks standard while meaning something else is worse than a field that is
+plainly one implementation's.
+
+### Attribution
+
+**A generator's documents name who made it, in `creators`.**
+
+An array of addresses, which is the TZIP-21 field and the shape objkt and
+Teia already read. One entry is the ordinary case. More than one is a
+collaboration, and a reader must not assume the first is the only one, or
+that the generator's administrator is among them at all: who administers a
+collection and who made the work are separate questions, and a conforming
+collection may answer them differently.
+
+This is additive. Every generator originated before this was written already
+emits a one-element `creators`, and stays conforming.
+
+How a generator decides that list is its own business. Ours keeps a
+collaborator set in storage and credits the members who have acknowledged
+being named (see §10), so a deployer cannot attach somebody else's name to
+their work. Nothing here requires that mechanism, only the field.
 
 This section specifies the mechanism. [libraries.md](libraries.md) is the same
 thing for the person writing a generator.
@@ -297,6 +351,60 @@ get_royalties() -> map(address, nat)   basis points of the sale price
 A marketplace that pays artists reads this view. Without it, a seller could
 list a piece with the royalties zeroed out.
 
+### Collaborations, in our collection
+
+Not part of this interface: nothing a renderer or a marketplace does changes
+because a generator has two artists on it. Recorded here because the
+reference implementation has a shape worth copying, and §1 requires its
+payout addresses to be checked like any others.
+
+```
+storage.collab.shares       map(address, nat)   basis points of the mint price, summing to 10000
+storage.collab.creditable   set(address)        which of them are named as co-authors
+storage.collab.confirmed    set(address)        which co-authors have accepted
+storage.template_version    nat                 2 for a collection with the above, absent means 1
+
+accept_collaboration()                          callable only from `creditable`
+```
+
+Who made it and who the money goes to are separate questions, answered
+separately, because they come apart in practice. A studio, a fund or a
+developer takes a share of each mint without having made the work. An artist
+waives their share of the mint and keeps royalties, or the reverse.
+
+So neither list constrains the other. `creditable` is who the artist says
+made it, and somebody in it with no share took no payment. Somebody in
+`shares` and not in `creditable` is taking a cut and cannot put themselves in
+`creators`. The one requirement is that the deployer is in `creditable`,
+because they are confirmed from the moment the generator exists.
+
+`shares` is capped at 50 recipients. Not a limit on how many people may share
+a mint: the payout walks that map inside every `mint` against a per-operation
+gas ceiling, and the map has no setter, so a map long enough to exhaust the
+gas is an edition nobody can ever mint from. `creditable` has no cap, because
+nothing iterates it on a paying path.
+
+`shares` is written at origination and has no setter, same as `royalties`.
+`mint` divides the price between them in the collector's own operation,
+probing each recipient and routing what it cannot deliver, plus the rounding
+remainder, to the administrator; the collection holds no balance when it
+returns. At most fifty recipients, because that loop's gas is paid by every
+collector for the life of the edition.
+
+`confirmed` governs credit and nothing else. A co-author is paid from the
+first mint whether they have called `accept_collaboration` or not, and the
+`creators` of each piece published afterwards names whoever has. The two-step
+exists so a deployer cannot put a well-known artist's name on their own
+generator by writing them a share they never asked for, and it is the same
+shape as `propose_admin`/`accept_admin`.
+
+So credit takes both: the artist naming somebody in `creditable`, and that
+person accepting. Neither side can do it alone.
+
+Administration is unchanged: `administrator` is still one address holding
+every authority a generator has, and a group wanting joint control transfers
+it to a contract that provides that.
+
 ---
 
 ## 7. The render harness
@@ -384,6 +492,9 @@ Everything a front end needs, from public chain data:
 | A piece's seed | the hash of the `mint` operation that created it |
 | A piece's parameters | the `params` field of that same event |
 | Who to pay on a sale | `get_royalties()` on the generator |
+| Who made a generator | `creators` in any of its pieces' documents |
+| Where a piece's source is | `aleaCode` in its document, with `aleaCodeEncoding` |
+| Which template a collection is | `template_version` in its storage, absent meaning 1 |
 | Every marketplace there has been | the router's storage history, `marketplace` at each state |
 
 No index held by anyone is required for any of it.

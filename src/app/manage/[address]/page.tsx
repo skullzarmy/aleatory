@@ -6,7 +6,7 @@ import { useWallet } from "@/context/WalletContext";
 import { fetchGenerator, type Generator } from "@/lib/generator";
 import { fetchProviders, type Provider } from "@/lib/providers";
 import { fetchRawContent, hasEntrypoint } from "@/lib/tzkt";
-import { missingTzipFields, patchTzipFields } from "@/lib/tzip";
+import { authorsAreStale, missingTzipFields, patchAuthors, patchTzipFields } from "@/lib/tzip";
 import { useLive } from "@/components/LiveRefresh";
 import { tzktLink, objktManageLink, objktTokenLinkTemplate } from "@/lib/config";
 import { AccountLink } from "@/components/account/AccountLink";
@@ -92,6 +92,8 @@ export default function ManageGeneratorPage({ params }: { params: Promise<{ addr
 
     const isArtist = wallet !== null && wallet === generator.artist;
     const missingTzip = content ? missingTzipFields(content) : [];
+    const credits = generator.collab.confirmed;
+    const staleCredits = content ? authorsAreStale(content, credits) : false;
 
     return (
         <div className="mx-auto max-w-2xl px-4 py-8">
@@ -168,6 +170,30 @@ export default function ManageGeneratorPage({ params }: { params: Promise<{ addr
                         className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-60"
                     >
                         {busy === "tzip" ? "Signing…" : "Push update"}
+                    </button>
+                </Control>
+            )}
+
+            {isArtist && content && staleCredits && (
+                <Control
+                    title="Credits out of date"
+                    detail="A collaborator has accepted since this was deployed. This site reads the chain, so it already credits them; the metadata document marketplaces read does not. One signature brings it in line, and nothing else in your metadata changes."
+                >
+                    <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() =>
+                            void run("credits", (c) =>
+                                pushContent(
+                                    c,
+                                    generator.address,
+                                    JSON.stringify(patchAuthors(content, credits)),
+                                ),
+                            )
+                        }
+                        className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-60"
+                    >
+                        {busy === "credits" ? "Signing…" : "Push credits"}
                     </button>
                 </Control>
             )}

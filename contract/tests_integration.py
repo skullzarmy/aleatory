@@ -41,7 +41,8 @@ _GAS = 200_000           # 0.2 tez render gas
 _TOTAL = _PRICE + _GAS
 
 
-def _world(scenario, admin, agent, treasury, artist, royalties):
+def _world(scenario, admin, agent, treasury, artist, royalties,
+           collab_shares=None):
     """Everything, wired the way it will be on chain."""
     resolver = aleatory.AleatoryResolver(
         administrator=admin.address, writers=sp.set([agent.address])
@@ -82,6 +83,18 @@ def _world(scenario, admin, agent, treasury, artist, royalties):
             edition_size=0,
             price=sp.mutez(_PRICE),
             royalties=royalties,
+            collab_shares=sp.cast(
+                {artist.address: 10000}
+                if collab_shares is None
+                else collab_shares,
+                sp.map[sp.address, sp.nat],
+            ),
+            collab_creditable=sp.cast(
+                {artist.address}
+                if collab_shares is None
+                else set(collab_shares.keys()),
+                sp.set[sp.address],
+            ),
             pending_metadata=_PENDING,
             start_paused=False,
             trust_resolver=True,

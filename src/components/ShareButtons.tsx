@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { Check, Link2, Share2 } from "lucide-react";
 
-/** The artist's handle on each network, from their own profile, when they have one. */
-export type ArtistHandles = Partial<
-    Record<"twitter" | "bluesky" | "farcaster" | "telegram", string>
->;
+type Network = "twitter" | "bluesky" | "farcaster" | "telegram";
+
+/** One creator's handle on each network, from their own profile, when they have one. */
+export type ArtistHandles = Partial<Record<Network, string>> & { address?: string };
 
 /**
  * Share a piece. The URL is the piece's permanent page, never the one a
@@ -22,7 +22,8 @@ export function ShareButtons({
 }: {
     url: string;
     text: string;
-    artistHandles?: ArtistHandles;
+    /** One entry per credited creator, in the order the post should name them. */
+    artistHandles?: ArtistHandles[];
     className?: string;
 }) {
     const [copied, setCopied] = useState(false);
@@ -34,12 +35,27 @@ export function ShareButtons({
     }, []);
 
     const u = encodeURIComponent(url);
-    // A network that has the artist's handle for itself gets them tagged in
-    // the post; one that doesn't gets the plain text.
-    const tagged = (kind: keyof ArtistHandles) => {
-        const handle = artistHandles?.[kind];
-        return handle ? `${text} by ${handle}` : text;
+    // A network gets every credited creator who has a handle there tagged in
+    // the post. One with no handles at all gets the plain text, so a
+    // collaboration where nobody filled in a profile does not post "by".
+    const tagged = (kind: Network) => {
+        const handles = (artistHandles ?? [])
+            .map((a) => a[kind])
+            .filter((h): h is string => Boolean(h));
+        return handles.length > 0 ? `${text} by ${handles.join(" and ")}` : text;
     };
+
+    /**
+     * TezCity refuses an oversized draft rather than trimming it, so the text
+     * is trimmed here. 500 characters covers the whole draft, and the URL is
+     * part of it even though it travels as its own parameter.
+     */
+    const TEZCITY_MAX = 500;
+    const tezcityText = (() => {
+        const room = TEZCITY_MAX - url.length - 1;
+        if (text.length <= room) return text;
+        return `${text.slice(0, Math.max(0, room - 1))}…`;
+    })();
 
     const networks = [
         {
@@ -61,6 +77,19 @@ export function ShareButtons({
             name: "Telegram",
             href: `https://t.me/share/url?url=${u}&text=${encodeURIComponent(tagged("telegram"))}`,
             icon: <Paper />,
+        },
+        {
+            // No handle to tag with: a hack.tez profile carries no TezCity
+            // field, so this gets the plain text until one exists.
+            name: "TezCity",
+            href: `https://tezcity.com/intent/post?${new URLSearchParams({
+                text: tezcityText,
+                url,
+            })}`,
+            icon: <Tzct />,
+            // Their brand notes ask for this wording, and only the label a
+            // screen reader and a tooltip carry is long enough to hold it.
+            verb: "to",
         },
     ];
 
@@ -95,11 +124,13 @@ export function ShareButtons({
                         href={n.href}
                         target="_blank"
                         rel="noreferrer"
-                        title={`Share on ${n.name}`}
+                        title={`Share ${n.verb ?? "on"} ${n.name}`}
                         className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
                     >
                         {n.icon}
-                        <span className="sr-only">Share on {n.name}</span>
+                        <span className="sr-only">
+                            Share {n.verb ?? "on"} {n.name}
+                        </span>
                         <span aria-hidden>{n.name}</span>
                     </a>
                 ))}
@@ -153,6 +184,23 @@ function Arch() {
     return (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <path d="M4 2h16v3h-3.2v14H20v1H14v-1h1.6v-6.4a3.6 3.6 0 0 0-7.2 0V19H10v1H4v-1h3.2V5H4V2z" />
+        </svg>
+    );
+}
+
+/**
+ * TezCity's own TZCT monogram, their `currentColor` variant, which inherits
+ * the button's colour the way every other mark here does. Their brand notes
+ * ask that the square proportions and built-in spacing are kept, so the
+ * 512 viewBox is used as published rather than cropped to the glyph.
+ */
+function Tzct() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 512 512" fill="currentColor" aria-hidden>
+            <path d="M106 99H250V127H193V248H163V127H106Z" />
+            <path d="M266 99H407V122L310 221H407V248H266V225L362 127H266Z" />
+            <path d="M106 275H247V303H135V393H250V421H106Z" />
+            <path d="M266 275H407V303H354V421H324V303H266Z" />
         </svg>
     );
 }

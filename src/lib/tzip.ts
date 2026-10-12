@@ -18,6 +18,34 @@ export function missingTzipFields(content: Record<string, unknown>): string[] {
     return missing;
 }
 
+/**
+ * Who `content.authors` credits against who the generator's storage says has
+ * confirmed. The two drift the moment a collaborator accepts, because
+ * `authors` is written once at deploy and `accept_collaboration` does not
+ * touch it.
+ *
+ * This is for marketplaces that read the document and never the storage. The
+ * site reads `collab.confirmed` directly, so it is never waiting on a push.
+ */
+export function authorsAreStale(content: Record<string, unknown>, confirmed: string[]): boolean {
+    const authors = Array.isArray(content.authors)
+        ? content.authors.filter((a): a is string => typeof a === "string")
+        : [];
+    if (confirmed.length === 0) return false;
+    return (
+        authors.length !== confirmed.length ||
+        [...authors].sort().join(",") !== [...confirmed].sort().join(",")
+    );
+}
+
+/** `content` crediting exactly who has confirmed. Everything else passes through untouched. */
+export function patchAuthors(
+    content: Record<string, unknown>,
+    confirmed: string[],
+): Record<string, unknown> {
+    return { ...content, authors: [...confirmed].sort() };
+}
+
 /** `content` with every field `missingTzipFields` would flag filled in. Everything else passes through untouched. */
 export function patchTzipFields(content: Record<string, unknown>): Record<string, unknown> {
     const interfaces = Array.isArray(content.interfaces) ? [...content.interfaces] : [];

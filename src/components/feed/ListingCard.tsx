@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { TimeAgo } from "@/components/TimeAgo";
 import { AccountName } from "@/components/account/AccountName";
+import { CreatorNames } from "@/components/account/CreatorNames";
 import { formatTez, shortAddress } from "@/lib/utils";
 import type { FeedPiece } from "@/lib/feed";
 import type { Listing } from "@/lib/market";
@@ -8,11 +9,11 @@ import { PieceImage } from "./PieceImage";
 
 /**
  * One piece for sale: the same card as a feed piece, with the price on it.
- * The artist and the seller render as AccountName, not a link, same as
+ * The artists and the seller render as AccountName, not a link, same as
  * PieceCard: the whole card is already a link, and an anchor inside an
  * anchor won't hydrate.
  *
- * `artist` is its own prop, not read off `piece`: `FeedPiece.minter` is
+ * `artists` is its own prop, not read off `piece`: `FeedPiece.minter` is
  * whoever minted this specific token, not necessarily who made the
  * generator or who is selling it now, which is `listing.seller`. All three
  * can be different accounts.
@@ -20,14 +21,14 @@ import { PieceImage } from "./PieceImage";
 export function ListingCard({
     listing,
     piece,
-    artist,
+    artists,
     priority = false,
 }: {
     listing: Listing;
     /** Absent when the indexer has not caught up with the token yet. */
     piece?: FeedPiece;
-    /** The generator's own artist, looked up separately from the piece. */
-    artist?: string;
+    /** The generator's own creators, looked up separately from the piece. */
+    artists?: string[];
     priority?: boolean;
 }) {
     return (
@@ -56,10 +57,11 @@ export function ListingCard({
                     {piece?.generatorName || shortAddress(listing.generator)}
                 </p>
                 <div className="space-y-0.5 pt-1">
-                    {artist && (
-                        <p className="truncate text-xs font-medium">
-                            <AccountName address={artist} />
-                        </p>
+                    {artists && artists.length > 0 && (
+                        <CreatorNames
+                            creators={artists}
+                            className="block truncate text-xs font-medium"
+                        />
                     )}
                     <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                         <span className="min-w-0 truncate">

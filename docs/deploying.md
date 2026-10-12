@@ -387,7 +387,70 @@ distinct addresses; the script refuses if any two match or if any is the
 deployer. The admin key can pause trading, change the fee and hand
 administration on, so decide where it lives before running this.
 
+**The router has to name them.** `npm run router -- --network <net> show` prints
+what it currently points at, and `add-factory`, `set-marketplace`,
+`set-registry` and `set-resolver` change one entry each. `deploy.ts` originates
+contracts and stops, so a new factory sits unused until this runs. It asks the
+chain for its own id and refuses if that disagrees with `--network`.
+
+A new collection template means a new factory, and `add_factory` prepends
+rather than replaces: new deploys go to the head and every collection an
+earlier factory made keeps working.
+
 **The provider is per network.** A provider contract and an agent key on that
 chain, because a provider is a contract and cannot be shared across chains.
 
 The isolate does not change. It never knew which chain it was on.
+
+## Shipping a new collection template
+
+The template is Michelson compiled into the factory, so changing it means a
+new factory. Nothing migrates and no existing generator is touched; the
+router keeps the old factory listed and the collections it made go on
+resolving through it.
+
+**The order is not arbitrary.** A front end built for the new template sends
+the new `deploy` fields, and the factory it sends them to is whichever one the
+router names. Ship the site before the router points at the new factory and
+every artist's deploy hits a contract that does not take those fields. So the
+factory goes up first, the router moves second, and the site ships last.
+
+1. `npm run test:contracts`, then `npm run build:contracts`. The suites run
+   against the template you are about to originate, and the build is what the
+   deploy script reads.
+2. Deploy to shadownet and exercise it there: a generator, a mint, and
+   whatever the change was for. Also load a generator an *earlier* factory
+   made, because readers are where a template change breaks what already
+   exists, and that is the half nothing on chain protects.
+3. Flip the environment to mainnet. Both networks live in one `.env` with one
+   of them commented out, so swap which block is live and confirm the
+   deployer address and chain id before anything signs.
+4. `npm run deploy -- --network mainnet --only factory --dry-run`. It prices
+   the origination and injects nothing. A `subtraction_underflow` here is the
+   deployer being short, not a fault in the contract.
+5. Fund the deployer if the dry run says so, then run it again without
+   `--dry-run`.
+6. Verify the factory before anyone is pointed at it: its `deploy` entrypoint
+   takes the fields the new site sends, its views are present, and its
+   administrator and resolver are the live ones.
+7. **Restart the render provider on the branch**, before anything is pointed
+   at the new factory. It reads the same contracts either way, so running it
+   early costs nothing and means no piece is ever published with a document
+   written by code that predates the change.
+8. **The administrator points the router at it**, which is a different key
+   from the deployer by design, so this step belongs to whoever holds it. The
+   admin console has it under the router, or
+   `npm run router -- --network mainnet add-factory KT1…`.
+9. Confirm the router's head is the new factory and the old one is still
+   listed behind it.
+10. Merge, which ships the site, then restart the provider again from `main`
+    so the box is running a released commit rather than a branch.
+
+Steps 1 to 7 change nothing for anyone. The template is live from step 8, and
+reversible there too: pointing the router back at the previous factory is one
+more `add-factory`.
+
+The provider is deliberately on both sides of that. It is the one component
+whose output is correctable after the fact, since `set_token_metadata` is a
+plain write and `provider:retry` republishes, so a mistake in its timing costs
+a rerun rather than a stranded piece.

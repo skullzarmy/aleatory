@@ -204,7 +204,39 @@ A marketplace paying them inside the sale should ask whether a recipient can
 take a plain transfer before sending: an implicit account always can, a `KT1`
 only through a `default` entrypoint of type unit. `royalties` has no setter, so
 one unpayable address would otherwise revert every sale of that collection
-forever.
+forever. The same obligation covers any map a generator divides its mint price
+between, where the payout runs inside `mint` and a recipient that accepts then
+fails breaks every mint of the edition.
+
+### Where the source is
+
+`aleaCode` in a piece's document, with `aleaCodeEncoding` beside it and
+`aleaCodeHash` to check what you fetched. A storage path like `art.code`
+resolves against the token's own contract; an `ipfs://` value means the
+generator was past the operation cap and is not on chain.
+
+Do not read the source from `artifactUri`. That is the rendered image, as are
+`displayUri` and `thumbnailUri`, so a tool looking only at those will report a
+fully on-chain generator as off-chain storage.
+
+### Who made it
+
+`creators` in a piece's document, an array of addresses, the TZIP-21 field.
+One entry is the ordinary case and more than one is a collaboration, so do not
+assume the first is the only one, and do not assume the collection's
+administrator is among them: who administers a collection and who made the
+work are separate questions.
+
+Our collection keeps a collaborator set in storage. `collab.shares` is who the
+mint price is divided between, written at origination with no setter and
+summing to 10000 basis points. `collab.creditable` is who the artist says made
+it, independent of `shares`: somebody taking a cut is paid and cannot claim
+credit, and an artist who waived their share is credited with nothing in
+`shares` at all. `collab.confirmed` is which co-authors called
+`accept_collaboration`, which is who the documents credit. Everyone in
+`shares` is paid whether they accepted or not, so the two-step is about credit
+alone. `template_version` in storage says which
+build of the template a collection is, and its absence means 1.
 
 ## 9. Being a provider
 

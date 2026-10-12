@@ -8,7 +8,7 @@ import {
     fetchEditionSizes,
     fetchPausedStates,
     fetchSealedStates,
-    fetchArtists,
+    fetchCreators,
     type GeneratorMeta,
     indexerFetch,
     isAddress,
@@ -24,9 +24,14 @@ import type { ParamsSchema } from "./params";
 import { decodeCode } from "./piece";
 import { fetchProvider } from "./providers";
 import { cacheWrap } from "./cache";
+import { normalizeCollab, type Collab } from "./collab";
+
+export { normalizeCollab, unconfirmedCount, type Collab, type CollabShare } from "./collab";
 
 interface RawStorage {
     administrator: string;
+    /** Absent on a generator from a factory that predates the field. */
+    template_version?: string;
     art: {
         code: string;
         code_encoding: string;
@@ -36,6 +41,8 @@ interface RawStorage {
         royalties: Record<string, string>;
         pending_metadata: string;
     };
+    /** Absent on a generator deployed before collaborations existed. */
+    collab?: { shares: Record<string, string>; confirmed: string[] };
     sale: { price: string; edition_size: string; paused: boolean };
     render: {
         provider: string;
@@ -50,7 +57,12 @@ interface RawStorage {
 
 export interface Generator {
     address: string;
+    /** The administrator, who holds every authority over the generator. */
     artist: string;
+    /** Who made it and who the mint price is divided between. */
+    collab: Collab;
+    /** Which build of the template this came from. 1 for the oldest. */
+    templateVersion: number;
     name?: string;
     description?: string;
     /** Standard TZIP-21 tags, read by objkt and other marketplaces. */
@@ -155,6 +167,7 @@ async function fetchGeneratorLive(address: string): Promise<Generator | null> {
     }));
 
     const meta: GeneratorMeta = await fetchGeneratorMeta(address).catch(() => ({}));
+    const { templateVersion, collab } = normalizeCollab(s);
 
     return {
         address,
@@ -163,6 +176,8 @@ async function fetchGeneratorLive(address: string): Promise<Generator | null> {
         tags: meta.tags,
         paramsSchema: await fetchParamsSchema(address),
         artist: s.administrator,
+        collab,
+        templateVersion,
         code: await decodeCode(s.art.code, s.art.code_encoding).catch(() => ""),
         sealed: s.art.code_sealed ?? true,
         // sp.string on chain, not sp.bytes, so it needs no decoding. Set only
@@ -252,7 +267,8 @@ export async function fetchGeneratorPieces(address: string, limit = 48): Promise
 
 export interface GeneratorSummary {
     address: string;
-    artist?: string;
+    /** Who the generator credits. One name for a solo generator. */
+    artists?: string[];
     name?: string;
     description?: string;
     /**
@@ -315,12 +331,12 @@ export async function fetchAllGenerators(opts?: {
                 opts?.sealed
                     ? fetchSealedStates(addresses).catch(() => new Map<string, boolean>())
                     : Promise.resolve(new Map<string, boolean>()),
-                fetchArtists(addresses).catch(() => new Map<string, string>()),
+                fetchCreators(addresses).catch(() => new Map<string, string[]>()),
             ]);
 
             return rows.map((c, i) => ({
                 address: c.address,
-                artist: artists.get(c.address),
+                artists: artists.get(c.address),
                 // `alias` is TzKT's, set for contracts it happens to know.
                 name: metas[i].name || c.alias,
                 description: metas[i].description,
