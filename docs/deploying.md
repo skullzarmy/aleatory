@@ -433,17 +433,24 @@ factory goes up first, the router moves second, and the site ships last.
 6. Verify the factory before anyone is pointed at it: its `deploy` entrypoint
    takes the fields the new site sends, its views are present, and its
    administrator and resolver are the live ones.
-7. **The administrator points the router at it**, which is a different key
+7. **Restart the render provider on the branch**, before anything is pointed
+   at the new factory. It reads the same contracts either way, so running it
+   early costs nothing and means no piece is ever published with a document
+   written by code that predates the change.
+8. **The administrator points the router at it**, which is a different key
    from the deployer by design, so this step belongs to whoever holds it. The
    admin console has it under the router, or
    `npm run router -- --network mainnet add-factory KT1…`.
-8. Confirm the router's head is the new factory and the old one is still
+9. Confirm the router's head is the new factory and the old one is still
    listed behind it.
-9. Merge, which ships the site.
-10. Restart the render provider so new pieces carry whatever the change added
-    to their documents. `set_token_metadata` is a plain write, so anything
-    published in between is correctable with `provider:retry`.
+10. Merge, which ships the site, then restart the provider again from `main`
+    so the box is running a released commit rather than a branch.
 
-Steps 1 to 6 change nothing for anyone. The template is live from step 7, and
+Steps 1 to 7 change nothing for anyone. The template is live from step 8, and
 reversible there too: pointing the router back at the previous factory is one
 more `add-factory`.
+
+The provider is deliberately on both sides of that. It is the one component
+whose output is correctable after the fact, since `set_token_metadata` is a
+plain write and `provider:retry` republishes, so a mistake in its timing costs
+a rerun rather than a stranded piece.
