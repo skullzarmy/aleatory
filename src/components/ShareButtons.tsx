@@ -86,7 +86,10 @@ export function ShareButtons({
                 text: tezcityText,
                 url,
             })}`,
-            icon: <Tower />,
+            icon: <Tzct />,
+            // Their brand notes ask for this wording, and only the label a
+            // screen reader and a tooltip carry is long enough to hold it.
+            verb: "to",
         },
     ];
 
@@ -121,11 +124,13 @@ export function ShareButtons({
                         href={n.href}
                         target="_blank"
                         rel="noreferrer"
-                        title={`Share on ${n.name}`}
+                        title={`Share ${n.verb ?? "on"} ${n.name}`}
                         className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
                     >
                         {n.icon}
-                        <span className="sr-only">Share on {n.name}</span>
+                        <span className="sr-only">
+                            Share {n.verb ?? "on"} {n.name}
+                        </span>
                         <span aria-hidden>{n.name}</span>
                     </a>
                 ))}
@@ -183,11 +188,19 @@ function Arch() {
     );
 }
 
-/** Neutral mark. Not TezCity's own, which is theirs to supply. */
-function Tower() {
+/**
+ * TezCity's own TZCT monogram, their `currentColor` variant, which inherits
+ * the button's colour the way every other mark here does. Their brand notes
+ * ask that the square proportions and built-in spacing are kept, so the
+ * 512 viewBox is used as published rather than cropped to the glyph.
+ */
+function Tzct() {
     return (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-            <path d="M3 21V9l6-3v3l6-3v4h5v11H3zm2-2h4v-8H5v8zm6 0h4v-9h-4v9zm6 0h3v-7h-3v7z" />
+        <svg width="14" height="14" viewBox="0 0 512 512" fill="currentColor" aria-hidden>
+            <path d="M106 99H250V127H193V248H163V127H106Z" />
+            <path d="M266 99H407V122L310 221H407V248H266V225L362 127H266Z" />
+            <path d="M106 275H247V303H135V393H250V421H106Z" />
+            <path d="M266 275H407V303H354V421H324V303H266Z" />
         </svg>
     );
 }
