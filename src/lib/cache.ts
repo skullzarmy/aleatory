@@ -59,12 +59,27 @@ export function resetRedisClientForTesting() {
 /**
  * Wraps an asynchronous query with Tier 1 process memory and Tier 2 Redis SWR.
  */
+/**
+ * The shape of what is cached, not the cache's own version.
+ *
+ * Entries outlive a deploy: Redis holds them for a day and the key says
+ * nothing about the shape of the value, so code that changed a cached type
+ * reads back the old one and falls over on a field that is now missing. A
+ * piece cached as `artist: string` and read as `artists: string[]` is a 500
+ * on every piece page, for a day, for exactly the pieces that were popular
+ * enough to be cached.
+ *
+ * **Bump this whenever a cached type changes.** It costs one cold fetch per
+ * key and is the only thing standing between a type change and an outage.
+ */
+const SCHEMA = 2;
+
 export async function cacheWrap<T>(
     key: string,
     fetcher: () => Promise<T>,
     opts: CacheOptions = {},
 ): Promise<T> {
-    const fullKey = `aleatory:${NETWORK}:${key}`;
+    const fullKey = `aleatory:v${SCHEMA}:${NETWORK}:${key}`;
     const freshMs = opts.freshMs ?? 30_000;
     const l1Ms = opts.l1Ms ?? 15_000;
     const redisTtlSec = opts.redisTtlSec ?? 86_400;
