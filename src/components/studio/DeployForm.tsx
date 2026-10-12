@@ -1042,44 +1042,6 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 </div>
             )}
 
-            <div className="space-y-3 rounded-lg border border-border p-4">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <p className="text-sm font-medium">Support the platform</p>
-                        <p className="text-xs text-muted-foreground">
-                            Give Aleatory a cut of your royalty on resales. Your mint price is yours
-                            in full: the contract takes nothing from it.
-                        </p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => setPlatformShare((v) => !v)}
-                        className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
-                    >
-                        {platformShare ? "Remove" : "Add platform"}
-                    </button>
-                </div>
-
-                {platformShare && (
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="number"
-                            inputMode="decimal"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={platformPercent}
-                            onChange={(e) => setPlatformPercent(e.target.value)}
-                            aria-label="Platform share, percent of your royalty"
-                            className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums"
-                        />
-                        <span className="text-xs text-muted-foreground">
-                            percent of your royalty, not of the mint price
-                        </span>
-                    </div>
-                )}
-            </div>
-
             <Field
                 label="Royalty on each sale"
                 permanent
@@ -1158,6 +1120,45 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     </p>
                 </div>
             )}
+
+            <div className="space-y-3 rounded-lg border border-border p-4">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <p className="text-sm font-medium">Support the platform</p>
+                        <p className="text-xs text-muted-foreground">
+                            Give Aleatory a share of the royalty above, out of your own. Every mint
+                            stays yours and your collaborators&apos;: the contract takes nothing
+                            from a mint.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setPlatformShare((v) => !v)}
+                        className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+                    >
+                        {platformShare ? "Remove" : "Add platform"}
+                    </button>
+                </div>
+
+                {platformShare && (
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={platformPercent}
+                            onChange={(e) => setPlatformPercent(e.target.value)}
+                            aria-label="Platform share, percent of your royalty"
+                            className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                            percent of your royalty, not of the mint price
+                        </span>
+                    </div>
+                )}
+            </div>
 
             <div className="space-y-3 rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-4">
