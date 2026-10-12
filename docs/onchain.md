@@ -23,8 +23,8 @@ so they are here at the front of the queue.
 
 ## Where the artwork is
 
-A generator holds its own source in storage, in `art.code`. Not a link to the
-source. The bytes.
+A generator holds its own source in storage, in `art.code`. The bytes
+themselves, addressable at that path.
 
 Take `KT1KD3b5LZQ8qaoXcN4ZM7w6sk1miapkZodY`, a live mainnet generator. Ask any
 Tezos node for its storage:
@@ -75,36 +75,47 @@ This is also the honest version of a limitation. An operation hash covers
 fields the sender controls, so a determined collector can enumerate candidate
 operations offline and inject only the one they like. That is a documented
 property of an operation-hash seed and it was accepted knowingly. It costs one
-payment and arbitrarily many attempts, and it is written down in
-[interface.md](interface.md) rather than discovered later.
+payment and arbitrarily many attempts, and [interface.md](interface.md) has
+carried it since before the first mint.
 
 Mint-time parameters, where a generator declares any, travel in that same
 operation as the collector's own signed argument. Token 10's generator
 declares none, so its `aleaParams` is `{}`.
 
-## Nothing in the document is taken on trust
+## The document adds nothing
 
-A piece's metadata document is a JSON file pinned on IPFS, which is where
-every Tezos NFT keeps it. The pointer to it lives in contract storage, under
-`token_info[""]`:
+Each piece has a metadata document, a JSON file, and its `ipfs://` pointer
+lives in contract storage under `token_info[""]`:
 
 ```
 ipfs://QmXZMmnrxiK7RkfkMbSArA2VBAT8FJ5ZLvvnin2gexBkva
 ```
 
-Fetch it and every claim it makes is checkable against the chain:
+**Every field in it is a deterministic function of chain state.** Nothing in
+the file originates there:
 
-| The document says | The chain says |
+| The document says | Derived from |
 |---|---|
-| `aleaSeed: oonnqfeE3W…` | the hash of the operation that minted token 10 |
-| `aleaCodeHash: 6bb55609…` | `art.code_hash` in the generator's storage |
-| `aleaCode: art.code` | where to find the source, in that same storage |
-| `creators: [tz1ae2d…]` | who the contract records as having made it |
+| `aleaSeed` | the hash of the operation that minted the token |
+| `aleaCodeHash` | `art.code_hash` in the generator's storage |
+| `aleaCode` | where the source sits in that same storage |
+| `aleaParams` | the argument the collector signed in that operation |
+| `creators` | who the contract records as having made it |
 | `royalties` | `art.royalties`, which the marketplace pays from |
+| `attributes` | running the on-chain program against that seed |
+| `name`, `description`, `tags` | the generator's own metadata in storage |
 
-The document is a convenience for marketplaces that cannot read contract
-storage. It is not a source of truth, and it does not have to be, because
-everything it asserts is checkable against something that is.
+Given a token id, the document can be recomputed from the chain alone. The
+copy on IPFS is that computation's result, stored so a marketplace can read a
+piece without executing a program to learn its name.
+
+This is why pinning it is a caching decision. A cache that carried original
+information would be load bearing, and losing it would lose something. This
+one derives everything it holds from a source that is still there, so a copy
+that vanished can be rebuilt and a copy that disagrees with the chain is
+discardable on sight. Publishing a wrong document is possible and is not
+preventable on chain; it is detectable by anyone, because the correct contents
+are computable.
 
 `aleaCode` is the newest of those fields and it exists because of a fair
 criticism. A checker that read only the three image fields found three IPFS
@@ -131,31 +142,34 @@ generator calling `mint`. Its hash is the seed, and the document has to agree.
 harness conforming to [ALEATORY-001](interface.md) section 7. Deterministic,
 so it draws what was published.
 
-If any of those disagree, something is wrong and it is visible to anyone
-checking. That is the property worth having. Not that we are trustworthy, but
-that trusting us is unnecessary.
+If any of those disagree, something is wrong and anyone checking can see it.
+That is the property worth having: trusting us is unnecessary, which is a
+stronger position than our being trustworthy.
 
-## What is on IPFS, and what follows from it
+## The image is derived too
 
-Two things: the rendered image, and the metadata document above.
+Two things are pinned: that document, and the rendered image.
 
-Both are reproducible from chain data. The image is the program plus the seed
-plus the parameters, all on chain, through a deterministic harness. The
-document is assembled from the generator's own storage and that same
-operation. Pinning them is a convenience for marketplaces and feeds that need
-a picture and a JSON file without executing anything.
+The image is the program, the seed and the parameters, through a deterministic
+harness. Those three inputs are on chain, and the harness is fixed, so the
+same inputs produce the same pixels on any machine that runs them. The
+published image is one evaluation of a function whose arguments the chain
+already holds.
 
-So if every pin vanished tomorrow, every piece could be regenerated, byte for
-byte, by anybody. What would be lost is the convenience, and the time it takes
-to rebuild it.
+A feed, a search result and a marketplace listing all need a picture without
+executing a program to get one, which is what pinning buys.
+
+If every pin vanished, every piece could be regenerated byte for byte by
+anybody. What would be lost is the time it takes to rebuild them.
 
 ## What is not claimed
 
 Overclaiming is how this argument gets lost, so here is the full list of
 things that are not on chain.
 
-**The rendered image.** It is pinned on IPFS. It is derived, not authored, and
-it is reproducible, but it is not in contract storage.
+**The rendered image.** Pinned on IPFS, and reproducible from chain data, and
+still absent from contract storage. Someone asking whether the picture is on
+chain should hear no.
 
 **Declared libraries.** A generator may declare a library from npm, recorded
 with its exact version and a blake2b hash of the file. The bytes come from a
