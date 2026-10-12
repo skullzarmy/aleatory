@@ -63,7 +63,7 @@ Three parties, and only the first is required for a piece to exist.
   nothing writes it afterwards. A mistake in a published piece is permanent,
   which is why the checks happen before minting.
 - **A generator can have more than one artist.** `collab.shares` divides the
-  mint price between up to eight people, paid in the collector's own
+  mint price between up to fifty people, paid in the collector's own
   operation. Being paid and being credited are separate lists
   that do not constrain each other: a studio takes a cut without being listed
   as an artist, an artist can waive their share and still be credited, and

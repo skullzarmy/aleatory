@@ -135,7 +135,7 @@ interface name a generator declares in its TZIP-016 metadata.
 
 ### More than one artist
 
-`collab.shares` is who the mint price is divided between, up to eight
+`collab.shares` is who the mint price is divided between, up to fifty
 recipients, paid in the collector's own operation. The payout probes each one
 and routes an undeliverable share, plus the rounding remainder, to the
 administrator, so the collection never retains a balance and one address

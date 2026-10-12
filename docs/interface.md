@@ -388,7 +388,7 @@ nothing iterates it on a paying path.
 `mint` divides the price between them in the collector's own operation,
 probing each recipient and routing what it cannot deliver, plus the rounding
 remainder, to the administrator; the collection holds no balance when it
-returns. At most eight recipients, because that loop's gas is paid by every
+returns. At most fifty recipients, because that loop's gas is paid by every
 collector for the life of the edition.
 
 `confirmed` governs credit and nothing else. A co-author is paid from the
