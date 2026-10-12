@@ -77,17 +77,42 @@ check("shares are decoded as numbers, not strings", () => {
     );
 });
 
-check("confirmed is sorted, so two reads credit in the same order", () => {
+check("the administrator comes first, whatever order storage returns", () => {
     const { collab } = normalizeCollab({
         administrator: B,
         template_version: "2",
         collab: {
             shares: { [A]: "5000", [B]: "5000" },
             creditable: [A, B],
-            confirmed: [B, A],
+            confirmed: [A, B],
         },
     });
-    assert.deepEqual(collab.confirmed, [A, B]);
+    // A sorts first. Anywhere with room for one name shows the person the
+    // work is attributed to, not whichever address sorts lowest.
+    assert.deepEqual(collab.confirmed, [B, A]);
+    assert.deepEqual(collab.creditable, [B, A]);
+});
+
+check("the rest stay alphabetical behind them, so a read is stable", () => {
+    const { collab } = normalizeCollab({
+        administrator: C,
+        template_version: "2",
+        collab: {
+            shares: { [A]: "4000", [B]: "3000", [C]: "3000" },
+            creditable: [C, B, A],
+            confirmed: [B, C, A],
+        },
+    });
+    assert.deepEqual(collab.confirmed, [C, A, B]);
+});
+
+check("a handover to somebody who has not accepted falls back to alphabetical", () => {
+    const { collab } = normalizeCollab({
+        administrator: C,
+        template_version: "2",
+        collab: { shares: { [A]: "10000" }, creditable: [A, B], confirmed: [B, A] },
+    });
+    assert.deepEqual(collab.confirmed, [A, B], "C is not in the set to put first");
 });
 
 check("a member who has not accepted is counted, and not credited", () => {

@@ -41,6 +41,23 @@ export interface CollabStorage {
     };
 }
 
+/**
+ * Whoever holds the generator first, then everyone else alphabetically.
+ *
+ * Stable, so one generator reads the same way every time, and the head is
+ * the person the work is attributed to rather than whichever address sorts
+ * lowest: anywhere with room for one name shows that one.
+ *
+ * The administrator is confirmed from origination and cannot leave the set,
+ * so the only way they are missing is a handover to somebody who has not
+ * accepted, and plain alphabetical is the honest answer then.
+ */
+function order(addresses: string[], admin: string): string[] {
+    const rest = [...addresses].sort();
+    if (!rest.includes(admin)) return rest;
+    return [admin, ...rest.filter((a) => a !== admin)];
+}
+
 export function normalizeCollab(storage: CollabStorage): {
     templateVersion: number;
     collab: Collab;
@@ -67,9 +84,8 @@ export function normalizeCollab(storage: CollabStorage): {
                 address,
                 bps: Number.parseInt(String(bps), 10) || 0,
             })),
-            creditable: [...(raw.creditable ?? [])].sort(),
-            // Sorted so two reads of one generator credit in the same order.
-            confirmed: [...(raw.confirmed ?? [])].sort(),
+            creditable: order(raw.creditable ?? [], storage.administrator),
+            confirmed: order(raw.confirmed ?? [], storage.administrator),
         },
     };
 }

@@ -215,7 +215,12 @@ function creatorsOf(storage: GeneratorStorage): string[] {
     // taking a cut cannot reach this list.
     const confirmed = storage.collab?.confirmed ?? [];
     if (confirmed.length === 0) return [storage.administrator];
-    return [...confirmed].sort();
+    // Administrator first, the rest alphabetically. Stable across publishes,
+    // and `creators[0]` is the person the work is attributed to rather than
+    // whichever address happens to sort lowest.
+    const rest = [...confirmed].sort();
+    if (!rest.includes(storage.administrator)) return rest;
+    return [storage.administrator, ...rest.filter((a) => a !== storage.administrator)];
 }
 
 /**

@@ -300,6 +300,23 @@ export async function fetchSealedStates(generators: string[]): Promise<Map<strin
  * `collab` is asked for first and `administrator` only when it is missing, so
  * a current generator costs one request and an older one costs two.
  */
+/**
+ * Whoever holds the generator first, then everyone else alphabetically.
+ *
+ * Stable, so one generator reads the same way every time, and the head is
+ * the person the work is attributed to rather than whichever address sorts
+ * lowest. Anywhere with room for one name shows that one.
+ *
+ * The administrator is in `confirmed` from origination and cannot leave it,
+ * so the only way they are missing here is a handover to somebody who has
+ * not accepted; plain alphabetical is the honest answer then.
+ */
+function orderCreators(confirmed: string[], admin: unknown): string[] {
+    const rest = [...confirmed].sort();
+    if (typeof admin !== "string" || !rest.includes(admin)) return rest;
+    return [admin, ...rest.filter((a) => a !== admin)];
+}
+
 const ARTIST_CONCURRENCY = 8;
 export async function fetchCreators(generators: string[]): Promise<Map<string, string[]>> {
     const creators = new Map<string, string[]>();
@@ -319,16 +336,20 @@ export async function fetchCreators(generators: string[]): Promise<Map<string, s
         for (;;) {
             const address = queue.shift();
             if (address === undefined) return;
-            const collab = (await read(address, "collab")) as { confirmed?: unknown } | null;
+            // Both, because the order matters as much as the membership: a
+            // card has room for one name and alphabetical order makes which
+            // one arbitrary.
+            const [collab, admin] = await Promise.all([
+                read(address, "collab") as Promise<{ confirmed?: unknown } | null>,
+                read(address, "administrator") as Promise<unknown>,
+            ]);
             const confirmed = Array.isArray(collab?.confirmed)
                 ? collab.confirmed.filter((a): a is string => typeof a === "string")
                 : [];
             if (confirmed.length > 0) {
-                // Sorted so one generator credits in the same order every read.
-                creators.set(address, [...confirmed].sort());
+                creators.set(address, orderCreators(confirmed, admin));
                 continue;
             }
-            const admin = await read(address, "administrator");
             if (typeof admin === "string") creators.set(address, [admin]);
         }
     }
