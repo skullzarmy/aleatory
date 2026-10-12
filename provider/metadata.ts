@@ -184,6 +184,24 @@ export interface PieceDocInput extends Omit<PendingDocInput, "split" | "placehol
      */
     nameTrait?: string;
     codeHash: string;
+    /**
+     * Where the source actually is, and how to decode it once fetched.
+     *
+     * `aleaCodeHash` alone says whether bytes you already have are the right
+     * ones. It does not say where to get them, so a reader holding only this
+     * document had to know our storage layout to find a generator that is
+     * sitting on chain, and anything inspecting the token's URIs saw three
+     * IPFS pointers to a PNG and concluded the art was off chain.
+     *
+     * `art.code` for a generator in storage, which is the normal case, and
+     * the `ipfs://` pointer for one too large to carry there. A path rather
+     * than a `tezos-storage:` URI on purpose: that scheme resolves against
+     * the contract's metadata big_map, not an arbitrary storage path, and a
+     * URI that looks standard while meaning something else is worse than a
+     * field that is plainly ours.
+     */
+    codeStorage: string;
+    codeEncoding: string;
 }
 
 /** `[collection name] #[n]`, the convention every indexer expects (docs/decisions.md §11). */
@@ -240,6 +258,9 @@ export function buildPieceDocument(input: PieceDocInput) {
         ...(tags.length > 0 ? { tags } : {}),
         aleaSeed: input.seed,
         aleaCodeHash: input.codeHash,
+        // Resolved against this token's own contract when it is a path.
+        aleaCode: input.codeStorage,
+        aleaCodeEncoding: input.codeEncoding,
         aleaParams: input.params ? JSON.stringify(input.params) : "",
         // Traits first, then params: declared features are what the artist
         // meant to be shown to a collector, params are inputs that happen to

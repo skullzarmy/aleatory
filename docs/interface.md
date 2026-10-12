@@ -163,6 +163,32 @@ cannot do is pay an address that will not take the money, or change the map
 afterwards, so the obligation to catch a bad address while it is still
 correctable sits with whoever writes it down.
 
+### Say where the source is
+
+**A piece's document must point at its own source.**
+
+`aleaCodeHash` says whether bytes you already have are the right ones. It
+does not say where to get them. A reader holding only the document had to
+know an implementation's storage layout to find a generator sitting on chain,
+and a tool inspecting the token's `artifactUri`, `displayUri` and
+`thumbnailUri` saw three pointers to a PNG and concluded the art was off
+chain. It was not; it was in the contract the token belongs to, unreferenced.
+
+```json
+"aleaCode": "art.code",
+"aleaCodeEncoding": "gzip",
+"aleaCodeHash": "6bb556…"
+```
+
+A storage path is resolved against the token's own contract. A generator past
+the operation cap carries its `ipfs://` pointer here instead, which is the
+only case where the source is not on chain at all.
+
+A path and not a `tezos-storage:` URI: that scheme resolves against a
+contract's `metadata` big_map rather than an arbitrary storage path, and a URI
+that looks standard while meaning something else is worse than a field that is
+plainly one implementation's.
+
 ### Attribution
 
 **A generator's documents name who made it, in `creators`.**
@@ -467,6 +493,7 @@ Everything a front end needs, from public chain data:
 | A piece's parameters | the `params` field of that same event |
 | Who to pay on a sale | `get_royalties()` on the generator |
 | Who made a generator | `creators` in any of its pieces' documents |
+| Where a piece's source is | `aleaCode` in its document, with `aleaCodeEncoding` |
 | Which template a collection is | `template_version` in its storage, absent meaning 1 |
 | Every marketplace there has been | the router's storage history, `marketplace` at each state |
 

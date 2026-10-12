@@ -134,6 +134,8 @@ interface PendingPiece {
     /** The generator source, out of contract storage. */
     code: string;
     codeUri: string;
+    /** `identity` or `gzip`, straight off storage, so a reader can decode it. */
+    codeEncoding: string;
     /** Libraries the generator says its source expects to be loaded. */
     libraries: DeclaredLibrary[];
     /** Who the document credits: the collaborators who confirmed. */
@@ -417,6 +419,7 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
                 params: buy.params,
                 code,
                 codeUri,
+                codeEncoding: storage.art.code_encoding ?? "identity",
                 libraries,
                 paramsSchema,
                 nameTrait,
@@ -741,6 +744,7 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
         params: mint.params,
         code,
         codeUri: storage.art.code_uri ?? "",
+        codeEncoding: storage.art.code_encoding ?? "identity",
         libraries: parseLibraries(await metadataKey(generator, "aleatory:libraries")),
         paramsSchema: await paramsSchemaOf(generator),
         nameTrait: await nameTraitOf(generator),
@@ -779,6 +783,10 @@ export async function handle(piece: PendingPiece): Promise<string> {
         description: piece.description,
         tags: piece.tags,
         creators: piece.creators,
+        // The source is in this contract's storage unless it was too large
+        // to carry there, which is the only case a pointer exists for.
+        codeStorage: piece.codeUri || "art.code",
+        codeEncoding: piece.codeEncoding,
         tokenId: Number(piece.tokenId),
         imageUri: imageUri,
         seed: piece.seed,

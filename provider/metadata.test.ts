@@ -124,6 +124,8 @@ check("edition numbers display 1-based over 0-based token ids", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
     });
     assert.equal(doc.name, "Drift #1");
 });
@@ -137,6 +139,8 @@ check("parameters land in aleaParams and in attributes", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         params: { density: 140, ink: "black" },
     });
     assert.equal(doc.name, "Drift #42");
@@ -156,6 +160,8 @@ check("features land in attributes, ahead of params", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         params: { density: 140 },
         features: { Palette: "warm", Count: 3 as unknown as string },
     });
@@ -175,6 +181,8 @@ check("no features reported is attributes built from params alone", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         params: { density: 140 },
         features: {},
     });
@@ -192,6 +200,8 @@ check("not declared at all: the plain form, unaffected", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         features: { Name: "Mochi Purrington" },
         // nameTrait omitted entirely.
     });
@@ -207,6 +217,8 @@ check("declared and present: the trait value is appended", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         features: { Name: "Mochi Purrington" },
         nameTrait: "Name",
     });
@@ -222,6 +234,8 @@ check("declared, but this piece's features don't have it: falls back to plain", 
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         features: { Temperament: "shy" },
         nameTrait: "Name",
     });
@@ -237,6 +251,8 @@ check("declared, no features reported at all: falls back to plain", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         nameTrait: "Name",
     });
     assert.equal(doc.name, "Prancers #12");
@@ -253,6 +269,8 @@ check(
             imageUri: "ipfs://image",
             seed: "oo1",
             codeHash: "aa",
+            codeStorage: "art.code",
+            codeEncoding: "identity",
             features: { Name: "   " },
             nameTrait: "Name",
         });
@@ -269,6 +287,8 @@ check("declared, trait value is a number: coerced to a string, not dropped", () 
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         features: { Lucky: 7 as unknown as string },
         nameTrait: "Lucky",
     });
@@ -285,6 +305,8 @@ check("declared, trait value is absurdly long: truncated, never a broken or gian
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         features: { Name: long },
         nameTrait: "Name",
     });
@@ -304,6 +326,8 @@ check("piece document: artifactUri always equals imageUri", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
     });
     assert.equal(doc.artifactUri, "ipfs://image");
 });
@@ -339,6 +363,8 @@ check("piece document: carries the same symbol as the pending one did", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
     });
     assert.equal(doc.symbol, GENERATOR_SYMBOL);
 });
@@ -354,6 +380,8 @@ check("not declared at all: no tags key on the document", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
     });
     assert.ok(!("tags" in doc));
 });
@@ -367,6 +395,8 @@ check("declared: lands on the document as-is", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         tags: ["generative", "glitch"],
     });
     assert.deepEqual(doc.tags, ["generative", "glitch"]);
@@ -413,6 +443,8 @@ check("empty array: same as not declared, no tags key", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
         tags: [],
     });
     assert.ok(!("tags" in doc));
@@ -477,6 +509,8 @@ check("one creator, which is every solo generator", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
     });
     assert.deepEqual(doc.creators, [A]);
 });
@@ -490,6 +524,8 @@ check("several creators, in the order given", () => {
         imageUri: "ipfs://image",
         seed: "oo1",
         codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
     });
     assert.deepEqual(doc.creators, [B, A, C]);
 });
@@ -532,6 +568,58 @@ check("cleanCreators: bounded, and far above any real collaboration", () => {
 check("cleanCreators: anything that is not a list is nobody", () => {
     assert.deepEqual(cleanCreators(undefined), []);
     assert.deepEqual(cleanCreators("tz1"), []);
+});
+
+console.log("\nwhere the source is");
+
+check("a generator in storage points at the storage path", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        creators: [A],
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "gzip",
+    });
+    assert.equal(doc.aleaCode, "art.code");
+    assert.equal(doc.aleaCodeEncoding, "gzip");
+    assert.equal(doc.aleaCodeHash, "aa", "the hash still says whether those bytes are right");
+});
+
+check("a generator past the operation cap points at its pointer instead", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        creators: [A],
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        codeStorage: "ipfs://QmSource",
+        codeEncoding: "identity",
+    });
+    assert.equal(doc.aleaCode, "ipfs://QmSource");
+});
+
+check("the source pointer is not the image pointer", () => {
+    const doc = buildPieceDocument({
+        generatorName: "Drift",
+        creators: [A],
+        royalties: encodeRoyalties({ totalPercent: 0, recipients: [] }),
+        tokenId: 0,
+        imageUri: "ipfs://image",
+        seed: "oo1",
+        codeHash: "aa",
+        codeStorage: "art.code",
+        codeEncoding: "identity",
+    });
+    // The three URI fields are a PNG. Anything reading only those concluded
+    // the art was off chain, which is the whole reason aleaCode exists.
+    assert.equal(doc.artifactUri, "ipfs://image");
+    assert.notEqual(doc.aleaCode, doc.artifactUri);
 });
 
 console.log(failures === 0 ? "\nall passed" : `\n${failures} failed`);

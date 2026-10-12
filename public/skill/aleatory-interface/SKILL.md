@@ -208,6 +208,17 @@ forever. The same obligation covers any map a generator divides its mint price
 between, where the payout runs inside `mint` and a recipient that accepts then
 fails breaks every mint of the edition.
 
+### Where the source is
+
+`aleaCode` in a piece's document, with `aleaCodeEncoding` beside it and
+`aleaCodeHash` to check what you fetched. A storage path like `art.code`
+resolves against the token's own contract; an `ipfs://` value means the
+generator was past the operation cap and is not on chain.
+
+Do not read the source from `artifactUri`. That is the rendered image, as are
+`displayUri` and `thumbnailUri`, so a tool looking only at those will report a
+fully on-chain generator as off-chain storage.
+
 ### Who made it
 
 `creators` in a piece's document, an array of addresses, the TZIP-21 field.

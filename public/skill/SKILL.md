@@ -51,6 +51,10 @@ Three parties, and only the first is required for a piece to exist.
 
 ## Facts worth having in any of these conversations
 
+- **A piece's document says where its source is**, in `aleaCode`, with
+  `aleaCodeEncoding` and `aleaCodeHash`. The three `*Uri` fields are all the
+  rendered image, so reading those alone reports an on-chain generator as
+  off-chain.
 - **The seed is the mint operation's hash.** Nobody picks it and nobody can
   predict it, including the collector who caused it.
 - **A generator is immutable.** `code`, `code_hash`, `code_uri`, `royalties`
