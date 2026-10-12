@@ -14,6 +14,7 @@
         "build:contracts": "python3 contract/build.py",
         "test:contracts": "SMARTPY_OUTPUT_DIR=contract/output python3 contract/tests_aleatory.py && SMARTPY_OUTPUT_DIR=contract/output python3 contract/tests_marketplace.py && SMARTPY_OUTPUT_DIR=contract/output python3 contract/tests_integration.py",
         "deploy": "npx tsx contract/deploy.ts",
+        "router": "npx tsx contract/router.ts",
         "deploy:collection": "npx tsx contract/deploy-collection.ts",
         "test:metadata": "npx tsx provider/metadata.test.ts",
         "build:icons": "npx tsx scripts/build-icons.mts",

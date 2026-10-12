@@ -387,6 +387,16 @@ distinct addresses; the script refuses if any two match or if any is the
 deployer. The admin key can pause trading, change the fee and hand
 administration on, so decide where it lives before running this.
 
+**The router has to name them.** `npm run router -- --network <net> show` prints
+what it currently points at, and `add-factory`, `set-marketplace`,
+`set-registry` and `set-resolver` change one entry each. `deploy.ts` originates
+contracts and stops, so a new factory sits unused until this runs. It asks the
+chain for its own id and refuses if that disagrees with `--network`.
+
+A new collection template means a new factory, and `add_factory` prepends
+rather than replaces: new deploys go to the head and every collection an
+earlier factory made keeps working.
+
 **The provider is per network.** A provider contract and an agent key on that
 chain, because a provider is a contract and cannot be shared across chains.
 
