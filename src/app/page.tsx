@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { fetchAllGenerators, type GeneratorSummary } from "@/lib/generator";
+import { fetchGeneratorPage, type GeneratorPage } from "@/lib/generator";
 import { EmptyFeed } from "@/components/feed/EmptyFeed";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { LastGood } from "@/components/LastGood";
 import { ReadFailed } from "@/components/ReadFailed";
 import { SiteJsonLd } from "@/components/JsonLd";
-import { GeneratorGrid } from "@/components/generator/GeneratorCard";
+import { GeneratorFeed } from "@/components/generator/GeneratorFeed";
 import { BRAND } from "@/lib/config";
 
 export const metadata: Metadata = {
@@ -31,20 +31,23 @@ export const dynamic = "force-dynamic";
 // TzKT's alias is set only for contracts it recognizes, never ours, so the display
 // name comes from the generator's own metadata instead.
 export default async function HomePage() {
-    let all: GeneratorSummary[];
+    // The first page only. The rest arrive as the reader scrolls, because
+    // resolving every generator's name, artist and state on one request is
+    // what an indexer starts refusing once the catalog is large.
+    let page: GeneratorPage;
     try {
-        all = await fetchAllGenerators({ paused: true, sealed: true });
+        page = await fetchGeneratorPage(20);
     } catch {
         return <ReadFailed />;
     }
-    const generators = all.filter((g) => !g.paused && g.sealed);
+    const generators = page.generators;
 
     if (generators.length === 0) {
         return (
             <LastGood>
                 <div className="mx-auto max-w-7xl px-4 py-8">
                     <LiveRefresh seconds={60} />
-                    <EmptyFeed reason={all.length === 0 ? "unconfigured" : "no-generators"} />
+                    <EmptyFeed reason={page.unconfigured ? "unconfigured" : "no-generators"} />
                 </div>
             </LastGood>
         );
@@ -62,7 +65,7 @@ export default async function HomePage() {
                     </p>
                 </div>
 
-                <GeneratorGrid generators={generators} />
+                <GeneratorFeed initial={generators} cursor={page.cursor} />
             </div>
         </LastGood>
     );

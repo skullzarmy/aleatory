@@ -286,6 +286,134 @@ export interface GeneratorSummary {
     sealed: boolean;
 }
 
+export interface GeneratorPage {
+    generators: GeneratorSummary[];
+    /** The address to ask after for the next page. Absent at the end. */
+    cursor?: string;
+    unconfigured: boolean;
+}
+
+/**
+ * Candidates resolved beyond the page being filled, to cover the paused and
+ * unsealed ones that will be dropped.
+ *
+ * One pass, not a loop: a page short of its limit costs nothing, because the
+ * cursor advances to the last generator actually used and the next scroll
+ * continues from there. Looping until exactly twenty survived would make the
+ * request count depend on how many happen to be paused.
+ */
+const OVERFETCH = 10;
+
+/**
+ * One page of the catalog, and where the next one starts.
+ *
+ * The expensive part of a generator is per-generator: its name, its artist,
+ * whether it is paused, whether it is sealed. Resolving those for the whole
+ * catalog cost five small requests per generator on every page load, which an
+ * indexer answers with 429 once the catalog is large enough, and a throttled
+ * answer reads as a generator with no name.
+ *
+ * So the cheap list comes first, one request per factory, already ordered.
+ * This walks it in chunks resolving only what decides visibility, and
+ * resolves the rest for the twenty that survive. The cost of a page is fixed
+ * whatever the catalog grows to.
+ *
+ * Addressed by cursor rather than offset: a generator paused between one
+ * request and the next shifts every later row, which with an offset silently
+ * skips a card.
+ */
+export async function fetchGeneratorPage(limit = 20, after?: string): Promise<GeneratorPage> {
+    const key = `catalog:page:${limit}:${after ?? "start"}`;
+    return cacheWrap(
+        key,
+        async () => {
+            const factories = (await readAddresses()).factories;
+            if (factories.length === 0) {
+                return { generators: [], unconfigured: true };
+            }
+            const settled = await Promise.allSettled(factories.map((f) => fetchGenerators(f)));
+            if (settled.every((r) => r.status === "rejected")) throw settled[0].reason;
+            const seen = new Set<string>();
+            const rows = settled
+                .map((r) => (r.status === "fulfilled" ? r.value : []))
+                .flat()
+                .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
+                .filter((c) => !isBlockedGenerator(c.address))
+                .sort((a, b) =>
+                    (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""),
+                );
+
+            // Everything after the cursor. An address that has since left the
+            // list reads as the start, which repeats a page rather than
+            // skipping one.
+            const from = after ? rows.findIndex((c) => c.address === after) + 1 : 0;
+            const pending = rows.slice(from || 0);
+
+            const candidates = pending.slice(0, limit + OVERFETCH);
+            const [paused, sealed] = await Promise.all([
+                fetchPausedStates(candidates.map((c) => c.address)).catch(
+                    () => new Map<string, boolean>(),
+                ),
+                fetchSealedStates(candidates.map((c) => c.address)).catch(
+                    () => new Map<string, boolean>(),
+                ),
+            ]);
+
+            const visible = candidates
+                // Unknown reads as live, the same fail-open bias the badges
+                // take: a generator missing from the grid is worse than one
+                // shown that should not have been.
+                .filter((c) => !(paused.get(c.address) ?? false) && (sealed.get(c.address) ?? true))
+                .slice(0, limit);
+
+            const addresses = visible.map((c) => c.address);
+            const [metas, covers, editions, artists] = await Promise.all([
+                fetchGeneratorMetas(addresses),
+                coversFor(addresses).catch(() => new Map<string, string>()),
+                fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
+                fetchCreators(addresses).catch(() => new Map<string, string[]>()),
+            ]);
+
+            const generators: GeneratorSummary[] = visible.map((c) => {
+                const meta = metas.get(c.address) ?? {};
+                const own = meta.thumbnailUri || meta.displayUri;
+                return {
+                    address: c.address,
+                    artists: artists.get(c.address),
+                    name: meta.name || c.alias,
+                    description: meta.description,
+                    coverUrl: own ? ipfsImageUrl(own) : covers.get(c.address),
+                    minted: c.tokensCount ?? 0,
+                    editionSize: editions.get(c.address) ?? 0,
+                    firstActivity: c.firstActivityTime,
+                    paused: false,
+                    sealed: true,
+                };
+            });
+
+            // The last generator actually used, so the next page resumes
+            // after it and the ones dropped here are never looked at again.
+            // A page can come back short of its limit without being the end,
+            // which is why this is decided by what is left in the list rather
+            // than by how many survived.
+            const used = visible.length > 0 ? visible[visible.length - 1].address : undefined;
+            const consumed = used
+                ? candidates.findIndex((c) => c.address === used) + 1
+                : candidates.length;
+            const exhausted = consumed >= pending.length;
+
+            return {
+                generators,
+                cursor: exhausted
+                    ? undefined
+                    : (used ?? candidates[candidates.length - 1]?.address),
+                unconfigured: false,
+            };
+        },
+        { freshMs: 30_000, l1Ms: 15_000, redisTtlSec: 86_400 },
+    );
+}
+
 /**
  * `paused` and `sealed` default off: each is one uncached TzKT request per
  * generator, and the market page calls this just to build a name map, never
