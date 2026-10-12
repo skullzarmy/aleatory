@@ -401,3 +401,49 @@ earlier factory made keeps working.
 chain, because a provider is a contract and cannot be shared across chains.
 
 The isolate does not change. It never knew which chain it was on.
+
+## Shipping a new collection template
+
+The template is Michelson compiled into the factory, so changing it means a
+new factory. Nothing migrates and no existing generator is touched; the
+router keeps the old factory listed and the collections it made go on
+resolving through it.
+
+**The order is not arbitrary.** A front end built for the new template sends
+the new `deploy` fields, and the factory it sends them to is whichever one the
+router names. Ship the site before the router points at the new factory and
+every artist's deploy hits a contract that does not take those fields. So the
+factory goes up first, the router moves second, and the site ships last.
+
+1. `npm run test:contracts`, then `npm run build:contracts`. The suites run
+   against the template you are about to originate, and the build is what the
+   deploy script reads.
+2. Deploy to shadownet and exercise it there: a generator, a mint, and
+   whatever the change was for. Also load a generator an *earlier* factory
+   made, because readers are where a template change breaks what already
+   exists, and that is the half nothing on chain protects.
+3. Flip the environment to mainnet. Both networks live in one `.env` with one
+   of them commented out, so swap which block is live and confirm the
+   deployer address and chain id before anything signs.
+4. `npm run deploy -- --network mainnet --only factory --dry-run`. It prices
+   the origination and injects nothing. A `subtraction_underflow` here is the
+   deployer being short, not a fault in the contract.
+5. Fund the deployer if the dry run says so, then run it again without
+   `--dry-run`.
+6. Verify the factory before anyone is pointed at it: its `deploy` entrypoint
+   takes the fields the new site sends, its views are present, and its
+   administrator and resolver are the live ones.
+7. **The administrator points the router at it**, which is a different key
+   from the deployer by design, so this step belongs to whoever holds it. The
+   admin console has it under the router, or
+   `npm run router -- --network mainnet add-factory KT1…`.
+8. Confirm the router's head is the new factory and the old one is still
+   listed behind it.
+9. Merge, which ships the site.
+10. Restart the render provider so new pieces carry whatever the change added
+    to their documents. `set_token_metadata` is a plain write, so anything
+    published in between is correctable with `provider:retry`.
+
+Steps 1 to 6 change nothing for anyone. The template is live from step 7, and
+reversible there too: pointing the router back at the previous factory is one
+more `add-factory`.
