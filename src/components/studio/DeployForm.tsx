@@ -59,7 +59,14 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [price, setPrice] = useState("1");
     const [royaltyTotal, setRoyaltyTotal] = useState("10");
     const [platformShare, setPlatformShare] = useState(false);
+    /**
+     * Two independent asks, both out of the artist's own share and both zero
+     * until somebody types a number. The mint one puts the treasury in the
+     * mint split and never in the artists list: it is a cut, which is the
+     * distinction the two lists exist for.
+     */
     const [platformPercent, setPlatformPercent] = useState("10");
+    const [platformMintPercent, setPlatformMintPercent] = useState("0");
     /**
      * Three separate questions, asked separately: who made it, who the mint
      * price goes to, and who the resale royalty goes to. None of them implies
@@ -262,18 +269,29 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         Math.floor((ownerPercent / (missing.length + 1)) * 100) / 100 >= SMALLEST_SHARE;
 
     const platform = platformShare ? parseFloat(platformPercent) || 0 : 0;
+    const platformMint = platformShare ? parseFloat(platformMintPercent) || 0 : 0;
 
     /** What the connected wallet is left with on each table. */
-    const mintOwnerPercent = 100 - payeeNamed.reduce((n, r) => n + r.percent, 0);
+    const mintOwnerPercent = 100 - platformMint - payeeNamed.reduce((n, r) => n + r.percent, 0);
     const royaltyOwnerPercent = 100 - platform - royaltyNamed.reduce((n, r) => n + r.percent, 0);
 
     /** Who the mint price is divided between. Always totals 100%. */
     const collab: RoyaltySplit = useMemo(
         () => ({
             totalPercent: 100,
-            recipients: address ? [{ address, percent: mintOwnerPercent }, ...payeeNamed] : [],
+            recipients: address
+                ? [
+                      { address, percent: mintOwnerPercent },
+                      ...payeeNamed,
+                      // Only when it is known. No fallback: the wrong address
+                      // here is written into a map with no setter.
+                      ...(platformMint > 0 && platformAddress
+                          ? [{ address: platformAddress, percent: platformMint }]
+                          : []),
+                  ]
+                : [],
         }),
-        [address, mintOwnerPercent, payeeNamed],
+        [address, mintOwnerPercent, payeeNamed, platformMint, platformAddress],
     );
 
     const split: RoyaltySplit = useMemo(() => {
@@ -407,12 +425,25 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             return "The royalty recipients and the platform share add up to more than the whole royalty.";
         }
         if (platformShare) {
+            const mintShare = parseFloat(platformMintPercent);
+            if (!Number.isFinite(mintShare) || mintShare < 0 || mintShare > 100) {
+                return "The platform's share of a mint is a percentage of the mint price, so it cannot be more than 100.";
+            }
+            if (mintShare > 0 && !platformAddress) {
+                return "The platform's payout address has not loaded, so a share cannot be written to it. Try again, or publish without one.";
+            }
+            if (mintShare > 0 && payeeNamed.some((r) => r.address === platformAddress)) {
+                return "The platform is already in your mint split. Remove that row, or set its support share to 0.";
+            }
             const share = parseFloat(platformPercent);
             if (!Number.isFinite(share) || share < 0 || share > 100) {
                 return "The platform's share is a percentage of your royalty, so it cannot be more than 100.";
             }
             if (share > 0 && royalty === 0) {
-                return "There is no royalty to share. Set a royalty, or remove the platform's share.";
+                return "There is no royalty to share. Set a royalty, or set the platform's royalty share to 0.";
+            }
+            if (mintShare === 0 && share === 0) {
+                return "Set a share for the platform, or remove it.";
             }
             if (share > 0 && !platformAddress) {
                 return "The platform's payout address has not loaded, so a share cannot be written to it. Try again, or publish without one.";
@@ -1126,9 +1157,9 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     <div>
                         <p className="text-sm font-medium">Support the platform</p>
                         <p className="text-xs text-muted-foreground">
-                            Give Aleatory a share of the royalty above, out of your own. Every mint
-                            stays yours and your collaborators&apos;: the contract takes nothing
-                            from a mint.
+                            Give Aleatory a share of each mint, of the royalty, or of both. It comes
+                            out of what you hold, never your collaborators&apos;, and the contract
+                            takes nothing you do not give it here.
                         </p>
                     </div>
                     <button
@@ -1141,21 +1172,42 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 </div>
 
                 {platformShare && (
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="number"
-                            inputMode="decimal"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={platformPercent}
-                            onChange={(e) => setPlatformPercent(e.target.value)}
-                            aria-label="Platform share, percent of your royalty"
-                            className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums"
-                        />
-                        <span className="text-xs text-muted-foreground">
-                            percent of your royalty, not of the mint price
-                        </span>
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="number"
+                                inputMode="decimal"
+                                min={0}
+                                max={100}
+                                step={1}
+                                value={platformMintPercent}
+                                onChange={(e) => setPlatformMintPercent(e.target.value)}
+                                aria-label="Platform share, percent of each mint"
+                                className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums"
+                            />
+                            <span className="text-xs text-muted-foreground">
+                                percent of each mint, paid in the collector&apos;s own operation
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="number"
+                                inputMode="decimal"
+                                min={0}
+                                max={100}
+                                step={1}
+                                value={platformPercent}
+                                onChange={(e) => setPlatformPercent(e.target.value)}
+                                aria-label="Platform share, percent of your royalty"
+                                className="w-20 rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums"
+                            />
+                            <span className="text-xs text-muted-foreground">
+                                percent of your royalty, taken on resales
+                            </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Supporting from a mint lists the treasury as paid, never as an artist.
+                        </p>
                     </div>
                 )}
             </div>
