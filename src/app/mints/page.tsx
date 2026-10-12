@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { fetchRecentFeed } from "@/lib/feed";
-import { FeedGrid } from "@/components/feed/FeedGrid";
+import { PieceFeed } from "@/components/feed/PieceFeed";
 import { EmptyFeed } from "@/components/feed/EmptyFeed";
-import { Pager } from "@/components/feed/Pager";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { LastGood } from "@/components/LastGood";
 import { ReadFailed } from "@/components/ReadFailed";
@@ -25,15 +24,13 @@ export const metadata: Metadata = {
     },
 };
 
-type Query = { page?: string; generator?: string };
+type Query = { generator?: string };
 
 export default async function MintsPage({ searchParams }: { searchParams: Promise<Query> }) {
-    const { page: rawPage, generator } = await searchParams;
-    const page = Math.max(1, Number.parseInt(rawPage ?? "1", 10) || 1);
+    const { generator } = await searchParams;
 
-    const feed = await fetchRecentFeed(PER_PAGE, (page - 1) * PER_PAGE, generator).catch(
-        () => null,
-    );
+    // The first page, server rendered. The rest arrive as it is scrolled.
+    const feed = await fetchRecentFeed(PER_PAGE, 0, generator).catch(() => null);
     if (!feed) {
         return (
             <LastGood failed fallback={<ReadFailed />}>
@@ -60,15 +57,6 @@ export default async function MintsPage({ searchParams }: { searchParams: Promis
     }
 
     const scoped = feed.generators.find((g) => g.address === generator);
-    const href = (p: number) => {
-        const q = new URLSearchParams();
-        if (generator) q.set("generator", generator);
-        if (p > 1) q.set("page", String(p));
-        const s = q.toString();
-        return s ? `/mints?${s}` : "/mints";
-    };
-
-    const first = (page - 1) * PER_PAGE + 1;
 
     return (
         <LastGood>
@@ -81,20 +69,14 @@ export default async function MintsPage({ searchParams }: { searchParams: Promis
                 <LiveRefresh seconds={30} />
 
                 {feed.pieces.length === 0 ? (
-                    <>
-                        <EmptyFeed reason={page > 1 ? "past-the-end" : "no-pieces"} />
-                        <Pager page={page} hasMore={false} href={href} showing="" />
-                    </>
+                    <EmptyFeed reason="no-pieces" />
                 ) : (
-                    <>
-                        <FeedGrid pieces={feed.pieces} artists={feed.artists} />
-                        <Pager
-                            page={page}
-                            hasMore={feed.hasMore}
-                            href={href}
-                            showing={`${first}–${first + feed.pieces.length - 1}`}
-                        />
-                    </>
+                    <PieceFeed
+                        initial={feed.pieces}
+                        cursor={feed.hasMore ? String(feed.pieces.length) : undefined}
+                        artists={Array.from(feed.artists.entries())}
+                        generator={generator}
+                    />
                 )}
             </Shell>
         </LastGood>
