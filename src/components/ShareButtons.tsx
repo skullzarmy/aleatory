@@ -45,6 +45,18 @@ export function ShareButtons({
         return handles.length > 0 ? `${text} by ${handles.join(" and ")}` : text;
     };
 
+    /**
+     * TezCity refuses an oversized draft rather than trimming it, so the text
+     * is trimmed here. 500 characters covers the whole draft, and the URL is
+     * part of it even though it travels as its own parameter.
+     */
+    const TEZCITY_MAX = 500;
+    const tezcityText = (() => {
+        const room = TEZCITY_MAX - url.length - 1;
+        if (text.length <= room) return text;
+        return `${text.slice(0, Math.max(0, room - 1))}…`;
+    })();
+
     const networks = [
         {
             name: "X",
@@ -65,6 +77,16 @@ export function ShareButtons({
             name: "Telegram",
             href: `https://t.me/share/url?url=${u}&text=${encodeURIComponent(tagged("telegram"))}`,
             icon: <Paper />,
+        },
+        {
+            // No handle to tag with: a hack.tez profile carries no TezCity
+            // field, so this gets the plain text until one exists.
+            name: "TezCity",
+            href: `https://tezcity.com/intent/post?${new URLSearchParams({
+                text: tezcityText,
+                url,
+            })}`,
+            icon: <Tower />,
         },
     ];
 
@@ -157,6 +179,15 @@ function Arch() {
     return (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <path d="M4 2h16v3h-3.2v14H20v1H14v-1h1.6v-6.4a3.6 3.6 0 0 0-7.2 0V19H10v1H4v-1h3.2V5H4V2z" />
+        </svg>
+    );
+}
+
+/** Neutral mark. Not TezCity's own, which is theirs to supply. */
+function Tower() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M3 21V9l6-3v3l6-3v4h5v11H3zm2-2h4v-8H5v8zm6 0h4v-9h-4v9zm6 0h3v-7h-3v7z" />
         </svg>
     );
 }
