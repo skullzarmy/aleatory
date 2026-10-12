@@ -111,7 +111,8 @@ art    : code            the generator itself, bytes
 sale   : price, edition_size (0 is open), paused
 
 collab : shares          address to basis points of the mint price, summing to 10000
-         confirmed       who has acknowledged being named, which is who is credited
+         creditable      which of them are named as co-authors, a subset of shares
+         confirmed       which co-authors accepted, which is who is credited
 
 render : provider        the provider contract the artist chose
          provider_agent  the agent snapshotted at deploy
@@ -140,11 +141,14 @@ and routes an undeliverable share, plus the rounding remainder, to the
 administrator, so the collection never retains a balance and one address
 written badly at origination cannot stop the edition minting.
 
-`collab.confirmed` is the credit, and a separate question from the money.
-Being named pays from the first mint; appearing as one of a generator's
-`creators` takes a call to `accept_collaboration` from that person, which is
-what stops a deployer attaching a well-known artist's name to their own work.
-Same shape as `propose_admin`/`accept_admin`.
+Credit is a separate question from the money, because the two come apart: a
+studio, a fund or a developer takes a share without having made the work.
+`collab.creditable` is the artist's statement of who the co-authors are, a
+subset of `shares`, so a name always has a share behind it and a recipient
+outside it can never claim credit. `collab.confirmed` is which of those
+co-authors accepted, which takes a call to `accept_collaboration` from that
+person and stops a deployer attaching a well-known artist's name to their own
+work. Credit therefore needs both sides, and neither can do it alone.
 
 Administration does not divide. `administrator` stays one address holding
 every authority a generator has, and a group wanting joint control transfers

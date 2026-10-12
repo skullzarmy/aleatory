@@ -46,7 +46,8 @@ def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
                      price=_PRICE, edition_size=10, start_paused=False,
                      agent=None, royalties=None, trust_resolver=True,
                      code=_CODE, code_hash=sp.bytes("0xaa"),
-                     code_encoding="identity", collab_shares=None):
+                     code_encoding="identity", collab_shares=None,
+                     collab_creditable=None):
     royalties = (
         sp.cast({}, sp.map[sp.address, sp.nat])
         if royalties is None
@@ -54,6 +55,13 @@ def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
     )
     collab_shares = (
         {artist.address: 10000} if collab_shares is None else collab_shares
+    )
+    # Everyone paid is a co-author unless a test says otherwise, which is
+    # what the form offers by default.
+    collab_creditable = (
+        set(collab_shares.keys())
+        if collab_creditable is None
+        else collab_creditable
     )
     return sp.record(
         administrator=artist.address,
@@ -69,6 +77,7 @@ def _collection_init(artist, resolver, provider, minter, render_gas=_GAS,
         price=sp.mutez(price),
         royalties=royalties,
         collab_shares=sp.cast(collab_shares, sp.map[sp.address, sp.nat]),
+        collab_creditable=sp.cast(collab_creditable, sp.set[sp.address]),
         pending_metadata=_PENDING,
         start_paused=start_paused,
         trust_resolver=trust_resolver,
@@ -122,7 +131,7 @@ def _deploy_params(provider, price=_PRICE, edition_size=10,
                    royalties=None, trust_resolver=True,
                    code=_CODE, code_encoding="identity",
                    code_hash=sp.bytes("0xaa"), code_uri="",
-                   collab_shares=None):
+                   collab_shares=None, collab_creditable=None):
     # The whole price to whoever deploys, which every scenario here does as
     # "Artist". `deploy` refuses a split the sender is not part of, so the
     # default has to name the same account the call will come from.
@@ -130,6 +139,11 @@ def _deploy_params(provider, price=_PRICE, edition_size=10,
         {sp.test_account("Artist").address: 10000}
         if collab_shares is None
         else collab_shares
+    )
+    collab_creditable = (
+        set(collab_shares.keys())
+        if collab_creditable is None
+        else collab_creditable
     )
     return sp.record(
         code=code,
@@ -144,6 +158,7 @@ def _deploy_params(provider, price=_PRICE, edition_size=10,
             else royalties
         ),
         collab_shares=sp.cast(collab_shares, sp.map[sp.address, sp.nat]),
+        collab_creditable=sp.cast(collab_creditable, sp.set[sp.address]),
         pending_metadata=_PENDING,
         start_paused=start_paused,
         trust_resolver=trust_resolver,
@@ -1256,6 +1271,91 @@ def test_a_collaborator_takes_the_credit():
     # Idempotent: a second call is a set insert that was already there.
     c.accept_collaboration(_sender=bob)
     scenario.verify(c.data.collab.confirmed.contains(bob.address))
+
+
+@sp.add_test()
+def test_a_cut_is_not_a_credit():
+    """Paying somebody is not the same as saying they made it.
+
+    A studio, a fund or a developer takes a share without being one of the
+    artists, and the share alone must not let them put their own name on the
+    work. The artist decides who is a co-author; the recipient decides
+    whether to accept it.
+    """
+    scenario = sp.test_scenario("Cut not credit", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    coartist = sp.test_account("Bob")
+    studio = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    c = _collection(
+        scenario, artist, resolver, provider, minter, edition_size=0,
+        collab_shares={
+            artist.address: 6000,
+            coartist.address: 3000,
+            studio.address: 1000,
+        },
+        # The studio is paid and is not a co-author.
+        collab_creditable={artist.address, coartist.address},
+    )
+
+    # Paid all the same.
+    c.mint(_NONE, _sender=studio, _amount=sp.mutez(_TOTAL))
+    scenario.verify(c.data.collab.shares[studio.address] == 1000)
+    scenario.verify(c.balance == sp.mutez(0))
+
+    # And cannot credit itself.
+    c.accept_collaboration(_sender=studio, _valid=False)
+    scenario.verify(~c.data.collab.confirmed.contains(studio.address))
+
+    # The co-author can.
+    c.accept_collaboration(_sender=coartist)
+    scenario.verify(c.data.collab.confirmed.contains(coartist.address))
+
+
+@sp.add_test()
+def test_deploy_refuses_credit_without_a_share():
+    """Credit is offered to people being paid, so a name on the work always
+    has a share behind it, and the deployer is credited from the start."""
+    scenario = sp.test_scenario("Creditable rules", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    stranger = sp.test_account("Alice")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    # Named as a co-author, paid nothing.
+    factory.deploy(
+        _deploy_params(
+            provider,
+            collab_shares={artist.address: 10000},
+            collab_creditable={artist.address, stranger.address},
+        ),
+        _sender=artist, _valid=False,
+    )
+    # A deploy that credits somebody other than the person signing it.
+    factory.deploy(
+        _deploy_params(
+            provider,
+            collab_shares={artist.address: 5000, stranger.address: 5000},
+            collab_creditable={stranger.address},
+        ),
+        _sender=artist, _valid=False,
+    )
+    # Paying a second address without crediting it is fine.
+    factory.deploy(
+        _deploy_params(
+            provider,
+            collab_shares={artist.address: 9000, stranger.address: 1000},
+            collab_creditable={artist.address},
+        ),
+        _sender=artist,
+    )
+    scenario.verify(factory.data.next_collection_id == 1)
 
 
 @sp.add_test()

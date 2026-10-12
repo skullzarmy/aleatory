@@ -15,6 +15,7 @@
  * out, so the declared network and the configured one come apart easily, and
  * nothing on chain catches it afterwards.
  */
+import "dotenv/config";
 import { TezosToolkit } from "@taquito/taquito";
 import { InMemorySigner } from "@taquito/signer";
 import { readFileSync } from "node:fs";

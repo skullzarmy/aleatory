@@ -89,6 +89,12 @@ def _world(scenario, admin, agent, treasury, artist, royalties,
                 else collab_shares,
                 sp.map[sp.address, sp.nat],
             ),
+            collab_creditable=sp.cast(
+                {artist.address}
+                if collab_shares is None
+                else set(collab_shares.keys()),
+                sp.set[sp.address],
+            ),
             pending_metadata=_PENDING,
             start_paused=False,
             trust_resolver=True,

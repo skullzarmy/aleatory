@@ -53,10 +53,26 @@ async function main() {
         Array.isArray(routerStorage.factories) && typeof routerStorage.marketplace === "string",
     );
 
-    const factory = routerStorage.factories?.[0] ?? "";
-    const made = (await get(`/v1/contracts?creator=${factory}&select=address&limit=1`)) as string[];
-    const generator = made[0] ?? "";
-    check("a generator exists to test against", Boolean(generator), `factory ${factory}`);
+    // Any factory with something to look at, not the head one. A new factory
+    // is listed the moment the router points at it and has deployed nothing
+    // yet, which took every check below down with it.
+    let factory = "";
+    let generator = "";
+    for (const candidate of routerStorage.factories ?? []) {
+        const made = (await get(
+            `/v1/contracts?creator=${candidate}&select=address&limit=1`,
+        )) as string[];
+        if (made[0]) {
+            factory = candidate;
+            generator = made[0];
+            break;
+        }
+    }
+    check(
+        "a generator exists to test against",
+        Boolean(generator),
+        `no factory of ${(routerStorage.factories ?? []).length} has deployed one`,
+    );
 
     // --- a filter that is not implemented is ignored, not refused ---------------
     //

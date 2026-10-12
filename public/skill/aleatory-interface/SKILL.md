@@ -218,10 +218,12 @@ work are separate questions.
 
 Our collection keeps a collaborator set in storage. `collab.shares` is who the
 mint price is divided between, written at origination with no setter and
-summing to 10000 basis points; `collab.confirmed` is who has called
-`accept_collaboration`, which is who the documents credit. A named
-collaborator is paid from the first mint whether they have accepted or not, so
-the two-step is about credit alone. `template_version` in storage says which
+summing to 10000 basis points. `collab.creditable` is which of them the artist
+named as co-authors, a subset of `shares`: somebody taking a cut is paid and
+cannot claim credit. `collab.confirmed` is which co-authors called
+`accept_collaboration`, which is who the documents credit. Everyone in
+`shares` is paid whether they accepted or not, so the two-step is about credit
+alone. `template_version` in storage says which
 build of the template a collection is, and its absence means 1.
 
 ## 9. Being a provider

@@ -60,10 +60,11 @@ Three parties, and only the first is required for a piece to exist.
   which is why the checks happen before minting.
 - **A generator can have more than one artist.** `collab.shares` divides the
   mint price between up to eight people, paid in the collector's own
-  operation. Being named pays; being credited takes a call to
-  `accept_collaboration` from that person, so nobody's name lands on work
-  they had nothing to do with. `administrator` stays one address holding every
-  authority.
+  operation. Being paid and being credited are separate: `collab.creditable`
+  is which recipients the artist named as co-authors, so a studio or a fund
+  takes a cut without being listed as an artist, and `accept_collaboration`
+  from that person is what finally credits them. `administrator` stays one
+  address holding every authority.
 - **Display metadata is the exception.** `set_metadata` lets the artist edit
   the name, description and cover. It refuses `aleatory:libraries` and
   `aleatory:params`, so nothing deciding what a piece runs is ever editable.

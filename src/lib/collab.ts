@@ -19,17 +19,26 @@ export interface Collab {
     /** Who the mint price is divided between. Sums to 10000. */
     shares: CollabShare[];
     /**
-     * Who has acknowledged being named, which is who the generator credits.
+     * Which of them the artist named as co-authors. Everyone else in
+     * `shares` is taking a cut: paid, and never credited.
+     */
+    creditable: string[];
+    /**
+     * Which co-authors have accepted, which is who the generator credits.
      * Everyone in `shares` is paid whether they appear here or not.
      */
     confirmed: string[];
 }
 
-/** The storage fields this reads. Both optional, which is what v1 looks like. */
+/** The storage fields this reads. All optional, which is what v1 looks like. */
 export interface CollabStorage {
     administrator: string;
     template_version?: string;
-    collab?: { shares?: Record<string, string>; confirmed?: string[] };
+    collab?: {
+        shares?: Record<string, string>;
+        creditable?: string[];
+        confirmed?: string[];
+    };
 }
 
 export function normalizeCollab(storage: CollabStorage): {
@@ -44,6 +53,7 @@ export function normalizeCollab(storage: CollabStorage): {
             templateVersion,
             collab: {
                 shares: [{ address: storage.administrator, bps: 10000 }],
+                creditable: [storage.administrator],
                 // Confirmed by having deployed it.
                 confirmed: [storage.administrator],
             },
@@ -57,13 +67,23 @@ export function normalizeCollab(storage: CollabStorage): {
                 address,
                 bps: Number.parseInt(String(bps), 10) || 0,
             })),
+            creditable: [...(raw.creditable ?? [])].sort(),
             // Sorted so two reads of one generator credit in the same order.
             confirmed: [...(raw.confirmed ?? [])].sort(),
         },
     };
 }
 
-/** Named but not yet confirmed. Counted for display, never listed by name. */
+/**
+ * Co-authors who have not accepted yet. Counted for display, never listed by
+ * name. Measured against `creditable` and not `shares`, because somebody
+ * taking a cut was never waiting to accept anything.
+ */
 export function unconfirmedCount(collab: Collab): number {
-    return Math.max(0, collab.shares.length - collab.confirmed.length);
+    return Math.max(0, collab.creditable.length - collab.confirmed.length);
+}
+
+/** Paid, and not one of the people the work is credited to. */
+export function paidNotCredited(collab: Collab): CollabShare[] {
+    return collab.shares.filter((s) => !collab.creditable.includes(s.address));
 }

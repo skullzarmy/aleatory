@@ -108,6 +108,9 @@ def aleatory():
         # exactly 10000, and a solo generator is one entry at 10000, so the
         # payout in `mint` has one path to walk.
         collab_shares=sp.map[sp.address, sp.nat],
+        # Which of them the artist is naming as a co-author. The rest are
+        # paid and never credited.
+        collab_creditable=sp.set[sp.address],
         # The metadata URI every token is minted with, an ipfs:// pointer
         # to the collection's "not revealed yet" JSON. A provider replaces
         # it per token with that piece's real metadata once rendered.
@@ -182,7 +185,13 @@ def aleatory():
         # No setter, the same guarantee `royalties` carries: a collector can
         # read the split before buying and it cannot move underneath them.
         shares=sp.map[sp.address, sp.nat],
-        # Who has acknowledged being named here. Shares are paid from the
+        # Which of those recipients the artist named as a co-author, as
+        # opposed to someone taking a cut. A studio, a fund or a developer
+        # gets paid without being one of the people who made the work, and
+        # without this they could call `accept_collaboration` and credit
+        # themselves. A subset of `shares`, fixed at origination.
+        creditable=sp.set[sp.address],
+        # Which of the creditable have accepted. Shares are paid from the
         # first mint whatever this says; being credited is what it governs,
         # so nobody's name is attached to a generator without their say.
         confirmed=sp.set[sp.address],
@@ -339,8 +348,9 @@ def aleatory():
             )
             self.data.collab = sp.record(
                 shares=init.collab_shares,
+                creditable=init.collab_creditable,
                 # The deployer signed for this split, which is the same
-                # thing every other member says by calling
+                # thing every other co-author says by calling
                 # `accept_collaboration`.
                 confirmed={init.administrator},
             )
@@ -398,7 +408,9 @@ def aleatory():
             asked for.
             """
             assert sp.amount == sp.mutez(0), "TEZ_NOT_ACCEPTED"
-            assert self.data.collab.shares.contains(
+            # Being paid is not the same as having made it. Someone taking a
+            # cut is not in `creditable` and cannot put themselves there.
+            assert self.data.collab.creditable.contains(
                 sp.sender
             ), "NOT_A_COLLABORATOR"
             self.data.collab.confirmed.add(sp.sender)
@@ -870,6 +882,7 @@ def aleatory():
             return sp.record(
                 artist=self.data.administrator,
                 collab_shares=self.data.collab.shares,
+                collab_creditable=self.data.collab.creditable,
                 collab_confirmed=self.data.collab.confirmed,
                 template_version=self.data.template_version,
                 code=self.data.art.code,
@@ -1294,6 +1307,7 @@ def aleatory():
                     price=sp.mutez,
                     royalties=sp.map[sp.address, sp.nat],
                     collab_shares=sp.map[sp.address, sp.nat],
+                    collab_creditable=sp.set[sp.address],
                     pending_metadata=sp.bytes,
                     start_paused=sp.bool,
                     trust_resolver=sp.bool,
@@ -1356,6 +1370,16 @@ def aleatory():
                 sp.sender
             ), "DEPLOYER_NOT_A_COLLABORATOR"
 
+            # Credit is offered to people who are being paid, so a name
+            # cannot appear on the work without a share behind it. The
+            # deployer is credited from the start and has to be in the set
+            # they are part of.
+            for who in params.collab_creditable.elements():
+                assert params.collab_shares.contains(who), "CREDITABLE_NOT_PAID"
+            assert params.collab_creditable.contains(
+                sp.sender
+            ), "DEPLOYER_NOT_CREDITABLE"
+
             # Every mint pays the artist directly, so an artist who cannot be
             # sent tez is a generator no piece can ever be bought from. The
             # same reason royalty recipients are checked before a generator
@@ -1409,6 +1433,7 @@ def aleatory():
                     ),
                     collab=sp.record(
                         shares=params.collab_shares,
+                        creditable=params.collab_creditable,
                         confirmed={sp.sender},
                     ),
                     render=sp.record(
@@ -1452,6 +1477,7 @@ def aleatory():
                     # how "which generators named me" is answerable without
                     # reading every collection's storage.
                     collaborators=params.collab_shares,
+                    creditable=params.collab_creditable,
                     template_version=template_version(),
                     code=params.code,
                     code_encoding=params.code_encoding,

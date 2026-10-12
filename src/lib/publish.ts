@@ -74,6 +74,11 @@ export interface PublishInput {
      * collaborator from the start.
      */
     collab: RoyaltySplit;
+    /**
+     * Which of the mint-price recipients are being named as artists. The rest
+     * are paid without appearing in `creators`.
+     */
+    collabCreditable: string[];
     editionSize: number;
     priceMutez: bigint;
     split: RoyaltySplit;
@@ -430,6 +435,7 @@ export async function publishGenerator(
         // A whole division of the price, so the total is 100% rather than the
         // royalty split's share of a smaller pot.
         collabShares: royaltiesToBps({ ...input.collab, totalPercent: 100 }),
+        collabCreditable: input.collabCreditable,
         pendingMetadataUri,
         startPaused: input.startPaused,
         trustResolver: input.trustResolver,

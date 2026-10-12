@@ -12,7 +12,7 @@
  */
 
 import assert from "node:assert/strict";
-import { normalizeCollab, unconfirmedCount } from "./collab";
+import { normalizeCollab, paidNotCredited, unconfirmedCount } from "./collab";
 
 const A = "tz1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const B = "tz1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -58,7 +58,7 @@ check("one member at the whole share matches what v1 produces", () => {
     const v2 = normalizeCollab({
         administrator: A,
         template_version: "2",
-        collab: { shares: { [A]: "10000" }, confirmed: [A] },
+        collab: { shares: { [A]: "10000" }, creditable: [A], confirmed: [A] },
     });
     const v1 = normalizeCollab({ administrator: A });
     assert.equal(v2.templateVersion, 2);
@@ -69,7 +69,7 @@ check("shares are decoded as numbers, not strings", () => {
     const { collab } = normalizeCollab({
         administrator: A,
         template_version: "2",
-        collab: { shares: { [A]: "6000", [B]: "4000" }, confirmed: [A] },
+        collab: { shares: { [A]: "6000", [B]: "4000" }, creditable: [A, B], confirmed: [A] },
     });
     assert.equal(
         collab.shares.reduce((n, s) => n + s.bps, 0),
@@ -81,7 +81,11 @@ check("confirmed is sorted, so two reads credit in the same order", () => {
     const { collab } = normalizeCollab({
         administrator: B,
         template_version: "2",
-        collab: { shares: { [A]: "5000", [B]: "5000" }, confirmed: [B, A] },
+        collab: {
+            shares: { [A]: "5000", [B]: "5000" },
+            creditable: [A, B],
+            confirmed: [B, A],
+        },
     });
     assert.deepEqual(collab.confirmed, [A, B]);
 });
@@ -90,7 +94,11 @@ check("a member who has not accepted is counted, and not credited", () => {
     const { collab } = normalizeCollab({
         administrator: A,
         template_version: "2",
-        collab: { shares: { [A]: "5000", [B]: "3000", [C]: "2000" }, confirmed: [A] },
+        collab: {
+            shares: { [A]: "5000", [B]: "3000", [C]: "2000" },
+            creditable: [A, B, C],
+            confirmed: [A],
+        },
     });
     assert.deepEqual(collab.confirmed, [A], "only the deployer is credited");
     assert.equal(unconfirmedCount(collab), 2);
@@ -100,7 +108,7 @@ check("everyone accepting leaves nobody awaiting credit", () => {
     const { collab } = normalizeCollab({
         administrator: A,
         template_version: "2",
-        collab: { shares: { [A]: "5000", [B]: "5000" }, confirmed: [A, B] },
+        collab: { shares: { [A]: "5000", [B]: "5000" }, creditable: [A, B], confirmed: [A, B] },
     });
     assert.equal(unconfirmedCount(collab), 0);
 });
@@ -114,6 +122,44 @@ check("a collab subtree with nothing in it does not crash a page", () => {
     assert.deepEqual(collab.shares, []);
     assert.deepEqual(collab.confirmed, []);
     assert.equal(unconfirmedCount(collab), 0);
+});
+
+console.log("\na cut is not a credit");
+
+check("someone paid without being named is not a co-author", () => {
+    const { collab } = normalizeCollab({
+        administrator: A,
+        template_version: "2",
+        collab: {
+            shares: { [A]: "6000", [B]: "3000", [C]: "1000" },
+            creditable: [A, B],
+            confirmed: [A],
+        },
+    });
+    assert.deepEqual(
+        paidNotCredited(collab).map((s) => s.address),
+        [C],
+        "C takes a cut and is not one of the artists",
+    );
+});
+
+check("the waiting count is co-authors, not everyone being paid", () => {
+    const { collab } = normalizeCollab({
+        administrator: A,
+        template_version: "2",
+        collab: {
+            shares: { [A]: "6000", [B]: "3000", [C]: "1000" },
+            creditable: [A, B],
+            confirmed: [A],
+        },
+    });
+    assert.equal(unconfirmedCount(collab), 1, "only B is still to accept; C never was");
+});
+
+check("a v1 generator has nobody taking a cut", () => {
+    const { collab } = normalizeCollab({ administrator: A });
+    assert.deepEqual(paidNotCredited(collab), []);
+    assert.deepEqual(collab.creditable, [A]);
 });
 
 console.log(failures === 0 ? "\nall passed" : `\n${failures} failed`);

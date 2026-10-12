@@ -7,6 +7,12 @@ export interface SplitRow {
     address: string;
     /** Percent, as typed. Parsed by the caller. */
     percent: string;
+    /**
+     * Whether this person is being named as one of the artists. Only on the
+     * mint split, where paying somebody and crediting them are separate
+     * decisions. Undefined on the royalty table, which credits nobody.
+     */
+    credit?: boolean;
 }
 
 const ADDRESS = /^(tz[1234]|KT1)[0-9A-Za-z]{33}$/;
@@ -31,6 +37,7 @@ export function SplitTable({
     max,
     addLabel,
     disabled,
+    credits,
 }: {
     rows: SplitRow[];
     onChange: (rows: SplitRow[]) => void;
@@ -41,6 +48,8 @@ export function SplitTable({
     max: number;
     addLabel: string;
     disabled?: boolean;
+    /** Offer a per-row artist-credit toggle. The mint split has one. */
+    credits?: boolean;
 }) {
     const set = (i: number, next: Partial<SplitRow>) =>
         onChange(rows.map((r, j) => (i === j ? { ...r, ...next } : r)));
@@ -88,6 +97,25 @@ export function SplitTable({
                         className="w-20 shrink-0 rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums"
                     />
                     <span className="shrink-0 text-sm text-muted-foreground">%</span>
+                    {credits && (
+                        <button
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => set(i, { credit: !row.credit })}
+                            title={
+                                row.credit
+                                    ? "Named as an artist. They choose whether to accept."
+                                    : "Paid only. Never listed as an artist."
+                            }
+                            className={`shrink-0 rounded-md border px-2 py-1.5 text-xs font-medium disabled:opacity-60 ${
+                                row.credit
+                                    ? "border-alea-600/50 bg-alea-600/15"
+                                    : "border-border hover:bg-accent"
+                            }`}
+                        >
+                            {row.credit ? "Artist" : "Paid only"}
+                        </button>
+                    )}
                     <button
                         type="button"
                         disabled={disabled}
@@ -104,7 +132,12 @@ export function SplitTable({
                 <button
                     type="button"
                     disabled={disabled}
-                    onClick={() => onChange([...rows, { address: "", percent: "" }])}
+                    onClick={() =>
+                        onChange([
+                            ...rows,
+                            { address: "", percent: "", ...(credits ? { credit: true } : {}) },
+                        ])
+                    }
                     className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-60"
                 >
                     <Plus size={13} aria-hidden />

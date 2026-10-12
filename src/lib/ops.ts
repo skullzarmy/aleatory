@@ -631,6 +631,12 @@ export interface DeployParams {
      * include the signer.
      */
     collabShares: Record<string, number>;
+    /**
+     * Which of those recipients the artist names as co-authors. A subset of
+     * `collabShares`, and it has to include the signer. Everyone paid and
+     * left out of this is a cut, never a credit.
+     */
+    collabCreditable: string[];
     /** `ipfs://` pointer to the document every piece mints carrying. */
     pendingMetadataUri: string;
     startPaused: boolean;
@@ -909,6 +915,7 @@ export async function deployGenerator(client: DAppClient, params: DeployParams):
             price: params.priceMutez.toString(),
             royalties,
             collab_shares: collabShares,
+            collab_creditable: params.collabCreditable,
             pending_metadata: utf8ToHex(params.pendingMetadataUri),
             start_paused: params.startPaused,
             trust_resolver: params.trustResolver,

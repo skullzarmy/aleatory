@@ -333,12 +333,20 @@ reference implementation has a shape worth copying, and §1 requires its
 payout addresses to be checked like any others.
 
 ```
-storage.collab.shares      map(address, nat)   basis points of the mint price, summing to 10000
-storage.collab.confirmed    set(address)        who has acknowledged being named
+storage.collab.shares       map(address, nat)   basis points of the mint price, summing to 10000
+storage.collab.creditable   set(address)        which of them are named as co-authors
+storage.collab.confirmed    set(address)        which co-authors have accepted
 storage.template_version    nat                 2 for a collection with the above, absent means 1
 
-accept_collaboration()                          callable only by an address in `shares`
+accept_collaboration()                          callable only from `creditable`
 ```
+
+Paying somebody and crediting them are separate, because they come apart in
+practice: a studio, a fund or a developer takes a share of each mint without
+having made the work. `creditable` is the artist's statement of who the
+co-authors are, and it is a subset of `shares`, so a name on the work always
+has a share behind it. A recipient outside it is paid and can never put
+themselves in `creators`.
 
 `shares` is written at origination and has no setter, same as `royalties`.
 `mint` divides the price between them in the collector's own operation,
@@ -347,12 +355,15 @@ remainder, to the administrator; the collection holds no balance when it
 returns. At most eight recipients, because that loop's gas is paid by every
 collector for the life of the edition.
 
-`confirmed` governs credit and nothing else. A named collaborator is paid
-from the first mint whether they have called `accept_collaboration` or not,
-and the `creators` of each piece published afterwards names whoever has. The
-two-step exists so a deployer cannot put a well-known artist's name on their
-own generator by writing them a share they never asked for, and it is the
-same shape as `propose_admin`/`accept_admin`.
+`confirmed` governs credit and nothing else. A co-author is paid from the
+first mint whether they have called `accept_collaboration` or not, and the
+`creators` of each piece published afterwards names whoever has. The two-step
+exists so a deployer cannot put a well-known artist's name on their own
+generator by writing them a share they never asked for, and it is the same
+shape as `propose_admin`/`accept_admin`.
+
+So credit takes both: the artist naming somebody in `creditable`, and that
+person accepting. Neither side can do it alone.
 
 Administration is unchanged: `administrator` is still one address holding
 every authority a generator has, and a group wanting joint control transfers

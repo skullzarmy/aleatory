@@ -193,7 +193,12 @@ interface GeneratorStorage {
         royalties: Record<string, string | number>;
     };
     /** Absent on a generator deployed before collaborations existed. */
-    collab?: { shares: Record<string, string | number>; confirmed: string[] };
+    collab?: {
+        shares: Record<string, string | number>;
+        /** Who may claim credit. Everyone else in `shares` is a cut. */
+        creditable: string[];
+        confirmed: string[];
+    };
     render: { provider: string };
 }
 
@@ -203,6 +208,9 @@ interface GeneratorStorage {
  * for a generator deployed before collaborations existed.
  */
 function creatorsOf(storage: GeneratorStorage): string[] {
+    // `confirmed` is already only co-authors: the contract refuses
+    // `accept_collaboration` from anyone outside `creditable`, so somebody
+    // taking a cut cannot reach this list.
     const confirmed = storage.collab?.confirmed ?? [];
     if (confirmed.length === 0) return [storage.administrator];
     return [...confirmed].sort();

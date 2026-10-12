@@ -42,7 +42,7 @@ export interface Draft {
      * wallet. Two separate lists: who shares the mint price, and who shares
      * the resale royalty.
      */
-    collab?: { address: string; percent: string }[];
+    collab?: { address: string; percent: string; credit?: boolean }[];
     royaltyRecipients?: { address: string; percent: string }[];
     createdAt: number;
     updatedAt: number;
