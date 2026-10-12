@@ -14,6 +14,8 @@ import { newGenerators, newMints, newMarketEvents, type NewMarketEvent } from ".
 
 /** The mark's gold, so a message is recognisably ours in a feed. */
 const GOLD = 0xd9b46a;
+/** The last piece of a finite edition, which only happens once per generator. */
+const SOLD_OUT = 0xc2410c;
 
 export interface Marks {
     generators: number;
@@ -102,17 +104,26 @@ export function mintEmbed(m: {
     editionSize: number;
     at: string;
 }): Embed {
+    // Token ids are zero-based, so this is how many exist once this mint
+    // lands. An open edition has no size to reach, and the contract refuses
+    // to shrink an edition below what is already minted, so this is an
+    // equality and never a comparison.
+    const minted = Number(m.tokenId) + 1;
+    const soldOut = m.editionSize > 0 && minted === m.editionSize;
+
     const embed: Embed = {
-        title: m.name || `#${Number(m.tokenId) + 1}`,
+        title: m.name || `#${minted}`,
         url: `${site()}/piece/${m.contract}/${m.tokenId}`,
-        color: GOLD,
+        color: soldOut ? SOLD_OUT : GOLD,
         timestamp: m.at,
         author: by(m.artist),
-        footer: { text: "Minted" },
+        footer: { text: soldOut ? "Minted, and that is the edition" : "Minted" },
         fields: [
             {
                 name: "Edition",
-                value: `${Number(m.tokenId) + 1} of ${edition(m.editionSize)}`,
+                value: soldOut
+                    ? `${minted} of ${m.editionSize}, sold out`
+                    : `${minted} of ${edition(m.editionSize)}`,
                 inline: true,
             },
             { name: "Collector", value: short(m.collector) || "unknown", inline: true },
