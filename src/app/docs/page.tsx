@@ -17,12 +17,18 @@ export const metadata: Metadata = {
 /**
  * What is published, by who needs it.
  *
- * Four of the sixteen documents in the repository. The rest are ours: how this
+ * Five of the documents in the repository. The rest are ours: how this
  * is deployed, what was decided and why, what is still open. They are in the
  * repository because that is where somebody working on Aleatory reads them,
  * and putting them here would bury the four that a stranger actually needs.
  */
 const DOCS = [
+    {
+        href: "/docs/onchain",
+        title: "What is on chain",
+        who: "For anyone who wants to check rather than believe",
+        blurb: "What the claim actually is, one live piece taken apart to the bytes, the commands to verify it against a Tezos node with no indexer and nothing of ours involved, and a plain list of what is not on chain.",
+    },
     {
         href: "/docs/interface",
         title: "ALEATORY-001",

@@ -102,6 +102,17 @@ export default function AboutPage() {
                     </Link>{" "}
                     and show what you made. We wrote that spec so they can.
                 </p>
+                <p>
+                    Everybody says their art is on chain, so that sentence is worth nothing on its
+                    own.{" "}
+                    <Link href="/docs/onchain" className="underline hover:text-foreground">
+                        What is on chain
+                    </Link>{" "}
+                    takes one live piece apart to the bytes and gives you the commands to check it
+                    against a Tezos node, with no indexer and nothing of ours involved. It also
+                    lists what is not on chain, because that part decides whether the rest can be
+                    believed.
+                </p>
             </Section>
 
             <div className="mt-12 flex flex-wrap gap-3 border-t border-border pt-8">
