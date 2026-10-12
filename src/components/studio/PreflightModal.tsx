@@ -86,11 +86,17 @@ export function PreflightModal({
             aria-labelledby="preflight-title"
             onClick={onClose}
         >
+            {/* Bounded and banded, because the content here has no fixed
+                height: the checks, a cover, any failures and the shadownet
+                note stack up past a short viewport, and an unbounded panel
+                centred in the overlay puts "Continue to publish" off the
+                bottom of the screen with nothing to scroll. The list scrolls;
+                the title and the actions stay put. */}
             <div
-                className="w-full max-w-lg space-y-4 rounded-xl border border-border bg-card p-6 shadow-2xl"
+                className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex shrink-0 items-start justify-between gap-4 p-6 pb-4">
                     <div>
                         <h2 id="preflight-title" className="text-lg font-semibold tracking-tight">
                             Pre-flight checks
@@ -109,118 +115,126 @@ export function PreflightModal({
                     </button>
                 </div>
 
-                <ul className="divide-y divide-border rounded-lg border border-border">
-                    {checks.map((c) => (
-                        <li key={c.id} className="flex gap-3 px-4 py-2.5">
-                            <CheckMark status={c.status} />
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
+                    <ul className="divide-y divide-border rounded-lg border border-border">
+                        {checks.map((c) => (
+                            <li key={c.id} className="flex gap-3 px-4 py-2.5">
+                                <CheckMark status={c.status} />
+                                <div className="min-w-0 flex-1">
+                                    <span className="block text-sm font-medium">{c.label}</span>
+                                    <span className="block text-xs text-muted-foreground">
+                                        {c.note ?? c.detail}
+                                    </span>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+
+                    {draft.cover ? (
+                        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-2.5">
+                            <CoverThumbnail
+                                src={ipfsImageUrl(draft.cover.thumbUri || draft.cover.uri)}
+                                alt="Cover thumbnail"
+                            />
                             <div className="min-w-0 flex-1">
-                                <span className="block text-sm font-medium">{c.label}</span>
-                                <span className="block text-xs text-muted-foreground">
-                                    {c.note ?? c.detail}
-                                </span>
+                                <p className="text-xs font-semibold text-foreground">
+                                    Cover image set
+                                </p>
+                                <p className="truncate font-mono text-[11px] text-muted-foreground">
+                                    Seed: {draft.cover.seed}
+                                </p>
+                                <p className="truncate font-mono text-[11px] text-muted-foreground">
+                                    {draft.cover.uri}
+                                </p>
                             </div>
-                        </li>
-                    ))}
-                </ul>
+                        </div>
+                    ) : (
+                        <div className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                            <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
+                            <div>
+                                <p className="font-semibold">No cover image set</p>
+                                <p className="mt-0.5 text-muted-foreground">
+                                    Select and pin a cover image in the Details tab before
+                                    publishing.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
-                {draft.cover ? (
-                    <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-2.5">
-                        <CoverThumbnail
-                            src={ipfsImageUrl(draft.cover.thumbUri || draft.cover.uri)}
-                            alt="Cover thumbnail"
+                    {hasFailed && !running && (
+                        <div className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                            <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
+                            <div>
+                                <p className="font-semibold">Pre-flight checks failed</p>
+                                <p className="mt-0.5 text-muted-foreground">
+                                    A generator with failing checks cannot be published. Fix the
+                                    highlighted issues in your code and try again.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {hasPassed && (
+                        <div className="flex items-start gap-2.5 rounded-lg border border-success/40 bg-success/10 p-3 text-xs text-success">
+                            <CheckCircle2 size={16} className="mt-0.5 shrink-0" aria-hidden />
+                            <div>
+                                <p className="font-semibold">All checks passed</p>
+                                <p className="mt-0.5 text-muted-foreground">
+                                    Your generator is deterministic, isolated, and produces valid
+                                    output.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    <aside className="rounded-lg border border-alea-600/30 bg-alea-600/5 p-3 text-xs text-muted-foreground">
+                        <p className="font-medium text-foreground">Test on Shadownet first</p>
+                        <p className="mt-0.5 leading-relaxed">
+                            Start development on{" "}
+                            <a
+                                href="https://shadownet.aleatory.art"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-medium underline hover:text-foreground"
+                            >
+                                shadownet.aleatory.art
+                            </a>{" "}
+                            and test fully there through the minting process before deploying to
+                            mainnet. Shadownet tez is free and can be requested at{" "}
+                            <a
+                                href="https://faucet.shadownet.teztnets.com/"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-medium underline hover:text-foreground"
+                            >
+                                https://faucet.shadownet.teztnets.com/
+                            </a>
+                            .
+                        </p>
+                    </aside>
+
+                    <label
+                        className={`flex items-start gap-2.5 rounded-lg border border-border bg-card p-3 text-xs ${
+                            !hasCover
+                                ? "cursor-not-allowed opacity-50"
+                                : "cursor-pointer select-none"
+                        }`}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={coverConfirmed}
+                            disabled={!hasCover}
+                            onChange={(e) => setCoverConfirmed(e.target.checked)}
+                            className="mt-0.5 rounded border-border accent-alea-600"
                         />
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-foreground">Cover image set</p>
-                            <p className="truncate font-mono text-[11px] text-muted-foreground">
-                                Seed: {draft.cover.seed}
-                            </p>
-                            <p className="truncate font-mono text-[11px] text-muted-foreground">
-                                {draft.cover.uri}
-                            </p>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-                        <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
-                        <div>
-                            <p className="font-semibold">No cover image set</p>
-                            <p className="mt-0.5 text-muted-foreground">
-                                Select and pin a cover image in the Details tab before publishing.
-                            </p>
-                        </div>
-                    </div>
-                )}
+                        <span className="font-medium leading-relaxed text-foreground">
+                            I have checked my cover image and understand this cannot be changed
+                            later.
+                        </span>
+                    </label>
+                </div>
 
-                {hasFailed && !running && (
-                    <div className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-                        <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
-                        <div>
-                            <p className="font-semibold">Pre-flight checks failed</p>
-                            <p className="mt-0.5 text-muted-foreground">
-                                A generator with failing checks cannot be published. Fix the
-                                highlighted issues in your code and try again.
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {hasPassed && (
-                    <div className="flex items-start gap-2.5 rounded-lg border border-success/40 bg-success/10 p-3 text-xs text-success">
-                        <CheckCircle2 size={16} className="mt-0.5 shrink-0" aria-hidden />
-                        <div>
-                            <p className="font-semibold">All checks passed</p>
-                            <p className="mt-0.5 text-muted-foreground">
-                                Your generator is deterministic, isolated, and produces valid
-                                output.
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                <aside className="rounded-lg border border-alea-600/30 bg-alea-600/5 p-3 text-xs text-muted-foreground">
-                    <p className="font-medium text-foreground">Test on Shadownet first</p>
-                    <p className="mt-0.5 leading-relaxed">
-                        Start development on{" "}
-                        <a
-                            href="https://shadownet.aleatory.art"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-medium underline hover:text-foreground"
-                        >
-                            shadownet.aleatory.art
-                        </a>{" "}
-                        and test fully there through the minting process before deploying to
-                        mainnet. Shadownet tez is free and can be requested at{" "}
-                        <a
-                            href="https://faucet.shadownet.teztnets.com/"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-medium underline hover:text-foreground"
-                        >
-                            https://faucet.shadownet.teztnets.com/
-                        </a>
-                        .
-                    </p>
-                </aside>
-
-                <label
-                    className={`flex items-start gap-2.5 rounded-lg border border-border bg-card p-3 text-xs ${
-                        !hasCover ? "cursor-not-allowed opacity-50" : "cursor-pointer select-none"
-                    }`}
-                >
-                    <input
-                        type="checkbox"
-                        checked={coverConfirmed}
-                        disabled={!hasCover}
-                        onChange={(e) => setCoverConfirmed(e.target.checked)}
-                        className="mt-0.5 rounded border-border accent-alea-600"
-                    />
-                    <span className="font-medium leading-relaxed text-foreground">
-                        I have checked my cover image and understand this cannot be changed later.
-                    </span>
-                </label>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border p-6 pt-4">
                     <button
                         type="button"
                         onClick={() => void run()}
