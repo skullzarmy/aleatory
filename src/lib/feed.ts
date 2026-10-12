@@ -9,6 +9,7 @@ import {
     fetchTokensIn,
     fetchStorage,
     fetchGeneratorMeta,
+    fetchGeneratorMetas,
     type GeneratorMeta,
     fetchTokensHeldBy,
     fetchHeldCount,
@@ -43,13 +44,12 @@ interface TokenDoc {
  * `alias` is set only for contracts it happens to know, never for one of ours.
  */
 async function namesFor(addresses: string[]): Promise<Map<string, string>> {
-    const entries = await Promise.all(
-        addresses.map(async (a) => {
-            const meta = await fetchGeneratorMeta(a).catch((): GeneratorMeta => ({}));
-            return [a, meta.name ?? ""] as const;
-        }),
-    );
-    return new Map(entries.filter(([, name]) => name));
+    const metas = await fetchGeneratorMetas(addresses);
+    const out = new Map<string, string>();
+    for (const [address, meta] of metas) {
+        if (meta.name) out.set(address, meta.name);
+    }
+    return out;
 }
 
 /**
@@ -584,22 +584,19 @@ async function fetchWalletLive(
         const pageAddresses = madeAddresses.slice((page - 1) * perPage, page * perPage);
         const [contracts, metas, covers, editions] = await Promise.all([
             fetchContractsByAddress(pageAddresses),
-            Promise.all(
-                pageAddresses.map(
-                    (a): Promise<GeneratorMeta> => fetchGeneratorMeta(a).catch(() => ({})),
-                ),
-            ),
+            fetchGeneratorMetas(pageAddresses),
             coversFor(pageAddresses).catch(() => new Map<string, string>()),
             fetchEditionSizes(factories, pageAddresses).catch(() => new Map<string, number>()),
         ]);
         const byAddress = new Map(contracts.map((c) => [c.address, c]));
-        made = pageAddresses.map((address, i) => {
+        made = pageAddresses.map((address) => {
             const c = byAddress.get(address);
-            const own = metas[i].displayUri ?? metas[i].thumbnailUri;
+            const meta = metas.get(address) ?? {};
+            const own = meta.displayUri ?? meta.thumbnailUri;
             return {
                 address,
-                name: metas[i].name || c?.alias,
-                description: metas[i].description,
+                name: meta.name || c?.alias,
+                description: meta.description,
                 coverUrl: own ? ipfsImageUrl(own) : covers.get(address),
                 minted: c?.tokensCount ?? 0,
                 editionSize: editions.get(address) ?? 0,
