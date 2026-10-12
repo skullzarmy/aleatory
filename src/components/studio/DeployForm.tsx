@@ -24,6 +24,8 @@ import { AccountName } from "@/components/account/AccountName";
 import { CoverPicker } from "./CoverPicker";
 import { TagInput } from "./TagInput";
 import { SplitTable, isSplitAddress, type SplitRow } from "./SplitTable";
+import { ArtistList } from "./ArtistList";
+import { MissingArtists } from "./MissingArtists";
 import { useDeps } from "@/components/useDeps";
 import { declaredIn, recordFor } from "@/lib/libraries";
 import { ipfsImageUrl } from "@/utils/ipfs";
@@ -59,11 +61,13 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [platformShare, setPlatformShare] = useState(false);
     const [platformPercent, setPlatformPercent] = useState("10");
     /**
-     * Collaborators, and who gets what, on two tables that do not have to
-     * agree: the mint price and the resale royalty are separately negotiable.
-     * Neither list holds the connected wallet, which takes the remainder.
+     * Three separate questions, asked separately: who made it, who the mint
+     * price goes to, and who the resale royalty goes to. None of them implies
+     * another, and none of these lists holds the connected wallet, who is
+     * always an artist and always takes each remainder.
      */
-    const [collabRows, setCollabRows] = useState<SplitRow[]>(draft?.collab ?? []);
+    const [artists, setArtists] = useState<string[]>(draft?.artists ?? []);
+    const [payeeRows, setPayeeRows] = useState<SplitRow[]>(draft?.collab ?? []);
     const [royaltyRows, setRoyaltyRows] = useState<SplitRow[]>(draft?.royaltyRecipients ?? []);
     const [providerAddress, setProviderAddress] = useState(providers[0]?.address ?? "");
     const [trustResolver, setTrustResolver] = useState(true);
@@ -113,27 +117,26 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     // One comparison, reached from the debounce and from the unmount flush
     // below. Two copies of it drifted the moment a field was added to only
     // one of them.
-    const editable = { name, description, tags, nameTrait, cover, collabRows, royaltyRows };
+    const editable = { name, description, tags, nameTrait, cover, artists, payeeRows, royaltyRows };
     type Editable = typeof editable;
     function flush(d: Draft, v: Editable) {
         const sameList = (a: SplitRow[] | undefined, b: SplitRow[]) =>
             (a ?? []).length === b.length &&
-            (a ?? []).every(
-                (r, i) =>
-                    r.address === b[i].address &&
-                    r.percent === b[i].percent &&
-                    r.credit === b[i].credit,
-            );
+            (a ?? []).every((r, i) => r.address === b[i].address && r.percent === b[i].percent);
         const sameTags =
             (d.tags ?? []).length === v.tags.length &&
             (d.tags ?? []).every((t, i) => t === v.tags[i]);
+        const sameArtists =
+            (d.artists ?? []).length === v.artists.length &&
+            (d.artists ?? []).every((a: string, i: number) => a === v.artists[i]);
         if (
             d.name === v.name &&
             (d.description ?? "") === v.description &&
             (d.nameTrait ?? "") === v.nameTrait &&
             d.cover?.uri === v.cover?.uri &&
             sameTags &&
-            sameList(d.collab, v.collabRows) &&
+            sameArtists &&
+            sameList(d.collab, v.payeeRows) &&
             sameList(d.royaltyRecipients, v.royaltyRows)
         )
             return;
@@ -144,7 +147,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             tags: v.tags,
             nameTrait: v.nameTrait,
             cover: v.cover ?? undefined,
-            collab: v.collabRows,
+            artists: v.artists,
+            collab: v.payeeRows,
             royaltyRecipients: v.royaltyRows,
         });
     }
@@ -154,7 +158,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         const t = setTimeout(() => flush(draft, latest.current.editable), 600);
         return () => clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [draft, name, description, tags, nameTrait, cover, collabRows, royaltyRows]);
+    }, [draft, name, description, tags, nameTrait, cover, artists, payeeRows, royaltyRows]);
 
     // The effect above cancels its own timer on every keystroke, by design —
     // that's the debounce. But its cleanup also runs on a real unmount, which
@@ -200,62 +204,76 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             .filter((r) => isSplitAddress(r.address))
             .map((r) => ({ address: r.address.trim(), percent: parseFloat(r.percent) || 0 }));
 
-    const collabNamed = useMemo(() => named(collabRows), [collabRows]);
-    /**
-     * Who is being named as an artist. The connected wallet always is: they
-     * wrote the thing, and the contract requires the signer to be creditable
-     * because they are confirmed from the start.
-     */
-    const collabCreditable = useMemo(
-        () => [
-            ...(address ? [address] : []),
-            ...named(collabRows.filter((r) => r.credit)).map((r) => r.address),
-        ],
-        [address, collabRows],
-    );
+    const payeeNamed = useMemo(() => named(payeeRows), [payeeRows]);
     const royaltyNamed = useMemo(() => named(royaltyRows), [royaltyRows]);
 
     /**
-     * Co-artists on the mint who are not on the royalty split.
-     *
-     * The two tables are independent on purpose, which is also how somebody
-     * gets a share of the mint and nothing on resales. Neither map has a
-     * setter, so it is worth saying before the signature and not worth
-     * blocking on: the asymmetry is sometimes the deal. Only raised once
-     * there is a second artist, since a solo generator has nothing to
-     * forget.
+     * Who made it. The connected wallet always, plus whoever they named. The
+     * contract requires the signer here, since they are credited from the
+     * moment the generator exists.
      */
-    const royaltyGaps = useMemo(() => {
-        if (collabCreditable.length < 2) return [];
-        const onRoyalties = new Set([
+    const credited = useMemo(
+        () => [
             ...(address ? [address] : []),
-            ...royaltyNamed.map((r) => r.address),
-        ]);
-        return collabRows
-            .filter((r) => r.credit && isSplitAddress(r.address))
-            .filter((r) => !onRoyalties.has(r.address.trim()));
-    }, [collabCreditable, collabRows, royaltyNamed, address]);
+            ...artists.map((a) => a.trim()).filter(isSplitAddress),
+        ],
+        [address, artists],
+    );
 
-    /** Each missing artist at the share they take of the mint. */
-    const matchRoyaltiesToArtists = () =>
-        setRoyaltyRows([
-            ...royaltyRows,
-            ...royaltyGaps.map((r) => ({ address: r.address.trim(), percent: r.percent })),
-        ]);
+    /**
+     * Artists missing from a money split, per split.
+     *
+     * The three lists are independent on purpose, which is also how somebody
+     * ends up credited and unpaid. Worth saying before the signature and not
+     * worth blocking on: an artist who waived the mint and kept royalties is
+     * a real arrangement, and neither map has a setter. Silent for a solo
+     * generator, which has nobody to leave out.
+     */
+    const gapsAgainst = (present: Set<string>) =>
+        credited.length < 2 ? [] : credited.filter((a) => a !== address && !present.has(a));
+
+    const mintGaps = useMemo(
+        () => gapsAgainst(new Set(payeeNamed.map((r) => r.address))),
+        [credited, payeeNamed, address],
+    );
+    const royaltyGaps = useMemo(
+        () => gapsAgainst(new Set(royaltyNamed.map((r) => r.address))),
+        [credited, royaltyNamed, address],
+    );
+
+    /**
+     * Added at an even share of what the owner currently holds, taken from
+     * their own remainder so the click can never overdraw a table. Any number
+     * picked for them is a guess at the deal, so an even cut is the one that
+     * assumes least.
+     *
+     * Floors to two places and refuses to emit zero: a remainder too small to
+     * divide would otherwise add rows at 0%, which the contract drops and
+     * validation then blocks on, so the button would produce a state the form
+     * rejects.
+     */
+    const SMALLEST_SHARE = 0.01;
+    const shareOut = (rows: SplitRow[], ownerPercent: number, missing: string[]) => {
+        const each = Math.floor((ownerPercent / (missing.length + 1)) * 100) / 100;
+        if (each < SMALLEST_SHARE) return rows;
+        return [...rows, ...missing.map((a) => ({ address: a, percent: String(each) }))];
+    };
+    const canShareOut = (ownerPercent: number, missing: string[]) =>
+        Math.floor((ownerPercent / (missing.length + 1)) * 100) / 100 >= SMALLEST_SHARE;
 
     const platform = platformShare ? parseFloat(platformPercent) || 0 : 0;
 
     /** What the connected wallet is left with on each table. */
-    const collabOwnerPercent = 100 - collabNamed.reduce((n, r) => n + r.percent, 0);
+    const mintOwnerPercent = 100 - payeeNamed.reduce((n, r) => n + r.percent, 0);
     const royaltyOwnerPercent = 100 - platform - royaltyNamed.reduce((n, r) => n + r.percent, 0);
 
     /** Who the mint price is divided between. Always totals 100%. */
     const collab: RoyaltySplit = useMemo(
         () => ({
             totalPercent: 100,
-            recipients: address ? [{ address, percent: collabOwnerPercent }, ...collabNamed] : [],
+            recipients: address ? [{ address, percent: mintOwnerPercent }, ...payeeNamed] : [],
         }),
-        [address, collabOwnerPercent, collabNamed],
+        [address, mintOwnerPercent, payeeNamed],
     );
 
     const split: RoyaltySplit = useMemo(() => {
@@ -336,40 +354,50 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         const tez = parseTez(price);
         if (tez === null) return "That price is not an amount.";
 
-        // The split map has no setter, so a row half typed or a share set to
-        // nothing is permanent. A zero share is dropped on the way to the
-        // contract, which would leave that person unable to accept the
-        // collaboration at all.
+        // Every address here is written into a map with no setter, so a row
+        // half typed is permanent, and a zero share is dropped on the way to
+        // the contract, which leaves that person in neither list.
+        for (const a of artists) {
+            if (!isSplitAddress(a)) {
+                return "That artist address is not a Tezos address. Fix it or remove the row.";
+            }
+        }
+        if (new Set(credited).size !== credited.length) {
+            return "One address is listed twice as an artist.";
+        }
         for (const [rows, what] of [
-            [collabRows, "collaborator"],
+            [payeeRows, "person sharing the mint"],
             [royaltyRows, "royalty recipient"],
         ] as const) {
             for (const r of rows) {
                 if (!isSplitAddress(r.address)) {
-                    return `That ${what} address is not a Tezos address. Fix it or remove the row.`;
+                    return `That ${what}'s address is not a Tezos address. Fix it or remove the row.`;
                 }
                 if (!((parseFloat(r.percent) || 0) > 0)) {
                     return `Give every ${what} a share above 0, or remove them.`;
                 }
             }
         }
-        if (collabOwnerPercent < 0) {
-            return "Your collaborators add up to more than 100% of the mint price.";
+        if (mintOwnerPercent < 0) {
+            return "The mint split adds up to more than the whole mint price.";
         }
-        // A zero share is dropped on the way to the contract, and the contract
-        // refuses a split the signer is not part of, because the signer is who
-        // the rounding remainder and any undeliverable share fall to.
-        if (collabOwnerPercent <= 0) {
+        // The signer takes the rounding remainder and any share that cannot
+        // be delivered, so the contract refuses a split they are not in, and
+        // a zero share would drop them from it.
+        if (mintOwnerPercent <= 0) {
             return "Keep some share of the mint price for yourself. The contract refuses a split the person deploying is not part of.";
         }
         if (
-            new Set([address, ...collabNamed.map((r) => r.address)]).size !==
-            collabNamed.length + 1
+            new Set([address, ...payeeNamed.map((r) => r.address)]).size !==
+            payeeNamed.length + 1
         ) {
-            return "One address appears twice in the collaborators.";
+            return "One address appears twice in the mint split.";
         }
-        if (collabNamed.length + 1 > 8) {
-            return "A generator takes at most 8 collaborators, including you.";
+        // Not a product limit. The payout walks this map inside every mint,
+        // and an operation has a gas ceiling it would eventually hit, with no
+        // setter to undo it.
+        if (payeeNamed.length + 1 > 50) {
+            return "A mint can be split between at most 50 addresses, including you.";
         }
         const royalty = parseFloat(royaltyTotal);
         if (!Number.isFinite(royalty) || royalty < 0 || royalty > 25) {
@@ -527,7 +555,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     priceMutez: parseTez(price) as bigint,
                     split,
                     collab,
-                    collabCreditable,
+                    collabCreditable: credited,
                     provider: provider!.address,
                     maxRenderGasMutez: BigInt(provider!.renderGasMutez),
                     resolvedLibraries: resolvedDeps.map((r) => r.spec),
@@ -956,23 +984,43 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
             </div>
 
             <Field
-                label="Collaborators"
+                label="Artists"
                 permanent
-                hint="Who shares each mint, and whether they are one of the artists. An artist is credited once they accept; anyone set to paid only takes their share and is never named. Up to 8 people including you."
+                hint="Who made this. Nothing to do with the money, which is set below. Everyone you name has to accept before they are credited anywhere, so nobody's name lands on work they had nothing to do with."
             >
-                <SplitTable
-                    rows={collabRows}
-                    onChange={setCollabRows}
+                <ArtistList
+                    artists={artists}
+                    onChange={setArtists}
                     owner={address ?? undefined}
-                    ownerPercent={collabOwnerPercent}
-                    max={8}
-                    addLabel="Add someone"
                     disabled={stage !== null}
-                    credits
                 />
             </Field>
 
-            {collabNamed.length > 0 && (
+            <Field
+                label="Who shares each mint"
+                permanent
+                hint="The mint price, divided. Anyone can be here, artist or not: a studio or a fund takes a share without being credited as an author."
+            >
+                <SplitTable
+                    rows={payeeRows}
+                    onChange={setPayeeRows}
+                    owner={address ?? undefined}
+                    ownerPercent={mintOwnerPercent}
+                    rowsLeft={50 - payeeRows.length - 1}
+                    addLabel="Add someone"
+                    disabled={stage !== null}
+                    ownerLabel="the rest"
+                />
+                <MissingArtists
+                    missing={mintGaps}
+                    what="they get nothing from a mint"
+                    onAdd={() => setPayeeRows(shareOut(payeeRows, mintOwnerPercent, mintGaps))}
+                    canAdd={canShareOut(mintOwnerPercent, mintGaps)}
+                    disabled={stage !== null}
+                />
+            </Field>
+
+            {payeeNamed.length > 0 && (
                 <div className="space-y-1 rounded-lg bg-muted/50 p-4 text-sm">
                     <p className="pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         On every mint
@@ -1073,28 +1121,20 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     onChange={setRoyaltyRows}
                     owner={address ?? undefined}
                     ownerPercent={royaltyOwnerPercent}
-                    max={10}
+                    rowsLeft={Number.POSITIVE_INFINITY}
                     addLabel="Add a recipient"
                     disabled={stage !== null}
+                    ownerLabel="the rest"
                 />
-                {royaltyGaps.length > 0 && (
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
-                        <p className="min-w-0 text-xs text-muted-foreground">
-                            {royaltyGaps.length === 1
-                                ? "One of your artists shares the mint and gets nothing on resales."
-                                : `${royaltyGaps.length} of your artists share the mint and get nothing on resales.`}{" "}
-                            Deliberate is fine; neither split can be changed later.
-                        </p>
-                        <button
-                            type="button"
-                            disabled={stage !== null}
-                            onClick={matchRoyaltiesToArtists}
-                            className="shrink-0 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-60"
-                        >
-                            {royaltyGaps.length === 1 ? "Add them" : "Add them all"}
-                        </button>
-                    </div>
-                )}
+                <MissingArtists
+                    missing={royaltyGaps}
+                    what="they get nothing when a piece resells"
+                    onAdd={() =>
+                        setRoyaltyRows(shareOut(royaltyRows, royaltyOwnerPercent, royaltyGaps))
+                    }
+                    canAdd={canShareOut(royaltyOwnerPercent, royaltyGaps)}
+                    disabled={stage !== null}
+                />
             </Field>
 
             {preview.length > 0 && (

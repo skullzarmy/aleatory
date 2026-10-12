@@ -101,10 +101,14 @@ export function cleanTags(raw: unknown): string[] {
 
 /**
  * Who made the generator: the collaborators who have confirmed being named
- * on it, which for a solo generator is the one artist. Bounded the same way
- * tags are, because this is pinned permanently.
+ * on it, which for a solo generator is the one artist.
+ *
+ * Bounded because this is pinned permanently and a document is fetched on
+ * every card, but far above any real collaboration: the chain puts no limit
+ * on how many people may be credited, and a cap that bites would drop
+ * somebody's authorship silently.
  */
-const MAX_CREATORS = 8;
+const MAX_CREATORS = 64;
 export function cleanCreators(raw: unknown): string[] {
     if (!Array.isArray(raw)) return [];
     const seen = new Set<string>();

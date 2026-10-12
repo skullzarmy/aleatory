@@ -215,7 +215,7 @@ async function main() {
     // rows, and the filter below it would then read `undefined` for every one
     // of them and quietly report that nobody has any.
     const deployEvents = (await get(
-        `/v1/contracts/events?contract.in=${(routerStorage.factories ?? []).join(",")}&tag=deploy&select=payload.address,payload.collaborators&limit=5`,
+        `/v1/contracts/events?contract.in=${(routerStorage.factories ?? []).join(",")}&tag=deploy&select=payload.address,payload.creditable&limit=5`,
     )) as Record<string, unknown>[];
     check(
         "select= on an event payload returns those fields and not the whole row",

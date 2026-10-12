@@ -342,34 +342,40 @@ export async function fetchCreators(generators: string[]): Promise<Map<string, s
  * unfiltered page. `select` on one field flattens to that field's bare value.
  */
 /**
- * Generators that named one address as a collaborator, whoever deployed them.
+ * Generators that named one address as an artist, whoever deployed them.
  *
- * The factory emits the whole share map on `deploy` for exactly this: TzKT
- * cannot filter inside a storage map, so the alternative is reading every
- * collection's storage to answer one wallet's question. Filtered here rather
- * than in the query, because a map payload is not something TzKT can match on
- * either.
+ * Read off `payload.creditable` and not `payload.collaborators`: the two are
+ * different lists, and an artist who waived their share of the mint has
+ * nothing in the share map to be found by.
+ *
+ * The factory emits both on `deploy` for exactly this. TzKT cannot filter
+ * inside a map or a set, so the alternative is reading every collection's
+ * storage to answer one wallet's question, and the filtering happens here.
  */
 export async function fetchGeneratorsNaming(
-    collaborator: string,
+    artist: string,
     factories: string[],
 ): Promise<string[]> {
-    if (factories.length === 0 || !isAddress(collaborator)) return [];
+    if (factories.length === 0 || !isAddress(artist)) return [];
     const out: string[] = [];
     for (let offset = 0; offset < DEPLOYED_CEILING; offset += DEPLOYED_PAGE) {
-        const rows = await get<
-            { "payload.address"?: string; "payload.collaborators"?: Record<string, string> }[]
-        >("/v1/contracts/events", {
-            "contract.in": factories.join(","),
-            tag: "deploy",
-            "sort.desc": "id",
-            limit: DEPLOYED_PAGE,
-            offset,
-            select: "payload.address,payload.collaborators",
-        }).catch(() => []);
+        const rows = await get<{ "payload.address"?: string; "payload.creditable"?: string[] }[]>(
+            "/v1/contracts/events",
+            {
+                "contract.in": factories.join(","),
+                tag: "deploy",
+                "sort.desc": "id",
+                limit: DEPLOYED_PAGE,
+                offset,
+                select: "payload.address,payload.creditable",
+            },
+        ).catch(() => []);
         for (const row of rows) {
             const address = row["payload.address"];
-            if (address && row["payload.collaborators"]?.[collaborator]) out.push(address);
+            const creditable = row["payload.creditable"];
+            if (address && Array.isArray(creditable) && creditable.includes(artist)) {
+                out.push(address);
+            }
         }
         if (rows.length < DEPLOYED_PAGE) break;
     }

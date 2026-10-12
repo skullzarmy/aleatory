@@ -7,12 +7,6 @@ export interface SplitRow {
     address: string;
     /** Percent, as typed. Parsed by the caller. */
     percent: string;
-    /**
-     * Whether this person is being named as one of the artists. Only on the
-     * mint split, where paying somebody and crediting them are separate
-     * decisions. Undefined on the royalty table, which credits nobody.
-     */
-    credit?: boolean;
 }
 
 const ADDRESS = /^(tz[1234]|KT1)[0-9A-Za-z]{33}$/;
@@ -34,22 +28,22 @@ export function SplitTable({
     onChange,
     owner,
     ownerPercent,
-    max,
+    rowsLeft,
     addLabel,
     disabled,
-    credits,
+    ownerLabel,
 }: {
     rows: SplitRow[];
     onChange: (rows: SplitRow[]) => void;
     /** The connected wallet, which holds the remainder. */
     owner?: string;
     ownerPercent: number;
-    /** Including the owner's own row. */
-    max: number;
+    /** How many more rows may be added, across every table sharing the cap. */
+    rowsLeft: number;
     addLabel: string;
     disabled?: boolean;
-    /** Offer a per-row artist-credit toggle. The mint split has one. */
-    credits?: boolean;
+    /** Shown beside the owner's remainder. Omitted when it needs no saying. */
+    ownerLabel?: string;
 }) {
     const set = (i: number, next: Partial<SplitRow>) =>
         onChange(rows.map((r, j) => (i === j ? { ...r, ...next } : r)));
@@ -59,6 +53,7 @@ export function SplitTable({
             <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0 truncate text-muted-foreground">
                     {owner ? <AccountName address={owner} /> : "You"}
+                    {ownerLabel && <span className="ml-1.5 text-xs">{ownerLabel}</span>}
                 </span>
                 <span
                     className={`shrink-0 font-medium tabular-nums ${
@@ -97,25 +92,6 @@ export function SplitTable({
                         className="w-20 shrink-0 rounded-md border border-border bg-background px-2 py-1.5 text-sm tabular-nums"
                     />
                     <span className="shrink-0 text-sm text-muted-foreground">%</span>
-                    {credits && (
-                        <button
-                            type="button"
-                            disabled={disabled}
-                            onClick={() => set(i, { credit: !row.credit })}
-                            title={
-                                row.credit
-                                    ? "Named as an artist. They choose whether to accept."
-                                    : "Paid only. Never listed as an artist."
-                            }
-                            className={`shrink-0 rounded-md border px-2 py-1.5 text-xs font-medium disabled:opacity-60 ${
-                                row.credit
-                                    ? "border-alea-600/50 bg-alea-600/15"
-                                    : "border-border hover:bg-accent"
-                            }`}
-                        >
-                            {row.credit ? "Artist" : "Paid only"}
-                        </button>
-                    )}
                     <button
                         type="button"
                         disabled={disabled}
@@ -128,16 +104,11 @@ export function SplitTable({
                 </div>
             ))}
 
-            {rows.length + 1 < max && (
+            {rowsLeft > 0 && (
                 <button
                     type="button"
                     disabled={disabled}
-                    onClick={() =>
-                        onChange([
-                            ...rows,
-                            { address: "", percent: "", ...(credits ? { credit: true } : {}) },
-                        ])
-                    }
+                    onClick={() => onChange([...rows, { address: "", percent: "" }])}
                     className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-60"
                 >
                     <Plus size={13} aria-hidden />

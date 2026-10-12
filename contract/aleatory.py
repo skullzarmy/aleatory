@@ -108,8 +108,8 @@ def aleatory():
         # exactly 10000, and a solo generator is one entry at 10000, so the
         # payout in `mint` has one path to walk.
         collab_shares=sp.map[sp.address, sp.nat],
-        # Which of them the artist is naming as a co-author. The rest are
-        # paid and never credited.
+        # Who made the work. Independent of `collab_shares`: an artist may
+        # take no share, and a share may go to somebody who made nothing.
         collab_creditable=sp.set[sp.address],
         # The metadata URI every token is minted with, an ipfs:// pointer
         # to the collection's "not revealed yet" JSON. A provider replaces
@@ -185,11 +185,10 @@ def aleatory():
         # No setter, the same guarantee `royalties` carries: a collector can
         # read the split before buying and it cannot move underneath them.
         shares=sp.map[sp.address, sp.nat],
-        # Which of those recipients the artist named as a co-author, as
-        # opposed to someone taking a cut. A studio, a fund or a developer
-        # gets paid without being one of the people who made the work, and
-        # without this they could call `accept_collaboration` and credit
-        # themselves. A subset of `shares`, fixed at origination.
+        # Who made the work, which is a separate question from who the
+        # money goes to and is answered separately. Someone here with no
+        # share took no payment; someone in `shares` and not here is taking
+        # a cut and cannot call `accept_collaboration` to credit themselves.
         creditable=sp.set[sp.address],
         # Which of the creditable have accepted. Shares are paid from the
         # first mint whatever this says; being credited is what it governs,
@@ -1357,11 +1356,15 @@ def aleatory():
                 total_shares += share
             assert total_shares == 10000, "COLLAB_SHARES_NOT_WHOLE"
 
-            # The payout loop runs inside every collector's `mint`, so its
-            # gas is paid by collectors for the life of the edition and the
-            # artist is not the one who feels it. Nothing else here bounds
-            # the size of a map.
-            assert sp.len(params.collab_shares) <= 8, "TOO_MANY_COLLABORATORS"
+            # Not a limit on how many people may share a mint. The payout
+            # walks this map inside every `mint`, a protocol operation is
+            # capped at 1,040,000 gas, and `shares` has no setter, so a map
+            # long enough to exhaust that gas is an edition nobody can ever
+            # mint from and no way back. A send costs low thousands of gas
+            # against that budget, so this sits far below where it breaks and
+            # exists only to make the failure impossible rather than
+            # permanent.
+            assert sp.len(params.collab_shares) <= 50, "TOO_MANY_PAYEES"
 
             # The administrator takes the rounding remainder and any share
             # that cannot be delivered, so they have to be someone with a
@@ -1370,12 +1373,11 @@ def aleatory():
                 sp.sender
             ), "DEPLOYER_NOT_A_COLLABORATOR"
 
-            # Credit is offered to people who are being paid, so a name
-            # cannot appear on the work without a share behind it. The
-            # deployer is credited from the start and has to be in the set
-            # they are part of.
-            for who in params.collab_creditable.elements():
-                assert params.collab_shares.contains(who), "CREDITABLE_NOT_PAID"
+            # The deployer made it, and is credited from the moment the
+            # generator exists, so they have to be in the set that says who
+            # made it. Nothing else here constrains the two lists against
+            # each other: an artist may take no share, and a share may go to
+            # somebody who made nothing.
             assert params.collab_creditable.contains(
                 sp.sender
             ), "DEPLOYER_NOT_CREDITABLE"

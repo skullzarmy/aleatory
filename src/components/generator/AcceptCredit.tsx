@@ -6,11 +6,13 @@ import { acceptCollaboration } from "@/lib/ops";
 import type { Collab } from "@/lib/collab";
 
 /**
- * Shown to somebody named as a collaborator who has not accepted yet.
+ * Shown to an artist who has not accepted being credited yet.
  *
- * Their share is already being paid out of every mint. What this signs for is
- * the credit: until they do, the page counts them without naming them, so
- * nobody else's name ends up on a generator they had nothing to do with.
+ * Gated on `creditable` and not on `shares`, which are different lists: a
+ * studio taking a cut is paid and would have this call reverted by the
+ * contract, and an artist who waived their share has nothing in `shares` to
+ * be found by. What this signs for is the credit alone, and until then the
+ * page counts them without naming them.
  */
 export function AcceptCredit({ generator, collab }: { generator: string; collab: Collab }) {
     const { address, getClient } = useWallet();
@@ -18,9 +20,9 @@ export function AcceptCredit({ generator, collab }: { generator: string; collab:
     const [done, setDone] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const named = address ? collab.shares.some((s) => s.address === address) : false;
+    const invited = address ? collab.creditable.includes(address) : false;
     const confirmed = address ? collab.confirmed.includes(address) : false;
-    if (!named || confirmed) return null;
+    if (!invited || confirmed) return null;
 
     const share = collab.shares.find((s) => s.address === address);
 
@@ -47,11 +49,11 @@ export function AcceptCredit({ generator, collab }: { generator: string; collab:
 
     return (
         <div className="space-y-2 rounded-md border border-alea-600/40 bg-alea-600/10 px-3 py-3">
-            <p className="text-sm font-medium">You are a collaborator on this generator</p>
+            <p className="text-sm font-medium">You are named as an artist on this generator</p>
             <p className="text-xs text-muted-foreground">
                 {share
                     ? `You receive ${(share.bps / 100).toFixed(2)}% of every mint, which is already the case. `
-                    : ""}
+                    : "You take no share of the mint. "}
                 Accept to be credited as one of its artists, here and in each piece published from
                 now on.
             </p>

@@ -341,12 +341,22 @@ storage.template_version    nat                 2 for a collection with the abov
 accept_collaboration()                          callable only from `creditable`
 ```
 
-Paying somebody and crediting them are separate, because they come apart in
-practice: a studio, a fund or a developer takes a share of each mint without
-having made the work. `creditable` is the artist's statement of who the
-co-authors are, and it is a subset of `shares`, so a name on the work always
-has a share behind it. A recipient outside it is paid and can never put
-themselves in `creators`.
+Who made it and who the money goes to are separate questions, answered
+separately, because they come apart in practice. A studio, a fund or a
+developer takes a share of each mint without having made the work. An artist
+waives their share of the mint and keeps royalties, or the reverse.
+
+So neither list constrains the other. `creditable` is who the artist says
+made it, and somebody in it with no share took no payment. Somebody in
+`shares` and not in `creditable` is taking a cut and cannot put themselves in
+`creators`. The one requirement is that the deployer is in `creditable`,
+because they are confirmed from the moment the generator exists.
+
+`shares` is capped at 50 recipients. Not a limit on how many people may share
+a mint: the payout walks that map inside every `mint` against a per-operation
+gas ceiling, and the map has no setter, so a map long enough to exhaust the
+gas is an edition nobody can ever mint from. `creditable` has no cap, because
+nothing iterates it on a paying path.
 
 `shares` is written at origination and has no setter, same as `royalties`.
 `mint` divides the price between them in the collector's own operation,

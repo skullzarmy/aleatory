@@ -1212,13 +1212,15 @@ def test_deploy_refuses_a_split_that_does_not_work():
         ),
         _sender=artist, _valid=False,
     )
-    # Nine members. The payout loop is gas every collector pays.
-    nine = {
-        sp.test_account(f"Member{i}").address: 1111 for i in range(8)
+    # Past the payout loop's ceiling. Not a product limit: the loop runs in
+    # every collector's mint and `shares` has no setter, so a map long enough
+    # to exhaust an operation's gas is an edition nobody can mint from.
+    too_many = {
+        sp.test_account(f"Member{i}").address: 196 for i in range(50)
     }
-    nine[artist.address] = 1112
+    too_many[artist.address] = 10000 - 196 * 50
     factory.deploy(
-        _deploy_params(provider, collab_shares=nine),
+        _deploy_params(provider, collab_shares=too_many),
         _sender=artist, _valid=False,
     )
     # A split the signer is not part of. They take the remainder, so they
@@ -1228,13 +1230,13 @@ def test_deploy_refuses_a_split_that_does_not_work():
         _sender=artist, _valid=False,
     )
 
-    # Eight is the ceiling, not a step past it.
-    eight = {
-        sp.test_account(f"Member{i}").address: 1250 for i in range(7)
+    # Fifty is the ceiling, not a step past it.
+    fifty = {
+        sp.test_account(f"Member{i}").address: 200 for i in range(49)
     }
-    eight[artist.address] = 1250
+    fifty[artist.address] = 10000 - 200 * 49
     factory.deploy(
-        _deploy_params(provider, collab_shares=eight), _sender=artist,
+        _deploy_params(provider, collab_shares=fifty), _sender=artist,
     )
     scenario.verify(factory.data.next_collection_id == 1)
 
@@ -1317,45 +1319,72 @@ def test_a_cut_is_not_a_credit():
 
 
 @sp.add_test()
-def test_deploy_refuses_credit_without_a_share():
-    """Credit is offered to people being paid, so a name on the work always
-    has a share behind it, and the deployer is credited from the start."""
+def test_who_made_it_and_who_is_paid_are_separate_lists():
+    """Neither list constrains the other. An artist may take nothing, and a
+    share may go to somebody who made nothing. The one requirement is that
+    the person deploying is credited, because they are confirmed from the
+    moment the generator exists."""
     scenario = sp.test_scenario("Creditable rules", aleatory)
     admin = sp.test_account("Admin")
     minter = sp.test_account("Minter")
     treasury = sp.test_account("Treasury")
     artist = sp.test_account("Artist")
-    stranger = sp.test_account("Alice")
+    unpaid = sp.test_account("Bob")
+    studio = sp.test_account("Alice")
     resolver, provider, factory = _setup(scenario, admin, minter, treasury)
 
-    # Named as a co-author, paid nothing.
+    # An artist who took no share of the mint.
     factory.deploy(
         _deploy_params(
             provider,
             collab_shares={artist.address: 10000},
-            collab_creditable={artist.address, stranger.address},
+            collab_creditable={artist.address, unpaid.address},
         ),
-        _sender=artist, _valid=False,
+        _sender=artist,
     )
-    # A deploy that credits somebody other than the person signing it.
+    # A share to somebody who is not one of the artists.
     factory.deploy(
         _deploy_params(
             provider,
-            collab_shares={artist.address: 5000, stranger.address: 5000},
-            collab_creditable={stranger.address},
-        ),
-        _sender=artist, _valid=False,
-    )
-    # Paying a second address without crediting it is fine.
-    factory.deploy(
-        _deploy_params(
-            provider,
-            collab_shares={artist.address: 9000, stranger.address: 1000},
+            collab_shares={artist.address: 9000, studio.address: 1000},
             collab_creditable={artist.address},
         ),
         _sender=artist,
     )
-    scenario.verify(factory.data.next_collection_id == 1)
+    scenario.verify(factory.data.next_collection_id == 2)
+
+    # A deploy that does not credit the person signing it.
+    factory.deploy(
+        _deploy_params(
+            provider,
+            collab_shares={artist.address: 5000, studio.address: 5000},
+            collab_creditable={studio.address},
+        ),
+        _sender=artist, _valid=False,
+    )
+    scenario.verify(factory.data.next_collection_id == 2)
+
+
+@sp.add_test()
+def test_an_unpaid_artist_is_still_credited():
+    """Credit does not come through the money. Somebody who waived their
+    share still accepts and still appears in `creators`."""
+    scenario = sp.test_scenario("Unpaid artist", aleatory)
+    admin = sp.test_account("Admin")
+    minter = sp.test_account("Minter")
+    treasury = sp.test_account("Treasury")
+    artist = sp.test_account("Artist")
+    unpaid = sp.test_account("Bob")
+    resolver, provider, factory = _setup(scenario, admin, minter, treasury)
+
+    c = _collection(
+        scenario, artist, resolver, provider, minter,
+        collab_shares={artist.address: 10000},
+        collab_creditable={artist.address, unpaid.address},
+    )
+    scenario.verify(~c.data.collab.shares.contains(unpaid.address))
+    c.accept_collaboration(_sender=unpaid)
+    scenario.verify(c.data.collab.confirmed.contains(unpaid.address))
 
 
 @sp.add_test()

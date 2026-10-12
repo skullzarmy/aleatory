@@ -111,7 +111,7 @@ art    : code            the generator itself, bytes
 sale   : price, edition_size (0 is open), paused
 
 collab : shares          address to basis points of the mint price, summing to 10000
-         creditable      which of them are named as co-authors, a subset of shares
+         creditable      who made it, independent of shares, capped by nothing
          confirmed       which co-authors accepted, which is who is credited
 
 render : provider        the provider contract the artist chose
@@ -141,14 +141,18 @@ and routes an undeliverable share, plus the rounding remainder, to the
 administrator, so the collection never retains a balance and one address
 written badly at origination cannot stop the edition minting.
 
-Credit is a separate question from the money, because the two come apart: a
-studio, a fund or a developer takes a share without having made the work.
-`collab.creditable` is the artist's statement of who the co-authors are, a
-subset of `shares`, so a name always has a share behind it and a recipient
-outside it can never claim credit. `collab.confirmed` is which of those
-co-authors accepted, which takes a call to `accept_collaboration` from that
+Who made it and who the money goes to are separate questions, and neither
+list constrains the other: a studio takes a share without having made the
+work, and an artist waives their share of the mint while keeping royalties.
+`collab.creditable` is who the artist says made it, and `collab.confirmed` is
+which of them accepted, which takes a call to `accept_collaboration` from that
 person and stops a deployer attaching a well-known artist's name to their own
-work. Credit therefore needs both sides, and neither can do it alone.
+work. Credit needs both sides and neither can do it alone. The deployer has to
+be in `creditable`, because they are confirmed from origination.
+
+`shares` is capped at 50 recipients, which is a guard and not a product limit:
+the payout walks it inside every `mint` against a per-operation gas ceiling,
+and it has no setter, so a longer map is an edition nobody can mint from.
 
 Administration does not divide. `administrator` stays one address holding
 every authority a generator has, and a group wanting joint control transfers

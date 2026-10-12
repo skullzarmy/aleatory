@@ -522,10 +522,11 @@ check("cleanCreators: blank and non-string entries are dropped", () => {
     assert.deepEqual(cleanCreators([A, "", "   ", 7, null, B]), [A, B]);
 });
 
-check("cleanCreators: capped at 8, which is the contract's own ceiling", () => {
-    const many = Array.from({ length: 12 }, (_, i) => `tz1${String(i).repeat(33)}`);
-    assert.equal(cleanCreators(many).length, 8);
-    assert.deepEqual(cleanCreators(many), many.slice(0, 8));
+check("cleanCreators: bounded, and far above any real collaboration", () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => `tz1${String(i).repeat(33)}`);
+    assert.equal(cleanCreators(twelve).length, 12, "a dozen artists are all credited");
+    const many = Array.from({ length: 80 }, (_, i) => `tz1${String(i).padStart(33, "0")}`);
+    assert.equal(cleanCreators(many).length, 64, "a document stays a sane size");
 });
 
 check("cleanCreators: anything that is not a list is nobody", () => {

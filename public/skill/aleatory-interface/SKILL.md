@@ -218,9 +218,10 @@ work are separate questions.
 
 Our collection keeps a collaborator set in storage. `collab.shares` is who the
 mint price is divided between, written at origination with no setter and
-summing to 10000 basis points. `collab.creditable` is which of them the artist
-named as co-authors, a subset of `shares`: somebody taking a cut is paid and
-cannot claim credit. `collab.confirmed` is which co-authors called
+summing to 10000 basis points. `collab.creditable` is who the artist says made
+it, independent of `shares`: somebody taking a cut is paid and cannot claim
+credit, and an artist who waived their share is credited with nothing in
+`shares` at all. `collab.confirmed` is which co-authors called
 `accept_collaboration`, which is who the documents credit. Everyone in
 `shares` is paid whether they accepted or not, so the two-step is about credit
 alone. `template_version` in storage says which
