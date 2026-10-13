@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, Link2, Share2 } from "lucide-react";
+import { Tzct } from "@/components/icons/Tzct";
 
 type Network = "twitter" | "bluesky" | "farcaster" | "telegram";
 
@@ -184,23 +185,6 @@ function Arch() {
     return (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <path d="M4 2h16v3h-3.2v14H20v1H14v-1h1.6v-6.4a3.6 3.6 0 0 0-7.2 0V19H10v1H4v-1h3.2V5H4V2z" />
-        </svg>
-    );
-}
-
-/**
- * TezCity's own TZCT monogram, their `currentColor` variant, which inherits
- * the button's colour the way every other mark here does. Their brand notes
- * ask that the square proportions and built-in spacing are kept, so the
- * 512 viewBox is used as published rather than cropped to the glyph.
- */
-function Tzct() {
-    return (
-        <svg width="14" height="14" viewBox="0 0 512 512" fill="currentColor" aria-hidden>
-            <path d="M106 99H250V127H193V248H163V127H106Z" />
-            <path d="M266 99H407V122L310 221H407V248H266V225L362 127H266Z" />
-            <path d="M106 275H247V303H135V393H250V421H106Z" />
-            <path d="M266 275H407V303H354V421H324V303H266Z" />
         </svg>
     );
 }

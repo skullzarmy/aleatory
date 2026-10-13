@@ -41,7 +41,13 @@ export function PieceFeed({
     );
 
     return (
-        <InfiniteScroll initial={initial} initialCursor={cursor} load={load} label="pieces">
+        <InfiniteScroll
+            initial={initial}
+            initialCursor={cursor}
+            load={load}
+            label="pieces"
+            itemKey={(piece) => piece.key}
+        >
             {(pieces) => <FeedGrid pieces={pieces} artists={known} />}
         </InfiniteScroll>
     );

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiBluesky, SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
+import { Tzct } from "@/components/icons/Tzct";
 import { BRAND } from "@/lib/config";
 
 /**
@@ -46,6 +47,8 @@ const CONNECT = [
     { href: BRAND.discord, label: "Discord", Icon: SiDiscord },
     { href: BRAND.x, label: "X", Icon: SiX },
     { href: BRAND.bluesky, label: "Bluesky", Icon: SiBluesky },
+    // TezCity's own mark, shared with ShareButtons rather than redrawn here.
+    { href: BRAND.tezcity, label: "TezCity", Icon: Tzct },
 ];
 
 export function Footer() {
