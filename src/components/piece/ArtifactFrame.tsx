@@ -91,6 +91,25 @@ export function ArtifactFrame({
         setRunning(next);
     };
 
+    // Visible the moment a run starts — that's a click, so the pointer is
+    // already over the frame — then follows the mouse from there: a beat
+    // after it leaves, not instantly, so crossing the button on the way out
+    // does not flicker it away under its own cursor.
+    const [controlsVisible, setControlsVisible] = useState(true);
+    const hideTimer = useRef(0);
+    useEffect(() => {
+        if (running) setControlsVisible(true);
+    }, [running]);
+    useEffect(() => () => window.clearTimeout(hideTimer.current), []);
+    const showControls = () => {
+        window.clearTimeout(hideTimer.current);
+        setControlsVisible(true);
+    };
+    const scheduleHideControls = () => {
+        window.clearTimeout(hideTimer.current);
+        hideTimer.current = window.setTimeout(() => setControlsVisible(false), 1200);
+    };
+
     // The libraries the generator declares, fetched and handed over as source.
     // The isolate runs under `connect-src 'none'` and a `script-src` naming no
     // host, so it can neither fetch a library nor load one by URL: whatever it
@@ -100,7 +119,11 @@ export function ArtifactFrame({
     const drawing = running && (depsReady || depsError !== null);
 
     return (
-        <div className="relative aspect-square overflow-hidden rounded-lg border border-border bg-card-background">
+        <div
+            className="relative aspect-square overflow-hidden rounded-lg border border-border bg-card-background"
+            onMouseEnter={running ? showControls : undefined}
+            onMouseLeave={running ? scheduleHideControls : undefined}
+        >
             {drawing && (
                 <IsolateFrame
                     code={code as string}
@@ -201,7 +224,10 @@ export function ArtifactFrame({
                     ref={stopRef}
                     type="button"
                     onClick={() => toggle(false)}
-                    className="absolute bottom-3 right-3 inline-flex min-h-[32px] items-center gap-1.5 rounded-md border border-border bg-background/90 px-2.5 py-1.5 text-xs font-medium backdrop-blur transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onFocus={showControls}
+                    className={`absolute bottom-3 right-3 inline-flex min-h-[32px] items-center gap-1.5 rounded-md border border-border bg-background/90 px-2.5 py-1.5 text-xs font-medium backdrop-blur transition-opacity duration-300 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        controlsVisible ? "opacity-100" : "pointer-events-none opacity-0"
+                    }`}
                 >
                     <Square className="h-3.5 w-3.5" aria-hidden /> Stop
                 </button>
