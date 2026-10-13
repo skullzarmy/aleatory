@@ -180,10 +180,7 @@ while (!stopping) {
         for (const generator of served) {
             if (stopping) break;
 
-            // A scan that throws (bad code_encoding, corrupt bytes) never reaches
-            // the per-piece stuck tracking below, since no piece is enumerated.
-            // Without this it logs the same unrecoverable error every pass,
-            // forever. `"scan"` in place of a tokenId keys it per generator.
+            // Scan failures aren't per-piece, so track them under a "scan" pseudo-id.
             const scanKey = keyFor(generator, "scan");
             if (isStuck(scanKey)) {
                 stuck++;
