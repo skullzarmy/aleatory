@@ -372,6 +372,12 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
     const codeUri = storage.art.code_uri ?? "";
     requireAddress(storage.administrator, "administrator");
 
+    // Still arriving in chunks, so nothing can have minted from it yet. Checked
+    // before any decode: a gzip stream split across chunks is not valid gzip
+    // until the last one lands, and decoding it early throws on every pass for
+    // as long as the upload is in progress.
+    if (!storage.art.code_sealed) return [];
+
     let code = "";
     if (storage.art.code) {
         code = await decodeCode(storage.art.code, storage.art.code_encoding ?? "identity");
@@ -381,8 +387,6 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
         // CID shape only.
         code = await fetchGenerator(codeUri);
     }
-    // Still arriving in chunks, so nothing can have minted from it yet.
-    if (!storage.art.code_sealed) return [];
     if (!code) return [];
     verifySource(code, storage.art.code_hash ?? "", generator);
 
@@ -566,18 +570,23 @@ async function pin(bytes: Uint8Array, name: string): Promise<string> {
  * API already answered 200 — that response means the upload was accepted, not
  * that it is globally fetchable yet.
  *
- * Three tries, short backoff, because this is awaited before the chain write
+ * Six tries, growing backoff, because this is awaited before the chain write
  * now: an indexer that resolves the metadata URI before any gateway confirms
  * it can fetch the content may never retry on its own, and a token sits
  * looking blank until someone notices and reruns `provider:retry` by hand.
  * This does not provably close that race, only narrow it — it confirms our
  * own gateway, not whatever an indexer itself reads from.
+ *
+ * Was three tries at 2s/4s (6s total), which production logs showed missing
+ * on effectively every piece — Pinata-to-gateway propagation routinely runs
+ * longer than that, so the check never confirmed and the race it exists to
+ * narrow went unnarrowed. 3/6/9/12/15s between the six tries, ~45s worst case.
  */
 async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
     if (!cid) return;
     let confirmed = false;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 6; attempt++) {
         const res = await fetch(`${IPFS_GATEWAY}/${cid}`, {
             signal: AbortSignal.timeout(20_000),
         }).catch(() => null);
@@ -585,7 +594,7 @@ async function warmGateway(uri: string): Promise<void> {
             confirmed = true;
             break;
         }
-        if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 2000));
+        if (attempt < 6) await new Promise((r) => setTimeout(r, attempt * 3000));
     }
     // Publishing proceeds either way (see handle()) — this never blocked that
     // on principle, only on the three tries above. Logged so exhausting them

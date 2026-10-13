@@ -316,23 +316,20 @@ async function resumePublish(
         return null;
     }
 
-    // Whatever it already holds decides the encoding: the bytes on chain are
-    // the start of one of these two and appending the other would splice a
-    // gzip stream onto plain text.
+    // `code_encoding` is fixed at origination and `append_code` never rewrites
+    // it, so it is the on-chain authority on which of these two the bytes
+    // already there are — not something to re-derive. Re-deriving it by
+    // checking which hex the chain's prefix happens to match was the bug:
+    // an empty prefix (nothing uploaded yet) starts either string, so a
+    // cold resume always matched "identity" first, even over a generator
+    // originated as gzip, splicing plain text onto a gzip-declared slot.
     const raw = new TextEncoder().encode(draft.html);
     const zipped = await gzip(raw);
-    const rawHex = toHex(raw);
-    const zippedHex = toHex(zipped);
+    const codeBytes = state.encoding === "gzip" ? zipped : raw;
+    const codeEncoding = state.encoding;
+    const codeHex = toHex(codeBytes);
 
-    let codeBytes: Uint8Array;
-    let codeEncoding: "identity" | "gzip";
-    if (rawHex.startsWith(state.hex)) {
-        codeBytes = raw;
-        codeEncoding = "identity";
-    } else if (zippedHex.startsWith(state.hex)) {
-        codeBytes = zipped;
-        codeEncoding = "gzip";
-    } else {
+    if (!codeHex.startsWith(state.hex)) {
         await saveDraft({ ...draft, pendingUpload: undefined, updatedAt: Date.now() });
         throw new UnusableGenerator(
             "The unfinished generator on chain does not hold the start of this draft, so it cannot be finished from here. It has been let go, and publishing again will deploy a new one.",

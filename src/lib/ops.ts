@@ -673,12 +673,16 @@ export interface DeployParams {
  * caller has to prove what is there is the beginning of what it is sending
  * before it adds to it.
  */
-export async function readCode(generator: string): Promise<{ hex: string; sealed: boolean }> {
+export async function readCode(
+    generator: string,
+): Promise<{ hex: string; sealed: boolean; encoding: "identity" | "gzip" }> {
     const res = await indexerFetch(`${tzktApi()}/v1/contracts/${generator}/storage`, {
         cache: "no-store",
     });
     if (!res.ok) throw new Error(`Could not read ${generator}.`);
-    const s = (await res.json()) as { art?: { code?: string; code_sealed?: boolean } };
+    const s = (await res.json()) as {
+        art?: { code?: string; code_sealed?: boolean; code_encoding?: string };
+    };
     // An unrelated contract has no `art` at all, and reading that as an empty
     // generator makes every unrelated contract look like one waiting for its
     // first chunk.
@@ -688,6 +692,10 @@ export async function readCode(generator: string): Promise<{ hex: string; sealed
     return {
         hex: (s.art.code ?? "").replace(/^0x/, "").toLowerCase(),
         sealed: s.art.code_sealed === true,
+        // Fixed at origination and never rewritten by `append_code`, so it is
+        // the one authority on what the bytes already on chain are, rather
+        // than something a resume should have to re-guess.
+        encoding: s.art.code_encoding === "gzip" ? "gzip" : "identity",
     };
 }
 
