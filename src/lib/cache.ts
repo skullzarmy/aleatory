@@ -17,13 +17,27 @@ interface Envelope<T> {
     timestamp: number;
 }
 
-export interface CacheOptions {
+export interface CacheOptions<T = unknown> {
     /** Milliseconds until cached data is considered stale. Default: 30,000 (30s). */
     freshMs?: number;
     /** Milliseconds to retain in process memory. Default: 15,000 (15s). */
     l1Ms?: number;
     /** Time-to-live in seconds in Redis. Default: 86,400 (24 hours). */
     redisTtlSec?: number;
+    /**
+     * Whether stale data is still fine to hand out while a fresh copy is
+     * fetched in the background. Defaults to yes, which is what makes
+     * stale-while-revalidate fast for everything else this caches.
+     *
+     * For a value that is itself the thing a reader is actively watching for
+     * — a piece's `pending` flag, checked by a poll timed to this cache's own
+     * freshness window — "fast but wrong" is backwards: the poll exists to
+     * notice the change, and serving the pre-change snapshot while quietly
+     * fixing it for whoever asks *next* means the poll can keep landing on
+     * stale data every single time, forcing a manual reload to ever see past
+     * it. Returning `false` here waits for the fresh fetch instead.
+     */
+    staleOk?: (data: T) => boolean;
 }
 
 const memoryCache = new Map<string, { at: number; value: unknown }>();
@@ -77,17 +91,18 @@ const SCHEMA = 2;
 export async function cacheWrap<T>(
     key: string,
     fetcher: () => Promise<T>,
-    opts: CacheOptions = {},
+    opts: CacheOptions<T> = {},
 ): Promise<T> {
     const fullKey = `aleatory:v${SCHEMA}:${NETWORK}:${key}`;
     const freshMs = opts.freshMs ?? 30_000;
     const l1Ms = opts.l1Ms ?? 15_000;
     const redisTtlSec = opts.redisTtlSec ?? 86_400;
+    const staleOk = opts.staleOk ?? (() => true);
 
     // Tier 1: Check process memory.
     const mem = memoryCache.get(fullKey);
     const now = Date.now();
-    if (mem && now - mem.at < l1Ms) {
+    if (mem && now - mem.at < l1Ms && staleOk(mem.value as T)) {
         return mem.value as T;
     }
 
@@ -112,9 +127,12 @@ export async function cacheWrap<T>(
                         return cached.data;
                     }
 
-                    // Stale while revalidate: return cached data now, refresh in background.
-                    triggerBackgroundRevalidation(fullKey, fetcher, redis, redisTtlSec);
-                    return cached.data;
+                    if (staleOk(cached.data)) {
+                        // Stale while revalidate: return cached data now, refresh in background.
+                        triggerBackgroundRevalidation(fullKey, fetcher, redis, redisTtlSec);
+                        return cached.data;
+                    }
+                    // Otherwise fall through and await the fresh fetch below.
                 }
             } catch {
                 // Redis error: fall through to direct fetch.
