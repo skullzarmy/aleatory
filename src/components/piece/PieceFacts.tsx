@@ -49,7 +49,6 @@ export function PieceFacts({
     listing,
     paramsSchema,
     resolvedParams,
-    features,
 }: {
     piece: Piece;
     listing?: Listing | null;
@@ -59,8 +58,6 @@ export function PieceFacts({
     /** Already resolved against `paramsSchema`, so this shows exactly what
      *  the piece ran with, not a raw value JSON happens to spell out. */
     resolvedParams?: ParamValues;
-    /** `$alea.features()`'s declared traits, already split out from params. */
-    features?: { name: string; value: string }[];
 }) {
     // Listing escrows the token to the marketplace contract, so `piece.owner`
     // is the marketplace itself while a piece is listed — not who actually
@@ -133,27 +130,6 @@ export function PieceFacts({
                         </span>
                     )}
                 </Row>
-            )}
-
-            {features && features.length > 0 && (
-                <div className="py-3">
-                    <p className="pb-2 text-sm text-muted-foreground">Features</p>
-                    <dl className="space-y-1">
-                        {features.map((f) => (
-                            <div key={f.name} className="flex justify-between gap-4 text-sm">
-                                <dt
-                                    className="min-w-0 truncate text-muted-foreground"
-                                    title={f.name}
-                                >
-                                    {f.name}
-                                </dt>
-                                <dd className="min-w-0 break-words text-right font-medium">
-                                    {f.value}
-                                </dd>
-                            </div>
-                        ))}
-                    </dl>
-                </div>
             )}
 
             {paramsSchema && paramsSchema.length > 0 && resolvedParams && (

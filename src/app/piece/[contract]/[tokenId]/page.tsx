@@ -10,6 +10,7 @@ import { JustMinted } from "@/components/piece/JustMinted";
 import { fetchGenerator } from "@/lib/generator";
 import { decodeParams } from "@/lib/params";
 import { PieceFacts } from "@/components/piece/PieceFacts";
+import { PieceFeatures } from "@/components/piece/PieceFeatures";
 import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
 import { fetchProvenance } from "@/lib/provenance";
@@ -188,6 +189,7 @@ export default async function PiecePage({ params }: { params: Params }) {
                             name={piece.name}
                             maxDpr={maxDprFor(contract)}
                         />
+                        <PieceFeatures features={features} />
                     </div>
 
                     <div className="min-w-0">
@@ -234,7 +236,6 @@ export default async function PiecePage({ params }: { params: Params }) {
                                 listing={listing}
                                 paramsSchema={paramsSchema}
                                 resolvedParams={resolvedParams}
-                                features={features}
                             />
                         </div>
 
