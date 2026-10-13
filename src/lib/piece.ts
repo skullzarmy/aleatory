@@ -130,12 +130,7 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         {
             freshMs: 20_000,
             l1Ms: 10_000,
-            // A pending piece is exactly what `LiveRefresh` on the piece page
-            // polls to catch the end of — serving the pre-render snapshot
-            // while quietly fetching the real one for whoever asks next
-            // means that poll can keep landing on "still pending" forever,
-            // and only a reload minutes later (well past this cache's own
-            // window) actually sees it finished.
+            // Never serve a stale "still pending" snapshot to the poll that exists to catch it ending.
             staleOk: (piece) => !piece?.pending,
         },
     );

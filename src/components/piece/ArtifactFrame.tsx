@@ -91,10 +91,6 @@ export function ArtifactFrame({
         setRunning(next);
     };
 
-    // Visible the moment a run starts — that's a click, so the pointer is
-    // already over the frame — then follows the mouse from there: a beat
-    // after it leaves, not instantly, so crossing the button on the way out
-    // does not flicker it away under its own cursor.
     const [controlsVisible, setControlsVisible] = useState(true);
     const hideTimer = useRef(0);
     useEffect(() => {

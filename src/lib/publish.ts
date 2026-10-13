@@ -316,13 +316,9 @@ async function resumePublish(
         return null;
     }
 
-    // `code_encoding` is fixed at origination and `append_code` never rewrites
-    // it, so it is the on-chain authority on which of these two the bytes
-    // already there are — not something to re-derive. Re-deriving it by
-    // checking which hex the chain's prefix happens to match was the bug:
-    // an empty prefix (nothing uploaded yet) starts either string, so a
-    // cold resume always matched "identity" first, even over a generator
-    // originated as gzip, splicing plain text onto a gzip-declared slot.
+    // state.encoding is authoritative; re-deriving it from a hex-prefix match
+    // always matched "identity" first on a cold resume (empty prefix matches
+    // anything), even over a generator originated as gzip.
     const raw = new TextEncoder().encode(draft.html);
     const zipped = await gzip(raw);
     const codeBytes = state.encoding === "gzip" ? zipped : raw;
