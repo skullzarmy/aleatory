@@ -64,6 +64,14 @@ export function PieceFacts({
     // holds it. The listing names the real holder, same as the market grid.
     const holder = listing?.seller ?? piece.owner;
 
+    // The schema is a transient read (the generator's own storage) and can
+    // come back empty for a reason that has nothing to do with whether the
+    // piece actually has params — a cached image outliving a storage read
+    // that just failed this one time. Falling back to the raw submitted
+    // values means that transient miss loses the nice labels, not the
+    // params entirely.
+    const rawParams = !paramsSchema || paramsSchema.length === 0 ? safeParse(piece.params) : null;
+
     return (
         <div className="divide-y divide-border">
             <Row label="Generator">
@@ -153,6 +161,24 @@ export function PieceFacts({
                 </div>
             )}
 
+            {rawParams && Object.keys(rawParams).length > 0 && (
+                <div className="py-3">
+                    <p className="pb-2 text-sm text-muted-foreground">Parameters</p>
+                    <dl className="space-y-1">
+                        {Object.entries(rawParams).map(([k, v]) => (
+                            <div key={k} className="flex justify-between gap-4 text-sm">
+                                <dt className="min-w-0 truncate text-muted-foreground" title={k}>
+                                    {k}
+                                </dt>
+                                <dd className="min-w-0 break-words text-right font-medium">
+                                    {String(v)}
+                                </dd>
+                            </div>
+                        ))}
+                    </dl>
+                </div>
+            )}
+
             {piece.royalties.length > 0 && (
                 <div className="py-3">
                     <p className="pb-2 text-sm text-muted-foreground">Royalties</p>
@@ -172,4 +198,14 @@ export function PieceFacts({
             )}
         </div>
     );
+}
+
+function safeParse(json: string | undefined): Record<string, unknown> | null {
+    if (!json) return null;
+    try {
+        const parsed = JSON.parse(json) as unknown;
+        return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+    } catch {
+        return null;
+    }
 }

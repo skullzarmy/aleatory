@@ -15,11 +15,14 @@ export function PieceFeatures({ features }: { features: { name: string; value: s
         // cell, which is exactly what forced a long value into three lines
         // instead of giving it room. A flex item sizes to its own content —
         // no length to guess at, CSS already knows how wide the text is.
+        // `flex-auto` then lets a line's own leftover space stretch across
+        // whatever cards are actually in it, so a short last row still
+        // reaches the far edge instead of stopping wherever its content did.
         <div className="mt-4 flex flex-wrap gap-2">
             {features.map((f) => (
                 <div
                     key={f.name}
-                    className="min-w-[7rem] max-w-[16rem] flex-none rounded-lg border border-border bg-muted/30 p-2.5 text-center"
+                    className="min-w-[7rem] max-w-[16rem] flex-auto rounded-lg border border-border bg-muted/30 p-2.5 text-center"
                 >
                     <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                         {f.name}
