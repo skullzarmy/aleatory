@@ -132,17 +132,9 @@ export default async function PiecePage({ params }: { params: Params }) {
     const cachedImage = piece.pending ? undefined : piece.imageUrl;
     const schemaUnknown = !generator && Boolean(cachedImage);
 
-    // Resolved once and handed to both the still-image frame and the facts
-    // panel below — resolving twice is how a label could end up showing a
-    // different value than what the piece actually ran with.
     const paramsSchema = generator?.paramsSchema?.params ?? [];
     const resolvedParams = decodeParams(paramsSchema, piece.params);
 
-    // The published document lists features before params in one flat
-    // `attributes` array (provider/metadata.ts); splitting them back apart
-    // needs the schema, since a feature key is defined only by not being a
-    // declared param id. Unknown schema shows everything as features rather
-    // than silently dropping the artist's own traits.
     const paramIds = new Set(paramsSchema.map((p) => p.id));
     const features = (piece.metadata?.attributes ?? []).filter((a) => !paramIds.has(a.name));
 
