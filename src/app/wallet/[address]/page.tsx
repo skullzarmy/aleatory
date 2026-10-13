@@ -12,6 +12,7 @@ import { ipfsImageUrl } from "@/utils/ipfs";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { LastGood } from "@/components/LastGood";
 import { ReadFailed } from "@/components/ReadFailed";
+import { BRAND } from "@/lib/config";
 
 /**
  * Rendered per request. `revalidate` here made this a prerendered document, and
@@ -32,20 +33,21 @@ export async function generateMetadata({
     const title = profile?.name || name || shortAddress(address);
     const picture = avatarUrl(profile);
     const image = picture?.startsWith("ipfs://") ? ipfsImageUrl(picture) : picture;
+    const description = profile?.bio || `${title}'s generators and pieces on ${BRAND.name}.`;
 
     return {
         title,
-        description: profile?.bio,
+        description,
         alternates: { canonical: `/wallet/${address}` },
         twitter: {
             card: image ? "summary_large_image" : "summary",
             title,
-            description: profile?.bio,
+            description,
             images: image ? [image] : undefined,
         },
         openGraph: {
             title,
-            description: profile?.bio,
+            description,
             images: image ? [{ url: image }] : undefined,
         },
     };

@@ -4,9 +4,15 @@ import { BRAND } from "@/lib/config";
 
 export const metadata: Metadata = {
     alternates: { canonical: "/about" },
-    openGraph: { type: "website", title: "About" },
     title: "About",
-    description: BRAND.description,
+    description:
+        "What a generator is, what a piece is, and why nothing about it depends on this site staying online.",
+    openGraph: {
+        type: "website",
+        title: "About",
+        description:
+            "What a generator is, what a piece is, and why nothing about it depends on this site staying online.",
+    },
 };
 
 export default function AboutPage() {

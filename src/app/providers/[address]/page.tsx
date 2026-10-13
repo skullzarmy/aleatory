@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchProviders, RANKING_WINDOW_DAYS } from "@/lib/providers";
 import { isAddress } from "@/lib/tzkt";
-import { tzktLink } from "@/lib/config";
+import { BRAND, tzktLink } from "@/lib/config";
 import { formatTez, shortAddress, timeAgo } from "@/lib/utils";
 import { convertIpfsToGatewayUrl } from "@/utils/ipfs";
 import { Avatar } from "@/components/account/Avatar";
@@ -18,8 +18,16 @@ export async function generateMetadata({
     params: Promise<{ address: string }>;
 }): Promise<Metadata> {
     const { address } = await params;
+    const provider = (await fetchProviders().catch(() => [])).find((p) => p.address === address);
+    const title = provider?.name
+        ? `Provider ${provider.name}`
+        : `Provider ${shortAddress(address)}`;
+    const description =
+        provider?.description ||
+        `Render stats and pricing for ${provider?.name || shortAddress(address)}, a render provider on ${BRAND.name}.`;
     return {
-        title: `Provider ${shortAddress(address)}`,
+        title,
+        description,
         alternates: { canonical: `/providers/${address}` },
     };
 }

@@ -53,7 +53,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
         ? `${piece.name} by ${artist}${others > 0 ? ` and ${others} ${others === 1 ? "other" : "others"}` : ""}`
         : piece.name;
     const title = `${byline} · ${BRAND.name}`;
-    const description = piece.description || BRAND.description;
+    const description =
+        piece.description ||
+        `A one-of-a-kind piece from ${piece.generatorName || "a generator"} on ${BRAND.name}, fully on-chain generative art on Tezos.`;
     const images = piece.imageUrl ? [{ url: piece.imageUrl }] : undefined;
 
     return {
