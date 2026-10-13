@@ -13,6 +13,7 @@ export const BRAND = {
     discord: "https://discord.gg/3kFMF8gUxP",
     x: "https://x.com/AleatoryArt",
     bluesky: "https://bsky.app/profile/aleatory.art",
+    tezcity: "https://tezcity.com/u/aleatory.art",
 } as const;
 
 export type Network = "shadownet" | "mainnet";

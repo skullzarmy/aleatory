@@ -24,6 +24,7 @@ export function GeneratorFeed({
             initialCursor={cursor}
             load={moreGenerators}
             label="generators"
+            itemKey={(generator) => generator.address}
         >
             {(generators) => <GeneratorGrid generators={generators} />}
         </InfiniteScroll>
