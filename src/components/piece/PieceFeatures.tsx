@@ -1,32 +1,25 @@
 /**
  * A piece's declared traits, under the artwork rather than in the facts
  * rail: a generator can declare as many as it likes, and a sidebar list
- * that long is mostly empty space next to a much shorter artwork. A grid
- * that wraps to however many fit holds any count or length the same way.
+ * that long is mostly empty space next to a much shorter artwork. Wrapping
+ * to however many fit holds any count or length the same way.
  *
  * Room for a rarity percentage per card later — nothing here assumes its
  * absence, just doesn't show one yet.
  */
-/** Past this many characters, one column wraps a value three deep before it
- *  reaches the edge. Two columns gives it the width to still read as a card,
- *  not a paragraph. */
-const WIDE_AT = 16;
-
 export function PieceFeatures({ features }: { features: { name: string; value: string }[] }) {
     if (features.length === 0) return null;
 
     return (
-        // `dense`: a spanning card leaves a gap in its row otherwise, since
-        // grid only looks forward for a cell to fill. Dense packs a later,
-        // narrower card back into it — the one bit of real layout work here,
-        // and CSS already does it without a masonry library.
-        <div className="mt-4 grid grid-flow-row-dense grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] items-start gap-2">
+        // Flex, not grid: grid's columns are one fixed width shared by every
+        // cell, which is exactly what forced a long value into three lines
+        // instead of giving it room. A flex item sizes to its own content —
+        // no length to guess at, CSS already knows how wide the text is.
+        <div className="mt-4 flex flex-wrap gap-2">
             {features.map((f) => (
                 <div
                     key={f.name}
-                    className={`rounded-lg border border-border bg-muted/30 p-2.5 text-center ${
-                        f.value.length > WIDE_AT ? "col-span-2" : ""
-                    }`}
+                    className="min-w-[7rem] max-w-[16rem] flex-none rounded-lg border border-border bg-muted/30 p-2.5 text-center"
                 >
                     <p className="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                         {f.name}
