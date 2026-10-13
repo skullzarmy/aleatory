@@ -179,12 +179,35 @@ while (!stopping) {
         let stuck = 0;
         for (const generator of served) {
             if (stopping) break;
+
+            // A scan that throws (bad code_encoding, corrupt bytes) never reaches
+            // the per-piece stuck tracking below, since no piece is enumerated.
+            // Without this it logs the same unrecoverable error every pass,
+            // forever. `"scan"` in place of a tokenId keys it per generator.
+            const scanKey = keyFor(generator, "scan");
+            if (isStuck(scanKey)) {
+                stuck++;
+                continue;
+            }
+
             scanned++;
-            const waiting = await pendingIn(generator).catch((e: unknown) => {
+            let waiting: Awaited<ReturnType<typeof pendingIn>>;
+            try {
+                waiting = await pendingIn(generator);
+                recordSuccess(scanKey);
+            } catch (e) {
                 scanFailed++;
-                log(`scan ${generator}: ${e instanceof Error ? e.message : e}`);
-                return [];
-            });
+                const message = e instanceof Error ? e.message : String(e);
+                const { attempts, justStuck } = recordFailure(scanKey, message);
+                log(`scan ${generator}: ${message} (${attempts}/${STUCK_AFTER})`);
+                if (justStuck) {
+                    log(
+                        `  ${generator} has failed to scan ${STUCK_AFTER} times in a row ` +
+                            "and will not be retried automatically. Needs a human.",
+                    );
+                }
+                continue;
+            }
 
             for (const piece of waiting) {
                 if (stopping) break;
