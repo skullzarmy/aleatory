@@ -5,6 +5,7 @@ import { shortAddress } from "@/lib/utils";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { Piece } from "@/lib/piece";
 import type { Listing } from "@/lib/market";
+import type { ParamSpec, ParamValues } from "@/lib/params";
 import { AccountLink } from "@/components/account/AccountLink";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -16,10 +17,51 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     );
 }
 
+/** A resolved value in the control's own terms, not however JSON spells it. */
+function ParamValue({ spec, value }: { spec?: ParamSpec; value: unknown }) {
+    const type = spec?.type;
+    if (type === "bool") return <>{value ? "Yes" : "No"}</>;
+    if (type === "color" && typeof value === "string") {
+        return (
+            <span className="inline-flex items-center gap-1.5">
+                <span
+                    className="h-3.5 w-3.5 shrink-0 rounded-sm border border-border/60"
+                    style={{ backgroundColor: value }}
+                    aria-hidden
+                />
+                <span className="font-mono text-xs">{value}</span>
+            </span>
+        );
+    }
+    if (type === "number" && typeof value === "number") {
+        // Trims to what the step actually resolves to a display of: a
+        // density tuned to 0.01 showing "0.4300000000000001" is a float
+        // artifact, not a real digit of precision anyone chose.
+        return <>{Number(value.toFixed(4))}</>;
+    }
+    return <>{String(value)}</>;
+}
+
 // Seed, parameters, and code hash are the three inputs that determine the
 // piece: anyone holding them can reproduce the output and check it.
-export function PieceFacts({ piece, listing }: { piece: Piece; listing?: Listing | null }) {
-    const params = piece.params ? safeParse(piece.params) : null;
+export function PieceFacts({
+    piece,
+    listing,
+    paramsSchema,
+    resolvedParams,
+    features,
+}: {
+    piece: Piece;
+    listing?: Listing | null;
+    /** The generator's declared mint-time controls, for a label and a type
+     *  per value — absent reads the same as a generator that declares none. */
+    paramsSchema?: ParamSpec[];
+    /** Already resolved against `paramsSchema`, so this shows exactly what
+     *  the piece ran with, not a raw value JSON happens to spell out. */
+    resolvedParams?: ParamValues;
+    /** `$alea.features()`'s declared traits, already split out from params. */
+    features?: { name: string; value: string }[];
+}) {
     // Listing escrows the token to the marketplace contract, so `piece.owner`
     // is the marketplace itself while a piece is listed — not who actually
     // holds it. The listing names the real holder, same as the market grid.
@@ -93,17 +135,41 @@ export function PieceFacts({ piece, listing }: { piece: Piece; listing?: Listing
                 </Row>
             )}
 
-            {params && Object.keys(params).length > 0 && (
+            {features && features.length > 0 && (
+                <div className="py-3">
+                    <p className="pb-2 text-sm text-muted-foreground">Features</p>
+                    <dl className="space-y-1">
+                        {features.map((f) => (
+                            <div key={f.name} className="flex justify-between gap-4 text-sm">
+                                <dt
+                                    className="min-w-0 truncate text-muted-foreground"
+                                    title={f.name}
+                                >
+                                    {f.name}
+                                </dt>
+                                <dd className="min-w-0 break-words text-right font-medium">
+                                    {f.value}
+                                </dd>
+                            </div>
+                        ))}
+                    </dl>
+                </div>
+            )}
+
+            {paramsSchema && paramsSchema.length > 0 && resolvedParams && (
                 <div className="py-3">
                     <p className="pb-2 text-sm text-muted-foreground">Parameters</p>
                     <dl className="space-y-1">
-                        {Object.entries(params).map(([k, v]) => (
-                            <div key={k} className="flex justify-between gap-4 text-sm">
-                                <dt className="min-w-0 truncate text-muted-foreground" title={k}>
-                                    {k}
+                        {paramsSchema.map((spec) => (
+                            <div key={spec.id} className="flex justify-between gap-4 text-sm">
+                                <dt
+                                    className="min-w-0 truncate text-muted-foreground"
+                                    title={spec.label}
+                                >
+                                    {spec.label}
                                 </dt>
                                 <dd className="min-w-0 break-words text-right font-medium">
-                                    {String(v)}
+                                    <ParamValue spec={spec} value={resolvedParams[spec.id]} />
                                 </dd>
                             </div>
                         ))}
@@ -130,13 +196,4 @@ export function PieceFacts({ piece, listing }: { piece: Piece; listing?: Listing
             )}
         </div>
     );
-}
-
-function safeParse(json: string): Record<string, unknown> | null {
-    try {
-        const parsed = JSON.parse(json) as unknown;
-        return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
-    } catch {
-        return null;
-    }
 }

@@ -131,6 +131,20 @@ export default async function PiecePage({ params }: { params: Params }) {
     const cachedImage = piece.pending ? undefined : piece.imageUrl;
     const schemaUnknown = !generator && Boolean(cachedImage);
 
+    // Resolved once and handed to both the still-image frame and the facts
+    // panel below — resolving twice is how a label could end up showing a
+    // different value than what the piece actually ran with.
+    const paramsSchema = generator?.paramsSchema?.params ?? [];
+    const resolvedParams = decodeParams(paramsSchema, piece.params);
+
+    // The published document lists features before params in one flat
+    // `attributes` array (provider/metadata.ts); splitting them back apart
+    // needs the schema, since a feature key is defined only by not being a
+    // declared param id. Unknown schema shows everything as features rather
+    // than silently dropping the artist's own traits.
+    const paramIds = new Set(paramsSchema.map((p) => p.id));
+    const features = (piece.metadata?.attributes ?? []).filter((a) => !paramIds.has(a.name));
+
     return (
         <LastGood>
             <div className="mx-auto max-w-6xl px-4 py-8">
@@ -168,10 +182,7 @@ export default async function PiecePage({ params }: { params: Params }) {
                         <ArtifactFrame
                             code={schemaUnknown ? undefined : piece.code}
                             seed={schemaUnknown ? undefined : piece.seed}
-                            params={decodeParams(
-                                generator?.paramsSchema?.params ?? [],
-                                piece.params,
-                            )}
+                            params={resolvedParams}
                             imageUrl={cachedImage}
                             coverUrl={generator?.coverUrl}
                             name={piece.name}
@@ -218,7 +229,13 @@ export default async function PiecePage({ params }: { params: Params }) {
                         </div>
 
                         <div className="mt-4">
-                            <PieceFacts piece={piece} listing={listing} />
+                            <PieceFacts
+                                piece={piece}
+                                listing={listing}
+                                paramsSchema={paramsSchema}
+                                resolvedParams={resolvedParams}
+                                features={features}
+                            />
                         </div>
 
                         <div className="mt-4">
