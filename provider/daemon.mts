@@ -246,10 +246,8 @@ while (!stopping) {
             }
         }
 
-        // Every generator refusing to be read looks exactly like an empty
-        // queue from in here: the scan is caught, the count stays zero and the
-        // loop sleeps. That is the state worth waking somebody for.
-        const blind = scanned > 0 && scanFailed === scanned;
+        // served.length, not scanned: an all-stuck pass leaves scanned at 0 too.
+        const blind = served.length > 0 && scanFailed === scanned;
         beat({
             status: blind ? "down" : "up",
             msg: blind
