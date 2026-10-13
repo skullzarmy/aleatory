@@ -17,7 +17,6 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     );
 }
 
-/** A resolved value in the control's own terms, not however JSON spells it. */
 function ParamValue({ spec, value }: { spec?: ParamSpec; value: unknown }) {
     const type = spec?.type;
     if (type === "bool") return <>{value ? "Yes" : "No"}</>;
@@ -34,16 +33,11 @@ function ParamValue({ spec, value }: { spec?: ParamSpec; value: unknown }) {
         );
     }
     if (type === "number" && typeof value === "number") {
-        // Trims to what the step actually resolves to a display of: a
-        // density tuned to 0.01 showing "0.4300000000000001" is a float
-        // artifact, not a real digit of precision anyone chose.
         return <>{Number(value.toFixed(4))}</>;
     }
     return <>{String(value)}</>;
 }
 
-// Seed, parameters, and code hash are the three inputs that determine the
-// piece: anyone holding them can reproduce the output and check it.
 export function PieceFacts({
     piece,
     listing,
@@ -52,24 +46,10 @@ export function PieceFacts({
 }: {
     piece: Piece;
     listing?: Listing | null;
-    /** The generator's declared mint-time controls, for a label and a type
-     *  per value — absent reads the same as a generator that declares none. */
     paramsSchema?: ParamSpec[];
-    /** Already resolved against `paramsSchema`, so this shows exactly what
-     *  the piece ran with, not a raw value JSON happens to spell out. */
     resolvedParams?: ParamValues;
 }) {
-    // Listing escrows the token to the marketplace contract, so `piece.owner`
-    // is the marketplace itself while a piece is listed — not who actually
-    // holds it. The listing names the real holder, same as the market grid.
     const holder = listing?.seller ?? piece.owner;
-
-    // The schema is a transient read (the generator's own storage) and can
-    // come back empty for a reason that has nothing to do with whether the
-    // piece actually has params — a cached image outliving a storage read
-    // that just failed this one time. Falling back to the raw submitted
-    // values means that transient miss loses the nice labels, not the
-    // params entirely.
     const rawParams = !paramsSchema || paramsSchema.length === 0 ? safeParse(piece.params) : null;
 
     return (
