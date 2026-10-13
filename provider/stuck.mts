@@ -14,8 +14,19 @@ import { fileURLToPath } from "node:url";
 
 const STATE_FILE = join(dirname(fileURLToPath(import.meta.url)), ".state", "stuck.json");
 
-/** Stop auto-retrying past this many failures; a human has to look. */
+/** Stop auto-retrying past this many consecutive failures. */
 export const STUCK_AFTER = 5;
+
+/**
+ * How long a stuck mark holds before the next pass gets one more try on its
+ * own. Without this, a run of failures that was really an indexer having a
+ * rough hour — not an actually broken piece or generator — stayed silenced
+ * forever rather than healing once the outage passed, with no sign anything
+ * was wrong beyond the one-time log when it first tripped. A genuinely
+ * broken target just fails again and re-trips the mark, capped at one more
+ * attempt per hour instead of every pass.
+ */
+export const RETRY_AFTER_MS = 60 * 60 * 1000;
 
 interface Entry {
     attempts: number;
@@ -43,10 +54,15 @@ export function keyFor(generator: string, tokenId: string): string {
     return `${generator}#${tokenId}`;
 }
 
-/** Already failed `STUCK_AFTER` times or more — skip it until a human intervenes. */
+/**
+ * Already failed `STUCK_AFTER` times or more, and still within the hour that
+ * earns — skip it. Past that window it is worth one more attempt on its own,
+ * whether or not a human ever stepped in.
+ */
 export function isStuck(key: string): boolean {
     const entry = load()[key];
-    return (entry?.attempts ?? 0) >= STUCK_AFTER;
+    if (!entry || entry.attempts < STUCK_AFTER) return false;
+    return Date.now() - new Date(entry.lastFailedAt).getTime() < RETRY_AFTER_MS;
 }
 
 /** Record a failure. Returns the new attempt count and whether this one tipped it over. */

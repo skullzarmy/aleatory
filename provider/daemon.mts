@@ -202,8 +202,8 @@ while (!stopping) {
                 log(`scan ${generator}: ${message} (${attempts}/${STUCK_AFTER})`);
                 if (justStuck) {
                     log(
-                        `  ${generator} has failed to scan ${STUCK_AFTER} times in a row ` +
-                            "and will not be retried automatically. Needs a human.",
+                        `  ${generator} has failed to scan ${STUCK_AFTER} times in a row. ` +
+                            "Skipping for an hour; provider:retry fixes it sooner.",
                     );
                 }
                 continue;
@@ -214,8 +214,8 @@ while (!stopping) {
                 const key = keyFor(piece.generator, piece.tokenId);
                 if (isStuck(key)) {
                     // Already failed STUCK_AFTER times. Retrying it every pass
-                    // forever was the bug; skip it until provider:retry runs
-                    // by hand, after whatever was actually wrong is fixed.
+                    // forever was the bug; skip it for an hour, or until
+                    // provider:retry runs by hand and clears the mark sooner.
                     stuck++;
                     continue;
                 }
@@ -239,7 +239,7 @@ while (!stopping) {
                     if (justStuck) {
                         log(
                             `  ${piece.generator} #${piece.tokenId} has failed ${STUCK_AFTER} times ` +
-                                "in a row and will not be retried automatically. Needs a human.",
+                                "in a row. Skipping for an hour; provider:retry fixes it sooner.",
                         );
                     }
                 }

@@ -14,6 +14,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const { pieceAt, handle, generatorsServed, tokenIdsIn } = await import("./provider.mts");
+const { keyFor, recordSuccess } = await import("./stuck.mts");
 
 const [target, tokenId] = process.argv.slice(2);
 
@@ -63,6 +64,18 @@ for (const { generator, tokenId } of work) {
         const piece = await pieceAt(generator, tokenId);
         const hash = await handle(piece);
         done++;
+        // The daemon marks a piece stuck after enough consecutive failures
+        // and never looks at it again on its own — that cap is what this
+        // command exists to answer by hand. Leaving the mark in place after
+        // a successful retry meant the daemon kept ignoring a piece a human
+        // had just fixed, forever, with nothing to say so.
+        recordSuccess(keyFor(generator, tokenId));
+        // `pieceAt` just decoded and verified this generator's own code,
+        // which is exactly what a scan needs to do — proof the generator
+        // itself reads fine right now, so a scan-level stuck mark (the same
+        // trap, one level up) clears too rather than outliving what it was
+        // ever actually about.
+        recordSuccess(keyFor(generator, "scan"));
         console.log(`published ${hash}`);
     } catch (e) {
         failed++;
