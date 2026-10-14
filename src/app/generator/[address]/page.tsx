@@ -34,21 +34,24 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     const name = c?.name || shortAddress(address);
     // The generator's newest rendered piece, which is what it looks like.
     const cover = covers.get(address);
+    const description =
+        c?.description ||
+        `Mint a piece from ${name}, a generator on ${BRAND.name}: fully on-chain generative art on Tezos.`;
     return {
         title: name,
-        description: c?.description,
+        description,
         alternates: { canonical: `/generator/${address}` },
         openGraph: {
             type: "website",
             title: name,
-            description: c?.description,
+            description,
             url: `${BRAND.url}/generator/${address}`,
             images: cover ? [{ url: cover }] : undefined,
         },
         twitter: {
             card: cover ? "summary_large_image" : "summary",
             title: name,
-            description: c?.description,
+            description,
             images: cover ? [cover] : undefined,
         },
     };

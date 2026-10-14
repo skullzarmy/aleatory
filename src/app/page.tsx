@@ -8,16 +8,19 @@ import { SiteJsonLd } from "@/components/JsonLd";
 import { GeneratorFeed } from "@/components/generator/GeneratorFeed";
 import { BRAND } from "@/lib/config";
 
+const HOME_DESCRIPTION =
+    "Browse every generator live on Aleatory, fully on-chain generative art on Tezos, and mint a one-of-a-kind piece from the artist's code.";
+
 export const metadata: Metadata = {
     // The root layout's title is a template; `absolute` opts the home page out of it.
     title: { absolute: `${BRAND.name} — ${BRAND.tagline}` },
-    description: BRAND.description,
+    description: HOME_DESCRIPTION,
     alternates: { canonical: "/" },
     openGraph: {
         type: "website",
         url: BRAND.url,
         title: `${BRAND.name} — ${BRAND.tagline}`,
-        description: BRAND.description,
+        description: HOME_DESCRIPTION,
     },
 };
 /**
