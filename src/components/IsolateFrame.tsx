@@ -145,7 +145,7 @@ export function IsolateFrame({
             ref={ref}
             src={ISOLATE_ORIGIN}
             title={title}
-            sandbox="allow-scripts"
+            sandbox="allow-scripts allow-downloads"
             referrerPolicy="no-referrer"
             className={className ?? "h-full w-full border-0"}
         />

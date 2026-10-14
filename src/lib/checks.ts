@@ -151,7 +151,7 @@ export function runOnce({
     return new Promise((resolve) => {
         const started = performance.now();
         const frame = document.createElement("iframe");
-        frame.setAttribute("sandbox", "allow-scripts");
+        frame.setAttribute("sandbox", "allow-scripts allow-downloads");
         frame.setAttribute("referrerpolicy", "no-referrer");
         frame.style.cssText =
             "position:fixed;left:-10000px;top:0;width:600px;height:600px;border:0";
