@@ -253,7 +253,7 @@ export function ArtifactFrame({
                 <div
                     role="toolbar"
                     aria-label="Artwork controls"
-                    className="mt-2.5 flex items-center gap-1 self-start rounded-lg border border-border bg-card-background p-1 shadow-sm"
+                    className="mt-2.5 flex items-center gap-1 self-end rounded-lg border border-border bg-card-background p-1 shadow-sm"
                 >
                     {running ? (
                         <button
