@@ -98,19 +98,55 @@ export function ArtifactFrame({
     };
 
     const frameRef = useRef<HTMLDivElement>(null);
+    const [canFullscreen, setCanFullscreen] = useState(false);
     useEffect(() => {
-        const onFsChange = () => {
-            setIsFullscreen(document.fullscreenElement === frameRef.current);
-        };
-        document.addEventListener("fullscreenchange", onFsChange);
-        return () => document.removeEventListener("fullscreenchange", onFsChange);
+        const doc = document as Document & { webkitFullscreenEnabled?: boolean };
+        const el = frameRef.current as
+            | (HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> })
+            | null;
+        setCanFullscreen(
+            Boolean(
+                doc.fullscreenEnabled ||
+                    doc.webkitFullscreenEnabled ||
+                    el?.requestFullscreen ||
+                    el?.webkitRequestFullscreen,
+            ),
+        );
     }, []);
 
-    const toggleFullscreen = () => {
-        if (!document.fullscreenElement) {
-            frameRef.current?.requestFullscreen?.().catch(() => {});
-        } else {
-            document.exitFullscreen?.().catch(() => {});
+    useEffect(() => {
+        const onFsChange = () => {
+            const doc = document as Document & { webkitFullscreenElement?: Element };
+            const current = doc.fullscreenElement ?? doc.webkitFullscreenElement;
+            setIsFullscreen(current === frameRef.current);
+        };
+        document.addEventListener("fullscreenchange", onFsChange);
+        document.addEventListener("webkitfullscreenchange", onFsChange);
+        return () => {
+            document.removeEventListener("fullscreenchange", onFsChange);
+            document.removeEventListener("webkitfullscreenchange", onFsChange);
+        };
+    }, []);
+
+    const toggleFullscreen = async () => {
+        const doc = document as Document & {
+            webkitFullscreenElement?: Element;
+            webkitExitFullscreen?: () => Promise<void>;
+        };
+        const el = frameRef.current as
+            | (HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> })
+            | null;
+        const current = doc.fullscreenElement ?? doc.webkitFullscreenElement;
+        try {
+            if (!current) {
+                if (el?.requestFullscreen) await el.requestFullscreen();
+                else if (el?.webkitRequestFullscreen) await el.webkitRequestFullscreen();
+            } else {
+                if (doc.exitFullscreen) await doc.exitFullscreen();
+                else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
+            }
+        } catch {
+            // Ignored if refused by browser policy
         }
     };
 
@@ -257,22 +293,24 @@ export function ArtifactFrame({
                         <span className="sr-only">Restart code</span>
                     </button>
 
-                    <button
-                        type="button"
-                        onClick={toggleFullscreen}
-                        title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                        aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                    >
-                        {isFullscreen ? (
-                            <Minimize2 className="h-4 w-4" aria-hidden />
-                        ) : (
-                            <Maximize2 className="h-4 w-4" aria-hidden />
-                        )}
-                        <span className="sr-only">
-                            {isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                        </span>
-                    </button>
+                    {canFullscreen && (
+                        <button
+                            type="button"
+                            onClick={toggleFullscreen}
+                            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        >
+                            {isFullscreen ? (
+                                <Minimize2 className="h-4 w-4" aria-hidden />
+                            ) : (
+                                <Maximize2 className="h-4 w-4" aria-hidden />
+                            )}
+                            <span className="sr-only">
+                                {isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                            </span>
+                        </button>
+                    )}
                 </div>
             )}
         </div>
