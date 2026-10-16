@@ -692,9 +692,7 @@ export async function readCode(
     return {
         hex: (s.art.code ?? "").replace(/^0x/, "").toLowerCase(),
         sealed: s.art.code_sealed === true,
-        // Fixed at origination and never rewritten by `append_code`, so it is
-        // the one authority on what the bytes already on chain are, rather
-        // than something a resume should have to re-guess.
+        // Fixed at origination; append_code never rewrites it.
         encoding: s.art.code_encoding === "gzip" ? "gzip" : "identity",
     };
 }

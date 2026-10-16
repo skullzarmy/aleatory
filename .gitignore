@@ -27,7 +27,6 @@ provider/.state/
 !/contract/
 !/docs/
 !/isolate/
-!/landing/
 !/provider/
 !/public/
 !/scripts/
@@ -77,4 +76,3 @@ public/templates/*.zip
 # Next writes an AGENTS.md next to whichever app it is run in, telling an agent
 # to read its own docs. The root one is ours and hand-written; these are not.
 /admin/AGENTS.md
-/landing/AGENTS.md

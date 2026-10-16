@@ -35,7 +35,7 @@ visitor's browser. A different origin is what keeps that code away from wallet
 state and session storage.
 
 The piece itself runs one level deeper, in a nested frame with
-`sandbox="allow-scripts"` and no `allow-same-origin`, so it lands in an opaque
+`sandbox="allow-scripts allow-downloads"` and no `allow-same-origin`, so it lands in an opaque
 origin that cannot reach this one either. Its CSP travels inside that document
 as a meta tag; a `srcdoc` child intersects its parent's policy, so it can only
 ever be stricter.

@@ -103,7 +103,7 @@
   /**
    * Build the document and hand it to a nested frame.
    *
-   * The piece gets its own document with `sandbox="allow-scripts"` and no
+   * The piece gets its own document with `sandbox="allow-scripts allow-downloads"` and no
    * `allow-same-origin`, so it lands in an opaque origin that cannot reach
    * this one. Its CSP travels inside that document as a meta tag, and a
    * srcdoc child intersects its parent's policy, so it can only ever be
@@ -170,7 +170,7 @@
     }
 
     var frame = document.createElement("iframe");
-    frame.setAttribute("sandbox", "allow-scripts");
+    frame.setAttribute("sandbox", "allow-scripts allow-downloads");
     frame.setAttribute("title", "piece");
     frame.srcdoc = doc;
     document.body.appendChild(frame);

@@ -29,9 +29,8 @@ export function InfiniteScroll<T>({
     children: (items: T[]) => React.ReactNode;
     /** What is being counted, for the line at the end. */
     label: string;
-    /** Identifies an item across a refresh, so one that changed — a piece
-     * going from its generator's cover to its own render — is caught rather
-     * than sitting on whatever `items` held when this first mounted. */
+    /** Identifies an item across a refresh, so an updated one is caught
+     * rather than sitting on whatever `items` held when this first mounted. */
     itemKey: (item: T) => string;
 }) {
     const [items, setItems] = useState(initial);
@@ -39,12 +38,9 @@ export function InfiniteScroll<T>({
     const [failed, setFailed] = useState(false);
     const sentinel = useRef<HTMLDivElement>(null);
 
-    // The caller's server component reruns on `LiveRefresh` and hands this a
-    // new `initial` every time, but `useState(initial)` only reads it once:
-    // this is `items`'s only other way to learn the first page changed.
-    // Existing entries are updated in place, scrolled-in pages stay where
-    // they are, and a piece that minted since the last refresh joins at the
-    // front rather than waiting for a scroll to reveal it.
+    // `useState(initial)` only reads `initial` once; this is how a later
+    // `initial` (from LiveRefresh re-rendering the server component) reaches
+    // `items` without disturbing pages already loaded by scrolling.
     useEffect(() => {
         setItems((prev) => {
             const fresh = new Map(initial.map((item) => [itemKey(item), item]));

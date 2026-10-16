@@ -24,19 +24,8 @@ export interface CacheOptions<T = unknown> {
     l1Ms?: number;
     /** Time-to-live in seconds in Redis. Default: 86,400 (24 hours). */
     redisTtlSec?: number;
-    /**
-     * Whether stale data is still fine to hand out while a fresh copy is
-     * fetched in the background. Defaults to yes, which is what makes
-     * stale-while-revalidate fast for everything else this caches.
-     *
-     * For a value that is itself the thing a reader is actively watching for
-     * — a piece's `pending` flag, checked by a poll timed to this cache's own
-     * freshness window — "fast but wrong" is backwards: the poll exists to
-     * notice the change, and serving the pre-change snapshot while quietly
-     * fixing it for whoever asks *next* means the poll can keep landing on
-     * stale data every single time, forcing a manual reload to ever see past
-     * it. Returning `false` here waits for the fresh fetch instead.
-     */
+    /** Whether stale data is OK to hand out while a fresh copy is fetched in
+     *  the background. Defaults to yes. `false` waits for the fresh fetch. */
     staleOk?: (data: T) => boolean;
 }
 

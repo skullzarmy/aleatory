@@ -10,6 +10,7 @@ import { JustMinted } from "@/components/piece/JustMinted";
 import { fetchGenerator } from "@/lib/generator";
 import { decodeParams } from "@/lib/params";
 import { PieceFacts } from "@/components/piece/PieceFacts";
+import { PieceFeatures } from "@/components/piece/PieceFeatures";
 import { PieceMarket } from "@/components/piece/PieceMarket";
 import { fetchListingFor, fetchOffersFor } from "@/lib/market";
 import { fetchProvenance } from "@/lib/provenance";
@@ -53,7 +54,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
         ? `${piece.name} by ${artist}${others > 0 ? ` and ${others} ${others === 1 ? "other" : "others"}` : ""}`
         : piece.name;
     const title = `${byline} · ${BRAND.name}`;
-    const description = piece.description || BRAND.description;
+    const description =
+        piece.description ||
+        `A one-of-a-kind piece from ${piece.generatorName || "a generator"} on ${BRAND.name}, fully on-chain generative art on Tezos.`;
     const images = piece.imageUrl ? [{ url: piece.imageUrl }] : undefined;
 
     return {
@@ -131,6 +134,12 @@ export default async function PiecePage({ params }: { params: Params }) {
     const cachedImage = piece.pending ? undefined : piece.imageUrl;
     const schemaUnknown = !generator && Boolean(cachedImage);
 
+    const paramsSchema = generator?.paramsSchema?.params ?? [];
+    const resolvedParams = decodeParams(paramsSchema, piece.params);
+
+    const paramIds = new Set(paramsSchema.map((p) => p.id));
+    const features = (piece.metadata?.attributes ?? []).filter((a) => !paramIds.has(a.name));
+
     return (
         <LastGood>
             <div className="mx-auto max-w-6xl px-4 py-8">
@@ -168,15 +177,13 @@ export default async function PiecePage({ params }: { params: Params }) {
                         <ArtifactFrame
                             code={schemaUnknown ? undefined : piece.code}
                             seed={schemaUnknown ? undefined : piece.seed}
-                            params={decodeParams(
-                                generator?.paramsSchema?.params ?? [],
-                                piece.params,
-                            )}
+                            params={resolvedParams}
                             imageUrl={cachedImage}
                             coverUrl={generator?.coverUrl}
                             name={piece.name}
                             maxDpr={maxDprFor(contract)}
                         />
+                        <PieceFeatures features={features} />
                     </div>
 
                     <div className="min-w-0">
@@ -218,7 +225,12 @@ export default async function PiecePage({ params }: { params: Params }) {
                         </div>
 
                         <div className="mt-4">
-                            <PieceFacts piece={piece} listing={listing} />
+                            <PieceFacts
+                                piece={piece}
+                                listing={listing}
+                                paramsSchema={paramsSchema}
+                                resolvedParams={resolvedParams}
+                            />
                         </div>
 
                         <div className="mt-4">

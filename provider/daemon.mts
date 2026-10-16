@@ -180,10 +180,7 @@ while (!stopping) {
         for (const generator of served) {
             if (stopping) break;
 
-            // A scan that throws (bad code_encoding, corrupt bytes) never reaches
-            // the per-piece stuck tracking below, since no piece is enumerated.
-            // Without this it logs the same unrecoverable error every pass,
-            // forever. `"scan"` in place of a tokenId keys it per generator.
+            // Scan failures aren't per-piece, so track them under a "scan" pseudo-id.
             const scanKey = keyFor(generator, "scan");
             if (isStuck(scanKey)) {
                 stuck++;
@@ -246,10 +243,8 @@ while (!stopping) {
             }
         }
 
-        // Every generator refusing to be read looks exactly like an empty
-        // queue from in here: the scan is caught, the count stays zero and the
-        // loop sleeps. That is the state worth waking somebody for.
-        const blind = scanned > 0 && scanFailed === scanned;
+        // served.length, not scanned: an all-stuck pass leaves scanned at 0 too.
+        const blind = served.length > 0 && scanFailed === scanned;
         beat({
             status: blind ? "down" : "up",
             msg: blind
