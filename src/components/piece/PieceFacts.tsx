@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { tzktLink } from "@/lib/config";
 import { shortAddress } from "@/lib/utils";
+import { CopySeed } from "./CopySeed";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { Piece } from "@/lib/piece";
 import type { Listing } from "@/lib/market";
@@ -96,15 +96,7 @@ export function PieceFacts({
             )}
             {piece.seed && (
                 <Row label="Seed">
-                    <a
-                        href={tzktLink(piece.seed)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono text-xs hover:underline"
-                        title={piece.seed}
-                    >
-                        {shortAddress(piece.seed, 8, 6)}
-                    </a>
+                    <CopySeed seed={piece.seed} />
                 </Row>
             )}
             {piece.codeHash && (
