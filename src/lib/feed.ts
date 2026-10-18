@@ -357,6 +357,77 @@ interface CachedRecentFeed {
     artists: [string, string[]][];
 }
 
+export interface LiveMintsCatalog {
+    pieces: FeedPiece[];
+    generators: { address: string; name: string }[];
+    artists: [string, string[]][];
+}
+
+/**
+ * All minted pieces across all generators, cached with SWR.
+ * Serves in-memory client store for instantaneous sorting and filtering.
+ */
+export async function fetchLiveMints(): Promise<LiveMintsCatalog> {
+    return cacheWrap<LiveMintsCatalog>(
+        "feed:mints:live",
+        async () => {
+            const factories = await allFactories();
+            if (factories.length === 0) {
+                return { pieces: [], generators: [], artists: [] };
+            }
+            const all = (await generatorsFrom(factories)).filter(
+                (c) => !isBlockedGenerator(c.address),
+            );
+            if (all.length === 0) {
+                return { pieces: [], generators: [], artists: [] };
+            }
+
+            const aliasByAddress = await namesFor(all.map((c) => c.address));
+
+            // All generators with minted pieces, sorted recent-activity first
+            const activeGenerators = all
+                .filter((c) => (c.tokensCount ?? 0) > 0)
+                .sort((a, b) => (b.lastActivityTime ?? "").localeCompare(a.lastActivityTime ?? ""));
+
+            const counts = new Map<string, number>();
+            for (const c of activeGenerators) {
+                const n = aliasByAddress.get(c.address) || c.alias || "";
+                if (n) counts.set(n, (counts.get(n) ?? 0) + 1);
+            }
+
+            const dropdownGenerators = activeGenerators.map((c) => {
+                const n = aliasByAddress.get(c.address) || c.alias;
+                if (!n) return { address: c.address, name: shortish(c.address) };
+                return {
+                    address: c.address,
+                    name: (counts.get(n) ?? 0) > 1 ? `${n} ${shortish(c.address)}` : n,
+                };
+            });
+
+            const genAddresses = all.map((c) => c.address);
+            const PAGE = 1000;
+            const allTokens: TzktToken[] = [];
+            for (let offset = 0; ; offset += PAGE) {
+                const batch = await fetchRecentTokens(genAddresses, PAGE, offset).catch(() => []);
+                allTokens.push(...batch);
+                if (batch.length < PAGE) break;
+            }
+
+            const [pieces, artistsMap] = await Promise.all([
+                piecesOf(allTokens, aliasByAddress),
+                fetchCreators(genAddresses).catch(() => new Map<string, string[]>()),
+            ]);
+
+            return {
+                pieces,
+                generators: dropdownGenerators,
+                artists: Array.from(artistsMap.entries()),
+            };
+        },
+        { freshMs: 30_000, l1Ms: 15_000, redisTtlSec: 86_400 },
+    );
+}
+
 export async function fetchRecentFeed(limit = 48, offset = 0, only?: string): Promise<RecentFeed> {
     const key = `feed:mints:${limit}:${offset}:${only ?? "all"}`;
     const cached = await cacheWrap<CachedRecentFeed>(
