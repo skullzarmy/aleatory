@@ -152,6 +152,22 @@ export async function resolveName(address: string): Promise<string | null> {
 }
 
 /**
+ * Resolves multiple addresses to their best names, returning a Map.
+ */
+export async function resolveNames(addresses: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const unique = [...new Set(addresses.filter(Boolean))];
+    if (unique.length === 0) return out;
+    await Promise.all(
+        unique.map(async (addr) => {
+            const name = await resolveName(addr).catch(() => null);
+            if (name) out.set(addr, name);
+        }),
+    );
+    return out;
+}
+
+/**
  * Where what is on screen came from: a profile's own source when there is one,
  * otherwise whoever supplied the name. Free after `resolveName` or
  * `fetchProfile`, which fill the same cache.
