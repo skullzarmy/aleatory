@@ -6,6 +6,7 @@ import { fetchHeldAmong, indexerFetch } from "./tzkt";
 import { cacheWrap } from "./cache";
 import { fetchAllGenerators } from "./generator";
 import { piecesFor, type FeedPiece } from "./feed";
+import { shortAddress } from "./utils";
 
 export interface Listing {
     id: number;
@@ -219,6 +220,75 @@ export async function fetchListingPage(
     };
 }
 
+export interface LiveMarketStore {
+    marketplace: string;
+    listings: (Omit<Listing, "priceMutez"> & { priceMutez: string })[];
+    pieces: [string, FeedPiece][];
+    generators: { address: string; name: string; count: number }[];
+    artists: [string, string[]][];
+    names: [string, string][];
+}
+
+/**
+ * All active marketplace listings and their resolved pieces, cached with SWR.
+ * Serves in-memory client store for instantaneous 0ms sorting and filtering.
+ */
+export async function fetchLiveMarket(): Promise<LiveMarketStore> {
+    return cacheWrap<LiveMarketStore>(
+        "market:live",
+        async () => {
+            const [mPlace, allListings, allGens] = await Promise.all([
+                addresses().then((a) => a.marketplaces[0] ?? ""),
+                fetchAllActiveListings(),
+                fetchAllGenerators().catch(() => []),
+            ]);
+
+            const unblocked = allListings.filter((l) => !isBlockedGenerator(l.generator));
+
+            const namesMap = new Map(
+                allGens.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])),
+            );
+            const artistsMap = new Map(
+                allGens.flatMap((c) =>
+                    c.artists?.length ? [[c.address, c.artists] as const] : [],
+                ),
+            );
+
+            // Group listings by generator to calculate active counts
+            const counts = new Map<string, number>();
+            for (const l of unblocked) {
+                counts.set(l.generator, (counts.get(l.generator) ?? 0) + 1);
+            }
+
+            // Generators with active listings, sorted by count descending
+            const activeGenerators = Array.from(counts.entries())
+                .sort((a, b) => b[1] - a[1])
+                .map(([address, count]) => {
+                    const name = namesMap.get(address) || shortAddress(address);
+                    return { address, name, count };
+                });
+
+            // Resolve pieces for all active listings
+            const piecesMap = await piecesFor(unblocked, namesMap).catch(
+                () => new Map<string, FeedPiece>(),
+            );
+
+            return {
+                marketplace: mPlace,
+                listings: unblocked.map((l) => ({
+                    ...l,
+                    priceMutez: l.priceMutez.toString(),
+                })),
+                pieces: Array.from(piecesMap.entries()),
+                generators: activeGenerators,
+                artists: Array.from(artistsMap.entries()),
+                names: Array.from(namesMap.entries()),
+            };
+        },
+        { freshMs: 20_000, l1Ms: 10_000, redisTtlSec: 3600 },
+    );
+}
+
 export interface MarketFeedData {
     marketplace: string;
     listings: Listing[];
@@ -229,74 +299,46 @@ export interface MarketFeedData {
     artists: Map<string, string[]>;
 }
 
-interface CachedMarketFeedData {
-    marketplace: string;
-    listings: (Omit<Listing, "priceMutez"> & { priceMutez: string })[];
-    total: number;
-    floorMutez: string | null;
-    pieces: [string, FeedPiece][];
-    names: [string, string][];
-    artists: [string, string[]][];
-}
-
 export async function fetchMarketFeed(
     options: { sort?: ListingSort; generator?: string; page?: number; perPage?: number } = {},
 ): Promise<MarketFeedData> {
     const { sort = "recent", generator, page = 1, perPage = 48 } = options;
-    const cacheKey = `market:feed:${sort}:${generator ?? "all"}:${page}:${perPage}`;
+    const store = await fetchLiveMarket();
 
-    const cached = await cacheWrap<CachedMarketFeedData>(
-        cacheKey,
-        async () => {
-            const [mPlace, lResult, generators] = await Promise.all([
-                addresses().then((a) => a.marketplaces[0] ?? ""),
-                fetchListingPage({
-                    sort,
-                    generator,
-                    limit: perPage,
-                    offset: (page - 1) * perPage,
-                }),
-                fetchAllGenerators().catch(() => []),
-            ]);
+    let list = store.listings.map((l) => ({
+        ...l,
+        priceMutez: BigInt(l.priceMutez),
+    }));
 
-            const names = new Map(
-                generators.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])),
-            );
-            const artists = new Map(
-                generators.flatMap((c) =>
-                    c.artists?.length ? [[c.address, c.artists] as const] : [],
-                ),
-            );
+    if (generator) {
+        list = list.filter((l) => l.generator === generator);
+    }
 
-            const piecesMap = await piecesFor(lResult.listings, names).catch(() => new Map());
+    const ordered = [...list].sort((a, b) =>
+        sort === "price"
+            ? a.priceMutez < b.priceMutez
+                ? -1
+                : a.priceMutez > b.priceMutez
+                  ? 1
+                  : b.id - a.id
+            : b.id - a.id,
+    );
 
-            return {
-                marketplace: mPlace,
-                listings: lResult.listings.map((l) => ({
-                    ...l,
-                    priceMutez: l.priceMutez.toString(),
-                })),
-                total: lResult.total,
-                floorMutez: lResult.floorMutez !== null ? lResult.floorMutez.toString() : null,
-                pieces: Array.from(piecesMap.entries()),
-                names: Array.from(names.entries()),
-                artists: Array.from(artists.entries()),
-            };
-        },
-        { freshMs: 20_000, l1Ms: 10_000 },
+    const offset = (page - 1) * perPage;
+    const paged = ordered.slice(offset, offset + perPage);
+    const floorMutez = ordered.reduce<bigint | null>(
+        (low, l) => (low === null || l.priceMutez < low ? l.priceMutez : low),
+        null,
     );
 
     return {
-        marketplace: cached.marketplace,
-        listings: cached.listings.map((l) => ({
-            ...l,
-            priceMutez: BigInt(l.priceMutez),
-        })),
-        total: cached.total,
-        floorMutez: cached.floorMutez !== null ? BigInt(cached.floorMutez) : null,
-        pieces: new Map(cached.pieces),
-        names: new Map(cached.names),
-        artists: new Map(cached.artists),
+        marketplace: store.marketplace,
+        listings: paged,
+        total: ordered.length,
+        floorMutez,
+        pieces: new Map(store.pieces),
+        names: new Map(store.names),
+        artists: new Map(store.artists),
     };
 }
 

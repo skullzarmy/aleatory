@@ -12,21 +12,24 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-interface GeneratorOption {
+export interface GeneratorOption {
     address: string;
     name: string;
+    count?: number;
 }
 
-interface GeneratorDropdownProps {
+export interface GeneratorDropdownProps {
     generators: GeneratorOption[];
     selected?: string;
     onSelect: (address?: string) => void;
+    totalCount?: number;
 }
 
 export const GeneratorDropdown = memo(function GeneratorDropdown({
     generators,
     selected,
     onSelect,
+    totalCount,
 }: GeneratorDropdownProps) {
     const [search, setSearch] = useState("");
     const [open, setOpen] = useState(false);
@@ -113,11 +116,18 @@ export const GeneratorDropdown = memo(function GeneratorDropdown({
                                 : "text-foreground hover:bg-muted/80",
                         )}
                     >
-                        <span className="truncate">All generators</span>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="truncate">All generators</span>
+                            {totalCount !== undefined && (
+                                <span className="text-[11px] tabular-nums text-muted-foreground shrink-0">
+                                    {totalCount}
+                                </span>
+                            )}
+                        </div>
                         {!selected && (
                             <Check
                                 strokeWidth={2.5}
-                                className="size-4 shrink-0 text-foreground"
+                                className="size-4 shrink-0 text-foreground ml-2"
                                 aria-hidden="true"
                             />
                         )}
@@ -145,11 +155,18 @@ export const GeneratorDropdown = memo(function GeneratorDropdown({
                                             : "text-foreground hover:bg-muted/80",
                                     )}
                                 >
-                                    <span className="truncate">{g.name}</span>
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <span className="truncate">{g.name}</span>
+                                        {g.count !== undefined && (
+                                            <span className="text-[11px] tabular-nums text-muted-foreground shrink-0">
+                                                {g.count}
+                                            </span>
+                                        )}
+                                    </div>
                                     {isSelected && (
                                         <Check
                                             strokeWidth={2.5}
-                                            className="size-4 shrink-0 text-foreground"
+                                            className="size-4 shrink-0 text-foreground ml-2"
                                             aria-hidden="true"
                                         />
                                     )}
