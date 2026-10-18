@@ -52,16 +52,45 @@ async function namesFor(addresses: string[]): Promise<Map<string, string>> {
     return out;
 }
 
+const pendingUriCache = new Map<string, string>();
+
+/** A generator's pending pointer, cached in memory since origination storage is immutable. */
+async function pendingUriOf(generator: string): Promise<string> {
+    const cached = pendingUriCache.get(generator);
+    if (cached !== undefined) return cached;
+    const s = await fetchStorage<{ art?: { pending_metadata?: string } }>(generator).catch(
+        () => null,
+    );
+    const raw = s?.art?.pending_metadata;
+    const uri = raw ? bytesToString(raw) : "";
+    if (uri) pendingUriCache.set(generator, uri);
+    return uri;
+}
+
 /**
  * For each token, its own metadata pointer and its generator's pending one.
- * Two reads per generator, not per token.
+ * Only checks generators for tokens that either lack displayUri or were minted recently (last 2 hours),
+ * avoiding 100+ contract storage round trips for revealed historical collections.
  */
 async function pendingState(
     tokens: TzktToken[],
 ): Promise<Map<string, { pendingUri: string; tokenUri?: string }>> {
-    const generators = [...new Set(tokens.map((t) => t.contract.address))];
+    const now = Date.now();
+    const generatorsToCheck = new Set<string>();
+    for (const t of tokens) {
+        const hasDisplay = t.metadata?.displayUri || t.metadata?.thumbnailUri;
+        const isRecent = t.firstTime
+            ? now - new Date(t.firstTime).getTime() < 2 * 3600 * 1000
+            : false;
+        if (!hasDisplay || isRecent) {
+            generatorsToCheck.add(t.contract.address);
+        }
+    }
+
+    if (generatorsToCheck.size === 0) return new Map();
+
     const entries = await Promise.all(
-        generators.map(
+        [...generatorsToCheck].map(
             async (c) =>
                 [
                     c,
@@ -79,15 +108,6 @@ async function pendingState(
         if (c) out.set(key(t), { pendingUri: c.pending, tokenUri: c.uris.get(t.tokenId) });
     }
     return out;
-}
-
-/** A generator's pending pointer. */
-async function pendingUriOf(generator: string): Promise<string> {
-    const s = await fetchStorage<{ art?: { pending_metadata?: string } }>(generator).catch(
-        () => null,
-    );
-    const raw = s?.art?.pending_metadata;
-    return raw ? bytesToString(raw) : "";
 }
 
 const docCache = new Map<string, TokenDoc>();
@@ -382,7 +402,23 @@ export async function fetchLiveMints(): Promise<LiveMintsCatalog> {
                 return { pieces: [], generators: [], artists: [] };
             }
 
-            const aliasByAddress = await namesFor(all.map((c) => c.address));
+            const genAddresses = all.map((c) => c.address);
+
+            const [aliasByAddress, allTokens] = await Promise.all([
+                namesFor(genAddresses),
+                (async () => {
+                    const PAGE = 1000;
+                    const tokens: TzktToken[] = [];
+                    for (let offset = 0; ; offset += PAGE) {
+                        const batch = await fetchRecentTokens(genAddresses, PAGE, offset).catch(
+                            () => [],
+                        );
+                        tokens.push(...batch);
+                        if (batch.length < PAGE) break;
+                    }
+                    return tokens;
+                })(),
+            ]);
 
             // All generators with minted pieces, sorted recent-activity first
             const activeGenerators = all
@@ -404,19 +440,31 @@ export async function fetchLiveMints(): Promise<LiveMintsCatalog> {
                 };
             });
 
-            const genAddresses = all.map((c) => c.address);
-            const PAGE = 1000;
-            const allTokens: TzktToken[] = [];
-            for (let offset = 0; ; offset += PAGE) {
-                const batch = await fetchRecentTokens(genAddresses, PAGE, offset).catch(() => []);
-                allTokens.push(...batch);
-                if (batch.length < PAGE) break;
+            const artistsMap = new Map<string, string[]>();
+            const needingCreators: string[] = [];
+
+            for (const t of allTokens) {
+                if (!artistsMap.has(t.contract.address) && t.metadata?.creators?.length) {
+                    artistsMap.set(t.contract.address, t.metadata.creators);
+                }
             }
 
-            const [pieces, artistsMap] = await Promise.all([
+            for (const addr of genAddresses) {
+                if (!artistsMap.has(addr)) {
+                    needingCreators.push(addr);
+                }
+            }
+
+            const [pieces, fetchedCreators] = await Promise.all([
                 piecesOf(allTokens, aliasByAddress),
-                fetchCreators(genAddresses).catch(() => new Map<string, string[]>()),
+                needingCreators.length > 0
+                    ? fetchCreators(needingCreators).catch(() => new Map<string, string[]>())
+                    : Promise.resolve(new Map<string, string[]>()),
             ]);
+
+            for (const [addr, crs] of fetchedCreators) {
+                artistsMap.set(addr, crs);
+            }
 
             return {
                 pieces,
