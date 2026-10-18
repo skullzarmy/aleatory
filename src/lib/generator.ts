@@ -10,7 +10,6 @@ import {
     fetchSealedStates,
     fetchCreators,
     fetchGeneratorMetas,
-    fetchPrices,
     type GeneratorMeta,
     indexerFetch,
     isAddress,
@@ -27,7 +26,6 @@ import { decodeCode } from "./piece";
 import { fetchProvider } from "./providers";
 import { cacheWrap } from "./cache";
 import { normalizeCollab, type Collab } from "./collab";
-import { type GeneratorSortKey } from "./generator-sort";
 
 export { normalizeCollab, unconfirmedCount, type Collab, type CollabShare } from "./collab";
 
@@ -272,8 +270,6 @@ export interface GeneratorSummary {
     address: string;
     /** Who the generator credits. One name for a solo generator. */
     artists?: string[];
-    /** The resolved primary artist name for display and sorting. */
-    artistResolvedName?: string;
     name?: string;
     description?: string;
     /**
@@ -288,8 +284,6 @@ export interface GeneratorSummary {
     paused: boolean;
     /** False while the source is still arriving in chunks. Nothing mints. */
     sealed: boolean;
-    /** The mint price in mutez (sans render fee). String for JSON safety. */
-    priceMutez?: string;
 }
 
 export interface GeneratorPage {
@@ -300,8 +294,13 @@ export interface GeneratorPage {
 }
 
 /**
- * Candidates resolved per chunk beyond the limit, to cover paused and
- * unsealed generators that are dropped.
+ * Candidates resolved beyond the page being filled, to cover the paused and
+ * unsealed ones that will be dropped.
+ *
+ * One pass, not a loop: a page short of its limit costs nothing, because the
+ * cursor advances to the last generator actually used and the next scroll
+ * continues from there. Looping until exactly twenty survived would make the
+ * request count depend on how many happen to be paused.
  */
 const OVERFETCH = 10;
 
@@ -323,13 +322,8 @@ const OVERFETCH = 10;
  * request and the next shifts every later row, which with an offset silently
  * skips a card.
  */
-export async function fetchGeneratorPage(
-    limit = 20,
-    after?: string,
-    sortKey: GeneratorSortKey = "created-desc",
-    hideSoldOut = false,
-): Promise<GeneratorPage> {
-    const key = `catalog:page:${limit}:${after ?? "start"}:${sortKey}:${hideSoldOut ? "nosold" : "all"}`;
+export async function fetchGeneratorPage(limit = 20, after?: string): Promise<GeneratorPage> {
+    const key = `catalog:page:${limit}:${after ?? "start"}`;
     return cacheWrap(
         key,
         async () => {
@@ -344,98 +338,10 @@ export async function fetchGeneratorPage(
                 .map((r) => (r.status === "fulfilled" ? r.value : []))
                 .flat()
                 .filter((c) => !seen.has(c.address) && (seen.add(c.address), true))
-                .filter((c) => !isBlockedGenerator(c.address));
-
-            const needsEditionsMap =
-                hideSoldOut || sortKey === "remaining-desc" || sortKey === "remaining-asc";
-            const editionsMap = needsEditionsMap
-                ? await fetchEditionSizes(factories, []).catch(() => new Map<string, number>())
-                : undefined;
-
-            if (sortKey === "created-asc") {
-                rows.sort((a, b) =>
-                    (a.firstActivityTime ?? "").localeCompare(b.firstActivityTime ?? ""),
-                );
-            } else if (sortKey === "minted-desc") {
-                rows.sort(
-                    (a, b) =>
-                        (b.tokensCount ?? 0) - (a.tokensCount ?? 0) ||
-                        (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""),
-                );
-            } else if (sortKey === "minted-asc") {
-                rows.sort(
-                    (a, b) =>
-                        (a.tokensCount ?? 0) - (b.tokensCount ?? 0) ||
-                        (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""),
-                );
-            } else if (sortKey === "artist-asc") {
-                rows.sort((a, b) =>
-                    (a.alias || a.address).localeCompare(b.alias || b.address, undefined, {
-                        sensitivity: "base",
-                    }),
-                );
-            } else if (sortKey === "artist-desc") {
-                rows.sort((a, b) =>
-                    (b.alias || b.address).localeCompare(a.alias || a.address, undefined, {
-                        sensitivity: "base",
-                    }),
-                );
-            } else if (sortKey === "remaining-desc" || sortKey === "remaining-asc") {
-                const getRem = (c: { address: string; tokensCount?: number }) => {
-                    const size = editionsMap?.get(c.address) ?? 0;
-                    if (size === 0) return Number.POSITIVE_INFINITY;
-                    return Math.max(0, size - (c.tokensCount ?? 0));
-                };
-                if (sortKey === "remaining-desc") {
-                    rows.sort(
-                        (a, b) =>
-                            getRem(b) - getRem(a) ||
-                            (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""),
-                    );
-                } else {
-                    rows.sort((a, b) => {
-                        const remA = getRem(a);
-                        const remB = getRem(b);
-                        if (remA === 0 && remB > 0) return 1;
-                        if (remB === 0 && remA > 0) return -1;
-                        return (
-                            remA - remB ||
-                            (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? "")
-                        );
-                    });
-                }
-            } else if (sortKey === "price-desc" || sortKey === "price-asc") {
-                const prices = await fetchPrices(rows.map((c) => c.address));
-                const getP = (c: { address: string }) => {
-                    const p = prices.get(c.address);
-                    return p ? BigInt(p) : 0n;
-                };
-                if (sortKey === "price-desc") {
-                    rows.sort((a, b) =>
-                        getP(b) > getP(a)
-                            ? 1
-                            : getP(b) < getP(a)
-                              ? -1
-                              : (b.firstActivityTime ?? "").localeCompare(
-                                    a.firstActivityTime ?? "",
-                                ),
-                    );
-                } else {
-                    rows.sort((a, b) =>
-                        getP(a) > getP(b)
-                            ? 1
-                            : getP(a) < getP(b)
-                              ? -1
-                              : (b.firstActivityTime ?? "").localeCompare(
-                                    a.firstActivityTime ?? "",
-                                ),
-                    );
-                }
-            } else {
-                rows.sort((a, b) =>
+                .filter((c) => !isBlockedGenerator(c.address))
+                .sort((a, b) =>
                     (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""),
                 );
-            }
 
             // Everything after the cursor. An address that has since left the
             // list reads as the start, which repeats a page rather than
@@ -443,52 +349,32 @@ export async function fetchGeneratorPage(
             const from = after ? rows.findIndex((c) => c.address === after) + 1 : 0;
             const pending = rows.slice(from || 0);
 
-            const visible: typeof rows = [];
-            let consumed = 0;
-            const CHUNK_SIZE = limit + OVERFETCH;
+            const candidates = pending.slice(0, limit + OVERFETCH);
+            const [paused, sealed] = await Promise.all([
+                fetchPausedStates(candidates.map((c) => c.address)).catch(
+                    () => new Map<string, boolean>(),
+                ),
+                fetchSealedStates(candidates.map((c) => c.address)).catch(
+                    () => new Map<string, boolean>(),
+                ),
+            ]);
 
-            while (visible.length < limit && consumed < pending.length) {
-                const chunk = pending.slice(consumed, consumed + CHUNK_SIZE);
-                consumed += chunk.length;
-
-                const chunkAddresses = chunk.map((c) => c.address);
-                const [paused, sealed, chunkEditions] = await Promise.all([
-                    fetchPausedStates(chunkAddresses).catch(() => new Map<string, boolean>()),
-                    fetchSealedStates(chunkAddresses).catch(() => new Map<string, boolean>()),
-                    hideSoldOut
-                        ? fetchEditionSizes(factories, chunkAddresses).catch(
-                              () => new Map<string, number>(),
-                          )
-                        : Promise.resolve(new Map<string, number>()),
-                ]);
-
-                for (const c of chunk) {
-                    // Unknown reads as live, the same fail-open bias the badges
-                    // take: a generator missing from the grid is worse than one
-                    // shown that should not have been.
-                    if (!(paused.get(c.address) ?? false) && (sealed.get(c.address) ?? true)) {
-                        if (hideSoldOut) {
-                            const size =
-                                chunkEditions.get(c.address) ?? editionsMap?.get(c.address) ?? 0;
-                            const isSoldOut = size > 0 && (c.tokensCount ?? 0) >= size;
-                            if (isSoldOut) continue;
-                        }
-                        visible.push(c);
-                        if (visible.length === limit) break;
-                    }
-                }
-            }
+            const visible = candidates
+                // Unknown reads as live, the same fail-open bias the badges
+                // take: a generator missing from the grid is worse than one
+                // shown that should not have been.
+                .filter((c) => !(paused.get(c.address) ?? false) && (sealed.get(c.address) ?? true))
+                .slice(0, limit);
 
             const addresses = visible.map((c) => c.address);
-            const [metas, covers, editions, artists, prices] = await Promise.all([
+            const [metas, covers, editions, artists] = await Promise.all([
                 fetchGeneratorMetas(addresses),
                 coversFor(addresses).catch(() => new Map<string, string>()),
                 fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
                 fetchCreators(addresses).catch(() => new Map<string, string[]>()),
-                fetchPrices(addresses).catch(() => new Map<string, string>()),
             ]);
 
-            const rawGenerators: GeneratorSummary[] = visible.map((c) => {
+            const generators: GeneratorSummary[] = visible.map((c) => {
                 const meta = metas.get(c.address) ?? {};
                 const own = meta.thumbnailUri || meta.displayUri;
                 return {
@@ -502,23 +388,25 @@ export async function fetchGeneratorPage(
                     firstActivity: c.firstActivityTime,
                     paused: false,
                     sealed: true,
-                    priceMutez: prices.get(c.address),
                 };
             });
 
-            const generators = hideSoldOut
-                ? rawGenerators.filter((c) => !(c.editionSize > 0 && c.minted >= c.editionSize))
-                : rawGenerators;
-
             // The last generator actually used, so the next page resumes
             // after it and the ones dropped here are never looked at again.
+            // A page can come back short of its limit without being the end,
+            // which is why this is decided by what is left in the list rather
+            // than by how many survived.
             const used = visible.length > 0 ? visible[visible.length - 1].address : undefined;
-            const usedIndex = used ? pending.findIndex((c) => c.address === used) : -1;
-            const exhausted = usedIndex === -1 || usedIndex + 1 >= pending.length;
+            const consumed = used
+                ? candidates.findIndex((c) => c.address === used) + 1
+                : candidates.length;
+            const exhausted = consumed >= pending.length;
 
             return {
                 generators,
-                cursor: exhausted ? undefined : used,
+                cursor: exhausted
+                    ? undefined
+                    : (used ?? candidates[candidates.length - 1]?.address),
                 unconfigured: false,
             };
         },
@@ -558,7 +446,7 @@ export async function fetchAllGenerators(opts?: {
                     (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""),
                 );
             const addresses = rows.map((c) => c.address);
-            const [metas, covers, editions, paused, sealed, artists, prices] = await Promise.all([
+            const [metas, covers, editions, paused, sealed, artists] = await Promise.all([
                 fetchGeneratorMetas(addresses),
                 coversFor(addresses).catch(() => new Map<string, string>()),
                 fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
@@ -569,7 +457,6 @@ export async function fetchAllGenerators(opts?: {
                     ? fetchSealedStates(addresses).catch(() => new Map<string, boolean>())
                     : Promise.resolve(new Map<string, boolean>()),
                 fetchCreators(addresses).catch(() => new Map<string, string[]>()),
-                fetchPrices(addresses).catch(() => new Map<string, string>()),
             ]);
 
             return rows.map((c) => {
@@ -594,27 +481,9 @@ export async function fetchAllGenerators(opts?: {
                     paused: paused.get(c.address) ?? false,
                     // Unknown reads as sealed, the same fail-open bias as paused above.
                     sealed: sealed.get(c.address) ?? true,
-                    priceMutez: prices.get(c.address),
                 };
             });
         },
         { freshMs: 30_000, l1Ms: 15_000, redisTtlSec: 86_400 },
     );
-}
-
-/**
- * All live, unpaused, sealed generators across the platform.
- * Warmed in the shared cache once every 30 seconds.
- */
-export async function fetchLiveCatalog(): Promise<{
-    generators: GeneratorSummary[];
-    unconfigured: boolean;
-}> {
-    const factories = (await readAddresses()).factories;
-    if (factories.length === 0) {
-        return { generators: [], unconfigured: true };
-    }
-    const all = await fetchAllGenerators({ paused: true, sealed: true });
-    const live = all.filter((g) => !g.paused && g.sealed);
-    return { generators: live, unconfigured: false };
 }

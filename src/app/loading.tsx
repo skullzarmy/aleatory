@@ -5,7 +5,7 @@ export default function Loading() {
         <div className="mx-auto max-w-7xl px-4 py-8">
             <LoadingLabel what="generators" />
             <div className="pending-shimmer mb-6 h-7 w-40 rounded" aria-hidden />
-            <SkeletonGrid count={8} />
+            <SkeletonGrid count={6} />
         </div>
     );
 }
