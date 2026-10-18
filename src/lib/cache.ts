@@ -75,7 +75,7 @@ export function resetRedisClientForTesting() {
  * **Bump this whenever a cached type changes.** It costs one cold fetch per
  * key and is the only thing standing between a type change and an outage.
  */
-const SCHEMA = 3;
+const SCHEMA = 2;
 
 export async function cacheWrap<T>(
     key: string,
