@@ -164,6 +164,21 @@ async function fetchAllActiveListings(): Promise<Listing[]> {
     return (raw ?? []).map((l) => ({ ...l, priceMutez: BigInt(l.priceMutez) }));
 }
 
+/**
+ * Map of active listing prices keyed by `${generator}:${tokenId}`.
+ * Sourced from the warm active listings cache.
+ */
+export async function fetchActivePriceMap(): Promise<Map<string, bigint>> {
+    const all = await fetchAllActiveListings();
+    const map = new Map<string, bigint>();
+    for (const l of all) {
+        if (!isBlockedGenerator(l.generator)) {
+            map.set(`${l.generator}:${l.tokenId}`, l.priceMutez);
+        }
+    }
+    return map;
+}
+
 export type ListingSort = "recent" | "price";
 
 export interface ListingPage {

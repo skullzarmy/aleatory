@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { fetchRecentFeed } from "@/lib/feed";
+import { fetchActivePriceMap } from "@/lib/market";
 import { PieceFeed } from "@/components/feed/PieceFeed";
+import type { PieceSortKey } from "@/components/feed/PieceSortFilter";
 import { EmptyFeed } from "@/components/feed/EmptyFeed";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { LastGood } from "@/components/LastGood";
@@ -24,13 +26,20 @@ export const metadata: Metadata = {
     },
 };
 
-type Query = { generator?: string };
+type Query = {
+    generator?: string;
+    sort?: PieceSortKey;
+    forSale?: string;
+};
 
 export default async function MintsPage({ searchParams }: { searchParams: Promise<Query> }) {
-    const { generator } = await searchParams;
+    const { generator, sort, forSale } = await searchParams;
 
     // The first page, server rendered. The rest arrive as it is scrolled.
-    const feed = await fetchRecentFeed(PER_PAGE, 0, generator).catch(() => null);
+    const [feed, pricesMap] = await Promise.all([
+        fetchRecentFeed(PER_PAGE, 0, generator).catch(() => null),
+        fetchActivePriceMap().catch(() => new Map<string, bigint>()),
+    ]);
     if (!feed) {
         return (
             <LastGood failed fallback={<ReadFailed />}>
@@ -57,6 +66,10 @@ export default async function MintsPage({ searchParams }: { searchParams: Promis
     }
 
     const scoped = feed.generators.find((g) => g.address === generator);
+    const initialPrices: [string, string][] = Array.from(pricesMap.entries()).map(([k, v]) => [
+        k,
+        v.toString(),
+    ]);
 
     return (
         <LastGood>
@@ -65,6 +78,8 @@ export default async function MintsPage({ searchParams }: { searchParams: Promis
                 generators={feed.generators}
                 selected={generator}
                 total={feed.mintingGeneratorCount}
+                sort={sort}
+                forSale={forSale}
             >
                 <LiveRefresh seconds={30} />
 
@@ -72,10 +87,14 @@ export default async function MintsPage({ searchParams }: { searchParams: Promis
                     <EmptyFeed reason="no-pieces" />
                 ) : (
                     <PieceFeed
+                        key={generator ?? "all"}
                         initial={feed.pieces}
                         cursor={feed.hasMore ? String(feed.pieces.length) : undefined}
                         artists={Array.from(feed.artists.entries())}
                         generator={generator}
+                        initialPrices={initialPrices}
+                        initialSort={sort}
+                        initialForSaleOnly={forSale === "true" || forSale === "1"}
                     />
                 )}
             </Shell>
@@ -89,12 +108,16 @@ function Shell({
     generators,
     selected,
     total,
+    sort,
+    forSale,
 }: {
     children: React.ReactNode;
     scope?: string;
     generators?: { address: string; name: string }[];
     selected?: string;
     total?: number;
+    sort?: string;
+    forSale?: string;
 }) {
     return (
         <div className="mx-auto max-w-7xl px-4 py-8">
@@ -110,12 +133,23 @@ function Shell({
                     generators={generators}
                     selected={selected}
                     hidden={(total ?? 0) - generators.length}
+                    sort={sort}
+                    forSale={forSale}
                 />
             )}
 
             {children}
         </div>
     );
+}
+
+function buildMintsHref(generator?: string, sort?: string, forSale?: string) {
+    const params = new URLSearchParams();
+    if (generator) params.set("generator", generator);
+    if (sort && sort !== "recent") params.set("sort", sort);
+    if (forSale && (forSale === "true" || forSale === "1")) params.set("forSale", "true");
+    const qs = params.toString();
+    return qs ? `/mints?${qs}` : "/mints";
 }
 
 /**
@@ -127,20 +161,24 @@ function GeneratorScope({
     generators,
     selected,
     hidden,
+    sort,
+    forSale,
 }: {
     generators: { address: string; name: string }[];
     selected?: string;
     hidden: number;
+    sort?: string;
+    forSale?: string;
 }) {
     return (
         <div className="mb-6 flex flex-wrap items-center gap-2">
-            <Chip href="/mints" active={!selected}>
+            <Chip href={buildMintsHref(undefined, sort, forSale)} active={!selected}>
                 All
             </Chip>
             {generators.map((g) => (
                 <Chip
                     key={g.address}
-                    href={`/mints?generator=${g.address}`}
+                    href={buildMintsHref(g.address, sort, forSale)}
                     active={selected === g.address}
                 >
                     {g.name}
