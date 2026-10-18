@@ -404,26 +404,33 @@ export async function fetchLiveMints(): Promise<LiveMintsCatalog> {
 
             const genAddresses = all.map((c) => c.address);
 
+            // All generators with minted pieces, sorted recent-activity first
+            const activeGenerators = all
+                .filter((c) => (c.tokensCount ?? 0) > 0)
+                .sort((a, b) => (b.lastActivityTime ?? "").localeCompare(a.lastActivityTime ?? ""));
+
+            if (activeGenerators.length === 0) {
+                return { pieces: [], generators: [], artists: [] };
+            }
+
+            const mintingAddresses = activeGenerators.map((c) => c.address);
+
             const [aliasByAddress, allTokens] = await Promise.all([
                 namesFor(genAddresses),
                 (async () => {
                     const PAGE = 1000;
                     const tokens: TzktToken[] = [];
                     for (let offset = 0; ; offset += PAGE) {
-                        const batch = await fetchRecentTokens(genAddresses, PAGE, offset).catch(
-                            () => [],
-                        );
+                        const batch = await fetchRecentTokens(mintingAddresses, PAGE, offset);
                         tokens.push(...batch);
                         if (batch.length < PAGE) break;
+                    }
+                    if (tokens.length === 0 && mintingAddresses.length > 0) {
+                        throw new Error("Indexer returned no tokens for active generators");
                     }
                     return tokens;
                 })(),
             ]);
-
-            // All generators with minted pieces, sorted recent-activity first
-            const activeGenerators = all
-                .filter((c) => (c.tokensCount ?? 0) > 0)
-                .sort((a, b) => (b.lastActivityTime ?? "").localeCompare(a.lastActivityTime ?? ""));
 
             const counts = new Map<string, number>();
             for (const c of activeGenerators) {
@@ -472,7 +479,12 @@ export async function fetchLiveMints(): Promise<LiveMintsCatalog> {
                 artists: Array.from(artistsMap.entries()),
             };
         },
-        { freshMs: 30_000, l1Ms: 15_000, redisTtlSec: 86_400 },
+        {
+            freshMs: 30_000,
+            l1Ms: 15_000,
+            redisTtlSec: 86_400,
+            staleOk: (data) => data.pieces.length > 0,
+        },
     );
 }
 
