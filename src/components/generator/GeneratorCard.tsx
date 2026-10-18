@@ -1,10 +1,12 @@
+import { memo } from "react";
 import Link from "next/link";
 import { AutoList } from "@/components/feed/AutoGrid";
 import { CreatorNames } from "@/components/account/CreatorNames";
-import { shortAddress, timeAgoShort } from "@/lib/utils";
+import { TimeAgo } from "@/components/TimeAgo";
+import { formatTez, shortAddress } from "@/lib/utils";
 import type { GeneratorSummary } from "@/lib/generator";
 
-export function GeneratorCard({
+export const GeneratorCard = memo(function GeneratorCard({
     generator: c,
     priority = false,
 }: {
@@ -27,6 +29,12 @@ export function GeneratorCard({
                 {!soldOut && c.paused && (
                     <span className="absolute right-2 top-2 z-10 rounded-md bg-background/90 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide backdrop-blur">
                         Paused
+                    </span>
+                )}
+                {c.priceMutez !== undefined && (
+                    <span className="absolute bottom-2 right-2 z-10 rounded-md bg-background/90 px-2 py-0.5 text-xs font-semibold tabular-nums shadow-sm backdrop-blur">
+                        <span className="sr-only">Mint price: </span>
+                        {formatTez(c.priceMutez)} ꜩ
                     </span>
                 )}
                 {c.coverUrl ? (
@@ -60,17 +68,25 @@ export function GeneratorCard({
                               ? `${c.editionSize} minted`
                               : `${c.editionSize - c.minted} of ${c.editionSize} remaining`}
                     </span>
-                    <span className="shrink-0">
-                        {c.firstActivity ? `created ${timeAgoShort(c.firstActivity)}` : ""}
-                    </span>
+                    {c.firstActivity ? (
+                        <span className="shrink-0">
+                            <TimeAgo iso={c.firstActivity} prefix="created" short />
+                        </span>
+                    ) : (
+                        <span className="shrink-0" />
+                    )}
                 </p>
             </div>
         </Link>
     );
-}
+});
 
 // Grid layout matches FeedGrid, so the two tabs line up.
-export function GeneratorGrid({ generators }: { generators: GeneratorSummary[] }) {
+export const GeneratorGrid = memo(function GeneratorGrid({
+    generators,
+}: {
+    generators: GeneratorSummary[];
+}) {
     return (
         <AutoList className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {generators.map((c, i) => (
@@ -80,4 +96,4 @@ export function GeneratorGrid({ generators }: { generators: GeneratorSummary[] }
             ))}
         </AutoList>
     );
-}
+});

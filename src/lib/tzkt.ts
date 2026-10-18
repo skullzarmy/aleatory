@@ -244,9 +244,23 @@ export async function fetchEditionSizes(
  * a large collection does not fan out unbounded on every page render.
  */
 const PAUSED_CONCURRENCY = 8;
+const pausedCache = new Map<string, { paused: boolean; at: number }>();
+const PAUSED_TTL_MS = 30_000;
+
 export async function fetchPausedStates(generators: string[]): Promise<Map<string, boolean>> {
     const paused = new Map<string, boolean>();
-    const queue = [...generators];
+    const now = Date.now();
+    const queue: string[] = [];
+    for (const address of generators) {
+        const cached = pausedCache.get(address);
+        if (cached && now - cached.at < PAUSED_TTL_MS) {
+            paused.set(address, cached.paused);
+        } else {
+            queue.push(address);
+        }
+    }
+    if (queue.length === 0) return paused;
+
     async function worker() {
         for (;;) {
             const address = queue.shift();
@@ -255,7 +269,10 @@ export async function fetchPausedStates(generators: string[]): Promise<Map<strin
                 `/v1/contracts/${address}/storage?path=sale.paused`,
                 30,
             );
-            if (typeof p === "boolean") paused.set(address, p);
+            if (typeof p === "boolean") {
+                pausedCache.set(address, { paused: p, at: Date.now() });
+                paused.set(address, p);
+            }
         }
     }
     await Promise.all(Array.from({ length: Math.min(PAUSED_CONCURRENCY, queue.length) }, worker));
@@ -267,9 +284,23 @@ export async function fetchPausedStates(generators: string[]): Promise<Map<strin
  * as `fetchPausedStates`, same reason: `art.code_sealed` is a nested storage
  * path TzKT cannot project in bulk.
  */
+const sealedCache = new Map<string, { sealed: boolean; at: number }>();
+const SEALED_TTL_MS = 60_000;
+
 export async function fetchSealedStates(generators: string[]): Promise<Map<string, boolean>> {
     const sealed = new Map<string, boolean>();
-    const queue = [...generators];
+    const now = Date.now();
+    const queue: string[] = [];
+    for (const address of generators) {
+        const cached = sealedCache.get(address);
+        if (cached && now - cached.at < SEALED_TTL_MS) {
+            sealed.set(address, cached.sealed);
+        } else {
+            queue.push(address);
+        }
+    }
+    if (queue.length === 0) return sealed;
+
     async function worker() {
         for (;;) {
             const address = queue.shift();
@@ -278,11 +309,54 @@ export async function fetchSealedStates(generators: string[]): Promise<Map<strin
                 `/v1/contracts/${address}/storage?path=art.code_sealed`,
                 30,
             );
-            if (typeof s === "boolean") sealed.set(address, s);
+            if (typeof s === "boolean") {
+                sealedCache.set(address, { sealed: s, at: Date.now() });
+                sealed.set(address, s);
+            }
         }
     }
     await Promise.all(Array.from({ length: Math.min(PAUSED_CONCURRENCY, queue.length) }, worker));
     return sealed;
+}
+
+/**
+ * Mint prices for each generator, from storage. Same shape as `fetchPausedStates`.
+ */
+const priceCache = new Map<string, { price: string; at: number }>();
+const PRICE_TTL_MS = 60_000;
+
+export async function fetchPrices(generators: string[]): Promise<Map<string, string>> {
+    const prices = new Map<string, string>();
+    if (generators.length === 0) return prices;
+    const now = Date.now();
+    const queue: string[] = [];
+    for (const address of generators) {
+        const cached = priceCache.get(address);
+        if (cached && now - cached.at < PRICE_TTL_MS) {
+            prices.set(address, cached.price);
+        } else {
+            queue.push(address);
+        }
+    }
+    if (queue.length === 0) return prices;
+
+    async function worker() {
+        for (;;) {
+            const address = queue.shift();
+            if (address === undefined) return;
+            const p = await narrow<string | number>(
+                `/v1/contracts/${address}/storage?path=sale.price`,
+                60,
+            );
+            if (p !== null && p !== undefined) {
+                const s = String(p);
+                priceCache.set(address, { price: s, at: Date.now() });
+                prices.set(address, s);
+            }
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(PAUSED_CONCURRENCY, queue.length) }, worker));
+    return prices;
 }
 
 /**

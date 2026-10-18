@@ -3,6 +3,7 @@
 import { fetchGeneratorPage } from "@/lib/generator";
 import { fetchRecentFeed, type FeedPiece } from "@/lib/feed";
 import type { GeneratorSummary } from "@/lib/generator";
+import type { GeneratorSortKey } from "@/lib/generator-sort";
 
 /**
  * The pages after the first, for a grid that loads as it is scrolled.
@@ -17,8 +18,10 @@ import type { GeneratorSummary } from "@/lib/generator";
 
 export async function moreGenerators(
     cursor: string,
+    sortKey?: GeneratorSortKey,
+    hideSoldOut?: boolean,
 ): Promise<{ items: GeneratorSummary[]; cursor?: string }> {
-    const page = await fetchGeneratorPage(20, cursor);
+    const page = await fetchGeneratorPage(20, cursor, sortKey, hideSoldOut);
     return { items: page.generators, cursor: page.cursor };
 }
 

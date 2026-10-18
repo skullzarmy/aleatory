@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { fetchGeneratorPage, type GeneratorPage } from "@/lib/generator";
+import { fetchLiveCatalog, type GeneratorSummary } from "@/lib/generator";
 import { EmptyFeed } from "@/components/feed/EmptyFeed";
 import { LiveRefresh } from "@/components/LiveRefresh";
 import { LastGood } from "@/components/LastGood";
@@ -7,6 +7,7 @@ import { ReadFailed } from "@/components/ReadFailed";
 import { SiteJsonLd } from "@/components/JsonLd";
 import { GeneratorFeed } from "@/components/generator/GeneratorFeed";
 import { BRAND } from "@/lib/config";
+import { parseSortKey } from "@/lib/generator-sort";
 
 const HOME_DESCRIPTION =
     "Browse every generator live on Aleatory, fully on-chain generative art on Tezos, and mint a one-of-a-kind piece from the artist's code.";
@@ -31,26 +32,35 @@ export const metadata: Metadata = {
  */
 export const dynamic = "force-dynamic";
 
-// TzKT's alias is set only for contracts it recognizes, never ours, so the display
-// name comes from the generator's own metadata instead.
-export default async function HomePage() {
-    // The first page only. The rest arrive as the reader scrolls, because
-    // resolving every generator's name, artist and state on one request is
-    // what an indexer starts refusing once the catalog is large.
-    let page: GeneratorPage;
+type Query = { sort?: string; soldOut?: string };
+
+export default async function HomePage(props: { searchParams?: Promise<Query> }) {
+    let rawSort: string | undefined;
+    let hideSoldOut = false;
     try {
-        page = await fetchGeneratorPage(20);
+        const query = await props.searchParams;
+        rawSort = query?.sort;
+        hideSoldOut = query?.soldOut === "hide";
+    } catch {
+        // Query read failed
+    }
+
+    const sortKey = parseSortKey(rawSort);
+
+    let catalog: { generators: GeneratorSummary[]; unconfigured: boolean };
+    try {
+        catalog = await fetchLiveCatalog();
     } catch {
         return <ReadFailed />;
     }
-    const generators = page.generators;
+    const generators = catalog.generators;
 
-    if (generators.length === 0) {
+    if (catalog.unconfigured || generators.length === 0) {
         return (
             <LastGood>
                 <div className="mx-auto max-w-7xl px-4 py-8">
                     <LiveRefresh seconds={60} />
-                    <EmptyFeed reason={page.unconfigured ? "unconfigured" : "no-generators"} />
+                    <EmptyFeed reason={catalog.unconfigured ? "unconfigured" : "no-generators"} />
                 </div>
             </LastGood>
         );
@@ -61,14 +71,11 @@ export default async function HomePage() {
             <div className="mx-auto max-w-7xl px-4 py-8">
                 <LiveRefresh seconds={60} />
                 <SiteJsonLd />
-                <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-                    <h1 className="text-xl font-semibold tracking-tight">Generators</h1>
-                    <p className="text-sm text-muted-foreground">
-                        Every generator on {BRAND.name}, newest first
-                    </p>
-                </div>
-
-                <GeneratorFeed initial={generators} cursor={page.cursor} />
+                <GeneratorFeed
+                    initial={generators}
+                    initialSort={sortKey}
+                    initialHideSoldOut={hideSoldOut}
+                />
             </div>
         </LastGood>
     );
