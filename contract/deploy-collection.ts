@@ -127,12 +127,15 @@ async function main() {
     console.log(`  royalties     ${royaltyBps} bps to ${artist}`);
 
     const params = {
-        code_uri: codeUri,
+        code: "",
+        code_encoding: "identity",
         code_hash: codeHashHex,
+        code_uri: codeUri,
         edition_size: editionSize,
         price,
         royalties,
         collab_shares: collabShares,
+        collab_creditable: [artist],
         pending_metadata: hex(pending),
         start_paused: true, // deploy, check, announce, then open
         // Extends metadata-write authority to whoever the resolver vouches for,

@@ -1,6 +1,7 @@
 /** Every write this app makes, and so every signature it can ask for. */
 import type { DAppClient, TezosOperationType } from "@tezos-x/octez.connect-sdk";
 import { rpcUrl, tzktApi } from "./config";
+import { ORIGINATION_OVERHEAD_BYTES } from "./plan";
 import { addresses, allFactories, currentFactory } from "./router";
 import { indexerFetch } from "./tzkt";
 import { feeFor } from "@provider/fees";
@@ -58,16 +59,6 @@ const TRANSFER: Limits = { gas: 60_000, storage: 500 };
  * operator.
  */
 const LIST: Limits = { gas: 120_000, storage: 1_000 };
-
-/**
- * Storage a generator origination needs, beyond the source itself.
- *
- * Measured: a deploy carrying 12,378 bytes of source consumed 27,297 bytes, so
- * the contract's own code, its metadata and its initial storage account for
- * roughly 15,000. Getting it wrong surfaces as a wallet error, which this app
- * cannot catch.
- */
-const ORIGINATION_OVERHEAD_BYTES = 20_000;
 
 /**
  * The parameter's real serialized length, rather than a guess at it.

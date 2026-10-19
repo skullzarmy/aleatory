@@ -637,7 +637,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                             `${done.codeBytes.toLocaleString("en-US")} bytes in contract storage` +
                             (done.codeEncoding === "gzip" ? ", gzipped" : "") +
                             (done.chunks > 0 ? `, sent in ${done.chunks} parts` : "") +
-                            `, ${(done.codeBurnMutez / 1e6).toFixed(3)} \u2721 of storage`
+                            `, ${((done.totalBurnMutez ?? done.codeBurnMutez) / 1e6).toFixed(3)} \u2721 of storage`
                         }
                     />
                     <Fact label="SHA-256" value={done.codeHashHex} />

@@ -740,7 +740,7 @@ async function publishingChecks() {
     // notice a regression on their own. This pins the number itself.
     check(
         "the inline cutoff is the value this margin was raised to, not whatever it drifts to",
-        MAX_INLINE_CODE_BYTES === 32_768 - 3_000,
+        MAX_INLINE_CODE_BYTES === 32_768 - 6_000,
     );
 
     const justInside = await publishPlan(denseDocument(MAX_INLINE_CODE_BYTES - 64 - 200));

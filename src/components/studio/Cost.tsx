@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatTez } from "@/lib/utils";
 import { NETWORK } from "@/lib/config";
-import { publishPlan, type PublishPlan } from "@/lib/plan";
+import { ORIGINATION_OVERHEAD_BYTES, publishPlan, type PublishPlan } from "@/lib/plan";
 
 // Cost figures are fetched from the chain rather than hardcoded, since
 // protocol constants (cost per byte, size limits) can change.
@@ -64,16 +64,18 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
         return <p className="text-sm text-muted-foreground">Loading…</p>;
     }
 
-    // Storage is paid on the bytes that land in it, which for anything past one
-    // operation is the gzipped source.
-    const burn = plan.codeBytes * constants.costPerByte;
+    // Storage is paid on the bytes that land in it: the source (compressed
+    // when needed), plus the collection contract's own bytecode and initial storage.
+    const totalStorageBytes = plan.codeBytes + ORIGINATION_OVERHEAD_BYTES;
+    const burn = totalStorageBytes * constants.costPerByte;
 
     return (
         <div className="space-y-4">
             <div>
                 <p className="text-3xl font-semibold tracking-tight">{formatTez(burn)} ꜩ</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    one-off, to store your {bytes.toLocaleString("en-US")}-byte generator on chain.
+                    one-off, to deploy your collection and store your{" "}
+                    {bytes.toLocaleString("en-US")}-byte generator on chain.
                 </p>
             </div>
 
@@ -85,6 +87,14 @@ export function Cost({ html, editionSize }: { html: string; editionSize?: number
                         value={`${plan.code.length.toLocaleString("en-US")} bytes, gzip`}
                     />
                 )}
+                <Row
+                    label="Contract overhead"
+                    value={`~${ORIGINATION_OVERHEAD_BYTES.toLocaleString("en-US")} bytes`}
+                />
+                <Row
+                    label="Total storage"
+                    value={`${totalStorageBytes.toLocaleString("en-US")} bytes`}
+                />
                 <Row label="Storage" value={`${constants.costPerByte} mutez per byte`} />
                 <Row
                     label="Per operation"
