@@ -45,8 +45,18 @@ import {
     publishPlan,
 } from "./plan";
 import { siteUrl } from "./config";
+import { yieldToMain } from "./utils";
 
-export type PublishStage = "encoding" | "pinning-metadata" | "signing" | "uploading" | "sealing";
+export type PublishStage =
+    | "encoding"
+    | "compressing"
+    | "pinning-metadata"
+    | "preparing-tx"
+    | "waiting-wallet"
+    | "waiting-origination"
+    | "signing"
+    | "uploading"
+    | "sealing";
 
 /** Progress through a chunked upload, so the form can say which signature this is. */
 export interface UploadProgress {
@@ -54,15 +64,20 @@ export interface UploadProgress {
     of: number;
     bytesOnChain: number;
     totalBytes: number;
+    step?: "preparing" | "signing" | "confirming";
 }
 
 // The size thresholds, the encoding and the three routes live in `plan.ts`,
 // which the studio also reads. They were duplicated, and the copies disagreed.
 
+const BYTE_HEX: string[] = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
+
 function toHex(bytes: Uint8Array): string {
-    return Array.from(bytes)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
+    const out: string[] = new Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) {
+        out[i] = BYTE_HEX[bytes[i]];
+    }
+    return out.join("");
 }
 
 export interface PublishInput {
@@ -222,6 +237,7 @@ async function confirmBytes(generator: string, expected: number, timeoutMs = 180
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 3_000));
+        await yieldToMain();
         const { hex } = await readCode(generator).catch(() => ({ hex: "" }));
         const have = hex.length / 2;
         if (have === expected) return have;
@@ -244,6 +260,7 @@ export async function uploadCode(
     generator: string,
     codeBytes: Uint8Array,
     onProgress?: (p: UploadProgress) => void,
+    onStage?: (stage: PublishStage) => void,
 ): Promise<{ chunks: number; sealHash: string | null }> {
     // Before the wallet is asked for anything. An address that is not a
     // generator our factory made is not one to offer an artist's code to,
@@ -255,6 +272,7 @@ export async function uploadCode(
     }
 
     const wanted = toHex(codeBytes);
+    await yieldToMain();
     const current = await readCode(generator);
 
     if (current.sealed) return { chunks: 0, sealHash: null };
@@ -276,22 +294,45 @@ export async function uploadCode(
             of: total,
             bytesOnChain: onChain,
             totalBytes: codeBytes.length,
+            step: "preparing",
         });
+        await yieldToMain();
+
         // The offset this chunk must land at. The contract refuses it if that
         // is not what it holds, which is what a retry needs it to do.
-        await appendCode(client, generator, toHex(slice), onChain);
+        await appendCode(client, generator, toHex(slice), onChain, () => {
+            onProgress?.({
+                chunk: i + 1,
+                of: total,
+                bytesOnChain: onChain,
+                totalBytes: codeBytes.length,
+                step: "signing",
+            });
+        });
+
+        onProgress?.({
+            chunk: i + 1,
+            of: total,
+            bytesOnChain: onChain,
+            totalBytes: codeBytes.length,
+            step: "confirming",
+        });
+        await yieldToMain();
 
         // Each chunk waits to be included before the next is signed. Two
         // operations from one wallet in flight at once collide on the account
         // counter, and `code` is append-only, so a chunk that lands twice or
         // out of order cannot be taken back.
         onChain = await confirmBytes(generator, onChain + slice.length);
+        await yieldToMain();
     }
 
     // Sealing is the irreversible step and, for anything walked, the contract
     // cannot check it: `seal_code` verifies the hash only for `identity`, and
     // everything large enough to be walked was gzipped on the way. So the last
     // word on whether these are the right bytes is here.
+    onStage?.("sealing");
+    await yieldToMain();
     const final = await readCode(generator);
     if (final.hex !== wanted) {
         throw new UnusableGenerator(
@@ -299,7 +340,7 @@ export async function uploadCode(
         );
     }
 
-    const { hash } = await sealCode(client, generator);
+    const { hash } = await sealCode(client, generator, () => onStage?.("waiting-wallet"));
     return { chunks: total, sealHash: hash };
 }
 
@@ -341,7 +382,7 @@ async function resumePublish(
     }
 
     onStage?.("uploading");
-    await release(draft, () => uploadCode(client, generator, codeBytes, onUpload));
+    await release(draft, () => uploadCode(client, generator, codeBytes, onUpload, onStage));
     onStage?.("sealing");
     await saveDraft({ ...draft, pendingUpload: undefined, updatedAt: Date.now() });
 
@@ -374,7 +415,8 @@ export async function publishGenerator(
     const record = recordFor(draft.html, input.resolvedLibraries);
     if (!record.ok) throw new Error(record.problems.join(" "));
 
-    onStage?.("encoding");
+    onStage?.("compressing");
+    await yieldToMain();
     // The hash always covers the decoded source, so it verifies what actually
     // runs whatever encoding the bytes travelled in.
     const codeHashHex = await sha256Hex(draft.html);
@@ -397,6 +439,7 @@ export async function publishGenerator(
     const chunks = plan.chunks;
     const codeUri = "";
 
+    await yieldToMain();
     onStage?.("pinning-metadata");
     // Every piece mints carrying this document and a provider replaces it with
     // the piece's own. The comparison against it is the provider's work queue,
@@ -418,71 +461,78 @@ export async function publishGenerator(
         }),
     });
 
-    onStage?.("signing");
+    await yieldToMain();
+    onStage?.("preparing-tx");
     const schema = schemaForRecord(detectParams(draft.html)?.params ?? []);
     const tags = cleanTags(input.tags);
 
-    const result = await deployGenerator(client, {
-        // A walked generator is deployed holding neither its code nor a
-        // pointer. The factory allows exactly that and leaves it unsealed,
-        // which is what `append_code` requires and what stops it minting
-        // before the last chunk lands.
-        codeHex: inline ? toHex(codeBytes) : "",
-        codeEncoding,
-        codeHashHex,
-        codeUri,
-        editionSize: input.editionSize,
-        priceMutez: input.priceMutez,
-        royalties: royaltiesToBps(input.split),
-        // A whole division of the price, so the total is 100% rather than the
-        // royalty split's share of a smaller pot.
-        collabShares: royaltiesToBps({ ...input.collab, totalPercent: 100 }),
-        collabCreditable: input.collabCreditable,
-        pendingMetadataUri,
-        startPaused: input.startPaused,
-        trustResolver: input.trustResolver,
-        provider: input.provider,
-        maxRenderGasMutez: input.maxRenderGasMutez,
-        metadata: {
-            "": "tezos-storage:content",
-            content: JSON.stringify({
-                name: input.name,
-                description: input.description,
-                interfaces: ["TZIP-012", "TZIP-016", "TZIP-021", "ALEATORY-001"],
-                // The one field objkt copies to `fa.website` and can filter
-                // collections on. Same URL on every generator. Confirmed live
-                // against objkt's schema: this is contract-level, unlike
-                // `symbol`, which is per-token (provider/metadata.ts).
-                homepage: siteUrl(),
-                authors: [input.artist],
-                // The keys an external marketplace looks for. Both point at
-                // the same capture: some read one, some the other.
-                ...(input.coverUri
-                    ? {
-                          displayUri: input.coverUri,
-                          thumbnailUri: input.coverThumbUri ?? input.coverUri,
-                      }
+    const result = await deployGenerator(
+        client,
+        {
+            // A walked generator is deployed holding neither its code nor a
+            // pointer. The factory allows exactly that and leaves it unsealed,
+            // which is what `append_code` requires and what stops it minting
+            // before the last chunk lands.
+            codeHex: inline ? toHex(codeBytes) : "",
+            codeEncoding,
+            codeHashHex,
+            codeUri,
+            editionSize: input.editionSize,
+            priceMutez: input.priceMutez,
+            royalties: royaltiesToBps(input.split),
+            // A whole division of the price, so the total is 100% rather than the
+            // royalty split's share of a smaller pot.
+            collabShares: royaltiesToBps({ ...input.collab, totalPercent: 100 }),
+            collabCreditable: input.collabCreditable,
+            pendingMetadataUri,
+            startPaused: input.startPaused,
+            trustResolver: input.trustResolver,
+            provider: input.provider,
+            maxRenderGasMutez: input.maxRenderGasMutez,
+            metadata: {
+                "": "tezos-storage:content",
+                content: JSON.stringify({
+                    name: input.name,
+                    description: input.description,
+                    interfaces: ["TZIP-012", "TZIP-016", "TZIP-021", "ALEATORY-001"],
+                    // The one field objkt copies to `fa.website` and can filter
+                    // collections on. Same URL on every generator. Confirmed live
+                    // against objkt's schema: this is contract-level, unlike
+                    // `symbol`, which is per-token (provider/metadata.ts).
+                    homepage: siteUrl(),
+                    authors: [input.artist],
+                    // The keys an external marketplace looks for. Both point at
+                    // the same capture: some read one, some the other.
+                    ...(input.coverUri
+                        ? {
+                              displayUri: input.coverUri,
+                              thumbnailUri: input.coverThumbUri ?? input.coverUri,
+                          }
+                        : {}),
+                    // Recorded so the cover can be redrawn from chain state.
+                    ...(input.coverSeed ? { aleaCoverSeed: input.coverSeed } : {}),
+                    // Standard TZIP-21 field. objkt reads it directly off `content`.
+                    ...(tags.length > 0 ? { tags } : {}),
+                }),
+                // Under its own key, so a mint UI reads one value and not the whole
+                // record. docs/params.md §4.
+                ...(schema ? { "aleatory:params": JSON.stringify(schema) } : {}),
+                ...(record.libraries.length > 0
+                    ? { "aleatory:libraries": JSON.stringify(record.libraries) }
                     : {}),
-                // Recorded so the cover can be redrawn from chain state.
-                ...(input.coverSeed ? { aleaCoverSeed: input.coverSeed } : {}),
-                // Standard TZIP-21 field. objkt reads it directly off `content`.
-                ...(tags.length > 0 ? { tags } : {}),
-            }),
-            // Under its own key, so a mint UI reads one value and not the whole
-            // record. docs/params.md §4.
-            ...(schema ? { "aleatory:params": JSON.stringify(schema) } : {}),
-            ...(record.libraries.length > 0
-                ? { "aleatory:libraries": JSON.stringify(record.libraries) }
-                : {}),
-            ...(input.nameTrait?.trim() ? { "aleatory:nameTrait": input.nameTrait.trim() } : {}),
+                ...(input.nameTrait?.trim()
+                    ? { "aleatory:nameTrait": input.nameTrait.trim() }
+                    : {}),
+            },
         },
-    });
+        () => onStage?.("waiting-wallet"),
+    );
 
     let generator = "";
     if (walked) {
         // The address is the protocol's to decide, so the chunks have nowhere
         // to go until the origination is visible.
-        onStage?.("uploading");
+        onStage?.("waiting-origination");
         generator = await generatorFromDeploy(result.hash);
 
         // Written down before a single chunk is sent. Everything after this is
@@ -490,7 +540,8 @@ export async function publishGenerator(
         // nobody can ever finish.
         await saveDraft({ ...draft, pendingUpload: generator, updatedAt: Date.now() });
 
-        await release(draft, () => uploadCode(client, generator, codeBytes, onUpload));
+        onStage?.("uploading");
+        await release(draft, () => uploadCode(client, generator, codeBytes, onUpload, onStage));
         onStage?.("sealing");
         await saveDraft({ ...draft, pendingUpload: undefined, updatedAt: Date.now() });
     }

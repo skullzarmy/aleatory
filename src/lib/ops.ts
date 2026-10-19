@@ -5,6 +5,7 @@ import { ORIGINATION_OVERHEAD_BYTES } from "./plan";
 import { addresses, allFactories, currentFactory } from "./router";
 import { indexerFetch } from "./tzkt";
 import { feeFor } from "@provider/fees";
+import { yieldToMain } from "./utils";
 
 interface OpResult {
     hash: string;
@@ -716,6 +717,7 @@ export async function generatorFromDeploy(hash: string, timeoutMs = 120_000): Pr
             if (address) return address;
         }
         await new Promise((r) => setTimeout(r, 3_000));
+        await yieldToMain();
     }
     // Most often this is an operation the bakers never took. A fee under the
     // floor is not an error anywhere: it injects, returns a hash, and is
@@ -777,6 +779,7 @@ export async function appendCode(
     generator: string,
     chunkHex: string,
     at: number,
+    onWillSign?: () => void,
 ): Promise<OpResult> {
     const hex = chunkHex.replace(/^0x/, "");
     const size = Math.ceil(hex.length / 2);
@@ -785,10 +788,13 @@ export async function appendCode(
         // A template from before the offset, which takes the bytes alone.
         encode(generator, "append_code", [hex]),
     );
+    await yieldToMain();
     const account = await client.getActiveAccount();
     if (!account) throw new Error("No wallet is connected.");
     const gas = await simulateAppendGas(generator, p.entrypoint, p.value, account.address);
     const limits: Limits = { gas, storage: size + 100, bytes: size + 500 };
+    onWillSign?.();
+    await yieldToMain();
     return send(client, generator, p.entrypoint, p.value, 0, limits);
 }
 
@@ -862,7 +868,13 @@ interface OperationResult {
  * Close the generator. Nothing writes the code afterwards and minting is
  * refused until this lands.
  */
-export async function sealCode(client: DAppClient, generator: string): Promise<OpResult> {
+export async function sealCode(
+    client: DAppClient,
+    generator: string,
+    onWillSign?: () => void,
+): Promise<OpResult> {
+    onWillSign?.();
+    await yieldToMain();
     return send(client, generator, "seal_code", { prim: "Unit" }, 0, SMALL);
 }
 
@@ -877,7 +889,11 @@ export async function acceptCollaboration(
     return send(client, generator, "accept_collaboration", { prim: "Unit" }, 0, SMALL);
 }
 
-export async function deployGenerator(client: DAppClient, params: DeployParams): Promise<OpResult> {
+export async function deployGenerator(
+    client: DAppClient,
+    params: DeployParams,
+    onWillSign?: () => void,
+): Promise<OpResult> {
     const factory = await currentFactory();
     if (!factory) throw new Error("No factory is configured for this network.");
 
@@ -902,6 +918,8 @@ export async function deployGenerator(client: DAppClient, params: DeployParams):
         metadata.set(key, utf8ToHex(value));
     }
 
+    await yieldToMain();
+
     const transfer = contract.methodsObject
         .deploy({
             code: params.codeHex.replace(/^0x/, ""),
@@ -925,6 +943,8 @@ export async function deployGenerator(client: DAppClient, params: DeployParams):
     const parameter = transfer.parameter;
     if (!parameter) throw new Error("The factory's deploy entrypoint encoded to nothing.");
 
+    await yieldToMain();
+
     // The generator travels inside this operation and lands in the originated
     // contract's storage, so the storage limit and the fee both scale with it.
     const codeBytes = Math.ceil(params.codeHex.replace(/^0x/, "").length / 2);
@@ -933,6 +953,9 @@ export async function deployGenerator(client: DAppClient, params: DeployParams):
         storage: codeBytes + ORIGINATION_OVERHEAD_BYTES,
         bytes: await packedBytes(parameter.value),
     };
+
+    onWillSign?.();
+    await yieldToMain();
 
     return send(
         client,

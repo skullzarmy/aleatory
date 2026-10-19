@@ -37,6 +37,7 @@ interface TokenDoc {
     displayUri?: string;
     thumbnailUri?: string;
     artifactUri?: string;
+    aleaProvider?: string;
 }
 
 /**
@@ -78,11 +79,11 @@ async function pendingState(
     const now = Date.now();
     const generatorsToCheck = new Set<string>();
     for (const t of tokens) {
-        const hasDisplay = t.metadata?.displayUri || t.metadata?.thumbnailUri;
+        const isRevealed = Boolean(t.metadata?.aleaProvider);
         const isRecent = t.firstTime
             ? now - new Date(t.firstTime).getTime() < 2 * 3600 * 1000
             : false;
-        if (!hasDisplay || isRecent) {
+        if (!isRevealed || isRecent) {
             generatorsToCheck.add(t.contract.address);
         }
     }
@@ -163,11 +164,21 @@ async function generatorsFrom(factories: string[]) {
 }
 
 /**
- * Documents for whatever TzKT left unresolved, grouped so it is one big_map
- * read per generator rather than one per token.
+ * Documents for whatever TzKT left unresolved or unindexed, grouped so it is one
+ * big_map read per generator rather than one per token.
  */
-async function docsFor(tokens: TzktToken[]): Promise<Map<string, TokenDoc>> {
-    const missing = tokens.filter((t) => !t.metadata?.displayUri && !t.metadata?.thumbnailUri);
+async function docsFor(
+    tokens: TzktToken[],
+    state?: Map<string, { pendingUri: string; tokenUri?: string }>,
+): Promise<Map<string, TokenDoc>> {
+    const missing = tokens.filter((t) => {
+        const hasDisplay = Boolean(t.metadata?.displayUri || t.metadata?.thumbnailUri);
+        const s = state?.get(key(t));
+        const isRenderedOnChain = Boolean(
+            s?.pendingUri && s?.tokenUri && s.tokenUri !== s.pendingUri,
+        );
+        return !hasDisplay || (isRenderedOnChain && !t.metadata?.aleaProvider);
+    });
     if (missing.length === 0) return new Map();
 
     const byGenerator = new Map<string, string[]>();
@@ -203,17 +214,22 @@ export async function coversFor(generators: string[]): Promise<Map<string, strin
     const tokens = await fetchRecentTokens(generators, Math.min(generators.length * 8, 400)).catch(
         () => [],
     );
-    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
+    const state = await pendingState(tokens);
+    const docs = await docsFor(tokens, state);
 
     const out = new Map<string, string>();
     for (const t of tokens) {
         const address = t.contract.address;
         if (out.has(address)) continue;
         // A pending document carries an image too. Rendered means the token no
-        // longer points at its generator's pending document.
+        // longer points at its generator's pending document and we hold the rendered doc.
         const s = state.get(key(t));
         if (s?.pendingUri && s.tokenUri === s.pendingUri) continue;
-        const m = t.metadata ?? docs.get(key(t));
+        const resolved = docs.get(key(t));
+        const m = (resolved?.aleaProvider ? resolved : undefined) ?? t.metadata ?? resolved;
+        if (s?.pendingUri && s?.tokenUri && s.tokenUri !== s.pendingUri && !m?.aleaProvider) {
+            continue;
+        }
         const display = m?.thumbnailUri || m?.displayUri;
         if (display) out.set(address, ipfsImageUrl(display));
     }
@@ -245,16 +261,28 @@ function toPiece(
     pendingState?: { pendingUri: string; tokenUri?: string },
 ): FeedPiece {
     // TzKT resolves `ipfs://` metadata on its own schedule and on some networks
-    // never, so the document fetched here fills in for it.
-    const m = t.metadata ?? resolved;
-    const display = m?.thumbnailUri || m?.displayUri;
+    // never, so the document fetched here fills in for it. If the resolved document
+    // carries aleaProvider, it is newer than an unindexed pending doc TzKT still holds.
+    const m = (resolved?.aleaProvider ? resolved : undefined) ?? t.metadata ?? resolved;
+    const isRenderedOnChain = Boolean(
+        pendingState?.pendingUri &&
+            pendingState?.tokenUri &&
+            pendingState.tokenUri !== pendingState.pendingUri,
+    );
+    const isRendered = Boolean(m?.aleaProvider);
+
     // The pointer comparison, which is the provider's own queue rule, so the
     // site and the daemon cannot disagree. "Has no image" is not the test: a
-    // pending document carries the generator cover as its displayUri.
-    const pending =
-        pendingState?.pendingUri && pendingState.tokenUri
-            ? pendingState.tokenUri === pendingState.pendingUri
-            : !display;
+    // pending document carries the generator cover as its displayUri. When
+    // rendered on chain, remain pending until the rendered document itself has
+    // resolved so the placeholder cover is not shown as the finished piece.
+    const pending = isRenderedOnChain
+        ? !isRendered
+        : pendingState?.pendingUri && pendingState.tokenUri
+          ? pendingState.tokenUri === pendingState.pendingUri
+          : !m?.displayUri && !m?.thumbnailUri;
+
+    const display = m?.thumbnailUri || m?.displayUri;
     const generatorName = generatorAlias || t.contract.alias || "Untitled generator";
     const edition = `#${Number(t.tokenId) + 1}`;
 
@@ -283,7 +311,8 @@ export async function piecesOf(
     /** Generator names, from each generator's own metadata. */
     names?: Map<string, string>,
 ): Promise<FeedPiece[]> {
-    const [docs, state] = await Promise.all([docsFor(tokens), pendingState(tokens)]);
+    const state = await pendingState(tokens);
+    const docs = await docsFor(tokens, state);
     return tokens.map((t) =>
         toPiece(t, names?.get(t.contract.address), docs.get(key(t)), state.get(key(t))),
     );

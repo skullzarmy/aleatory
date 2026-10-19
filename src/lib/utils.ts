@@ -6,6 +6,19 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Yield to the browser event loop so the UI updates and long scripts do not
+ * trigger unresponsive script warnings. Uses `scheduler.yield()` when
+ * available, falling back to a macro-task timeout.
+ */
+export async function yieldToMain(): Promise<void> {
+    const s = (globalThis as unknown as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+    if (typeof s?.yield === "function") {
+        return s.yield();
+    }
+    return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
  * Mutez to a tez string, trimmed. 1500000 -> "1.5". Formatted from the integer,
  * so a large amount keeps every digit it arrived with.
  */
