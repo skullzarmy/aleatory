@@ -24,7 +24,7 @@
  * correct fix measures the actual metadata bytes per publish; this guesses,
  * generously.
  */
-export const MAX_INLINE_CODE_BYTES = 32_768 - 3_000;
+export const MAX_INLINE_CODE_BYTES = 32_768 - 6_000;
 
 /**
  * One chunk of a walked generator. The same ceiling applies, less room for the
@@ -32,6 +32,15 @@ export const MAX_INLINE_CODE_BYTES = 32_768 - 3_000;
  * name, a contract address and the signature.
  */
 export const MAX_CHUNK_BYTES = 32_768 - 1_200;
+
+/**
+ * Storage a generator origination needs, beyond the source itself.
+ *
+ * The child contract's own code, its metadata big map, and its initial storage
+ * consume roughly 19,150 bytes, plus 159 bytes in the factory's collections map.
+ * Declared at 20,000 for headroom.
+ */
+export const ORIGINATION_OVERHEAD_BYTES = 20_000;
 
 /** Storage burn per byte, fixed here so a publish can quote a cost with no
  *  round trip. The studio prefers the chain's own figure. */
@@ -58,6 +67,8 @@ export interface PublishPlan {
     rawBytes: number;
     /** The bytes that go into storage, which is what the burn is paid on. */
     codeBytes: number;
+    /** Total storage bytes burned on chain, code plus contract overhead. */
+    storageBytes: number;
     /** Those bytes, so the publisher encodes once and the studio's quote is of the same thing. */
     code: Uint8Array;
     codeEncoding: "identity" | "gzip";
@@ -65,8 +76,10 @@ export interface PublishPlan {
     chunks: number;
     /** Every wallet prompt the publish will ask for, the deploy and the seal included. */
     signatures: number;
-    /** Storage burn for the code alone, mutez, at the protocol's usual rate. */
+    /** Total storage burn, mutez, including contract overhead. */
     burnMutez: number;
+    /** Storage burn for the code alone, mutez. */
+    codeBurnMutez: number;
 }
 
 /** What publishing this source will do, and what it will ask for. */
@@ -77,17 +90,22 @@ export async function publishPlan(html: string): Promise<PublishPlan> {
     // Compressed only when the source would not otherwise fit one operation.
     const zipped = raw.length > MAX_INLINE_CODE_BYTES ? await gzip(raw) : raw;
     const codeEncoding = zipped === raw ? "identity" : "gzip";
+    const storageBytes = zipped.length + ORIGINATION_OVERHEAD_BYTES;
+    const burnMutez = storageBytes * COST_PER_BYTE;
+    const codeBurnMutez = zipped.length * COST_PER_BYTE;
 
     if (zipped.length <= MAX_INLINE_CODE_BYTES) {
         return {
             route: "inline",
             rawBytes: raw.length,
             codeBytes: zipped.length,
+            storageBytes,
             code: zipped,
             codeEncoding,
             chunks: 0,
             signatures: 1,
-            burnMutez: zipped.length * COST_PER_BYTE,
+            burnMutez,
+            codeBurnMutez,
         };
     }
 
@@ -96,11 +114,13 @@ export async function publishPlan(html: string): Promise<PublishPlan> {
         route: "walked",
         rawBytes: raw.length,
         codeBytes: zipped.length,
+        storageBytes,
         code: zipped,
         codeEncoding,
         chunks,
         // The deploy, a signature per chunk, and the seal.
         signatures: 1 + chunks + 1,
-        burnMutez: zipped.length * COST_PER_BYTE,
+        burnMutez,
+        codeBurnMutez,
     };
 }

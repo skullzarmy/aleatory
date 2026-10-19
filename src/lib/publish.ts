@@ -37,7 +37,13 @@ import { schemaForRecord } from "./params";
 import { recordFor } from "./libraries";
 import type { DepSpec } from "./kinds";
 import { saveDraft, type Draft } from "./draft";
-import { COST_PER_BYTE, MAX_CHUNK_BYTES, gzip, publishPlan } from "./plan";
+import {
+    COST_PER_BYTE,
+    MAX_CHUNK_BYTES,
+    ORIGINATION_OVERHEAD_BYTES,
+    gzip,
+    publishPlan,
+} from "./plan";
 import { siteUrl } from "./config";
 
 export type PublishStage = "encoding" | "pinning-metadata" | "signing" | "uploading" | "sealing";
@@ -135,6 +141,8 @@ export interface PublishResult {
     /** Set only when the generator was too large to carry on chain. */
     codeUri: string;
     pendingMetadataUri: string;
+    /** Storage burn for code and contract overhead, mutez. */
+    totalBurnMutez: number;
     /** Storage burn for the code alone, mutez. */
     codeBurnMutez: number;
 }
@@ -347,6 +355,7 @@ async function resumePublish(
         codeUri: "",
         pendingMetadataUri: "",
         codeBurnMutez: codeBytes.length * COST_PER_BYTE,
+        totalBurnMutez: (codeBytes.length + ORIGINATION_OVERHEAD_BYTES) * COST_PER_BYTE,
     };
 }
 
@@ -496,5 +505,6 @@ export async function publishGenerator(
         chunks: walked ? chunks : 0,
         pendingMetadataUri,
         codeBurnMutez: codeBytes.length * COST_PER_BYTE,
+        totalBurnMutez: (codeBytes.length + ORIGINATION_OVERHEAD_BYTES) * COST_PER_BYTE,
     };
 }
