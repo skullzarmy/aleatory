@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, Copy } from "lucide-react";
 import { IsolateFrame } from "@/components/IsolateFrame";
 import { seedAt, randomSeed } from "@/lib/draft";
 import type { ParamSpec } from "@/lib/params";
@@ -70,6 +71,7 @@ export function CoverPicker({
     onCaptured: (cover: { uri: string; thumbUri: string; seed: string } | null) => void;
 }) {
     const [seed, setSeed] = useState(() => initialCover?.seed ?? seedAt(baseSeed, 0));
+    const [seedInput, setSeedInput] = useState(() => initialCover?.seed ?? seedAt(baseSeed, 0));
     const [image, setImage] = useState<string | null>(null);
     const [pinned, setPinned] = useState<string | null>(() => initialCover?.uri ?? null);
     const [busy, setBusy] = useState(false);
@@ -79,6 +81,42 @@ export function CoverPicker({
     // and an artist cannot tell which one they are looking at.
     const [uncapturable, setUncapturable] = useState<string | null>(null);
     const [allowBlack, setAllowBlack] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const copyTimer = useRef<number | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+        };
+    }, []);
+
+    const applySeed = useCallback(
+        (raw: string) => {
+            const next = raw.trim();
+            if (!next || next === seed) return;
+            setSeed(next);
+            setImage(null);
+            setUncapturable(null);
+            setAllowBlack(false);
+            if (next === initialCover?.seed && initialCover?.uri) {
+                setPinned(initialCover.uri);
+                onCaptured(initialCover);
+            } else {
+                setPinned(null);
+                onCaptured(null);
+            }
+        },
+        [seed, initialCover, onCaptured],
+    );
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            if (seedInput.trim() && seedInput.trim() !== seed) {
+                applySeed(seedInput);
+            }
+        }, 350);
+        return () => window.clearTimeout(timer);
+    }, [seedInput, seed, applySeed]);
 
     // Held from the last render so "use this one" needs no second run.
     const onReady = useCallback((d: { image: string | null; source: string }) => {
@@ -129,6 +167,11 @@ export function CoverPicker({
             setError(uncapturable);
             return;
         }
+        const activeSeed = seed.trim() || seedInput.trim();
+        if (!activeSeed) {
+            setError("A seed is required to pin a cover.");
+            return;
+        }
         setBusy(true);
         setError(null);
         try {
@@ -143,7 +186,7 @@ export function CoverPicker({
                 pinOne(thumb, "cover-thumb.png"),
             ]);
             setPinned(uri);
-            onCaptured({ uri, thumbUri, seed });
+            onCaptured({ uri, thumbUri, seed: activeSeed });
         } catch (e) {
             setError(e instanceof Error ? e.message : "Pinning failed.");
         } finally {
@@ -152,12 +195,42 @@ export function CoverPicker({
     }
 
     function reroll() {
+        const next = randomSeed();
+        setSeedInput(next);
+        setSeed(next);
         setImage(null);
         setPinned(null);
         setUncapturable(null);
         setAllowBlack(false);
         onCaptured(null);
-        setSeed(randomSeed());
+    }
+
+    function copySeed() {
+        const toCopy = seedInput.trim() || seed;
+        if (!toCopy || !navigator?.clipboard?.writeText) return;
+        void navigator.clipboard.writeText(toCopy).then(
+            () => {
+                setCopied(true);
+                if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+                copyTimer.current = window.setTimeout(() => setCopied(false), 1400);
+            },
+            () => {},
+        );
+    }
+
+    function onSeedInputChange(val: string) {
+        setSeedInput(val);
+    }
+
+    function onSeedKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            applySeed(seedInput);
+        }
+    }
+
+    function onSeedBlur() {
+        applySeed(seedInput);
     }
 
     return (
@@ -176,6 +249,49 @@ export function CoverPicker({
                 />
             </div>
 
+            <div className="max-w-xs space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                    <label htmlFor="cover-seed-input" className="font-medium text-foreground">
+                        Cover seed
+                    </label>
+                    {pinned && <span className="text-[11px] text-muted-foreground">Pinned</span>}
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <input
+                        id="cover-seed-input"
+                        type="text"
+                        value={seedInput}
+                        onChange={(e) => onSeedInputChange(e.target.value)}
+                        onKeyDown={onSeedKeyDown}
+                        onBlur={onSeedBlur}
+                        placeholder="Paste or enter a seed…"
+                        disabled={busy}
+                        spellCheck={false}
+                        className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
+                    />
+                    <button
+                        type="button"
+                        onClick={copySeed}
+                        disabled={!seedInput.trim()}
+                        title={copied ? "Copied" : "Copy seed"}
+                        aria-label={copied ? "Seed copied" : "Copy seed"}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                    >
+                        {copied ? (
+                            <>
+                                <Check size={12} className="text-success" aria-hidden />
+                                <span className="text-[11px] text-success">Copied</span>
+                            </>
+                        ) : (
+                            <>
+                                <Copy size={12} aria-hidden />
+                                <span className="text-[11px]">Copy</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
                 <button
                     type="button"
@@ -189,15 +305,16 @@ export function CoverPicker({
                     type="button"
                     onClick={() => void pin()}
                     disabled={
-                        busy || !image || Boolean(pinned) || (Boolean(uncapturable) && !allowBlack)
+                        busy ||
+                        !image ||
+                        Boolean(pinned) ||
+                        (Boolean(uncapturable) && !allowBlack) ||
+                        !seed.trim()
                     }
                     className="rounded-md bg-alea-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"
                 >
                     {busy ? "Pinning…" : pinned ? "Cover set" : "Use this one"}
                 </button>
-                <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
-                    {seed}
-                </code>
             </div>
 
             {(error || uncapturable) && (
