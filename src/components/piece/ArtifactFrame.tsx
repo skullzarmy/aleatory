@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Maximize2, Minimize2, Play, RotateCcw, Square } from "lucide-react";
+import { Dice5, Maximize2, Minimize2, Play, RotateCcw, Square } from "lucide-react";
 import { IsolateFrame } from "@/components/IsolateFrame";
 import { useDeps } from "@/components/useDeps";
 
@@ -25,6 +25,7 @@ export function ArtifactFrame({
     maxDpr,
     running: runningProp,
     onRunningChange,
+    onRandomize,
 }: {
     /** The generator, decoded from contract storage. */
     code?: string;
@@ -38,6 +39,7 @@ export function ArtifactFrame({
     maxDpr?: number;
     running?: boolean;
     onRunningChange?: (running: boolean) => void;
+    onRandomize?: () => void;
 }) {
     const runnable = Boolean(code && seed);
     /** True once the published image has actually arrived. */
@@ -292,6 +294,19 @@ export function ArtifactFrame({
                         <RotateCcw className="h-4 w-4" aria-hidden />
                         <span className="sr-only">Restart code</span>
                     </button>
+
+                    {onRandomize && (
+                        <button
+                            type="button"
+                            onClick={onRandomize}
+                            title="Randomize draw"
+                            aria-label="Randomize draw"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        >
+                            <Dice5 className="h-4 w-4" aria-hidden />
+                            <span className="sr-only">Randomize draw</span>
+                        </button>
+                    )}
 
                     {canFullscreen && (
                         <button

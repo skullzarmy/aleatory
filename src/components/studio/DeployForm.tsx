@@ -116,6 +116,17 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         };
     }, [draft?.html]);
 
+    // Warn before navigating away while an upload or deploy is in flight.
+    useEffect(() => {
+        if (!stage) return;
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+            e.returnValue = "";
+        };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, [stage]);
+
     // This form remounts fresh every time the publish route loads, so name,
     // description and tags are otherwise ordinary local state. Navigate away
     // to check something and back, and whatever was typed is gone. Same
@@ -572,7 +583,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         }
 
         setError(null);
-        setStage("encoding");
+        setStage("compressing");
         try {
             const result = await publishGenerator(
                 await getClient(),
@@ -1284,9 +1295,15 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 {!address
                     ? "Connect to deploy"
                     : stage
-                      ? upload
-                          ? `Signing chunk ${upload.chunk} of ${upload.of}…`
-                          : STAGE_LABEL[stage]
+                      ? stage === "sealing" || stage === "waiting-wallet"
+                          ? STAGE_LABEL[stage]
+                          : upload
+                            ? upload.step === "preparing"
+                                ? `Preparing chunk ${upload.chunk} of ${upload.of}…`
+                                : upload.step === "confirming"
+                                  ? `Confirming chunk ${upload.chunk} of ${upload.of} on chain…`
+                                  : `Waiting for signature on chunk ${upload.chunk} of ${upload.of}…`
+                            : STAGE_LABEL[stage]
                       : checking
                         ? "Checking royalty recipients…"
                         : royaltyWarnings.length > 0
@@ -1306,9 +1323,13 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
 
 const STAGE_LABEL: Record<PublishStage, string> = {
     encoding: "Preparing the source…",
-    "pinning-metadata": "Pinning the metadata…",
+    compressing: "Compressing generator…",
+    "pinning-metadata": "Pinning placeholder metadata…",
+    "preparing-tx": "Building transaction package…",
+    "waiting-wallet": "Waiting for your signature…",
+    "waiting-origination": "Waiting for generator on chain…",
     signing: "Waiting for your signature…",
-    uploading: "Writing the generator to the chain…",
+    uploading: "Writing generator to the chain…",
     sealing: "Closing the generator…",
 };
 

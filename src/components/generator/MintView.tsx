@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { ArtifactFrame } from "@/components/piece/ArtifactFrame";
-import { MintPanel } from "./MintPanel";
+import { MintPanel, randomPreviewSeed } from "./MintPanel";
 import type { Generator } from "@/lib/generator";
-import type { ParamsSchema } from "@/lib/params";
+import { randomValues, type ParamsSchema } from "@/lib/params";
 import { maxDprFor } from "@/lib/renderLimits";
 import { ShareButtons, type ArtistHandles } from "@/components/ShareButtons";
 import { AcceptCredit } from "./AcceptCredit";
@@ -41,6 +41,13 @@ export function MintView({
     const [values, setValues] = useState<Record<string, unknown>>({});
     const [running, setRunning] = useState(false);
 
+    const randomize = () => {
+        const next = schema?.params.length ? randomValues(schema.params) : {};
+        setValues(next);
+        setPreviewSeed(randomPreviewSeed());
+        setRunning(true);
+    };
+
     return (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
             <div className="min-w-0">
@@ -53,6 +60,7 @@ export function MintView({
                     maxDpr={maxDprFor(generator.address)}
                     running={running}
                     onRunningChange={setRunning}
+                    onRandomize={randomize}
                 />
                 {running && (
                     <p className="mt-2 text-xs text-muted-foreground">
@@ -67,6 +75,8 @@ export function MintView({
                 <MintPanel
                     generator={generator}
                     schema={schema}
+                    values={values}
+                    onValuesChange={setValues}
                     onPreview={(next, seed) => {
                         setValues(next);
                         setRunning(true);

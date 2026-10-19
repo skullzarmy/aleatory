@@ -8,13 +8,7 @@ import { fetchMintedTokenId } from "@/lib/tzkt";
 import { tzktLink } from "@/lib/config";
 import { formatTez, shortAddress } from "@/lib/utils";
 import type { Generator } from "@/lib/generator";
-import {
-    resolveParams,
-    encodeParams,
-    randomValues,
-    type ParamsSchema,
-    type ParamSpec,
-} from "@/lib/params";
+import { resolveParams, encodeParams, type ParamsSchema, type ParamSpec } from "@/lib/params";
 import * as ops from "@/lib/ops";
 import { AccountLink } from "@/components/account/AccountLink";
 
@@ -26,11 +20,15 @@ import { AccountLink } from "@/components/account/AccountLink";
 export function MintPanel({
     generator,
     schema,
+    values: valuesProp,
+    onValuesChange,
     onPreview,
 }: {
     generator: Generator;
     /** The generator's declared parameters, when it has any. */
     schema?: ParamsSchema | null;
+    values?: Record<string, unknown>;
+    onValuesChange?: (values: Record<string, unknown>) => void;
     /**
      * Show the collector what a set of values looks like before they sign. The
      * seed is a stand-in: theirs does not exist until their operation lands.
@@ -43,18 +41,7 @@ export function MintPanel({
     const [hash, setHash] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [chosen, setChosen] = useState<Record<string, unknown>>({});
-
-    /**
-     * Reroll the parameters, and the seed the preview is drawn from. The
-     * parameters are the collector's to choose and their signature commits
-     * them; the seed is the hash of the operation they have yet to send, so
-     * rerolling it changes only what is shown.
-     */
-    function randomize() {
-        const values = schema?.params.length ? randomValues(schema.params) : {};
-        setChosen(values);
-        onPreview?.(values, randomPreviewSeed());
-    }
+    const currentValues = valuesProp ?? chosen;
 
     const remaining = generator.editionSize > 0 ? generator.editionSize - generator.minted : null;
 
@@ -66,7 +53,7 @@ export function MintPanel({
             // Resolved through the rule every reader shares, so the operation
             // records the values the piece will run with. docs/params.md §3.
             const params = schema
-                ? encodeParams(schema.params, resolveParams(schema.params, chosen))
+                ? encodeParams(schema.params, resolveParams(schema.params, currentValues))
                 : "";
             const res = await ops.mint(client, generator.address, params, generator.totalMutez);
             setHash(res.hash);
@@ -165,41 +152,24 @@ export function MintPanel({
                 </div>
             )}
 
-            <div className="space-y-3 border-t border-border pt-3">
-                <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm text-muted-foreground">
-                        {schema && schema.params.length > 0 ? "Parameters" : "Preview"}
-                    </p>
-                    <button
-                        type="button"
-                        onClick={randomize}
-                        disabled={busy}
-                        className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-60"
-                    >
-                        Randomize
-                    </button>
-                </div>
-                {schema && schema.params.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                        This generator has no settings. Randomize shows you another draw.
-                    </p>
-                )}
-            </div>
-
             {schema && schema.params.length > 0 && (
-                <div className="space-y-3">
-                    {schema.params.map((spec) => (
-                        <ParamControl
-                            key={spec.id}
-                            spec={spec}
-                            value={chosen[spec.id]}
-                            onChange={(v) => {
-                                const next = { ...chosen, [spec.id]: v };
-                                setChosen(next);
-                                onPreview?.(next, "");
-                            }}
-                        />
-                    ))}
+                <div className="space-y-3 border-t border-border pt-3">
+                    <p className="text-sm text-muted-foreground">Parameters</p>
+                    <div className="space-y-3">
+                        {schema.params.map((spec) => (
+                            <ParamControl
+                                key={spec.id}
+                                spec={spec}
+                                value={currentValues[spec.id]}
+                                onChange={(v) => {
+                                    const next = { ...currentValues, [spec.id]: v };
+                                    if (onValuesChange) onValuesChange(next);
+                                    else setChosen(next);
+                                    onPreview?.(next, "");
+                                }}
+                            />
+                        ))}
+                    </div>
                 </div>
             )}
 
@@ -338,7 +308,7 @@ async function waitForToken(
  * A stand-in seed for the preview, shaped like an operation hash. Not the
  * collector's seed, which is the hash of an operation that does not exist yet.
  */
-function randomPreviewSeed(): string {
+export function randomPreviewSeed(): string {
     const bytes = crypto.getRandomValues(new Uint8Array(32));
     return (
         "oo" +

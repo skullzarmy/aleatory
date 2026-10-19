@@ -153,9 +153,16 @@ async function fetchPieceLive(contract: string, tokenId: string): Promise<Piece 
     const tokenUri = (await fetchTokenUris(contract).catch(() => new Map<string, string>())).get(
         tokenId,
     );
+    const pendingDoc = storage ? bytesToString(storage.art.pending_metadata) : "";
+    const isRenderedOnChain = Boolean(tokenUri && pendingDoc && tokenUri !== pendingDoc);
 
     let m = token.metadata;
-    if (!m?.displayUri && !m?.thumbnailUri) {
+    // If TzKT is missing display metadata, or if the contract points to a rendered
+    // metadata URI that TzKT has not indexed yet (missing aleaProvider), fetch the
+    // token's current metadata URI directly.
+    const needsFetch =
+        (!m?.displayUri && !m?.thumbnailUri) || (isRenderedOnChain && !m?.aleaProvider);
+    if (needsFetch) {
         const uri = tokenUri;
         if (uri?.startsWith("ipfs://")) {
             m =
@@ -167,14 +174,12 @@ async function fetchPieceLive(contract: string, tokenId: string): Promise<Piece 
                     .catch(() => null)) ?? m;
         }
     }
-    const display = m?.displayUri || m?.thumbnailUri;
     // sp.string on chain, so it needs no decoding. `pending_metadata` below is
     // sp.bytes and does.
     const codeUri = storage ? storage.art.code_uri : "";
     const code = storage
         ? await decodeCode(storage.art.code, storage.art.code_encoding).catch(() => "")
         : "";
-    const pendingDoc = storage ? bytesToString(storage.art.pending_metadata) : "";
 
     const royalties = storage
         ? Object.entries(storage.art.royalties).map(([address, bps]) => ({
@@ -183,9 +188,18 @@ async function fetchPieceLive(contract: string, tokenId: string): Promise<Piece 
           }))
         : [];
 
-    // "Has no image" is not the test: a pending document carries the
-    // generator's cover as its displayUri.
-    const pending = pendingDoc.length > 0 && tokenUri ? tokenUri === pendingDoc : !display;
+    const isRendered = isRenderedOnChain && Boolean(m?.aleaProvider);
+    // A pending document carries the generator's cover as its displayUri.
+    // When rendered on chain, remain pending until the rendered metadata document
+    // itself has resolved, preventing the placeholder cover from being displayed
+    // or cached as the finished piece.
+    const pending = isRenderedOnChain
+        ? !isRendered
+        : pendingDoc.length > 0 && tokenUri
+          ? tokenUri === pendingDoc
+          : !m?.displayUri && !m?.thumbnailUri;
+
+    const display = pending ? undefined : m?.displayUri || m?.thumbnailUri;
     const edition = `#${Number(tokenId) + 1}`;
 
     // The pending document is one CID shared by every unrevealed token, so its
