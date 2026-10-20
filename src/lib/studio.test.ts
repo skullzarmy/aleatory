@@ -786,12 +786,49 @@ async function publishingChecks() {
     );
 }
 
-// Last, and asynchronous: gzip is a stream, and the rest of this file is not.
-void publishingChecks().then(() => {
-    console.log(
-        failures === 0
-            ? "\nAll studio checks passed.\n"
-            : `\n${failures} studio check${failures === 1 ? "" : "s"} failed.\n`,
+async function purelyArachnidChecks() {
+    console.log("\nPurelyArachnid kit");
+
+    const { parseLayers, buildHtml } = await import(
+        "../../public/templates/purelyarachnid/build.mjs"
     );
-    process.exit(failures === 0 ? 0 : 1);
-});
+
+    const layers = parseLayers("public/templates/purelyarachnid/layers");
+    check("parses the sample layer stack", layers.length === 6);
+    check(
+        "orders layers from bottom to top",
+        layers.map((l: { order: number }) => l.order).join(",") === "0,1,2,3,4,5",
+    );
+    check(
+        "parses blend and hide layer options",
+        layers[5].hide === true && layers[5].blend === "multiply",
+    );
+
+    const html = await buildHtml();
+    check(
+        "builds a single self-contained HTML document",
+        typeof html === "string" && html.length > 0,
+    );
+    check("carries no external network requests", !/<script[^>]+src=/i.test(html));
+    check("installs the canvas target", html.includes('<canvas id="theCanvas">'));
+    check("reports features to Aleatory", /\.features\(/.test(html));
+    check("signals the capture point on ready", /\.ready\(\)/.test(html));
+
+    const plan = await publishPlan(html);
+    check(
+        "sample project fits in one operation on chain",
+        plan.route === "inline" && plan.signatures === 1,
+    );
+}
+
+// Last, and asynchronous: gzip is a stream, and the rest of this file is not.
+void publishingChecks()
+    .then(() => purelyArachnidChecks())
+    .then(() => {
+        console.log(
+            failures === 0
+                ? "\nAll studio checks passed.\n"
+                : `\n${failures} studio check${failures === 1 ? "" : "s"} failed.\n`,
+        );
+        process.exit(failures === 0 ? 0 : 1);
+    });

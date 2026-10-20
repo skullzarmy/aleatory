@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     alternates: { canonical: "/templates" },
     title: "Starter kits",
     description:
-        "Pick a kit, run it with one command, publish the same file. Four need no build step; the fifth bundles any package on npm into it.",
+        "Pick a kit, run it with one command, publish the same file. Four need no build step; bundler and PurelyArachnid kits wrap packages or layered assets into single on-chain files.",
     openGraph: { type: "website", title: "Starter kits" },
 };
 
@@ -171,6 +171,25 @@ export default function TemplatesPage() {
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">Libraries, below</p>
                 </li>
+
+                <li className="p-4">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                        <h3 className="text-sm">
+                            <span className="text-muted-foreground">I want to </span>
+                            <span className="font-medium text-foreground">
+                                make a layered PNG collection (PFP)
+                            </span>
+                        </h3>
+                        <Download file="purelyarachnid.zip">purelyarachnid.zip</Download>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                        Stack transparent PNG layers by chance and order, with blend modes and trait
+                        reporting.
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                        PurelyArachnid · Inlines PNG assets into single-file HTML
+                    </p>
+                </li>
             </ul>
 
             <P>
@@ -326,6 +345,46 @@ node serve.mjs`}</Code>
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
                     Needs an install and a build step. The other four need neither.
+                </p>
+            </section>
+
+            <h3 className="mt-10 text-sm font-medium">Layered images: the PurelyArachnid kit</h3>
+            <section
+                id="purelyarachnid"
+                className="mt-3 scroll-mt-24 rounded-lg border border-border p-4"
+            >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                    <h4 className="text-sm font-medium">PurelyArachnid</h4>
+                    <Download file="purelyarachnid.zip">purelyarachnid.zip</Download>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                    For profile picture (PFP) and generative trait-stack projects. Drop your layers
+                    into folders with chances and blend modes, run the build, and get a single fully
+                    on-chain HTML file ready to publish.
+                </p>
+                <div className="mt-3">
+                    <Reference
+                        rows={[
+                            ["layers/00-background", "order prefix sets draw sequence"],
+                            [
+                                "layers/05-(hide_blend-multiply)-shade",
+                                "supports blend modes and hidden layers",
+                            ],
+                            ["10-blue.png", "relative chance weights per variation"],
+                            [
+                                "dist/index.html",
+                                "inlines all layer assets into one file, ready for studio",
+                            ],
+                        ]}
+                    />
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">
+                    Inlines and base64-encodes all image assets directly into the HTML document, so
+                    the piece carries no external dependencies and runs completely on chain.
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                    Needs an install and a build step. Includes an image download button for
+                    collectors.
                 </p>
             </section>
 

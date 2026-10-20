@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { zip } from "./lib/zip.mjs";
+import { sampleLayers } from "./kit/sample-layers.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const KINDS = ["vanilla", "svg", "p5", "custom"] as const;
@@ -167,6 +168,38 @@ writeFileSync(
     ]),
 );
 
+// --- the purelyarachnid kit -------------------------------------------------
+//
+// Layered PNG / PFP generator template. Inlines layer assets as data URIs and
+// builds into a single self-contained document.
+
+const arachnidDir = join(root, "public/templates/purelyarachnid");
+const arachnidShell = readFileSync(join(arachnidDir, "src/index.html"), "utf8");
+const arachnidFilled = arachnidShell.replace(/^\s*\/\/ alea:harness\s*$/m, () => harness);
+if (arachnidFilled === arachnidShell) {
+    console.error("No `// alea:harness` line in the purelyarachnid shell");
+    process.exit(1);
+}
+
+const arachnidFiles: { name: string; data: Buffer | string }[] = [
+    { name: "src/index.html", data: arachnidFilled },
+    { name: "src/sketch.js", data: readFileSync(join(arachnidDir, "src/sketch.js"), "utf8") },
+    { name: "build.mjs", data: readFileSync(join(arachnidDir, "build.mjs"), "utf8") },
+    { name: "serve.mjs", data: readFileSync(join(arachnidDir, "serve.mjs"), "utf8") },
+    { name: "package.json", data: readFileSync(join(arachnidDir, "package.json"), "utf8") },
+    { name: "README.md", data: readFileSync(join(arachnidDir, "README.md"), "utf8") },
+    {
+        name: ".devcontainer/devcontainer.json",
+        data: readFileSync(join(arachnidDir, ".devcontainer/devcontainer.json"), "utf8"),
+    },
+];
+
+for (const layer of sampleLayers()) {
+    arachnidFiles.push(layer);
+}
+
+writeFileSync(join(root, "public/templates", "purelyarachnid.zip"), zip(arachnidFiles));
+
 console.log(
-    `templates: ${KINDS.length} kinds, module ${before === module ? "current" : "written"}, ${KINDS.length + 1} kits zipped`,
+    `templates: ${KINDS.length} kinds, module ${before === module ? "current" : "written"}, ${KINDS.length + 2} kits zipped`,
 );

@@ -11,6 +11,8 @@ here changes what everybody gets.
 | [`svg`](svg/index.html) | nothing | your work is vector, and you want it to stay vector |
 | [`p5`](p5/index.html) | p5.js 1.5.0, declared | you already think in p5 |
 | [`custom`](custom/index.html) | whatever you declare | you are bringing your own engine |
+| [`bundler`](bundler/README.md) | npm packages | you want to bundle ES modules from npm |
+| [`purelyarachnid`](purelyarachnid/README.md) | layered PNG assets | you are building a PFP or trait-stacked collection |
 
 ## Working locally
 

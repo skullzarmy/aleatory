@@ -1,0 +1,15 @@
+{
+    "name": "aleatory-purelyarachnid-kit",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "node serve.mjs",
+        "build": "node build.mjs"
+    },
+    "devDependencies": {
+        "esbuild": "^0.25.0"
+    },
+    "optionalDependencies": {
+        "esbuild-wasm": "^0.25.0"
+    }
+}
