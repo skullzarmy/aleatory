@@ -64,23 +64,6 @@ async function run() {
         check("a scoped package name is allowed through validation", res.status !== 400);
     }
 
-    // The path that removed the need for a catalog.
-    {
-        const res = await GET(q({ id: "d3", version: "7.9.0" }));
-        const body = res.status === 200 ? await res.text() : "";
-        check(
-            "a package with no recorded hash resolves, and names its own file",
-            res.status === 200 &&
-                body.length > 0 &&
-                res.headers.get("x-alea-path") === "dist/d3.min.js",
-            `status ${res.status}`,
-        );
-        check(
-            "and answers with the digest to record",
-            /^[0-9a-f]{64}$/.test(res.headers.get("x-alea-hash") ?? ""),
-        );
-    }
-
     let online = true;
     try {
         await fetch("https://unpkg.com/", { method: "HEAD" });
@@ -91,6 +74,22 @@ async function run() {
     if (!online) {
         console.log("  skip network checks, no connection\n");
     } else {
+        // The path that removed the need for a catalog.
+        {
+            const res = await GET(q({ id: "d3", version: "7.9.0" }));
+            const body = res.status === 200 ? await res.text() : "";
+            check(
+                "a package with no recorded hash resolves, and names its own file",
+                res.status === 200 &&
+                    body.length > 0 &&
+                    res.headers.get("x-alea-path") === "dist/d3.min.js",
+                `status ${res.status}`,
+            );
+            check(
+                "and answers with the digest to record",
+                /^[0-9a-f]{64}$/.test(res.headers.get("x-alea-hash") ?? ""),
+            );
+        }
         {
             const res = await GET(q(GOOD));
             const text = res.status === 200 ? await res.text() : "";

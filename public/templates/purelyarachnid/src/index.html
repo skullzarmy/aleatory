@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>untitled layered piece</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #0b0b0c;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+    canvas {
+      display: block;
+      cursor: pointer;
+    }
+    #download {
+      display: none;
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      padding: 0.5rem 1rem;
+      font: 500 13px system-ui, -apple-system, sans-serif;
+      color: #ffffff;
+      background: #2563eb;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      z-index: 10;
+    }
+    #download:hover {
+      background: #1d4ed8;
+    }
+    #download.visible {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<canvas id="theCanvas"></canvas>
+<button id="download" type="button">Download image</button>
+<script>
+  // alea:harness
+</script>
+<script>
+  // alea:bundle
+</script>
+</body>
+</html>

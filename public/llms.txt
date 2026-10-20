@@ -308,6 +308,13 @@ alea.ready();
 </html>
 ```
 
+## Layered image projects
+
+For generative profile picture (PFP) or trait-stacked projects using PNG assets,
+use the PurelyArachnid starter kit from `/templates`. It organizes layer folders
+by draw order, relative chance weights, blend modes and hidden traits, inlining
+all assets as base64 data URIs into a single on-chain HTML generator.
+
 ---
 
 ## Before handing the file over
