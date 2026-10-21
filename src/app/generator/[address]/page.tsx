@@ -7,7 +7,7 @@ import { MintView } from "@/components/generator/MintView";
 import { FeedGrid } from "@/components/feed/FeedGrid";
 import { shortAddress } from "@/lib/utils";
 import { fetchProfile, socialHandle } from "@/lib/identity";
-import { BRAND, tzktLink } from "@/lib/config";
+import { BRAND, siteUrl, tzktLink } from "@/lib/config";
 import { coversFor } from "@/lib/feed";
 import { AccountLink } from "@/components/account/AccountLink";
 import { LiveRefresh } from "@/components/LiveRefresh";
@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
             type: "website",
             title: name,
             description,
-            url: `${BRAND.url}/generator/${address}`,
+            url: `${siteUrl()}/generator/${address}`,
             images: cover ? [{ url: cover }] : undefined,
         },
         twitter: {
@@ -112,7 +112,7 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                     description={generator.description}
                     creators={credited}
                     size={generator.editionSize || undefined}
-                    url={`${BRAND.url}/generator/${address}`}
+                    url={`${siteUrl()}/generator/${address}`}
                 />
                 <header className="mb-6">
                     {/* The artist's name for it. They typed it, it is on chain, and
@@ -160,7 +160,7 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                     coverUrl={
                         generator.coverUrl ?? pieces.find((p) => !p.pending && p.imageUrl)?.imageUrl
                     }
-                    shareUrl={`${BRAND.url}/generator/${address}`}
+                    shareUrl={`${siteUrl()}/generator/${address}`}
                     shareText={generator.name || shortAddress(generator.address)}
                     artistHandles={artistHandles}
                 />

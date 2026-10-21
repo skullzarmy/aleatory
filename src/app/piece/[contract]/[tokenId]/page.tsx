@@ -16,7 +16,7 @@ import { fetchListingFor, fetchOffersFor } from "@/lib/market";
 import { fetchProvenance } from "@/lib/provenance";
 import { Provenance } from "@/components/piece/Provenance";
 import { ShareButtons } from "@/components/ShareButtons";
-import { BRAND } from "@/lib/config";
+import { BRAND, siteUrl } from "@/lib/config";
 import { maxDprFor } from "@/lib/renderLimits";
 import { resolveName, fetchProfile, socialHandle } from "@/lib/identity";
 import { shortAddress } from "@/lib/utils";
@@ -151,14 +151,14 @@ export default async function PiecePage({ params }: { params: Params }) {
                     creators={piece.artists}
                     mintedAt={piece.mintedAt}
                     generatorName={piece.generatorName}
-                    url={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                    url={`${siteUrl()}/piece/${contract}/${tokenId}`}
                 />
                 {/* Only for whoever arrived here from the mint; a shared link gets the plain page. */}
                 <Suspense fallback={null}>
                     <JustMinted
                         contract={contract}
                         remaining={remaining}
-                        shareUrl={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                        shareUrl={`${siteUrl()}/piece/${contract}/${tokenId}`}
                         shareText={`I minted ${piece.name} on ${BRAND.name}`}
                         artistHandles={artistHandles}
                     />
@@ -235,7 +235,7 @@ export default async function PiecePage({ params }: { params: Params }) {
 
                         <div className="mt-4">
                             <ShareButtons
-                                url={`${BRAND.url}/piece/${contract}/${tokenId}`}
+                                url={`${siteUrl()}/piece/${contract}/${tokenId}`}
                                 text={`${piece.name}${piece.generatorName ? `, from ${piece.generatorName}` : ""}`}
                                 artistHandles={artistHandles}
                             />
