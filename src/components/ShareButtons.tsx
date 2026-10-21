@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Link2, Share2 } from "lucide-react";
 import { Tzct } from "@/components/icons/Tzct";
+import { BRAND, SITE_URL } from "@/lib/config";
 
 type Network = "twitter" | "bluesky" | "farcaster" | "telegram";
 
@@ -31,11 +32,31 @@ export function ShareButtons({
     // From an effect, because the server has no navigator and guessing produces
     // a button that appears and vanishes on hydration.
     const [canShare, setCanShare] = useState(false);
+    const [shareUrl, setShareUrl] = useState(url);
+
     useEffect(() => {
         setCanShare(typeof navigator !== "undefined" && typeof navigator.share === "function");
-    }, []);
+        if (typeof window !== "undefined") {
+            try {
+                const parsed = new URL(url, window.location.origin);
+                const aleatoryHosts = new Set([
+                    new URL(BRAND.url).host,
+                    new URL(SITE_URL.mainnet).host,
+                    new URL(SITE_URL.shadownet).host,
+                    window.location.host,
+                ]);
+                if (aleatoryHosts.has(parsed.host)) {
+                    setShareUrl(
+                        `${window.location.origin}${parsed.pathname}${parsed.search}${parsed.hash}`,
+                    );
+                }
+            } catch {
+                /* keep initial url */
+            }
+        }
+    }, [url]);
 
-    const u = encodeURIComponent(url);
+    const u = encodeURIComponent(shareUrl);
     // A network gets every credited creator who has a handle there tagged in
     // the post. One with no handles at all gets the plain text, so a
     // collaboration where nobody filled in a profile does not post "by".
@@ -53,7 +74,7 @@ export function ShareButtons({
      */
     const TEZCITY_MAX = 500;
     const tezcityText = (() => {
-        const room = TEZCITY_MAX - url.length - 1;
+        const room = TEZCITY_MAX - shareUrl.length - 1;
         if (text.length <= room) return text;
         return `${text.slice(0, Math.max(0, room - 1))}…`;
     })();
@@ -66,7 +87,7 @@ export function ShareButtons({
         },
         {
             name: "Bluesky",
-            href: `https://bsky.app/intent/compose?text=${encodeURIComponent(`${tagged("bluesky")} ${url}`)}`,
+            href: `https://bsky.app/intent/compose?text=${encodeURIComponent(`${tagged("bluesky")} ${shareUrl}`)}`,
             icon: <Butterfly />,
         },
         {
@@ -85,7 +106,7 @@ export function ShareButtons({
             name: "TezCity",
             href: `https://tezcity.com/intent/post?${new URLSearchParams({
                 text: tezcityText,
-                url,
+                url: shareUrl,
             })}`,
             icon: <Tzct />,
             // Their brand notes ask for this wording, and only the label a
@@ -100,7 +121,7 @@ export function ShareButtons({
      */
     async function share() {
         try {
-            await navigator.share({ text, url });
+            await navigator.share({ text, url: shareUrl });
         } catch {
             /* dismissed, or refused */
         }
@@ -108,7 +129,7 @@ export function ShareButtons({
 
     async function copy() {
         try {
-            await navigator.clipboard.writeText(`${text}\n${url}`);
+            await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
             setCopied(true);
             window.setTimeout(() => setCopied(false), 1600);
         } catch {
@@ -157,7 +178,7 @@ export function ShareButtons({
                     <Link2 size={14} className="shrink-0" aria-hidden />
                 )}
                 <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">
-                    {url.replace(/^https?:\/\//, "")}
+                    {shareUrl.replace(/^https?:\/\//, "")}
                 </span>
                 <span className="shrink-0 text-muted-foreground">{copied ? "Copied" : "Copy"}</span>
             </button>
