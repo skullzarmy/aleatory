@@ -11,7 +11,7 @@ of this repository. It is private between you and the maintainers, and it lets
 us prepare a fix before anything is said publicly.
 
 If that form is not available, say so on
-[Discord](https://discord.gg/3kFMF8gUxP) without describing the problem, and
+[Discord](https://discord.gg/TMCAcGgY5N) without describing the problem, and
 ask for a private channel.
 
 Expect an acknowledgement within a few days. If the report is one we act on, we

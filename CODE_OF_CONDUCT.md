@@ -23,7 +23,7 @@ or both. There is no formula. It is a judgement, made by whoever maintains this.
 
 ## Reporting
 
-Message a maintainer on [Discord](https://discord.gg/3kFMF8gUxP), or use
+Message a maintainer on [Discord](https://discord.gg/TMCAcGgY5N), or use
 GitHub's private reporting on the Security tab if it is serious enough that a
 public message would make it worse.
 

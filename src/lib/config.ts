@@ -10,7 +10,7 @@ export const BRAND = {
         "A generator is code, published once and never changed. A piece is that code plus a seed, fixed at the moment it was minted.",
     url: process.env.NEXT_PUBLIC_SITE_URL || "https://aleatory.art",
     repo: "https://github.com/skullzarmy/aleatory",
-    discord: "https://discord.gg/3kFMF8gUxP",
+    discord: "https://discord.gg/TMCAcGgY5N",
     x: "https://x.com/AleatoryArt",
     bluesky: "https://bsky.app/profile/aleatory.art",
     tezcity: "https://tezcity.com/u/aleatory.art",
