@@ -12,7 +12,7 @@
     "dependencies": {
         "@taquito/taquito": "^25.0.0",
         "@tezos-x/octez.connect-sdk": "5.0.4",
-        "next": "16.4.0",
+        "next": "16.4.2",
         "react": "19.3.0",
         "react-dom": "19.3.0"
     },
