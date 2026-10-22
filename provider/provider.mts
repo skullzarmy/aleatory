@@ -31,6 +31,14 @@ const PINATA_JWT = process.env.PINATA_JWT || "";
 
 const KT1 = /^KT1[1-9A-HJ-NP-Za-km-z]{33}$/;
 
+/**
+ * `code`, `code_encoding` and `code_hash` are immutable once sealed (see
+ * docs/architecture.md), so a decode or hash failure here is not a bad pass:
+ * the same bytes will fail the same way forever. Distinct from a network or
+ * gateway error, which is worth retrying.
+ */
+export class UnrenderableCodeError extends Error {}
+
 function addressList(value: string | undefined): string[] {
     return (value || "")
         .split(",")
@@ -500,11 +508,11 @@ async function buyEvent(
 function verifySource(code: string, codeHashHex: string, generator: string): void {
     const want = codeHashHex.replace(/^0x/, "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(want)) {
-        throw new Error(`${generator} records no usable code_hash`);
+        throw new UnrenderableCodeError(`${generator} records no usable code_hash`);
     }
     const got = createHash("sha256").update(code, "utf8").digest("hex");
     if (got !== want) {
-        throw new Error(`${generator} source is ${got}, storage records ${want}`);
+        throw new UnrenderableCodeError(`${generator} source is ${got}, storage records ${want}`);
     }
 }
 
@@ -541,7 +549,18 @@ async function decodeCode(hex: string, encoding: string): Promise<string> {
     const bytes = Buffer.from(clean, "hex");
     if (encoding !== "gzip") return bytes.toString("utf8");
     const { gunzipSync } = await import("node:zlib");
-    return gunzipSync(bytes).toString("utf8");
+    try {
+        return gunzipSync(bytes).toString("utf8");
+    } catch (e) {
+        // The bytes are on-chain and immutable, so this is not a bad gateway
+        // pass: code_encoding says gzip and the stored bytes do not gunzip,
+        // on every future attempt too.
+        throw new UnrenderableCodeError(
+            `code_encoding is gzip but the stored bytes will not decompress: ${
+                e instanceof Error ? e.message : e
+            }`,
+        );
+    }
 }
 
 /**
