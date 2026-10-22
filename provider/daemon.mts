@@ -15,12 +15,19 @@ import dotenv from "dotenv";
 import { createServer } from "node:http";
 dotenv.config();
 
-const { generatorsServed, factoriesIgnored, pendingIn, handle } = await import("./provider.mts");
+const { generatorsServed, factoriesIgnored, pendingIn, handle, UnrenderableCodeError } =
+    await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
 const { heartbeat } = await import("./heartbeat.ts");
-const { keyFor, isStuck, recordFailure, recordSuccess, stuckList, STUCK_AFTER } = await import(
-    "./stuck.mts"
-);
+const {
+    keyFor,
+    isStuck,
+    recordFailure,
+    recordSuccess,
+    markPermanent,
+    stuckList,
+    STUCK_AFTER,
+} = await import("./stuck.mts");
 
 /** How often to look when there is nothing to do. */
 const IDLE_MS = Number(process.env.ALEA_POLL_MS || 15_000);
@@ -195,13 +202,21 @@ while (!stopping) {
             } catch (e) {
                 scanFailed++;
                 const message = e instanceof Error ? e.message : String(e);
-                const { attempts, justStuck } = recordFailure(scanKey, message);
-                log(`scan ${generator}: ${message} (${attempts}/${STUCK_AFTER})`);
-                if (justStuck) {
-                    log(
-                        `  ${generator} has failed to scan ${STUCK_AFTER} times in a row. ` +
-                            "Skipping for an hour; provider:retry fixes it sooner.",
-                    );
+                if (e instanceof UnrenderableCodeError) {
+                    // Immutable storage: retrying reads the same bytes and fails the
+                    // same way forever. Say so once and stop, rather than the
+                    // hourly-forever churn a transient failure gets.
+                    markPermanent(scanKey, message);
+                    log(`scan ${generator}: unrenderable, will not retry: ${message}`);
+                } else {
+                    const { attempts, justStuck } = recordFailure(scanKey, message);
+                    log(`scan ${generator}: ${message} (${attempts}/${STUCK_AFTER})`);
+                    if (justStuck) {
+                        log(
+                            `  ${generator} has failed to scan ${STUCK_AFTER} times in a row. ` +
+                                "Skipping for an hour; provider:retry fixes it sooner.",
+                        );
+                    }
                 }
                 continue;
             }
@@ -254,7 +269,9 @@ while (!stopping) {
             ping: Date.now() - startedAt,
         });
         if (stuck > 0) {
-            for (const { key, entry } of stuckList()) {
+            // A permanent mark was already announced once, when it was made.
+            // Repeating it every pass forever is the noise this is avoiding.
+            for (const { key, entry } of stuckList().filter(({ entry }) => !entry.permanent)) {
                 log(`  stuck: ${key}  ${entry.attempts} attempts  last: ${entry.lastError}`);
             }
         }

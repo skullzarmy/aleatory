@@ -25,6 +25,8 @@ interface Entry {
     lastError: string;
     firstFailedAt: string;
     lastFailedAt: string;
+    /** Marked by `markPermanent`: the input itself is broken, so no amount of retrying fixes it. */
+    permanent?: boolean;
 }
 
 type Store = Record<string, Entry>;
@@ -48,7 +50,9 @@ export function keyFor(generator: string, tokenId: string): string {
 
 export function isStuck(key: string): boolean {
     const entry = load()[key];
-    if (!entry || entry.attempts < STUCK_AFTER) return false;
+    if (!entry) return false;
+    if (entry.permanent) return true;
+    if (entry.attempts < STUCK_AFTER) return false;
     return Date.now() - new Date(entry.lastFailedAt).getTime() < RETRY_AFTER_MS;
 }
 
@@ -79,10 +83,28 @@ export function recordSuccess(key: string) {
     save(store);
 }
 
+/**
+ * The input, not the attempt, is what's broken: `provider:retry` is the only
+ * way off this, by hand, after whatever made it permanent no longer applies.
+ */
+export function markPermanent(key: string, error: string): void {
+    const store = load();
+    const now = new Date().toISOString();
+    const existing = store[key];
+    store[key] = {
+        attempts: (existing?.attempts ?? 0) + 1,
+        lastError: error,
+        firstFailedAt: existing?.firstFailedAt ?? now,
+        lastFailedAt: now,
+        permanent: true,
+    };
+    save(store);
+}
+
 /** Everything that has hit the cap, for a report. */
 export function stuckList(): { key: string; entry: Entry }[] {
     const store = load();
     return Object.entries(store)
-        .filter(([, e]) => e.attempts >= STUCK_AFTER)
+        .filter(([, e]) => e.attempts >= STUCK_AFTER || e.permanent)
         .map(([key, entry]) => ({ key, entry }));
 }
