@@ -16,6 +16,13 @@
         "react": "19.3.0",
         "react-dom": "19.3.0"
     },
+    "overrides": {
+        "@walletconnect/core": ">=2.23.6",
+        "@walletconnect/logger": ">=3.0.2",
+        "@walletconnect/sign-client": ">=2.23.6",
+        "@walletconnect/types": ">=2.23.6",
+        "@walletconnect/utils": ">=2.23.6"
+    },
     "devDependencies": {
         "@tailwindcss/postcss": "4.3.3",
         "@types/node": "26.6.5",
