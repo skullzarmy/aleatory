@@ -19,15 +19,8 @@ const { generatorsServed, factoriesIgnored, pendingIn, handle, UnrenderableCodeE
     await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
 const { heartbeat } = await import("./heartbeat.ts");
-const {
-    keyFor,
-    isStuck,
-    recordFailure,
-    recordSuccess,
-    markPermanent,
-    stuckList,
-    STUCK_AFTER,
-} = await import("./stuck.mts");
+const { keyFor, isStuck, recordFailure, recordSuccess, markPermanent, stuckList, STUCK_AFTER } =
+    await import("./stuck.mts");
 
 /** How often to look when there is nothing to do. */
 const IDLE_MS = Number(process.env.ALEA_POLL_MS || 15_000);
