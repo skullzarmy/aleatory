@@ -47,6 +47,23 @@ async function hardGasCeiling(): Promise<number> {
     return gasCeiling;
 }
 
+/** `hard_storage_limit_per_operation`, read live and cached for the same
+ *  reason as hardGasCeiling: a protocol constant, not a number to guess at.
+ *  60,000 on shadownet today, which is also why append_code's own storage
+ *  limit is hardcoded there — it is already at the ceiling. */
+let storageCeiling: Promise<number> | null = null;
+async function hardStorageCeiling(): Promise<number> {
+    if (!storageCeiling) {
+        storageCeiling = fetch(`${rpcUrl()}/chains/main/blocks/head/context/constants`)
+            .then((r) => r.json())
+            .then((c: { hard_storage_limit_per_operation: string }) =>
+                Number(c.hard_storage_limit_per_operation),
+            )
+            .catch(() => 60_000);
+    }
+    return storageCeiling;
+}
+
 /** Creating a token: ledger, token_metadata, and two payouts. */
 const MINT: Limits = { gas: 90_000, storage: 700 };
 /** A big_map write or a small storage change. */
@@ -888,13 +905,14 @@ async function simulateDeployStorage(
     const tezos = new TezosToolkit(rpcUrl());
     const rpc = tezos.rpc;
 
-    const [account, header, chainId, ceiling] = await Promise.all([
+    const [account, header, chainId, gasCeilingValue, storageCeilingValue] = await Promise.all([
         rpc.getContract(source),
         rpc.getBlockHeader(),
         rpc.getChainId(),
         hardGasCeiling(),
+        hardStorageCeiling(),
     ]);
-    const provisionalGas = Math.floor(ceiling * 0.9);
+    const provisionalGas = Math.floor(gasCeilingValue * 0.9);
 
     const result = await rpc.simulateOperation({
         operation: {
@@ -906,10 +924,11 @@ async function simulateDeployStorage(
                     fee: "0",
                     counter: String(Number(account.counter) + 1),
                     gas_limit: String(provisionalGas),
-                    // Generous and fixed, same as simulateAppendGas: this run is
-                    // for pricing only, sized so it cannot itself run out and
-                    // truncate the real number.
-                    storage_limit: "90000",
+                    // The protocol's own ceiling, not a guess above it: this run
+                    // is for pricing only, sized so it cannot itself run out and
+                    // truncate the real number, but a storage_limit over the
+                    // ceiling is refused before the simulation even runs.
+                    storage_limit: String(storageCeilingValue),
                     amount: "0",
                     destination: factory,
                     parameters: { entrypoint, value },
@@ -935,8 +954,10 @@ async function simulateDeployStorage(
         0,
     );
     // The margin is generous: it costs a fraction of a cent, and running out
-    // strands the origination mid-flight.
-    return Math.ceil((outer + inner) * 1.25) + 2_000;
+    // strands the origination mid-flight. Clamped to the same ceiling as the
+    // simulation itself, since asking for more is refused outright rather
+    // than failing on actual use.
+    return Math.min(Math.ceil((outer + inner) * 1.25) + 2_000, storageCeilingValue);
 }
 
 /**
