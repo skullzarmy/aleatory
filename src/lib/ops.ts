@@ -1,7 +1,6 @@
 /** Every write this app makes, and so every signature it can ask for. */
 import type { DAppClient, TezosOperationType } from "@tezos-x/octez.connect-sdk";
 import { rpcUrl, tzktApi } from "./config";
-import { ORIGINATION_OVERHEAD_BYTES } from "./plan";
 import { addresses, allFactories, currentFactory } from "./router";
 import { indexerFetch } from "./tzkt";
 import { feeFor } from "@provider/fees";
@@ -862,6 +861,82 @@ async function simulateAppendGas(
 interface OperationResult {
     status: string;
     consumed_milligas?: string;
+    paid_storage_size_diff?: string;
+    internal_operation_results?: { result?: OperationResult }[];
+}
+
+/**
+ * What deploying this generator will actually burn in storage, from a live
+ * simulation, rather than ORIGINATION_OVERHEAD_BYTES's flat guess. The
+ * overhead an origination burns beyond the code itself scales with the
+ * artist's own metadata (description, tags, aleatory:params), and a flat
+ * margin sized for a typical generator falls short for a generator whose
+ * metadata is unusually large: `storage_exhausted` on chain, mid-origination,
+ * after the wallet has already asked to sign.
+ *
+ * Same dummy-signature simulation as `simulateAppendGas`, read for
+ * `paid_storage_size_diff` instead of gas: the outer transaction's own diff
+ * plus every internal operation's (the origination lands as one of those).
+ */
+async function simulateDeployStorage(
+    factory: string,
+    entrypoint: string,
+    value: unknown,
+    source: string,
+): Promise<number> {
+    const { TezosToolkit } = await import("@taquito/taquito");
+    const tezos = new TezosToolkit(rpcUrl());
+    const rpc = tezos.rpc;
+
+    const [account, header, chainId, ceiling] = await Promise.all([
+        rpc.getContract(source),
+        rpc.getBlockHeader(),
+        rpc.getChainId(),
+        hardGasCeiling(),
+    ]);
+    const provisionalGas = Math.floor(ceiling * 0.9);
+
+    const result = await rpc.simulateOperation({
+        operation: {
+            branch: header.hash,
+            contents: [
+                {
+                    kind: "transaction",
+                    source,
+                    fee: "0",
+                    counter: String(Number(account.counter) + 1),
+                    gas_limit: String(provisionalGas),
+                    // Generous and fixed, same as simulateAppendGas: this run is
+                    // for pricing only, sized so it cannot itself run out and
+                    // truncate the real number.
+                    storage_limit: "90000",
+                    amount: "0",
+                    destination: factory,
+                    parameters: { entrypoint, value },
+                } as never,
+            ],
+            signature:
+                "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q",
+        },
+        chain_id: chainId,
+    });
+
+    const op = (
+        result.contents[0] as unknown as { metadata?: { operation_result?: OperationResult } }
+    ).metadata?.operation_result;
+    if (!op || op.status !== "applied") {
+        throw new Error(
+            `Could not price this deploy: the chain's own simulation reported ${op?.status ?? "no result"}.`,
+        );
+    }
+    const outer = Number(op.paid_storage_size_diff ?? 0);
+    const inner = (op.internal_operation_results ?? []).reduce(
+        (sum, r) => sum + Number(r.result?.paid_storage_size_diff ?? 0),
+        0,
+    );
+    // The margin is generous: it costs a fraction of a cent, and running out
+    // strands the origination mid-flight.
+    return Math.ceil((outer + inner) * 1.25) + 2_000;
 }
 
 /**
@@ -945,12 +1020,22 @@ export async function deployGenerator(
 
     await yieldToMain();
 
+    const account = await client.getActiveAccount();
+    if (!account) throw new Error("No wallet is connected.");
+
     // The generator travels inside this operation and lands in the originated
-    // contract's storage, so the storage limit and the fee both scale with it.
-    const codeBytes = Math.ceil(params.codeHex.replace(/^0x/, "").length / 2);
+    // contract's storage, so the storage limit scales with both the code and
+    // the artist's own metadata. Priced from a live simulation rather than a
+    // flat guess: see simulateDeployStorage.
+    const storage = await simulateDeployStorage(
+        factory,
+        parameter.entrypoint,
+        parameter.value,
+        account.address,
+    );
     const limits: Limits = {
         gas: 60_000,
-        storage: codeBytes + ORIGINATION_OVERHEAD_BYTES,
+        storage,
         bytes: await packedBytes(parameter.value),
     };
 
