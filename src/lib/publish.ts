@@ -396,6 +396,9 @@ async function resumePublish(
         codeUri: "",
         pendingMetadataUri: "",
         codeBurnMutez: codeBytes.length * COST_PER_BYTE,
+        // The origination that carries this estimate happened in an earlier
+        // session, so there is no live simulation to read it from here: still
+        // ORIGINATION_OVERHEAD_BYTES's flat guess.
         totalBurnMutez: (codeBytes.length + ORIGINATION_OVERHEAD_BYTES) * COST_PER_BYTE,
     };
 }
@@ -556,6 +559,8 @@ export async function publishGenerator(
         chunks: walked ? chunks : 0,
         pendingMetadataUri,
         codeBurnMutez: codeBytes.length * COST_PER_BYTE,
-        totalBurnMutez: (codeBytes.length + ORIGINATION_OVERHEAD_BYTES) * COST_PER_BYTE,
+        // What the deploy's own live simulation priced it at (ops.ts,
+        // simulateDeployStorage), not ORIGINATION_OVERHEAD_BYTES's flat guess.
+        totalBurnMutez: (result.storageBytes + (walked ? codeBytes.length : 0)) * COST_PER_BYTE,
     };
 }

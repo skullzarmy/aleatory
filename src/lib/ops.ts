@@ -968,7 +968,7 @@ export async function deployGenerator(
     client: DAppClient,
     params: DeployParams,
     onWillSign?: () => void,
-): Promise<OpResult> {
+): Promise<OpResult & { storageBytes: number }> {
     const factory = await currentFactory();
     if (!factory) throw new Error("No factory is configured for this network.");
 
@@ -1042,7 +1042,7 @@ export async function deployGenerator(
     onWillSign?.();
     await yieldToMain();
 
-    return send(
+    const result = await send(
         client,
         factory,
         parameter.entrypoint,
@@ -1050,4 +1050,8 @@ export async function deployGenerator(
         transfer.amount ?? 0,
         limits,
     );
+
+    // Carried out so a cost report can quote what this deploy actually burns,
+    // rather than repeating ORIGINATION_OVERHEAD_BYTES's flat guess.
+    return { ...result, storageBytes: storage };
 }
