@@ -65,7 +65,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
      * mint split and never in the artists list: it is a cut, which is the
      * distinction the two lists exist for.
      */
-    const [platformPercent, setPlatformPercent] = useState("10");
+    const [platformPercent, setPlatformPercent] = useState("0");
     const [platformMintPercent, setPlatformMintPercent] = useState("0");
     /**
      * Three separate questions, asked separately: who made it, who the mint
@@ -1062,7 +1062,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 />
             </Field>
 
-            {payeeNamed.length > 0 && (
+            {collabPreview.length > 0 && (
                 <div className="space-y-1 rounded-lg bg-muted/50 p-4 text-sm">
                     <p className="pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         On every mint
