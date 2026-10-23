@@ -1062,7 +1062,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                 />
             </Field>
 
-            {payeeNamed.length > 0 && (
+            {collabPreview.length > 0 && (
                 <div className="space-y-1 rounded-lg bg-muted/50 p-4 text-sm">
                     <p className="pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         On every mint
