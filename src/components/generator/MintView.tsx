@@ -48,9 +48,13 @@ export function MintView({
         setRunning(true);
     };
 
+    const hasEditorial = Boolean(
+        generator.description || (generator.tags && generator.tags.length > 0),
+    );
+
     return (
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-            <div className="min-w-0">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+            <div className="min-w-0 order-1 lg:col-start-1 lg:row-start-1">
                 <ArtifactFrame
                     code={generator.code}
                     seed={previewSeed}
@@ -70,7 +74,7 @@ export function MintView({
                 )}
             </div>
 
-            <div className="min-w-0 space-y-4">
+            <div className="min-w-0 order-2 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-6 space-y-4">
                 <AcceptCredit generator={generator.address} collab={generator.collab} />
                 <MintPanel
                     generator={generator}
@@ -85,17 +89,29 @@ export function MintView({
                         if (seed) setPreviewSeed(seed);
                     }}
                 />
+            </div>
+
+            <div className="min-w-0 order-3 lg:col-start-1 lg:row-start-2 space-y-6 pt-2 lg:pt-0">
                 {generator.description && (
-                    <p className="whitespace-pre-line break-words text-sm text-muted-foreground">
+                    <p className="whitespace-pre-line break-words text-sm leading-relaxed text-muted-foreground max-w-prose">
                         {generator.description}
                     </p>
                 )}
                 {generator.tags && generator.tags.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                        Tags: {generator.tags.join(", ")}
-                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {generator.tags.map((tag) => (
+                            <span
+                                key={tag}
+                                className="rounded bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground"
+                            >
+                                {tag}
+                            </span>
+                        ))}
+                    </div>
                 )}
-                <ShareButtons url={shareUrl} text={shareText} artistHandles={artistHandles} />
+                <div className={`max-w-prose ${hasEditorial ? "border-t border-border pt-4" : ""}`}>
+                    <ShareButtons url={shareUrl} text={shareText} artistHandles={artistHandles} />
+                </div>
             </div>
         </div>
     );
