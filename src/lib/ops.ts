@@ -879,6 +879,12 @@ interface OperationResult {
     status: string;
     consumed_milligas?: string;
     paid_storage_size_diff?: string;
+}
+
+/** Sibling of `operation_result` under `metadata`, not nested inside it: the
+ *  origination that carries a deploy's real storage cost shows up here. */
+interface OperationMetadata {
+    operation_result?: OperationResult;
     internal_operation_results?: { result?: OperationResult }[];
 }
 
@@ -940,16 +946,15 @@ async function simulateDeployStorage(
         chain_id: chainId,
     });
 
-    const op = (
-        result.contents[0] as unknown as { metadata?: { operation_result?: OperationResult } }
-    ).metadata?.operation_result;
+    const metadata = (result.contents[0] as unknown as { metadata?: OperationMetadata }).metadata;
+    const op = metadata?.operation_result;
     if (!op || op.status !== "applied") {
         throw new Error(
             `Could not price this deploy: the chain's own simulation reported ${op?.status ?? "no result"}.`,
         );
     }
     const outer = Number(op.paid_storage_size_diff ?? 0);
-    const inner = (op.internal_operation_results ?? []).reduce(
+    const inner = (metadata?.internal_operation_results ?? []).reduce(
         (sum, r) => sum + Number(r.result?.paid_storage_size_diff ?? 0),
         0,
     );
