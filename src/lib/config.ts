@@ -14,6 +14,7 @@ export const BRAND = {
     x: "https://x.com/AleatoryArt",
     bluesky: "https://bsky.app/profile/aleatory.art",
     tezcity: "https://tezcity.com/u/aleatory.art",
+    tezcityHandle: "@aleatory.art",
 } as const;
 
 export type Network = "shadownet" | "mainnet";
