@@ -490,7 +490,7 @@ export async function fetchGeneratorPage(
 
             const rawGenerators: GeneratorSummary[] = visible.map((c) => {
                 const meta = metas.get(c.address) ?? {};
-                const own = meta.thumbnailUri || meta.displayUri;
+                const own = meta.displayUri ?? meta.thumbnailUri;
                 return {
                     address: c.address,
                     artists: artists.get(c.address),
@@ -583,7 +583,7 @@ export async function fetchAllGenerators(opts?: {
                     // The artist's own cover first, pinned at deploy, so a generator has a
                     // face before its first piece finishes rendering.
                     coverUrl: (() => {
-                        const own = meta.thumbnailUri || meta.displayUri;
+                        const own = meta.displayUri ?? meta.thumbnailUri;
                         return own ? ipfsImageUrl(own) : covers.get(c.address);
                     })(),
                     minted: c.tokensCount ?? 0,

@@ -83,6 +83,21 @@ export function CoverPicker({
     const [allowBlack, setAllowBlack] = useState(false);
     const [copied, setCopied] = useState(false);
     const copyTimer = useRef<number | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerSize, setContainerSize] = useState(320);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const ro = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const width = entry.contentRect.width;
+                if (width > 0) setContainerSize(width);
+            }
+        });
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -233,20 +248,36 @@ export function CoverPicker({
         applySeed(seedInput);
     }
 
+    const scale = containerSize / DISPLAY_PX;
+
     return (
         <div className="space-y-3">
-            <div className="relative aspect-square max-w-xs overflow-hidden rounded-lg border border-border">
-                <IsolateFrame
-                    code={html}
-                    seed={seed}
-                    params={resolved}
-                    paramsSchema={params}
-                    deps={deps}
-                    wantImage
-                    title="Cover"
-                    onReady={onReady}
-                    onError={onError}
-                />
+            <div
+                ref={containerRef}
+                className="relative aspect-square max-w-xs overflow-hidden rounded-lg border border-border bg-black"
+            >
+                <div
+                    className="absolute left-0 top-0 pointer-events-none"
+                    style={{
+                        width: `${DISPLAY_PX}px`,
+                        height: `${DISPLAY_PX}px`,
+                        transform: `scale(${scale})`,
+                        transformOrigin: "top left",
+                    }}
+                >
+                    <IsolateFrame
+                        code={html}
+                        seed={seed}
+                        params={resolved}
+                        paramsSchema={params}
+                        deps={deps}
+                        wantImage
+                        maxDpr={1}
+                        title="Cover"
+                        onReady={onReady}
+                        onError={onError}
+                    />
+                </div>
             </div>
 
             <div className="max-w-xs space-y-1.5">
