@@ -134,16 +134,58 @@ $alea.ready()           the capture point
 
 Aliases borrowed from other platforms are not part of this interface.
 
+### PRNG construction
+
+The seeded stream uses `xmur3` hashing and `sfc32`:
+
+```js
+function xmur3(str) {
+  var h = 1779033703 ^ str.length;
+  for (var i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return function () {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return h >>> 0;
+  };
+}
+function sfc32(a, b, c, d) {
+  return function () {
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    var t = (a + b) | 0;
+    a = b ^ (b >>> 9);
+    b = (c + (c << 3)) | 0;
+    c = (c << 21) | (c >>> 11);
+    d = (d + 1) | 0;
+    t = (t + d) | 0;
+    c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
+  };
+}
+var s = xmur3(String(seed));
+var rand = sfc32(s(), s(), s(), s());
+```
+
+Two rules govern the stream:
+1. **Zero warmups.** Discarding initial draws shifts the stream and diverges from the canonical render.
+2. **String seed.** The seed is the base58 mint operation hash. Parsing it as hex or integer (`parseInt`) yields `NaN` (coerced to `0`).
+
 Two substitutions: `Math.random` is replaced by the seeded stream, always, and
-the clock is frozen so `Date.now()` and `performance.now()` return a fixed
-value. Network access is blocked for the duration. Artist code runs afterwards
-and can undo them, so a generator that varies will vary; a provider renders
-once, and that render is the piece.
+the clock is frozen so `Date.now()` and `performance.now()` return 0 for
+captures. Network access is blocked for the duration. Artist code runs
+afterwards and can undo them, so a generator that varies will vary; a provider
+renders once, and that render is the piece. Generators must not evaluate wall
+clock time during setup or attribute declaration.
 
 Freezing the clock belongs to capture. A viewer showing the piece live lets it
 run, because an animated generator reads the clock to know how far through it
 is and a frozen one sits on its first frame. The seeded stream stays either
 way, so motion varies and the composition does not.
+
+Captures run in a 1000 by 1000 viewport with a device pixel ratio of 1.
 
 Capture when the piece calls `$alea.ready()`.
 
@@ -258,6 +300,14 @@ Everything needed to reproduce a piece is on chain: the generator (`code` or
 parameters (in that operation), and the declared libraries (in the collection's
 metadata). A viewer that resolves those and runs the harness above gets the
 same image as the provider did, and can say so.
+
+To extract a seed and parameters across indexers:
+1. **Metadata document.** Read `aleaSeed` and `aleaParams` from `token_info[""]`.
+2. **On-chain mint transfer.** When metadata is pending or unindexed, query TzKT:
+   `/v1/tokens/transfers?token.contract=<address>&token.tokenId=<id>&from.null=true&limit=1`
+   Fetch the transaction by `transactionId`: `/v1/operations/transactions?id=<transactionId>&limit=1`.
+   `hash` is the piece's seed; `parameter.value` holds the collector's parameters.
+3. **Refuse synthetic seeds.** Do not substitute synthetic values (such as `0x${tokenId}`).
 
 Full text: `docs/interface.md` in
 <https://github.com/skullzarmy/aleatory>, served at `/docs/interface` on any
