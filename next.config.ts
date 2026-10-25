@@ -194,6 +194,81 @@ const config: NextConfig = {
                           ]),
                 ],
             },
+            {
+                source: "/",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=60, stale-while-revalidate=600, durable",
+                    },
+                    { key: "Netlify-Vary", value: "query" },
+                ],
+            },
+            {
+                source: "/mints",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=30, stale-while-revalidate=300, durable",
+                    },
+                    { key: "Netlify-Vary", value: "query" },
+                ],
+            },
+            {
+                source: "/market",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=30, stale-while-revalidate=300, durable",
+                    },
+                    { key: "Netlify-Vary", value: "query" },
+                ],
+            },
+            {
+                source: "/piece/:contract/:tokenId",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=300, stale-while-revalidate=86400, durable",
+                    },
+                ],
+            },
+            {
+                source: "/generator/:address",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=120, stale-while-revalidate=86400, durable",
+                    },
+                ],
+            },
+            {
+                source: "/wallet/:address",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=60, stale-while-revalidate=600, durable",
+                    },
+                ],
+            },
+            {
+                source: "/providers",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=60, stale-while-revalidate=600, durable",
+                    },
+                ],
+            },
+            {
+                source: "/providers/:address",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=60, stale-while-revalidate=600, durable",
+                    },
+                ],
+            },
         ];
     },
 };

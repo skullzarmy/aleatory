@@ -93,6 +93,7 @@ export async function GET(request: Request) {
                 "content-type": "application/javascript; charset=utf-8",
                 // Pinned version, verified bytes: this response cannot change.
                 "cache-control": "public, max-age=31536000, immutable",
+                "netlify-cdn-cache-control": "public, max-age=31536000, immutable, durable",
                 "x-alea-hash": got,
             },
         });
@@ -179,6 +180,7 @@ async function fromRegistry(id: string, version: string, requested: string): Pro
         headers: {
             "content-type": "application/javascript; charset=utf-8",
             "cache-control": "public, max-age=31536000, immutable",
+            "netlify-cdn-cache-control": "public, max-age=31536000, immutable, durable",
             // What to record when the piece is published.
             "x-alea-hash": blake2bHex(body, undefined, 32),
             "x-alea-path": path,

@@ -27,7 +27,10 @@ export async function GET(request: Request) {
 
     try {
         return Response.json(await resolve(id, version), {
-            headers: { "cache-control": "public, max-age=31536000, immutable" },
+            headers: {
+                "cache-control": "public, max-age=31536000, immutable",
+                "netlify-cdn-cache-control": "public, max-age=31536000, immutable, durable",
+            },
         });
     } catch (e) {
         // Giving up on the clock is not a verdict on the package, and must not
