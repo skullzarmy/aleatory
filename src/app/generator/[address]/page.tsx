@@ -16,6 +16,7 @@ import { ReadFailed } from "@/components/ReadFailed";
 import { GeneratorJsonLd } from "@/components/JsonLd";
 import { isAddress } from "@/lib/tzkt";
 import { unconfirmedCount } from "@/lib/collab";
+import { CollektGalleryModal } from "@/components/gallery/CollektGalleryModal";
 
 /**
  * Rendered per request. `revalidate` here made this a prerendered document, and
@@ -167,10 +168,18 @@ export default async function GeneratorPage({ params }: { params: Params }) {
 
                 {pieces.length > 0 && (
                     <div className="mt-12">
-                        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-                            <h2 className="text-lg font-semibold tracking-tight">
-                                Pieces ({generator.minted})
-                            </h2>
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-lg font-semibold tracking-tight">
+                                    Pieces ({generator.minted})
+                                </h2>
+                                <CollektGalleryModal
+                                    generatorAddress={generator.address}
+                                    generatorName={
+                                        generator.name || shortAddress(generator.address)
+                                    }
+                                />
+                            </div>
                             {listed > 0 && (
                                 <Link
                                     href={`/market?generator=${address}`}

@@ -130,7 +130,9 @@ function csp(): string {
         // a connection request read as unverified in the wallet, or time out.
         // It is an iframe from their own infrastructure and gets no access to
         // this page; frame-src grants embedding, not reach.
-        `frame-src ${ISOLATE_ORIGIN} https://isolated.aleatory.art https://*.netlify.app https://app.netlify.com https://verify.walletconnect.org https://verify.walletconnect.com`,
+        `frame-src ${ISOLATE_ORIGIN} https://collekt.fafolab.xyz https://isolated.aleatory.art https://*.netlify.app https://app.netlify.com https://verify.walletconnect.org https://verify.walletconnect.com${
+            isDev ? " http://localhost:*" : ""
+        }`,
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "object-src 'none'",
