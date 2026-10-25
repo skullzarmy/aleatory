@@ -22,6 +22,35 @@ export const DEFAULT_FRAME_STYLE =
     "canvas{display:block}svg{display:block;width:100%;height:100%}";
 
 /**
+ * Finds the end offset of an opening HTML tag in linear time without regex backtracking.
+ */
+function findOpenTagEnd(html: string, tagName: string): number {
+    const lower = html.toLowerCase();
+    const tagPrefix = `<${tagName}`;
+    let idx = 0;
+    while (idx < html.length) {
+        const found = lower.indexOf(tagPrefix, idx);
+        if (found === -1) return -1;
+        const nextChar = lower[found + tagPrefix.length];
+        if (
+            nextChar === ">" ||
+            nextChar === " " ||
+            nextChar === "\t" ||
+            nextChar === "\n" ||
+            nextChar === "\r" ||
+            nextChar === "/"
+        ) {
+            const close = lower.indexOf(">", found + tagPrefix.length);
+            if (close !== -1) {
+                return close + 1;
+            }
+        }
+        idx = found + 1;
+    }
+    return -1;
+}
+
+/**
  * Assembles a self-contained HTML document with canonical harness and dependencies.
  */
 export function buildDocument(options: DocumentOptions): string {
@@ -39,16 +68,14 @@ export function buildDocument(options: DocumentOptions): string {
         (libs ? `${libs}\n` : "");
 
     const code = options.code;
-    const head = code.match(/<head[^>]*>/i);
-    if (head && head.index !== undefined) {
-        const at = head.index + head[0].length;
-        return code.slice(0, at) + "\n" + injected + code.slice(at);
+    const headEnd = findOpenTagEnd(code, "head");
+    if (headEnd !== -1) {
+        return code.slice(0, headEnd) + "\n" + injected + code.slice(headEnd);
     }
 
-    const htmlTag = code.match(/<html[^>]*>/i);
-    if (htmlTag && htmlTag.index !== undefined) {
-        const at = htmlTag.index + htmlTag[0].length;
-        return `${code.slice(0, at)}\n<head>\n${injected}</head>${code.slice(at)}`;
+    const htmlEnd = findOpenTagEnd(code, "html");
+    if (htmlEnd !== -1) {
+        return `${code.slice(0, htmlEnd)}\n<head>\n${injected}</head>${code.slice(htmlEnd)}`;
     }
 
     return `<!doctype html><html><head>\n${injected}</head><body>\n${code}\n</body></html>`;

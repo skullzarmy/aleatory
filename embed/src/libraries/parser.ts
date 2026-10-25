@@ -18,10 +18,25 @@ const COORDINATE_REGEX =
     /^(@[a-z0-9][a-z0-9._-]*\/)?([a-z0-9][a-z0-9._-]*)@([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?:\/(.+))?$/;
 
 /**
- * Strips HTML comments so commented examples are ignored.
+ * Strips HTML comments in linear time without regex backtracking.
  */
 function stripComments(html: string): string {
-    return html.replace(/<!--[\s\S]*?-->/g, "");
+    let out = "";
+    let cursor = 0;
+    while (cursor < html.length) {
+        const start = html.indexOf("<!--", cursor);
+        if (start === -1) {
+            out += html.slice(cursor);
+            break;
+        }
+        out += html.slice(cursor, start);
+        const end = html.indexOf("-->", start + 4);
+        if (end === -1) {
+            break;
+        }
+        cursor = end + 3;
+    }
+    return out;
 }
 
 /**
