@@ -2,10 +2,13 @@ import { parseLibraries } from "../libraries/parser.js";
 import { resolveLibraries } from "../libraries/resolver.js";
 import { createSandbox, type SandboxController } from "./sandbox.js";
 
+const BaseElement: typeof HTMLElement =
+    typeof HTMLElement !== "undefined" ? HTMLElement : (class {} as unknown as typeof HTMLElement);
+
 /**
  * Custom web component `<aleatory-viewer>` for embedding Aleatory generative art.
  */
-export class AleatoryViewerElement extends HTMLElement {
+export class AleatoryViewerElement extends BaseElement {
     static get observedAttributes() {
         return ["code", "seed", "params", "live-clock", "dpr"];
     }
