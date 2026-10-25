@@ -19,7 +19,7 @@ each is complete on its own.
 |---|---|---|
 | `aleatory-generator/` | the artist | writing the HTML file that is the artwork |
 | `aleatory-provider/` | the operator | running the service that draws minted pieces and publishes their images |
-| `aleatory-interface/` | the integrator | building a renderer, viewer, indexer or marketplace that reads Aleatory pieces |
+| `aleatory-interface/` | the integrator | building a renderer, viewer, indexer or marketplace that reads Aleatory pieces (or using `aleatory-embed-renderer` on npm) |
 
 Most people want the first one. Read that skill and nothing else: it carries
 the harness, the three rules a generator must satisfy, and a worked file, and

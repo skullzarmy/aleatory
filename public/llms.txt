@@ -336,3 +336,4 @@ Paths below are on this host, the one you fetched this page from.
 - `/skill/aleatory-generator/SKILL.md`, this page packaged as an installable skill
 - `/templates`, starter kits and a studio that checks all of the above before publishing
 - `/docs/interface`, ALEATORY-001, for anyone building a renderer or a viewer
+- `aleatory-embed-renderer` on npm, the reference embed and indexer package

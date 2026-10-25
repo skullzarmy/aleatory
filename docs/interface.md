@@ -678,3 +678,17 @@ was minted.
 A viewer that only lists pieces needs even less. Everything in §8 is public
 chain data, so a gallery, a market page, or an artist's page can be built
 without contacting whoever minted the work.
+
+### Reference implementation
+
+The reference implementation of the document assembler, harness, and indexer recipes is published on npm as `aleatory-embed-renderer`:
+
+```bash
+npm install aleatory-embed-renderer
+```
+
+It provides:
+- `<aleatory-viewer>`: a web component for zero-framework HTML, Vue, Svelte, or Angular.
+- `<AleatoryViewer />`: a React component supporting live and frozen clock modes, DPR clamping, and lifecycle callbacks (`onReady`, `onError`, `onViolation`).
+- `buildDocument` and `createPrng`: core document assembler and deterministic zero-warmup PRNG for headless capture, CLI tools, and Node indexer backends.
+- `extractPieceMetadata`, `decodeCode`, and `fetchMintRecord`: TzKT indexer helpers for extracting seeds, parameters, and contract code.

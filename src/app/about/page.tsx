@@ -106,7 +106,9 @@ export default function AboutPage() {
                     <Link href="/docs/interface" className="underline hover:text-foreground">
                         ALEATORY-001
                     </Link>{" "}
-                    and show what you made. We wrote that spec so they can.
+                    and show what you made, or embed pieces using{" "}
+                    <code className="text-xs">aleatory-embed-renderer</code>. We wrote that spec so
+                    they can.
                 </p>
                 <p>
                     Everybody says their art is on chain, so that sentence is worth nothing on its

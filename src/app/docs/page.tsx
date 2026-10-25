@@ -33,7 +33,7 @@ const DOCS = [
         href: "/docs/interface",
         title: "ALEATORY-001",
         who: "For anyone building against it",
-        blurb: "The protocol. What a generator is, what a piece is, what the chain holds, and what a renderer or a viewer has to do. Our contracts are one implementation of it, and it is written so they need not be yours.",
+        blurb: "The protocol. What a generator is, what a piece is, what the chain holds, and what a renderer or a viewer has to do. The reference implementation is published as aleatory-embed-renderer on npm.",
     },
     {
         href: "/docs/libraries",

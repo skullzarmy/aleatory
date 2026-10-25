@@ -309,6 +309,10 @@ To extract a seed and parameters across indexers:
    `hash` is the piece's seed; `parameter.value` holds the collector's parameters.
 3. **Refuse synthetic seeds.** Do not substitute synthetic values (such as `0x${tokenId}`).
 
+### Reference implementation
+
+The reference viewer, document assembler, and indexer recipes are published as `aleatory-embed-renderer` on npm (`npm install aleatory-embed-renderer`). It exposes `<aleatory-viewer>` for HTML and `<AleatoryViewer />` for React, with pure Node utilities under `aleatory-embed-renderer/core` and `aleatory-embed-renderer/indexer`.
+
 Full text: `docs/interface.md` in
 <https://github.com/skullzarmy/aleatory>, served at `/docs/interface` on any
 site running this platform.
