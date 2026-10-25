@@ -26,6 +26,7 @@ provider/.state/
 !/bot/
 !/contract/
 !/docs/
+!/embed/
 !/isolate/
 !/provider/
 !/public/
