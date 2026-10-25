@@ -424,7 +424,7 @@ A generator is HTML/JS (or SVG, or WASM) that receives a seed and renders. That'
 - **Sandbox**, rendered in a sandboxed frame with no network. Not a policy, an enforcement: the determinism rule is checked mechanically at publish time, and a generator that tries to fetch gets flagged before it ever mints.
 - **SVG-on-chain path**, for pieces that emit pure SVG, the whole thing can live in contract storage with no runtime at all. Neighboring work (Bootloader) shows this is a rich vein; there is no reason for the standard to exclude it.
 
-The standard is published as a spec document with a reference implementation and a conformance test suite, versioned as `standard_version`. Another front end must be able to render our pieces correctly without reading our source.
+The standard is published as a spec document with a reference implementation and a conformance test suite, versioned as `standard_version`. The reference viewer and indexer recipes are published on npm as `aleatory-embed-renderer`. Another front end must be able to render our pieces correctly without reading our source.
 
 ---
 
