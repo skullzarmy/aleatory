@@ -12,10 +12,39 @@ export interface LibrarySpec {
     hash?: string;
 }
 
-const TAG_REGEX = /<meta\s+[^>]*name\s*=\s*["']alea:library["'][^>]*>/gi;
-const CONTENT_REGEX = /content\s*=\s*["']([^"']+)["']/i;
 const COORDINATE_REGEX =
     /^(@[a-z0-9][a-z0-9._-]*\/)?([a-z0-9][a-z0-9._-]*)@([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?:\/(.+))?$/;
+
+/**
+ * Extracts an attribute value from an HTML tag string without regular expressions.
+ */
+function extractAttribute(tag: string, attrName: string): string | null {
+    const lower = tag.toLowerCase();
+    const needle = `${attrName.toLowerCase()}=`;
+    const idx = lower.indexOf(needle);
+    if (idx === -1) return null;
+
+    const after = tag.slice(idx + needle.length).trimStart();
+    const quote = after[0];
+    if (quote === '"' || quote === "'") {
+        const endQuote = after.indexOf(quote, 1);
+        if (endQuote === -1) return null;
+        return after.slice(1, endQuote).trim();
+    }
+
+    let end = 0;
+    while (
+        end < after.length &&
+        after[end] !== " " &&
+        after[end] !== "\t" &&
+        after[end] !== "\n" &&
+        after[end] !== "\r" &&
+        after[end] !== ">"
+    ) {
+        end++;
+    }
+    return after.slice(0, end).trim() || null;
+}
 
 /**
  * Strips HTML comments in linear time without regex backtracking.
@@ -64,16 +93,32 @@ export function parseLibraries(html: string): { specs: LibrarySpec[]; unknown: s
     const unknown: string[] = [];
     const seen = new Set<string>();
 
-    for (const tag of stripComments(html).match(TAG_REGEX) ?? []) {
-        const value = tag.match(CONTENT_REGEX)?.[1]?.trim();
-        if (!value || seen.has(value)) continue;
-        seen.add(value);
+    const text = stripComments(html);
+    const lower = text.toLowerCase();
+    let cursor = 0;
 
-        const spec = parseCoordinate(value);
+    while (cursor < text.length) {
+        const tagStart = lower.indexOf("<meta", cursor);
+        if (tagStart === -1) break;
+
+        const tagEnd = lower.indexOf(">", tagStart + 5);
+        if (tagEnd === -1) break;
+
+        cursor = tagEnd + 1;
+        const tag = text.slice(tagStart, tagEnd);
+
+        const name = extractAttribute(tag, "name");
+        if (name?.toLowerCase() !== "alea:library") continue;
+
+        const content = extractAttribute(tag, "content");
+        if (!content || seen.has(content)) continue;
+        seen.add(content);
+
+        const spec = parseCoordinate(content);
         if (spec) {
             specs.push(spec);
         } else {
-            unknown.push(value);
+            unknown.push(content);
         }
     }
 
