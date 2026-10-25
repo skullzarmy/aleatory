@@ -1,7 +1,7 @@
 {
-    "name": "@aleatory/embed",
+    "name": "aleatory-embed-renderer",
     "version": "0.1.0",
-    "description": "Portable, deterministic renderer and embed component for ALEATORY-001 generative art",
+    "description": "Aleatory Embeddable Renderer: portable, deterministic renderer and embed component for ALEATORY-001 generative art",
     "license": "Unlicense",
     "type": "module",
     "main": "./dist/index.cjs",
