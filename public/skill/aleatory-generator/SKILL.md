@@ -51,7 +51,9 @@ or another platform's helper draws a blank frame.
 Safe: `alea.rand()` and anything derived from it. Each of these renders
 differently for different people, and the failure only shows after minting:
 
-- `Date`, `performance.now()`, or anything time-derived deciding what is drawn.
+- `Date`, `performance.now()`, or anything time-derived deciding what is drawn
+  or what parameters and traits are declared. Static captures freeze the clock,
+  and interactive viewers run with a live clock.
 - `window.innerWidth`, `devicePixelRatio`, or any measurement of the viewer's
   screen deciding composition. Draw to a fixed coordinate space and scale it.
 - A library's own PRNG. Seed it from `alea.rand()`. In p5 that is

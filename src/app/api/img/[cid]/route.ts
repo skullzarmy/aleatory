@@ -37,6 +37,7 @@ const MAX_BYTES = 16 * 1024 * 1024;
 const FOREVER = {
     // This URL cannot mean different bytes, so nothing revalidates it.
     "cache-control": "public, max-age=31536000, immutable",
+    "netlify-cdn-cache-control": "public, max-age=31536000, immutable, durable",
     "x-content-type-options": "nosniff",
     "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
 };

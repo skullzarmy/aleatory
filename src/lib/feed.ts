@@ -230,7 +230,7 @@ export async function coversFor(generators: string[]): Promise<Map<string, strin
         if (s?.pendingUri && s?.tokenUri && s.tokenUri !== s.pendingUri && !m?.aleaProvider) {
             continue;
         }
-        const display = m?.thumbnailUri || m?.displayUri;
+        const display = m?.displayUri || m?.thumbnailUri;
         if (display) out.set(address, ipfsImageUrl(display));
     }
     return out;
@@ -282,7 +282,7 @@ function toPiece(
           ? pendingState.tokenUri === pendingState.pendingUri
           : !m?.displayUri && !m?.thumbnailUri;
 
-    const display = m?.thumbnailUri || m?.displayUri;
+    const display = m?.displayUri || m?.thumbnailUri;
     const generatorName = generatorAlias || t.contract.alias || "Untitled generator";
     const edition = `#${Number(t.tokenId) + 1}`;
 

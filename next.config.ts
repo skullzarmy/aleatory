@@ -130,7 +130,9 @@ function csp(): string {
         // a connection request read as unverified in the wallet, or time out.
         // It is an iframe from their own infrastructure and gets no access to
         // this page; frame-src grants embedding, not reach.
-        `frame-src ${ISOLATE_ORIGIN} https://isolated.aleatory.art https://*.netlify.app https://app.netlify.com https://verify.walletconnect.org https://verify.walletconnect.com`,
+        `frame-src ${ISOLATE_ORIGIN} https://collekt.fafolab.xyz https://isolated.aleatory.art https://*.netlify.app https://app.netlify.com https://verify.walletconnect.org https://verify.walletconnect.com${
+            isDev ? " http://localhost:*" : ""
+        }`,
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "object-src 'none'",
@@ -190,6 +192,81 @@ const config: NextConfig = {
                                   value: "max-age=63072000; includeSubDomains",
                               },
                           ]),
+                ],
+            },
+            {
+                source: "/",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=60, stale-while-revalidate=600, durable",
+                    },
+                    { key: "Netlify-Vary", value: "query" },
+                ],
+            },
+            {
+                source: "/mints",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=30, stale-while-revalidate=300, durable",
+                    },
+                    { key: "Netlify-Vary", value: "query" },
+                ],
+            },
+            {
+                source: "/market",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=30, stale-while-revalidate=300, durable",
+                    },
+                    { key: "Netlify-Vary", value: "query" },
+                ],
+            },
+            {
+                source: "/piece/:contract/:tokenId",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=300, stale-while-revalidate=86400, durable",
+                    },
+                ],
+            },
+            {
+                source: "/generator/:address",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=120, stale-while-revalidate=86400, durable",
+                    },
+                ],
+            },
+            {
+                source: "/wallet/:address",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=60, stale-while-revalidate=600, durable",
+                    },
+                ],
+            },
+            {
+                source: "/providers",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=60, stale-while-revalidate=600, durable",
+                    },
+                ],
+            },
+            {
+                source: "/providers/:address",
+                headers: [
+                    {
+                        key: "Netlify-CDN-Cache-Control",
+                        value: "public, s-maxage=60, stale-while-revalidate=600, durable",
+                    },
                 ],
             },
         ];

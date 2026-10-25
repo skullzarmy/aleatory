@@ -1,7 +1,8 @@
+import { ExternalLink } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { avatarUrl, SOURCE_LABEL, type Profile, type Source } from "@/lib/identity";
 import { shortAddress } from "@/lib/utils";
-import { tzktLink } from "@/lib/config";
+import { tzktLink, collektGalleryUrl } from "@/lib/config";
 
 // Every field is optional; the block collapses to whatever exists, down to
 // just a name and an address.
@@ -55,6 +56,16 @@ export function ProfileCard({
                         className="break-all font-mono hover:text-foreground hover:underline"
                     >
                         {address}
+                    </a>
+                    <span>·</span>
+                    <a
+                        href={collektGalleryUrl(address)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
+                    >
+                        <span>3D Gallery</span>
+                        <ExternalLink size={10} aria-hidden />
                     </a>
                     {profile?.location && <span>{profile.location}</span>}
                 </div>

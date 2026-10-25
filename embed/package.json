@@ -1,0 +1,77 @@
+{
+    "name": "aleatory-embed-renderer",
+    "version": "0.1.0",
+    "description": "Aleatory Embeddable Renderer: portable, deterministic renderer and embed component for ALEATORY-001 generative art",
+    "license": "Unlicense",
+    "type": "module",
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.mjs",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/skullzarmy/aleatory.git",
+        "directory": "embed"
+    },
+    "homepage": "https://aleatory.art/docs/interface",
+    "bugs": "https://github.com/skullzarmy/aleatory/issues",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.cjs"
+        },
+        "./core": {
+            "types": "./dist/core/index.d.ts",
+            "import": "./dist/core/index.mjs",
+            "require": "./dist/core/index.cjs"
+        },
+        "./libraries": {
+            "types": "./dist/libraries/index.d.ts",
+            "import": "./dist/libraries/index.mjs",
+            "require": "./dist/libraries/index.cjs"
+        },
+        "./indexer": {
+            "types": "./dist/indexer/index.d.ts",
+            "import": "./dist/indexer/index.mjs",
+            "require": "./dist/indexer/index.cjs"
+        },
+        "./viewer": {
+            "types": "./dist/viewer/index.d.ts",
+            "import": "./dist/viewer/index.mjs",
+            "require": "./dist/viewer/index.cjs"
+        },
+        "./react": {
+            "types": "./dist/react/index.d.ts",
+            "import": "./dist/react/index.mjs",
+            "require": "./dist/react/index.cjs"
+        }
+    },
+    "scripts": {
+        "build": "rm -rf dist && tsup && tsc --emitDeclarationOnly",
+        "typecheck": "tsc --noEmit",
+        "test": "npx tsx test/run.ts"
+    },
+    "dependencies": {
+        "blakejs": "^1.2.1"
+    },
+    "peerDependencies": {
+        "react": "^18.0.0 || ^19.0.0",
+        "react-dom": "^18.0.0 || ^19.0.0"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        },
+        "react-dom": {
+            "optional": true
+        }
+    }
+}

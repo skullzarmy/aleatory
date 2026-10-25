@@ -74,9 +74,14 @@ export function ShareButtons({
      */
     const TEZCITY_MAX = 500;
     const tezcityText = (() => {
+        const base = text.includes(BRAND.tezcityHandle)
+            ? text
+            : text.includes(`on ${BRAND.name}`)
+              ? text.replace(`on ${BRAND.name}`, `on ${BRAND.tezcityHandle}`)
+              : `${text} on ${BRAND.tezcityHandle}`;
         const room = TEZCITY_MAX - shareUrl.length - 1;
-        if (text.length <= room) return text;
-        return `${text.slice(0, Math.max(0, room - 1))}…`;
+        if (base.length <= room) return base;
+        return `${base.slice(0, Math.max(0, room - 1))}…`;
     })();
 
     const networks = [
@@ -101,8 +106,8 @@ export function ShareButtons({
             icon: <Paper />,
         },
         {
-            // No handle to tag with: a hack.tez profile carries no TezCity
-            // field, so this gets the plain text until one exists.
+            // A hack.tez profile carries no TezCity field for creators, so
+            // the post tags the platform.
             name: "TezCity",
             href: `https://tezcity.com/intent/post?${new URLSearchParams({
                 text: tezcityText,

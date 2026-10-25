@@ -450,16 +450,85 @@ window.ALEA_MAIN = { render: function (alea) { /* ... */ alea.ready(); } };
 Same object either way. The name with the dollar is the one that exists
 without you making it.
 
+### PRNG construction
+
+The seeded stream uses `xmur3` for string hashing and `sfc32` for 32-bit pseudo-random numbers:
+
+```js
+function xmur3(str) {
+  var h = 1779033703 ^ str.length;
+  for (var i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return function () {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return h >>> 0;
+  };
+}
+
+function sfc32(a, b, c, d) {
+  return function () {
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    var t = (a + b) | 0;
+    a = b ^ (b >>> 9);
+    b = (c + (c << 3)) | 0;
+    c = (c << 21) | (c >>> 11);
+    d = (d + 1) | 0;
+    t = (t + d) | 0;
+    c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
+  };
+}
+
+var s = xmur3(String(seed));
+var rand = sfc32(s(), s(), s(), s());
+```
+
+Two rules govern the PRNG:
+
+1. **Zero warmups.** The stream is ready immediately after seeding `sfc32`. Discarding initial numbers (such as running a 16-step warmup loop) shifts the stream and produces a different artwork.
+2. **String seed.** The seed is the base58 mint operation hash. Parsing it as hex or integer (`parseInt(seed, 16)`) yields `NaN`, which coerces to `0` and draws identical outputs across every token.
+
+The helper methods derive directly from `rand()`:
+
+```js
+$alea.randInt = function (lo, hi) { return Math.floor(rand() * (hi - lo + 1)) + lo; };
+$alea.randBetween = function (lo, hi) { return lo + rand() * (hi - lo); };
+$alea.pick = function (arr) { return arr[Math.floor(rand() * arr.length)]; };
+$alea.chance = function (p) { return rand() < p; };
+```
 
 Two substitutions make a render reproducible, and any conforming renderer
 installs both. Artist code runs afterwards and can undo them, so a generator
 that varies will vary: a provider renders once, and that render is the piece.
 
 - `Math.random` is replaced by the seeded stream.
-- The clock is frozen. `Date.now()` and `performance.now()` return a fixed
-  value, so a piece that reads the date renders the same way in any year.
+- The clock is frozen for static captures. `Date.now()` and `performance.now()`
+  return 0, so a piece that reads the date renders the same way in any year.
+  Generators must not evaluate system time or timestamps during initial setup or
+  attribute declaration.
 
 Network access is blocked for the duration.
+
+The canonical execution environment uses a square viewport of 1000 by 1000
+pixels with a device pixel ratio of 1 (`devicePixelRatio = 1`). A base style
+resets margins and sets display:
+
+```css
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+canvas { display: block; }
+svg { display: block; width: 100%; height: 100%; }
+```
 
 Parameters are specified in [params.md](params.md).
 
@@ -498,6 +567,23 @@ Everything a front end needs, from public chain data:
 | Every marketplace there has been | the router's storage history, `marketplace` at each state |
 
 No index held by anyone is required for any of it.
+
+### Indexing recipes
+
+To resolve a piece's seed and parameters across indexers and TzKT:
+
+1. **Published metadata.** Read `aleaSeed` and `aleaParams` directly from the
+   token's metadata document (`token_info[""]`). When present, this is the
+   canonical record written by the render provider.
+2. **On-chain mint transfer.** When metadata is pending or an indexer omits
+   custom metadata fields, query the mint transfer via TzKT:
+   `GET /v1/tokens/transfers?token.contract=<address>&token.tokenId=<id>&from.null=true&limit=1`
+   Take `transactionId` and fetch the transaction:
+   `GET /v1/operations/transactions?id=<transactionId>&limit=1`
+   The transaction `hash` is the piece's seed. The `parameter.value` holds the
+   collector's chosen parameter bytes, decoded as canonical JSON.
+3. **Refuse synthetic fallbacks.** Do not substitute synthetic seeds (such as
+   `0x${tokenId}`). A piece rendered from a synthetic seed is not the minted piece.
 
 ---
 
@@ -560,9 +646,18 @@ answer rather than a second opinion.
 A viewer is steps 2 through 6 without step 7, and it needs nobody's
 permission at all.
 
-Read the source and its libraries exactly as a renderer does, install
+Read the source and its libraries as a renderer does, install
 `$alea` with the same seed and parameters, make the same substitutions, and
 show the result live instead of capturing it.
+
+**Resolve declared libraries before execution.** Standard `iframe` elements do
+not resolve `<meta name="alea:library">` tags natively. A viewer parses every
+`<meta name="alea:library" content="...">` declaration, fetches the specified
+script from npm or a mirror, verifies its blake2b-256 digest against the
+collection metadata, and inlines it ahead of the generator source.
+Scripts inject in order: the CSP meta tag, the style reset, the `$alea`
+harness script (with the `Math.random` override), the resolved library scripts,
+and the generator document.
 
 **One substitution is a renderer's and not a viewer's: the clock.** A renderer
 freezes it because two captures of one seed have to agree. A piece that animates
@@ -583,3 +678,17 @@ was minted.
 A viewer that only lists pieces needs even less. Everything in §8 is public
 chain data, so a gallery, a market page, or an artist's page can be built
 without contacting whoever minted the work.
+
+### Reference implementation
+
+The reference implementation of the document assembler, harness, and indexer recipes is published on npm as `aleatory-embed-renderer`:
+
+```bash
+npm install aleatory-embed-renderer
+```
+
+It provides:
+- `<aleatory-viewer>`: a web component for zero-framework HTML, Vue, Svelte, or Angular.
+- `<AleatoryViewer />`: a React component supporting live and frozen clock modes, DPR clamping, and lifecycle callbacks (`onReady`, `onError`, `onViolation`).
+- `buildDocument` and `createPrng`: core document assembler and deterministic zero-warmup PRNG for headless capture, CLI tools, and Node indexer backends.
+- `extractPieceMetadata`, `decodeCode`, and `fetchMintRecord`: TzKT indexer helpers for extracting seeds, parameters, and contract code.
