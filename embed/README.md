@@ -1,4 +1,4 @@
-# @aleatory/embed
+# Aleatory Embeddable Renderer (`aleatory-embed-renderer`)
 
 Portable, deterministic renderer and embed component for [ALEATORY-001](https://aleatory.art/docs/interface) generative artworks on Tezos.
 
@@ -7,10 +7,10 @@ Aleatory generators are self-contained HTML files stored immutably on chain, dra
 ## Installation
 
 ```bash
-npm install @aleatory/embed
+npm install aleatory-embed-renderer
 ```
 
-`@aleatory/embed` ships dual ESM and CommonJS builds with TypeScript declarations.
+`aleatory-embed-renderer` ships dual ESM and CommonJS builds with TypeScript declarations.
 
 ---
 
@@ -19,7 +19,7 @@ npm install @aleatory/embed
 ### 1. React Component
 
 ```tsx
-import { AleatoryViewer } from "@aleatory/embed/react";
+import { AleatoryViewer } from "aleatory-embed-renderer/react";
 
 export function ArtCard({ code, seed, params }) {
   return (
@@ -44,7 +44,7 @@ The component parses `<meta name="alea:library">` declarations, resolves and ver
 Zero-framework, works in vanilla HTML, Vue, Svelte, or Angular:
 
 ```html
-<script type="module" src="@aleatory/embed/viewer"></script>
+<script type="module" src="aleatory-embed-renderer/viewer"></script>
 
 <aleatory-viewer
   code="<!doctype html>..."
@@ -66,7 +66,7 @@ Zero-framework, works in vanilla HTML, Vue, Svelte, or Angular:
 For static thumbnail captures, CI determinism checks, or headless capture pipelines:
 
 ```ts
-import { buildDocument, createPrng } from "@aleatory/embed/core";
+import { buildDocument, createPrng } from "aleatory-embed-renderer/core";
 
 // Generate standalone sandboxed document string with CSP and harness:
 const html = buildDocument({
@@ -88,7 +88,7 @@ console.log(prng.randInt(1, 10)); // Inclusive
 Standardized extraction of seed and parameters across TzKT and marketplace indexers:
 
 ```ts
-import { extractPieceMetadata, decodeCode, fetchMintRecord } from "@aleatory/embed/indexer";
+import { extractPieceMetadata, decodeCode, fetchMintRecord } from "aleatory-embed-renderer/indexer";
 
 // 1. Extract from token metadata JSON:
 const { seed, params, features } = extractPieceMetadata(tokenMetadata);
@@ -114,9 +114,9 @@ const html = await decodeCode(storageHex, "gzip");
 
 ## Subpath Exports
 
-* `@aleatory/embed`: Everything
-* `@aleatory/embed/core`: Pure PRNG, harness generator, and document assembler
-* `@aleatory/embed/libraries`: Dependency coordinate parser, CDN resolver, and blake2b integrity
-* `@aleatory/embed/indexer`: Metadata parsing, storage code decoder, and TzKT query recipes
-* `@aleatory/embed/viewer`: Sandboxed iframe manager and `<aleatory-viewer>` web component
-* `@aleatory/embed/react`: React `<AleatoryViewer />` component
+* `aleatory-embed-renderer`: Everything
+* `aleatory-embed-renderer/core`: Pure PRNG, harness generator, and document assembler
+* `aleatory-embed-renderer/libraries`: Dependency coordinate parser, CDN resolver, and blake2b integrity
+* `aleatory-embed-renderer/indexer`: Metadata parsing, storage code decoder, and TzKT query recipes
+* `aleatory-embed-renderer/viewer`: Sandboxed iframe manager and `<aleatory-viewer>` web component
+* `aleatory-embed-renderer/react`: React `<AleatoryViewer />` component

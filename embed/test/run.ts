@@ -4,7 +4,7 @@ import { runMetadataTests } from "./metadata.test.js";
 import { runPrngTests } from "./prng.test.js";
 
 async function main() {
-    console.log("\n--- @aleatory/embed test suite ---\n");
+    console.log("\n--- aleatory-embed-renderer test suite ---\n");
     runPrngTests();
     runDocumentTests();
     runLibraryTests();

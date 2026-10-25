@@ -101,7 +101,7 @@ function randomSeed(): string {
 }
 
 /**
- * Interactive React demo illustrating `@aleatory/embed` usage with stateful seed
+ * Interactive React demo illustrating `aleatory-embed-renderer` usage with stateful seed
  * generation, dynamic library loading, and lifecycle event inspection.
  */
 export function ReactEmbedDemo() {
