@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
 import { shortAddress } from "@/lib/utils";
 import { CopySeed } from "./CopySeed";
 import { TimeAgo } from "@/components/TimeAgo";
@@ -7,6 +7,7 @@ import type { Piece } from "@/lib/piece";
 import type { Listing } from "@/lib/market";
 import type { ParamSpec, ParamValues } from "@/lib/params";
 import { AccountLink } from "@/components/account/AccountLink";
+import { CollektGalleryModal } from "@/components/gallery/CollektGalleryModal";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
     return (
@@ -62,6 +63,22 @@ export function PieceFacts({
                     {piece.generatorName || "View generator"}
                     <ChevronRight size={12} aria-hidden className="shrink-0" />
                 </Link>
+            </Row>
+            <Row label="3D Gallery">
+                <CollektGalleryModal
+                    generatorAddress={piece.contract}
+                    generatorName={piece.name}
+                    tokenId={piece.tokenId}
+                    trigger={
+                        <button
+                            type="button"
+                            className="inline-flex items-center gap-1 hover:underline text-muted-foreground hover:text-foreground"
+                        >
+                            <span>colleKT</span>
+                            <ExternalLink size={12} aria-hidden className="shrink-0" />
+                        </button>
+                    }
+                />
             </Row>
             <Row label="Edition">
                 {Number(piece.tokenId) + 1}

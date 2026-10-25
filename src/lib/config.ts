@@ -71,6 +71,17 @@ export const objktManageLink = (contract: string) =>
  */
 export const objktTokenLinkTemplate = (contract: string) => `${siteUrl()}/piece/${contract}/:id`;
 
+export const COLLEKT_URL = "https://collekt.fafolab.xyz";
+
+export const collektGeneratorUrl = (contract: string, embed = false) =>
+    `${COLLEKT_URL}/collection/${contract}?aleatory=true${embed ? "&embed=true" : ""}`;
+
+export const collektPieceUrl = (contract: string, tokenId: string, embed = false) =>
+    `${COLLEKT_URL}/collection/${contract}?token=${tokenId}&aleatory=true${embed ? "&embed=true" : ""}`;
+
+export const collektGalleryUrl = (address: string, embed = false) =>
+    `${COLLEKT_URL}/gallery/${address}${embed ? "?embed=true" : ""}`;
+
 /**
  * Contract addresses. `router` is the only one that has to be set; the rest are
  * read from it on chain by `lib/router.ts`. Setting one of the others overrides
