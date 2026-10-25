@@ -1,4 +1,4 @@
-import { parseLibraries } from "../libraries/parser.js";
+import { parseLibraries, type LibrarySpec } from "../libraries/parser.js";
 import { resolveLibraries } from "../libraries/resolver.js";
 import { createSandbox, type SandboxController } from "./sandbox.js";
 
@@ -10,8 +10,10 @@ const BaseElement: typeof HTMLElement =
  */
 export class AleatoryViewerElement extends BaseElement {
     static get observedAttributes() {
-        return ["code", "seed", "params", "live-clock", "dpr"];
+        return ["code", "seed", "params", "live-clock", "dpr", "cdn-url"];
     }
+
+    public cdnUrl?: (spec: LibrarySpec) => string;
 
     private controller: SandboxController | null = null;
     private renderNonce = 0;
@@ -64,7 +66,18 @@ export class AleatoryViewerElement extends BaseElement {
 
         if (specs.length > 0) {
             try {
-                const resolved = await resolveLibraries(specs);
+                const cdnAttr = this.getAttribute("cdn-url");
+                const customCdn =
+                    this.cdnUrl ||
+                    (cdnAttr
+                        ? (spec: LibrarySpec) =>
+                              cdnAttr
+                                  .replace("{id}", encodeURIComponent(spec.id))
+                                  .replace("{version}", encodeURIComponent(spec.version))
+                                  .replace("{path}", encodeURIComponent(spec.path || ""))
+                                  .replace("{hash}", encodeURIComponent(spec.hash || ""))
+                        : undefined);
+                const resolved = await resolveLibraries(specs, { cdnUrl: customCdn });
                 if (this.renderNonce !== nonce) return;
                 deps = resolved.map((r) => r.source);
             } catch (err) {

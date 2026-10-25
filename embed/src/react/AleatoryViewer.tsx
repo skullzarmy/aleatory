@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import type { ErrorEventPayload, ReadyEventPayload, ViolationEventPayload } from "../core/types.js";
-import { parseLibraries } from "../libraries/parser.js";
+import { parseLibraries, type LibrarySpec } from "../libraries/parser.js";
 import { resolveLibraries } from "../libraries/resolver.js";
 import { createSandbox, type SandboxController } from "../viewer/sandbox.js";
 
@@ -15,6 +15,8 @@ export interface AleatoryViewerProps {
     paramsSchema?: unknown[];
     /** Pre-resolved library scripts. If omitted, they are automatically resolved from CDN. */
     deps?: string[];
+    /** Custom URL builder or proxy for resolving declared libraries. */
+    cdnUrl?: (spec: LibrarySpec) => string;
     /** Let the clock run. Default true. Set false for deterministic static capture. */
     liveClock?: boolean;
     /** Caps what devicePixelRatio reports inside the piece. */
@@ -33,6 +35,8 @@ export interface AleatoryViewerProps {
     onViolation?: (payload: ViolationEventPayload) => void;
 }
 
+const EMPTY_DEPS: string[] = [];
+
 /**
  * React component for embedding and running Aleatory generative artworks.
  */
@@ -42,6 +46,7 @@ export function AleatoryViewer({
     params,
     paramsSchema,
     deps: explicitDeps,
+    cdnUrl,
     liveClock = true,
     maxDpr,
     wantImage = false,
@@ -54,7 +59,18 @@ export function AleatoryViewer({
     const containerRef = useRef<HTMLDivElement>(null);
     const controllerRef = useRef<SandboxController | null>(null);
 
-    const [resolvedDeps, setResolvedDeps] = useState<string[] | null>(explicitDeps ?? null);
+    // Callbacks ref to avoid recreating sandbox on inline function changes
+    const callbacksRef = useRef({ onReady, onError, onViolation });
+    callbacksRef.current = { onReady, onError, onViolation };
+
+    const cdnUrlRef = useRef(cdnUrl);
+    cdnUrlRef.current = cdnUrl;
+
+    const [resolvedDeps, setResolvedDeps] = useState<string[] | null>(() => {
+        if (explicitDeps) return explicitDeps;
+        const { specs } = parseLibraries(code);
+        return specs.length === 0 ? EMPTY_DEPS : null;
+    });
     const [libError, setLibError] = useState<string | null>(null);
 
     // Track libraries declared in the code
@@ -72,12 +88,12 @@ export function AleatoryViewer({
 
         const { specs } = parseLibraries(code);
         if (specs.length === 0) {
-            setResolvedDeps([]);
+            setResolvedDeps(EMPTY_DEPS);
             return;
         }
 
         let cancelled = false;
-        resolveLibraries(specs)
+        resolveLibraries(specs, { cdnUrl: cdnUrlRef.current })
             .then((res) => {
                 if (cancelled) return;
                 setResolvedDeps(res.map((r) => r.source));
@@ -87,28 +103,25 @@ export function AleatoryViewer({
                 if (cancelled) return;
                 const msg = err instanceof Error ? err.message : String(err);
                 setLibError(msg);
-                onError?.({ type: "alea:error", message: msg, line: null });
+                callbacksRef.current.onError?.({ type: "alea:error", message: msg, line: null });
             });
 
         return () => {
             cancelled = true;
         };
-    }, [declaredLibrariesKey, explicitDeps, code, onError]);
+    }, [declaredLibrariesKey, explicitDeps]);
 
     const activeDeps = explicitDeps ?? resolvedDeps;
 
-    // Callbacks ref to avoid recreating sandbox on inline function changes
-    const callbacksRef = useRef({ onReady, onError, onViolation });
-    callbacksRef.current = { onReady, onError, onViolation };
-
-    // Payload key to detect when code/seed/params actually changed
+    // Stable payload key to detect when code/seed/params/deps actually changed
     const payloadKey = useMemo(() => {
+        if (!activeDeps) return null;
         return JSON.stringify({
             code,
             seed,
             params: params ?? {},
             paramsSchema: paramsSchema ?? [],
-            depsCount: activeDeps?.length ?? -1,
+            deps: activeDeps,
             liveClock,
             maxDpr,
             wantImage,
@@ -117,7 +130,7 @@ export function AleatoryViewer({
 
     useEffect(() => {
         const container = containerRef.current;
-        if (!container || !activeDeps || libError) return;
+        if (!container || !activeDeps || !payloadKey || libError) return;
 
         if (controllerRef.current) {
             controllerRef.current.destroy();
@@ -149,7 +162,7 @@ export function AleatoryViewer({
                 controllerRef.current = null;
             }
         };
-    }, [payloadKey, activeDeps, libError, code, seed, params, paramsSchema, liveClock, maxDpr, wantImage]);
+    }, [payloadKey, libError]);
 
     return (
         <div
