@@ -75,7 +75,7 @@ export function resetRedisClientForTesting() {
  * **Bump this whenever a cached type changes.** It costs one cold fetch per
  * key and is the only thing standing between a type change and an outage.
  */
-const SCHEMA = 2;
+const SCHEMA = 3;
 
 export async function cacheWrap<T>(
     key: string,
@@ -108,7 +108,7 @@ export async function cacheWrap<T>(
         if (redis) {
             try {
                 const cached = await redis.get<Envelope<T>>(fullKey);
-                if (cached && cached.data !== undefined) {
+                if (cached && cached.data !== undefined && staleOk(cached.data)) {
                     const age = Date.now() - cached.timestamp;
                     memoryCache.set(fullKey, { at: Date.now(), value: cached.data });
 
@@ -116,12 +116,9 @@ export async function cacheWrap<T>(
                         return cached.data;
                     }
 
-                    if (staleOk(cached.data)) {
-                        // Stale while revalidate: return cached data now, refresh in background.
-                        triggerBackgroundRevalidation(fullKey, fetcher, redis, redisTtlSec);
-                        return cached.data;
-                    }
-                    // Otherwise fall through and await the fresh fetch below.
+                    // Stale while revalidate: return cached data now, refresh in background.
+                    triggerBackgroundRevalidation(fullKey, fetcher, redis, redisTtlSec, staleOk);
+                    return cached.data;
                 }
             } catch {
                 // Redis error: fall through to direct fetch.
@@ -130,11 +127,15 @@ export async function cacheWrap<T>(
 
         // Cache miss or Redis unavailable: fetch from origin.
         const fresh = await fetcher();
-        memoryCache.set(fullKey, { at: Date.now(), value: fresh });
+        if (staleOk(fresh)) {
+            memoryCache.set(fullKey, { at: Date.now(), value: fresh });
 
-        if (redis) {
-            const envelope: Envelope<T> = { data: fresh, timestamp: Date.now() };
-            redis.set(fullKey, envelope, { ex: redisTtlSec }).catch(() => {});
+            if (redis) {
+                const envelope: Envelope<T> = { data: fresh, timestamp: Date.now() };
+                redis.set(fullKey, envelope, { ex: redisTtlSec }).catch(() => {});
+            }
+        } else if (mem && staleOk(mem.value as T)) {
+            return mem.value as T;
         }
 
         return fresh;
@@ -153,6 +154,7 @@ function triggerBackgroundRevalidation<T>(
     fetcher: () => Promise<T>,
     redis: Redis,
     redisTtlSec: number,
+    staleOk: (data: T) => boolean,
 ) {
     if (backgroundRevalidations.has(fullKey)) return;
     backgroundRevalidations.add(fullKey);
@@ -160,9 +162,11 @@ function triggerBackgroundRevalidation<T>(
     (async () => {
         try {
             const fresh = await fetcher();
-            memoryCache.set(fullKey, { at: Date.now(), value: fresh });
-            const envelope: Envelope<T> = { data: fresh, timestamp: Date.now() };
-            await redis.set(fullKey, envelope, { ex: redisTtlSec });
+            if (staleOk(fresh)) {
+                memoryCache.set(fullKey, { at: Date.now(), value: fresh });
+                const envelope: Envelope<T> = { data: fresh, timestamp: Date.now() };
+                await redis.set(fullKey, envelope, { ex: redisTtlSec });
+            }
         } catch {
             // Keep stale cache on background revalidation failure.
         } finally {

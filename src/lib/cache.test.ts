@@ -65,6 +65,27 @@ async function run() {
     const third = await cacheWrap("test:key", fetcher, { l1Ms: 50, freshMs: 50 });
     check("call after TTL executes fetcher again", third.count === 2 && calls === 2);
 
+    // 5. Cache poisoning prevention: invalid value rejected by staleOk
+    let poisonedFetcherCalls = 0;
+    const poisonedFetcher = async () => {
+        poisonedFetcherCalls++;
+        return { items: [] as string[] };
+    };
+    const valid = (data: { items: string[] }) => data.items.length > 0;
+
+    const emptyRes = await cacheWrap("test:poison", poisonedFetcher, {
+        l1Ms: 100,
+        staleOk: valid,
+    });
+    check("empty fetcher returned", emptyRes.items.length === 0);
+
+    // Second call should run fetcher again because empty result was not cached
+    await cacheWrap("test:poison", poisonedFetcher, {
+        l1Ms: 100,
+        staleOk: valid,
+    });
+    check("invalid/empty result is not cached to memory", poisonedFetcherCalls === 2);
+
     if (failures > 0) {
         console.error(`\n${failures} check(s) failed.`);
         process.exit(1);

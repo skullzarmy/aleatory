@@ -198,6 +198,29 @@ async function docsFor(
     return out;
 }
 
+function recordCovers(
+    tokens: TzktToken[],
+    state: Map<string, { pendingUri: string; tokenUri?: string }>,
+    docs: Map<string, TokenDoc>,
+    out: Map<string, string>,
+) {
+    for (const t of tokens) {
+        const address = t.contract.address;
+        if (out.has(address)) continue;
+        // A pending document carries an image too. Rendered means the token no
+        // longer points at its generator's pending document and we hold the rendered doc.
+        const s = state.get(key(t));
+        if (s?.pendingUri && s.tokenUri === s.pendingUri) continue;
+        const resolved = docs.get(key(t));
+        const m = (resolved?.aleaProvider ? resolved : undefined) ?? t.metadata ?? resolved;
+        if (s?.pendingUri && s?.tokenUri && s.tokenUri !== s.pendingUri && !m?.aleaProvider) {
+            continue;
+        }
+        const display = m?.displayUri || m?.thumbnailUri;
+        if (display) out.set(address, ipfsImageUrl(display));
+    }
+}
+
 /**
  * The newest rendered piece's image, per generator, in one request:
  * `contract.in` returns tokens across every generator at once, newest first,
@@ -218,21 +241,20 @@ export async function coversFor(generators: string[]): Promise<Map<string, strin
     const docs = await docsFor(tokens, state);
 
     const out = new Map<string, string>();
-    for (const t of tokens) {
-        const address = t.contract.address;
-        if (out.has(address)) continue;
-        // A pending document carries an image too. Rendered means the token no
-        // longer points at its generator's pending document and we hold the rendered doc.
-        const s = state.get(key(t));
-        if (s?.pendingUri && s.tokenUri === s.pendingUri) continue;
-        const resolved = docs.get(key(t));
-        const m = (resolved?.aleaProvider ? resolved : undefined) ?? t.metadata ?? resolved;
-        if (s?.pendingUri && s?.tokenUri && s.tokenUri !== s.pendingUri && !m?.aleaProvider) {
-            continue;
+    recordCovers(tokens, state, docs, out);
+
+    // Any quiet generator crowded off the newest-token batch falls back to
+    // token 0, which every generator with mints carries.
+    const missing = generators.filter((g) => !out.has(g));
+    if (missing.length > 0) {
+        const fallback = await fetchTokensIn(missing, ["0"]).catch(() => []);
+        if (fallback.length > 0) {
+            const fallbackState = await pendingState(fallback);
+            const fallbackDocs = await docsFor(fallback, fallbackState);
+            recordCovers(fallback, fallbackState, fallbackDocs, out);
         }
-        const display = m?.displayUri || m?.thumbnailUri;
-        if (display) out.set(address, ipfsImageUrl(display));
     }
+
     return out;
 }
 
