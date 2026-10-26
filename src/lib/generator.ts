@@ -137,7 +137,7 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
                 totalMutez: gen.totalMutez.toString(),
             };
         },
-        { freshMs: 30_000, l1Ms: 15_000 },
+        { freshMs: 30_000, l1Ms: 15_000, staleOk: (gen) => gen !== null },
     );
     if (!cached) return null;
     return {
@@ -304,6 +304,8 @@ export interface GeneratorPage {
  * unsealed generators that are dropped.
  */
 const OVERFETCH = 10;
+
+const knownCovers = new Map<string, string>();
 
 /**
  * One page of the catalog, and where the next one starts.
@@ -491,12 +493,16 @@ export async function fetchGeneratorPage(
             const rawGenerators: GeneratorSummary[] = visible.map((c) => {
                 const meta = metas.get(c.address) ?? {};
                 const own = meta.displayUri ?? meta.thumbnailUri;
+                const cover = own
+                    ? ipfsImageUrl(own)
+                    : (covers.get(c.address) ?? knownCovers.get(c.address));
+                if (cover) knownCovers.set(c.address, cover);
                 return {
                     address: c.address,
                     artists: artists.get(c.address),
                     name: meta.name || c.alias,
                     description: meta.description,
-                    coverUrl: own ? ipfsImageUrl(own) : covers.get(c.address),
+                    coverUrl: cover,
                     minted: c.tokensCount ?? 0,
                     editionSize: editions.get(c.address) ?? 0,
                     firstActivity: c.firstActivityTime,
@@ -522,7 +528,14 @@ export async function fetchGeneratorPage(
                 unconfigured: false,
             };
         },
-        { freshMs: 30_000, l1Ms: 15_000, redisTtlSec: 86_400 },
+        {
+            freshMs: 30_000,
+            l1Ms: 15_000,
+            redisTtlSec: 86_400,
+            staleOk: (data) =>
+                Array.isArray(data?.generators) &&
+                (data.generators.length > 0 || Boolean(data.cursor)),
+        },
     );
 }
 
@@ -584,7 +597,11 @@ export async function fetchAllGenerators(opts?: {
                     // face before its first piece finishes rendering.
                     coverUrl: (() => {
                         const own = meta.displayUri ?? meta.thumbnailUri;
-                        return own ? ipfsImageUrl(own) : covers.get(c.address);
+                        const cover = own
+                            ? ipfsImageUrl(own)
+                            : (covers.get(c.address) ?? knownCovers.get(c.address));
+                        if (cover) knownCovers.set(c.address, cover);
+                        return cover;
                     })(),
                     minted: c.tokensCount ?? 0,
                     editionSize: editions.get(c.address) ?? 0,
@@ -598,7 +615,13 @@ export async function fetchAllGenerators(opts?: {
                 };
             });
         },
-        { freshMs: 30_000, l1Ms: 15_000, redisTtlSec: 86_400 },
+        {
+            freshMs: 30_000,
+            l1Ms: 15_000,
+            redisTtlSec: 86_400,
+            staleOk: (data) =>
+                Array.isArray(data) && data.length > 0 && data.some((g) => Boolean(g.coverUrl)),
+        },
     );
 }
 
