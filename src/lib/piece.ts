@@ -130,8 +130,8 @@ export async function fetchPiece(contract: string, tokenId: string): Promise<Pie
         {
             freshMs: 20_000,
             l1Ms: 10_000,
-            // Never serve a stale "still pending" snapshot to the poll that exists to catch it ending.
-            staleOk: (piece) => !piece?.pending,
+            // Never serve a missing, seedless, or unrendered snapshot to the poll that exists to catch it ending.
+            staleOk: (piece) => Boolean(piece?.seed && !piece.pending),
         },
     );
 }

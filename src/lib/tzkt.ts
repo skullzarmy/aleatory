@@ -108,32 +108,38 @@ export async function indexerFetch(url: string, init: RequestInit = {}): Promise
 const queryCache = new Map<string, { data: unknown; timestamp: number }>();
 const MAX_CACHE_ENTRIES = 500;
 
+async function getLive<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
+    const url = new URL(`${tzktApi()}${path}`);
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
+    const cacheKey = url.toString();
+
+    const res = await indexerFetch(cacheKey, { cache: "no-store" });
+    if (!res.ok) {
+        throw new Error(`TzKT ${res.status} on ${path}`);
+    }
+    // TzKT's answer for a single entity that does not exist is 204 and no body.
+    if (res.status === 204) return null as T;
+    const data = (await res.json()) as T;
+    if (queryCache.size >= MAX_CACHE_ENTRIES) {
+        const oldestKey = queryCache.keys().next().value;
+        if (oldestKey) queryCache.delete(oldestKey);
+    }
+    queryCache.set(cacheKey, { data, timestamp: Date.now() });
+    return data;
+}
+
 /**
  * Every read here asks about chain state. Queries fetch live from the indexer,
  * updating the in-memory cache on success, and fall back to the last clean answer
  * if the indexer is temporarily unreachable.
  */
 async function get<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
-    const url = new URL(`${tzktApi()}${path}`);
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-    const cacheKey = url.toString();
-
     try {
-        const res = await indexerFetch(cacheKey, { cache: "no-store" });
-        if (!res.ok) {
-            throw new Error(`TzKT ${res.status} on ${path}`);
-        }
-        // TzKT's answer for a single entity that does not exist is 204 and no body.
-        if (res.status === 204) return null as T;
-        const data = (await res.json()) as T;
-        if (queryCache.size >= MAX_CACHE_ENTRIES) {
-            const oldestKey = queryCache.keys().next().value;
-            if (oldestKey) queryCache.delete(oldestKey);
-        }
-        queryCache.set(cacheKey, { data, timestamp: Date.now() });
-        return data;
+        return await getLive<T>(path, params);
     } catch (err) {
-        const cached = queryCache.get(cacheKey);
+        const url = new URL(`${tzktApi()}${path}`);
+        for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
+        const cached = queryCache.get(url.toString());
         if (cached) {
             return cached.data as T;
         }
@@ -637,6 +643,14 @@ export async function fetchStorage<T = unknown>(address: string): Promise<T | nu
     return get<T | null>(`/v1/contracts/${requireAddress(address)}/storage`);
 }
 
+/**
+ * Raw contract storage read directly from the indexer without falling back to
+ * an earlier in-memory answer. Used before asking a wallet to sign.
+ */
+export async function fetchStorageLive<T = unknown>(address: string): Promise<T | null> {
+    return getLive<T | null>(`/v1/contracts/${requireAddress(address)}/storage`);
+}
+
 /** Who holds a token now. */
 export async function fetchOwner(contract: string, tokenId: string): Promise<string | null> {
     const rows = await get<{ account: { address: string } }[]>("/v1/tokens/balances", {
@@ -779,6 +793,13 @@ export async function hasEntrypoint(address: string, name: string): Promise<bool
     return Array.isArray(rows) && rows.some((e: { name?: string }) => e?.name === name);
 }
 
+export class OpRevertedError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "OpRevertedError";
+    }
+}
+
 /**
  * Which token an operation minted. A collector signs and gets a hash back; the
  * contract decides the token id.
@@ -795,7 +816,7 @@ export async function fetchMintedTokenId(
     hash: string,
 ): Promise<string | null> {
     if (!isAddress(contract) || !isAddress(buyer)) return null;
-    const rows = await get<{ "token.tokenId": string; transactionId: number }[]>(
+    const rows = await getLive<{ "token.tokenId": string; transactionId: number }[]>(
         "/v1/tokens/transfers",
         {
             "token.contract": requireAddress(contract),
@@ -808,16 +829,50 @@ export async function fetchMintedTokenId(
             select: "token.tokenId,transactionId",
         },
     );
-    if (rows.length === 0) return null;
+    if (rows.length > 0) {
+        const ops = await getLive<{ id: number; hash: string }[]>("/v1/operations/transactions", {
+            "id.in": rows.map((r) => r.transactionId).join(","),
+            limit: rows.length,
+            select: "id,hash",
+        });
+        const hashById = new Map(ops.map((o) => [o.id, o.hash]));
+        const match = rows.find((r) => hashById.get(r.transactionId) === hash);
+        if (match) return match["token.tokenId"];
+    }
 
-    const ops = await get<{ id: number; hash: string }[]>("/v1/operations/transactions", {
-        "id.in": rows.map((r) => r.transactionId).join(","),
-        limit: rows.length,
-        select: "id,hash",
-    });
-    const hashById = new Map(ops.map((o) => [o.id, o.hash]));
-    const match = rows.find((r) => hashById.get(r.transactionId) === hash);
-    return match ? match["token.tokenId"] : null;
+    // Two collectors racing for the last edition can both pass pre-apply
+    // simulation against the previous block and both inject; the second reverts
+    // inside the block and never produces a token transfer.
+    const recent = await getLive<
+        { hash: string; status: string; errors?: { with?: { string?: string } }[] }[]
+    >("/v1/operations/transactions", {
+        sender: requireAddress(buyer),
+        target: requireAddress(contract),
+        "sort.desc": "id",
+        limit: 8,
+        select: "hash,status,errors",
+    }).catch(() => []);
+
+    const landed = recent.find((o) => o.hash === hash);
+    if (landed && landed.status !== "applied") {
+        const reason = landed.errors?.map((e) => e.with?.string).find(Boolean);
+        if (reason === "SOLD_OUT") {
+            throw new OpRevertedError("Sold out before your operation landed.");
+        }
+        if (reason === "PAUSED") {
+            throw new OpRevertedError("Sales were paused before your operation landed.");
+        }
+        if (reason === "WRONG_PRICE") {
+            throw new OpRevertedError("The price changed before your operation landed.");
+        }
+        throw new OpRevertedError(
+            reason
+                ? `Your operation was reverted on chain (${reason}).`
+                : "Your operation was reverted on chain.",
+        );
+    }
+
+    return null;
 }
 
 /**

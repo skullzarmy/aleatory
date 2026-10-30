@@ -124,6 +124,16 @@ async function resetClient(c: DAppClient): Promise<void> {
     } catch {
         /* older SDKs have no destroy */
     }
+    try {
+        const drop: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith("beacon:") || k.startsWith("wc@2:"))) drop.push(k);
+        }
+        for (const k of drop) localStorage.removeItem(k);
+    } catch {
+        /* storage blocked */
+    }
     clientPromise = null;
 }
 
@@ -247,7 +257,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const disconnect = useCallback(async () => {
         try {
             const c = await getClient();
-            await c.clearActiveAccount();
+            await resetClient(c);
         } catch {
             /* clearing a session that is already gone is fine */
         }

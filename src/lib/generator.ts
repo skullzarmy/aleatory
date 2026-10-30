@@ -1,7 +1,7 @@
 /**
  * A generator, read from its own storage.
  */
-import { fetchStorage, fetchRecentTokens, type TzktToken } from "./tzkt";
+import { fetchStorage, fetchStorageLive, fetchRecentTokens, type TzktToken } from "./tzkt";
 import {
     fetchGenerators,
     fetchGeneratorMeta,
@@ -137,7 +137,7 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
                 totalMutez: gen.totalMutez.toString(),
             };
         },
-        { freshMs: 30_000, l1Ms: 15_000, staleOk: (gen) => gen !== null },
+        { freshMs: 10_000, l1Ms: 5_000, staleOk: (gen) => gen !== null },
     );
     if (!cached) return null;
     return {
@@ -145,6 +145,47 @@ export async function fetchGenerator(address: string): Promise<Generator | null>
         priceMutez: BigInt(cached.priceMutez),
         renderGasMutez: BigInt(cached.renderGasMutez),
         totalMutez: BigInt(cached.totalMutez),
+    };
+}
+
+export interface GeneratorPreflight {
+    sealed: boolean;
+    paused: boolean;
+    soldOut: boolean;
+    totalMutez: bigint;
+    providerReachable: boolean;
+}
+
+/**
+ * The sale state of a generator read straight from the indexer without cache
+ * fallback, checked immediately before asking a wallet to sign.
+ */
+export async function fetchGeneratorPreflight(address: string): Promise<GeneratorPreflight | null> {
+    if (!isAddress(address)) return null;
+    const s = await fetchStorageLive<RawStorage>(address);
+    if (!s || !s.art) return null;
+
+    const editionSize = parseInt(s.sale.edition_size, 10);
+    const minted = parseInt(s.next_token_id, 10);
+    const price = BigInt(s.sale.price);
+
+    let quoted: bigint | null = null;
+    if (s.render.provider) {
+        try {
+            const raw = await fetchStorageLive<{ render_gas?: string }>(s.render.provider);
+            quoted = raw?.render_gas === undefined ? null : BigInt(raw.render_gas);
+        } catch {
+            quoted = null;
+        }
+    }
+    const gas = quoted ?? BigInt(s.render.render_gas);
+
+    return {
+        sealed: s.art.code_sealed ?? true,
+        paused: s.sale.paused,
+        soldOut: editionSize > 0 && minted >= editionSize,
+        totalMutez: price + gas,
+        providerReachable: quoted !== null,
     };
 }
 

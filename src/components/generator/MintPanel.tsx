@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
-import { fetchMintedTokenId } from "@/lib/tzkt";
+import { fetchMintedTokenId, OpRevertedError } from "@/lib/tzkt";
 import { tzktLink } from "@/lib/config";
 import { formatTez, shortAddress } from "@/lib/utils";
-import type { Generator } from "@/lib/generator";
+import { fetchGeneratorPreflight, type Generator } from "@/lib/generator";
+import { invalidateCache } from "@/lib/cache";
 import { resolveParams, encodeParams, type ParamsSchema, type ParamSpec } from "@/lib/params";
 import * as ops from "@/lib/ops";
 import { AccountLink } from "@/components/account/AccountLink";
@@ -49,6 +50,26 @@ export function MintPanel({
         setBusy(true);
         setError(null);
         try {
+            const live = await fetchGeneratorPreflight(generator.address).catch(() => null);
+            if (live) {
+                if (!live.sealed) {
+                    throw new Error("This generator is still being written to the chain.");
+                }
+                if (live.soldOut) {
+                    throw new Error("This generator just sold out.");
+                }
+                if (live.paused) {
+                    throw new Error("Sales are paused.");
+                }
+                if (!live.providerReachable) {
+                    throw new Error("The render provider is not answering.");
+                }
+                if (live.totalMutez !== generator.totalMutez) {
+                    throw new Error(
+                        `The price changed to ${formatTez(live.totalMutez)} ꜩ. Review and mint again.`,
+                    );
+                }
+            }
             const client = await getClient();
             // Resolved through the rule every reader shares, so the operation
             // records the values the piece will run with. docs/params.md §3.
@@ -57,6 +78,7 @@ export function MintPanel({
                 : "";
             const res = await ops.mint(client, generator.address, params, generator.totalMutez);
             setHash(res.hash);
+            invalidateCache(`generator:${generator.address}`);
             // The provider polls regardless, so this only shortens the wait.
             void fetch("/api/render-ping", {
                 method: "POST",
@@ -71,6 +93,9 @@ export function MintPanel({
                 return;
             }
         } catch (e) {
+            setHash(null);
+            invalidateCache(`generator:${generator.address}`);
+            router.refresh();
             setError(e instanceof Error ? e.message : "That did not go through");
         } finally {
             setBusy(false);
@@ -103,6 +128,18 @@ export function MintPanel({
                     >
                         The operation
                     </a>
+                    {!busy && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setHash(null);
+                                router.refresh();
+                            }}
+                            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+                        >
+                            Mint another
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -297,8 +334,12 @@ async function waitForToken(
 ): Promise<string | null> {
     const deadline = Date.now() + 40_000;
     while (Date.now() < deadline) {
-        const id = await fetchMintedTokenId(generator, buyer, hash).catch(() => null);
-        if (id !== null) return id;
+        try {
+            const id = await fetchMintedTokenId(generator, buyer, hash);
+            if (id !== null) return id;
+        } catch (e) {
+            if (e instanceof OpRevertedError) throw e;
+        }
         await new Promise((r) => setTimeout(r, 2_000));
     }
     return null;

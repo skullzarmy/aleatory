@@ -64,18 +64,18 @@ async function hardStorageCeiling(): Promise<number> {
     return storageCeiling;
 }
 
-/** Creating a token: ledger, token_metadata, and two payouts. */
-const MINT: Limits = { gas: 90_000, storage: 700 };
+/** Creating a token: ledger, token_metadata, provider view and collaborator payouts. */
+const MINT: Limits = { gas: 150_000, storage: 1_000 };
 /** A big_map write or a small storage change. */
 const SMALL: Limits = { gas: 30_000, storage: 400 };
 /** Moving a token, which touches the ledger and an operator set. */
 const TRANSFER: Limits = { gas: 60_000, storage: 500 };
 /**
- * Escrowing a token into the marketplace: a listing row here, and an
- * inter-contract transfer that writes the generator's ledger and clears an
- * operator.
+ * Escrowing or settling a token through the marketplace: a listing or offer
+ * row here, royalty and seller payouts, and an inter-contract transfer that
+ * writes the generator's ledger.
  */
-const LIST: Limits = { gas: 120_000, storage: 1_000 };
+const LIST: Limits = { gas: 150_000, storage: 1_000 };
 
 /**
  * The parameter's real serialized length, rather than a guess at it.
@@ -111,14 +111,59 @@ const detail = (c: Call) => {
     } as never;
 };
 
+function normalizeOpError(err: unknown): Error {
+    let raw = "";
+    try {
+        raw =
+            err instanceof Error
+                ? `${err.message} ${JSON.stringify(err)}`
+                : typeof err === "string"
+                  ? err
+                  : JSON.stringify(err);
+    } catch {
+        raw = err instanceof Error ? err.message : String(err);
+    }
+
+    if (raw.includes("SOLD_OUT")) {
+        return new Error("This generator is sold out.");
+    }
+    if (raw.includes("PAUSED")) {
+        return new Error("Sales are paused.");
+    }
+    if (raw.includes("WRONG_PRICE")) {
+        return new Error("The price changed. Refresh and try again.");
+    }
+    if (raw.includes("NO_LISTING")) {
+        return new Error("Someone else already bought or removed this listing.");
+    }
+    if (raw.includes("NO_OFFER")) {
+        return new Error("That offer is no longer standing.");
+    }
+    if (
+        raw.includes("counter_in_the_past") ||
+        raw.includes("branch_delayed") ||
+        raw.includes("already_used")
+    ) {
+        return new Error(
+            "Another operation from your wallet is still settling. Wait a few seconds and try again.",
+        );
+    }
+
+    return err instanceof Error ? err : new Error("That did not go through");
+}
+
 /**
  * Several calls, one signature, all or nothing. Tezos applies a batch
  * atomically, so a failure in the last call reverts the earlier ones, which is
  * what makes granting an operator and using the grant safe to send together.
  */
 async function sendBatch(client: DAppClient, calls: Call[]): Promise<OpResult> {
-    const result = await client.requestOperation({ operationDetails: calls.map(detail) });
-    return { hash: (result as { transactionHash: string }).transactionHash };
+    try {
+        const result = await client.requestOperation({ operationDetails: calls.map(detail) });
+        return { hash: (result as { transactionHash: string }).transactionHash };
+    } catch (err) {
+        throw normalizeOpError(err);
+    }
 }
 
 async function send(
@@ -213,7 +258,11 @@ export function mint(
     params: string,
     totalMutez: bigint,
 ): Promise<OpResult> {
-    return send(client, generator, "mint", bytes(utf8ToHex(params)), totalMutez, MINT);
+    const hex = utf8ToHex(params);
+    return send(client, generator, "mint", bytes(hex), totalMutez, {
+        ...MINT,
+        bytes: 500 + hex.length / 2,
+    });
 }
 
 /** Grant the marketplace the right to move one token, which listing needs. */
@@ -413,7 +462,7 @@ export async function delist(
     /** The marketplace holding it, from the listing. */
     marketplaceAddress: string,
 ): Promise<OpResult> {
-    return send(client, marketplaceAddress, "delist", int(listingId));
+    return send(client, marketplaceAddress, "delist", int(listingId), 0, LIST);
 }
 
 export async function buyListing(
@@ -423,7 +472,7 @@ export async function buyListing(
     /** The marketplace holding it, from the listing. */
     marketplaceAddress: string,
 ): Promise<OpResult> {
-    return send(client, marketplaceAddress, "buy", int(listingId), priceMutez, TRANSFER);
+    return send(client, marketplaceAddress, "buy", int(listingId), priceMutez, LIST);
 }
 
 export async function makeOffer(
