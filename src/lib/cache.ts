@@ -75,7 +75,16 @@ export function resetRedisClientForTesting() {
  * **Bump this whenever a cached type changes.** It costs one cold fetch per
  * key and is the only thing standing between a type change and an outage.
  */
-const SCHEMA = 3;
+const SCHEMA = 4;
+
+export function invalidateCache(key: string): void {
+    const fullKey = `aleatory:v${SCHEMA}:${NETWORK}:${key}`;
+    memoryCache.delete(fullKey);
+    const redis = getRedis();
+    if (redis) {
+        redis.del(fullKey).catch(() => {});
+    }
+}
 
 export async function cacheWrap<T>(
     key: string,
@@ -110,9 +119,8 @@ export async function cacheWrap<T>(
                 const cached = await redis.get<Envelope<T>>(fullKey);
                 if (cached && cached.data !== undefined && staleOk(cached.data)) {
                     const age = Date.now() - cached.timestamp;
-                    memoryCache.set(fullKey, { at: Date.now(), value: cached.data });
-
                     if (age < freshMs) {
+                        memoryCache.set(fullKey, { at: Date.now(), value: cached.data });
                         return cached.data;
                     }
 

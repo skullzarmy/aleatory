@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@/context/WalletContext";
 import { formatTez, parseTez, CONFIRM_ABOVE_MUTEZ } from "@/lib/utils";
-import { proceeds, type Listing, type Offer } from "@/lib/market";
+import { fetchListingFor, proceeds, type Listing, type Offer } from "@/lib/market";
+import { invalidateCache } from "@/lib/cache";
 import { addresses } from "@/lib/router";
 import * as ops from "@/lib/ops";
 import { AccountLink } from "@/components/account/AccountLink";
@@ -117,8 +118,11 @@ export function PieceMarket({
         setError(null);
         try {
             await fn();
+            invalidateCache(`piece:${contract}:${tokenId}`);
             setSettling(true);
         } catch (e) {
+            invalidateCache(`piece:${contract}:${tokenId}`);
+            router.refresh();
             setError(e instanceof Error ? e.message : "That did not go through");
         } finally {
             setBusy(null);
@@ -159,14 +163,27 @@ export function PieceMarket({
                             disabled={busy !== null || settling}
                             onClick={() =>
                                 address
-                                    ? run("buy", async () =>
-                                          ops.buyListing(
+                                    ? run("buy", async () => {
+                                          const live = await fetchListingFor(
+                                              contract,
+                                              tokenId,
+                                          ).catch(() => listing);
+                                          if (
+                                              !live ||
+                                              live.id !== listing.id ||
+                                              live.marketplace !== listing.marketplace
+                                          ) {
+                                              throw new Error(
+                                                  "Someone else already bought or removed this listing.",
+                                              );
+                                          }
+                                          await ops.buyListing(
                                               await getClient(),
                                               listing.id,
                                               listing.priceMutez,
                                               listing.marketplace,
-                                          ),
-                                      )
+                                          );
+                                      })
                                     : void connect()
                             }
                             className="w-full rounded-md bg-alea-600 px-3 py-2 text-sm font-medium text-white hover:bg-alea-700 disabled:opacity-60"

@@ -225,24 +225,6 @@ const config: NextConfig = {
                 ],
             },
             {
-                source: "/piece/:contract/:tokenId",
-                headers: [
-                    {
-                        key: "Netlify-CDN-Cache-Control",
-                        value: "public, s-maxage=300, stale-while-revalidate=86400, durable",
-                    },
-                ],
-            },
-            {
-                source: "/generator/:address",
-                headers: [
-                    {
-                        key: "Netlify-CDN-Cache-Control",
-                        value: "public, s-maxage=120, stale-while-revalidate=86400, durable",
-                    },
-                ],
-            },
-            {
                 source: "/wallet/:address",
                 headers: [
                     {

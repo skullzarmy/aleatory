@@ -6,7 +6,7 @@
  *
  * Run: npx tsx src/lib/cache.test.ts
  */
-import { cacheWrap, resetRedisClientForTesting } from "./cache";
+import { cacheWrap, invalidateCache, resetRedisClientForTesting } from "./cache";
 
 let failures = 0;
 
@@ -85,6 +85,11 @@ async function run() {
         staleOk: valid,
     });
     check("invalid/empty result is not cached to memory", poisonedFetcherCalls === 2);
+
+    // 6. Explicit invalidation evicts L1 memory cache immediately
+    invalidateCache("test:key");
+    const fourth = await cacheWrap("test:key", fetcher, { l1Ms: 1000, freshMs: 1000 });
+    check("invalidateCache forces fresh fetch", fourth.count === 3 && calls === 3);
 
     if (failures > 0) {
         console.error(`\n${failures} check(s) failed.`);
