@@ -97,6 +97,32 @@ async function buildClient(): Promise<DAppClient> {
         featuredWallets: FEATURED_WALLETS,
     });
 
+    // WalletConnectTransport's default `isSessionValid` sends a live WebSocket
+    // `signClient.ping` to the wallet during `init()` and disconnects the
+    // session when the ping fails. On mobile the wallet app is suspended in the
+    // background until `tryToAppSwitch()` foregrounds it, and rapid refreshes
+    // abort in-flight pings, causing the SDK to tear down valid sessions.
+    const internal = c as unknown as {
+        initInternalTransports?: () => Promise<void>;
+        activeAccountLoaded?: Promise<unknown>;
+        walletConnectTransport?: {
+            client?: {
+                isSessionValid?: (s?: { expiry?: number }) => Promise<boolean>;
+            };
+        };
+    };
+    const origInitTransports = internal.initInternalTransports;
+    if (typeof origInitTransports === "function") {
+        internal.initInternalTransports = async function (this: typeof internal) {
+            await origInitTransports.call(this);
+            const wcClient = this.walletConnectTransport?.client;
+            if (wcClient) {
+                wcClient.isSessionValid = async (session) =>
+                    Boolean(session?.expiry && session.expiry > Math.floor(Date.now() / 1000));
+            }
+        };
+    }
+
     // The wallet can change the active account without being asked, and nothing
     // here polls, so without this the page shows the old account until reload.
     await c.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
@@ -104,7 +130,22 @@ async function buildClient(): Promise<DAppClient> {
         onActiveAccount?.(next);
     });
 
+    await internal.activeAccountLoaded?.catch(() => {});
+
     return c;
+}
+
+function clearStoredSession(): void {
+    try {
+        const drop: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith("beacon:") || k.startsWith("wc@2:"))) drop.push(k);
+        }
+        for (const k of drop) localStorage.removeItem(k);
+    } catch {
+        /* storage blocked */
+    }
 }
 
 /**
@@ -124,16 +165,7 @@ async function resetClient(c: DAppClient): Promise<void> {
     } catch {
         /* older SDKs have no destroy */
     }
-    try {
-        const drop: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && (k.startsWith("beacon:") || k.startsWith("wc@2:"))) drop.push(k);
-        }
-        for (const k of drop) localStorage.removeItem(k);
-    } catch {
-        /* storage blocked */
-    }
+    clearStoredSession();
     clientPromise = null;
 }
 
@@ -165,6 +197,40 @@ function matchesNetwork(account: { network?: { type?: string } } | null): boolea
     return (account.network.type ?? "").toLowerCase() === NETWORK;
 }
 
+interface StoredAccount {
+    accountIdentifier?: string;
+    address?: string;
+    network?: { type?: string };
+}
+
+/**
+ * Read the persisted account directly from localStorage on mount so page
+ * refreshes do not boot DAppClient or open and tear down WalletConnect relay
+ * sockets before the visitor asks to sign.
+ */
+function readStoredAccount(): StoredAccount | null {
+    try {
+        const rawActive = localStorage.getItem("beacon:active-account");
+        if (!rawActive || rawActive === "undefined") return null;
+        let activeId = rawActive;
+        try {
+            const parsed: unknown = JSON.parse(rawActive);
+            if (typeof parsed === "string") activeId = parsed;
+        } catch {
+            /* plain string */
+        }
+        if (!activeId) return null;
+
+        const rawAccounts = localStorage.getItem("beacon:accounts");
+        if (!rawAccounts) return null;
+        const accounts: unknown = JSON.parse(rawAccounts);
+        if (!Array.isArray(accounts)) return null;
+        return (accounts as StoredAccount[]).find((a) => a?.accountIdentifier === activeId) ?? null;
+    } catch {
+        return null;
+    }
+}
+
 const WalletContext = createContext<WalletState | null>(null);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -182,47 +248,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    // Restore a session only when one exists, so the SDK stays unloaded for
-    // visitors who have never connected.
+    // Restore from localStorage without booting the SDK or opening a relay
+    // socket on every page load.
     useEffect(() => {
-        let cancelled = false;
-        const hasSession = (() => {
-            try {
-                for (let i = 0; i < localStorage.length; i++) {
-                    if (localStorage.key(i)?.startsWith("beacon:")) return true;
-                }
-            } catch {
-                /* storage blocked */
+        const syncFromStorage = () => {
+            const account = readStoredAccount();
+            if (!account) {
+                setAddress(null);
+                setRestoring(false);
+                return;
             }
-            return false;
-        })();
-
-        if (!hasSession) {
+            if (!matchesNetwork(account)) {
+                clearStoredSession();
+                setAddress(null);
+                setRestoring(false);
+                return;
+            }
+            setAddress(account.address ?? null);
             setRestoring(false);
-            return;
-        }
-
-        void (async () => {
-            try {
-                const c = await getClient();
-                const account = await c.getActiveAccount();
-                if (account && !matchesNetwork(account)) {
-                    // Someone else's session, or one from before a network change.
-                    await resetClient(c);
-                    if (!cancelled) setAddress(null);
-                    return;
-                }
-                if (!cancelled) setAddress(account?.address ?? null);
-            } catch {
-                /* a broken session behaves as no session */
-            } finally {
-                if (!cancelled) setRestoring(false);
-            }
-        })();
-
-        return () => {
-            cancelled = true;
         };
+
+        syncFromStorage();
+
+        const onStorage = (e: StorageEvent) => {
+            if (!e.key || e.key === "beacon:active-account" || e.key === "beacon:accounts") {
+                syncFromStorage();
+            }
+        };
+        window.addEventListener("storage", onStorage);
+        return () => window.removeEventListener("storage", onStorage);
     }, []);
 
     const connect = useCallback(async () => {
@@ -256,10 +310,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const disconnect = useCallback(async () => {
         try {
-            const c = await getClient();
-            await resetClient(c);
+            if (clientPromise) {
+                const c = await clientPromise;
+                await resetClient(c);
+            } else {
+                clearStoredSession();
+            }
         } catch {
-            /* clearing a session that is already gone is fine */
+            clearStoredSession();
         }
         setAddress(null);
     }, []);
