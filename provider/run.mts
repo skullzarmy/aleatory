@@ -18,13 +18,13 @@ import dotenv from "dotenv";
 // above this call, and the daemon would read an unfilled process.env.
 dotenv.config();
 
-const { generatorsServed, generatorsFactories, factoriesIgnored, pendingIn, handle } = await import(
-    "./provider.mts"
-);
+const { generatorsServed, generatorsFactories, factoriesIgnored, pendingIn, prepare, commit } =
+    await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
 
 /** Same flag as every other script here, and as `contract/deploy.ts`. */
 const DRY = process.argv.includes("--dry-run");
+const PREPARE_CONCURRENCY = 2;
 
 function check(name: string, ok: boolean, detail = ""): boolean {
     console.log(`  ${ok ? "ok  " : "MISS"} ${name}${detail ? `  ${detail}` : ""}`);
@@ -96,14 +96,41 @@ for (const generator of generators) {
         console.log(`  ${generator}  nothing waiting`);
         continue;
     }
-    for (const piece of waiting) {
+    if (DRY) {
+        for (const piece of waiting) {
+            total++;
+            console.log(`  ${piece.generator} #${piece.tokenId}  seed ${piece.seed.slice(0, 12)}…`);
+        }
+        continue;
+    }
+
+    const inFlight = new Map<number, Promise<Awaited<ReturnType<typeof prepare>>>>();
+    let nextToPrepare = 0;
+
+    function fillPipeline() {
+        while (inFlight.size < PREPARE_CONCURRENCY && nextToPrepare < waiting.length) {
+            const idx = nextToPrepare++;
+            const p = prepare(waiting[idx]);
+            p.catch(() => {});
+            inFlight.set(idx, p);
+        }
+    }
+
+    fillPipeline();
+    for (let i = 0; i < waiting.length; i++) {
+        const piece = waiting[i];
         total++;
         console.log(`  ${piece.generator} #${piece.tokenId}  seed ${piece.seed.slice(0, 12)}…`);
-        if (DRY) continue;
+        const task = inFlight.get(i);
+        if (!task) break;
+        inFlight.delete(i);
         try {
-            const hash = await handle(piece);
+            const prepared = await task;
+            fillPipeline();
+            const hash = await commit(piece, prepared);
             console.log(`      published, op ${hash}`);
         } catch (e) {
+            fillPipeline();
             console.log(`      FAILED: ${e instanceof Error ? e.message : e}`);
         }
     }

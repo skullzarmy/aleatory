@@ -15,7 +15,7 @@ import dotenv from "dotenv";
 import { createServer } from "node:http";
 dotenv.config();
 
-const { generatorsServed, factoriesIgnored, pendingIn, handle, UnrenderableCodeError } =
+const { generatorsServed, factoriesIgnored, pendingIn, prepare, commit, UnrenderableCodeError } =
     await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
 const { heartbeat } = await import("./heartbeat.ts");
@@ -31,6 +31,8 @@ const PUSH_BIND = process.env.ALEA_PROVIDER_BIND || "127.0.0.1";
 /** How long to wait after a failure, doubling, so a broken dependency is not hammered. */
 const BACKOFF_MIN_MS = 5_000;
 const BACKOFF_MAX_MS = 5 * 60_000;
+/** How many pieces may render and pin concurrently while the chain write confirms one at a time. */
+const PREPARE_CONCURRENCY = 2;
 
 function log(msg: string) {
     console.log(`${new Date().toISOString()}  ${msg}`);
@@ -214,27 +216,61 @@ while (!stopping) {
                 continue;
             }
 
-            for (const piece of waiting) {
-                if (stopping) break;
+            const queue = waiting.filter((piece) => {
                 const key = keyFor(piece.generator, piece.tokenId);
                 if (isStuck(key)) {
                     // Already failed STUCK_AFTER times. Retrying it every pass
                     // forever was the bug; skip it for an hour, or until
                     // provider:retry runs by hand and clears the mark sooner.
                     stuck++;
-                    continue;
+                    return false;
                 }
-                log(`rendering ${piece.generator} #${piece.tokenId}`);
-                // Before the work, not only after it: a capture that takes
-                // twenty seconds is progress and should sound like it.
-                beat({ status: "up", msg: `rendering #${piece.tokenId}` });
+                return true;
+            });
+
+            // Prepare up to PREPARE_CONCURRENCY pieces ahead while the previous
+            // one waits on its block confirmation. Publishing stays one at a
+            // time on the agent's single counter.
+            const inFlight = new Map<number, Promise<Awaited<ReturnType<typeof prepare>>>>();
+            let nextToPrepare = 0;
+
+            function fillPipeline() {
+                while (
+                    !stopping &&
+                    inFlight.size < PREPARE_CONCURRENCY &&
+                    nextToPrepare < queue.length
+                ) {
+                    const idx = nextToPrepare++;
+                    const piece = queue[idx];
+                    log(`rendering ${piece.generator} #${piece.tokenId}`);
+                    // Before the work, not only after it: a capture that takes
+                    // twenty seconds is progress and should sound like it.
+                    beat({ status: "up", msg: `rendering #${piece.tokenId}` });
+                    const p = prepare(piece);
+                    // Suppress unhandledRejection while waiting for the commit
+                    // loop to reach this index; the await below handles it.
+                    p.catch(() => {});
+                    inFlight.set(idx, p);
+                }
+            }
+
+            fillPipeline();
+            for (let i = 0; i < queue.length; i++) {
+                const task = inFlight.get(i);
+                if (!task) break;
+                inFlight.delete(i);
+                const piece = queue[i];
+                const key = keyFor(piece.generator, piece.tokenId);
                 try {
-                    const hash = await handle(piece);
+                    const prepared = await task;
+                    fillPipeline();
+                    const hash = await commit(piece, prepared);
                     published++;
                     recordSuccess(key);
                     log(`  published ${hash}`);
                     beat({ status: "up", msg: `published #${piece.tokenId}` });
                 } catch (e) {
+                    fillPipeline();
                     // One bad piece must not stop the queue. It stays pending
                     // and the next pass tries again, up to the cap.
                     failed++;
