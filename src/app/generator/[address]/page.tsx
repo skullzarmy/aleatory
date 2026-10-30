@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { fetchGenerator, fetchGeneratorPieces } from "@/lib/generator";
 import { fetchListingPage } from "@/lib/market";
 import { MintView } from "@/components/generator/MintView";
-import { FeedGrid } from "@/components/feed/FeedGrid";
+import { GeneratorPieces } from "@/components/generator/GeneratorPieces";
 import { shortAddress } from "@/lib/utils";
 import { fetchProfile, socialHandle } from "@/lib/identity";
 import { BRAND, siteUrl, tzktLink } from "@/lib/config";
@@ -189,7 +189,11 @@ export default async function GeneratorPage({ params }: { params: Params }) {
                                 </Link>
                             )}
                         </div>
-                        <FeedGrid pieces={pieces} artists={artists} prices={prices} />
+                        <GeneratorPieces
+                            pieces={pieces}
+                            artists={Array.from(artists.entries())}
+                            prices={Array.from(prices.entries()).map(([k, v]) => [k, v.toString()])}
+                        />
                     </div>
                 )}
             </div>

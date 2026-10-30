@@ -1,7 +1,7 @@
 /**
  * A generator, read from its own storage.
  */
-import { fetchStorage, fetchRecentTokens } from "./tzkt";
+import { fetchStorage, fetchRecentTokens, type TzktToken } from "./tzkt";
 import {
     fetchGenerators,
     fetchGeneratorMeta,
@@ -254,14 +254,27 @@ async function fetchParamsSchema(address: string): Promise<ParamsSchema | null> 
     }
 }
 
-export async function fetchGeneratorPieces(address: string, limit = 48): Promise<FeedPiece[]> {
+export async function fetchGeneratorPieces(address: string, limit?: number): Promise<FeedPiece[]> {
+    const key =
+        limit !== undefined
+            ? `generator:pieces:${address}:${limit}`
+            : `generator:pieces:${address}`;
     return cacheWrap(
-        `generator:pieces:${address}:${limit}`,
+        key,
         async () => {
-            const [tokens, meta] = await Promise.all([
-                fetchRecentTokens([address], limit),
-                fetchGeneratorMeta(address).catch((): GeneratorMeta => ({})),
-            ]);
+            let tokens: TzktToken[];
+            if (limit !== undefined) {
+                tokens = await fetchRecentTokens([address], limit);
+            } else {
+                const PAGE = 1000;
+                tokens = [];
+                for (let offset = 0; ; offset += PAGE) {
+                    const batch = await fetchRecentTokens([address], PAGE, offset);
+                    tokens.push(...batch);
+                    if (batch.length < PAGE) break;
+                }
+            }
+            const meta = await fetchGeneratorMeta(address).catch((): GeneratorMeta => ({}));
             return piecesOf(tokens, new Map([[address, meta.name ?? ""]]));
         },
         { freshMs: 30_000, l1Ms: 15_000 },
