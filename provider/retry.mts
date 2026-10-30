@@ -13,8 +13,10 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const { pieceAt, handle, generatorsServed, tokenIdsIn } = await import("./provider.mts");
+const { pieceAt, prepare, commit, generatorsServed, tokenIdsIn } = await import("./provider.mts");
 const { keyFor, recordSuccess } = await import("./stuck.mts");
+
+const PREPARE_CONCURRENCY = 2;
 
 const [target, tokenId] = process.argv.slice(2);
 
@@ -58,17 +60,47 @@ console.log(`\nRebuilding ${work.length} piece${work.length === 1 ? "" : "s"}`);
 
 let done = 0;
 let failed = 0;
-for (const { generator, tokenId } of work) {
+
+const inFlight = new Map<
+    number,
+    Promise<{
+        piece: Awaited<ReturnType<typeof pieceAt>>;
+        prepared: Awaited<ReturnType<typeof prepare>>;
+    }>
+>();
+let nextToPrepare = 0;
+
+function fillPipeline() {
+    while (inFlight.size < PREPARE_CONCURRENCY && nextToPrepare < work.length) {
+        const idx = nextToPrepare++;
+        const { generator, tokenId } = work[idx];
+        const p = pieceAt(generator, tokenId).then(async (piece) => ({
+            piece,
+            prepared: await prepare(piece),
+        }));
+        p.catch(() => {});
+        inFlight.set(idx, p);
+    }
+}
+
+fillPipeline();
+for (let i = 0; i < work.length; i++) {
+    const { generator, tokenId } = work[i];
     process.stdout.write(`  ${generator} #${tokenId}  `);
+    const task = inFlight.get(i);
+    if (!task) break;
+    inFlight.delete(i);
     try {
-        const piece = await pieceAt(generator, tokenId);
-        const hash = await handle(piece);
+        const { piece, prepared } = await task;
+        fillPipeline();
+        const hash = await commit(piece, prepared);
         done++;
         // Clears the stuck mark the daemon would otherwise leave in place forever.
         recordSuccess(keyFor(generator, tokenId));
         recordSuccess(keyFor(generator, "scan"));
         console.log(`published ${hash}`);
     } catch (e) {
+        fillPipeline();
         failed++;
         console.log(`FAILED: ${e instanceof Error ? e.message : e}`);
     }

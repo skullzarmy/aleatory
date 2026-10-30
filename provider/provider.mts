@@ -124,7 +124,7 @@ const BLOCKED_GENERATORS = new Set(
 );
 
 /** How many pieces one pass will take on before looking again. */
-const BATCH = 5;
+const BATCH = 10;
 
 /** Generators larger than this are refused rather than rendered. */
 const MAX_GENERATOR_BYTES = 5 * 1024 * 1024;
@@ -133,7 +133,7 @@ const FETCH_TIMEOUT_MS = 15_000;
 const ADDRESS = /^(tz[123]|KT1)[A-Za-z0-9]{33}$/;
 const CID = /^[A-Za-z0-9]{46,64}$/;
 
-interface PendingPiece {
+export interface PendingPiece {
     generator: string;
     tokenId: string;
     /** The buy operation hash. This is the seed. */
@@ -269,12 +269,17 @@ export async function generatorsServed(): Promise<string[]> {
     // Storage is the authority. A generator that no longer names us has
     // switched away, and its old event is still in the stream.
     const served: string[] = [];
-    for (const address of candidates) {
-        if (BLOCKED_GENERATORS.has(address)) continue;
-        const storage = await tzkt<GeneratorStorage>(`/v1/contracts/${address}/storage`).catch(
-            () => null,
+    const list = [...candidates].filter((a) => !BLOCKED_GENERATORS.has(a));
+    for (let i = 0; i < list.length; i += 8) {
+        const chunk = list.slice(i, i + 8);
+        const storages = await Promise.all(
+            chunk.map((address) =>
+                tzkt<GeneratorStorage>(`/v1/contracts/${address}/storage`).catch(() => null),
+            ),
         );
-        if (storage?.render?.provider === PROVIDER_ADDRESS) served.push(address);
+        for (let j = 0; j < chunk.length; j++) {
+            if (storages[j]?.render?.provider === PROVIDER_ADDRESS) served.push(chunk[j]);
+        }
     }
     return served;
 }
@@ -399,10 +404,13 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
     // what a "p5 sketch" is, only how to resolve what it was told. Not caught
     // — a real failure here means this generator is skipped this pass, not
     // that it silently declares no libraries a p5 piece then draws blank.
-    const libraries = parseLibraries(await metadataKey(generator, "aleatory:libraries"));
-    const paramsSchema = await paramsSchemaOf(generator);
-    const nameTrait = await nameTraitOf(generator);
-    const facts = await generatorFacts(generator);
+    const [rawLibs, paramsSchema, nameTrait, facts] = await Promise.all([
+        metadataKey(generator, "aleatory:libraries"),
+        paramsSchemaOf(generator),
+        nameTraitOf(generator),
+        generatorFacts(generator),
+    ]);
+    const libraries = parseLibraries(rawLibs);
     const royalties = royaltiesOf(storage);
 
     const waiting: PendingPiece[] = [];
@@ -586,32 +594,30 @@ async function pin(bytes: Uint8Array, name: string): Promise<string> {
  * API already answered 200 — that response means the upload was accepted, not
  * that it is globally fetchable yet.
  *
- * Six tries, growing backoff, because this is awaited before the chain write
- * now: an indexer that resolves the metadata URI before any gateway confirms
- * it can fetch the content may never retry on its own, and a token sits
- * looking blank until someone notices and reruns `provider:retry` by hand.
- * This does not provably close that race, only narrow it — it confirms our
- * own gateway, not whatever an indexer itself reads from.
+ * Awaited while the operation is confirming on chain: an indexer cannot read
+ * the token's metadata URI until the block lands, so warming during block
+ * confirmation prepares the gateway before any indexer sees the event, without
+ * stalling the queue when the gateway is slow.
  */
+const WARM_ATTEMPTS = 3;
 async function warmGateway(uri: string): Promise<void> {
     const cid = uri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
     if (!cid) return;
     let confirmed = false;
-    for (let attempt = 1; attempt <= 6; attempt++) {
+    for (let attempt = 1; attempt <= WARM_ATTEMPTS; attempt++) {
         const res = await fetch(`${IPFS_GATEWAY}/${cid}`, {
-            signal: AbortSignal.timeout(20_000),
+            signal: AbortSignal.timeout(8_000),
         }).catch(() => null);
         if (res?.ok) {
             confirmed = true;
             break;
         }
-        if (attempt < 6) await new Promise((r) => setTimeout(r, attempt * 3000));
+        if (attempt < WARM_ATTEMPTS) await new Promise((r) => setTimeout(r, attempt * 2000));
     }
     // Publishing proceeds either way (see handle()) — this never blocked that
-    // on principle, only on the three tries above. Logged so exhausting them
-    // is at least visible to whoever is watching the daemon, not silent.
-    if (!confirmed) console.error(`gateway never confirmed ${cid} after 3 tries`);
-    await warmSite(cid).catch(() => {});
+    // on principle. Logged so exhausting the attempts is visible to whoever is
+    // watching the daemon, not silent.
+    if (!confirmed) console.error(`gateway never confirmed ${cid} after ${WARM_ATTEMPTS} tries`);
 }
 
 /**
@@ -623,10 +629,11 @@ async function warmGateway(uri: string): Promise<void> {
  * announcement, seconds after the publish, and a miss there is permanent: it
  * caches the absence against the URL and does not ask again.
  */
-async function warmSite(cid: string): Promise<void> {
+async function warmSite(imageUri: string): Promise<void> {
+    const cid = imageUri.replace(/^ipfs:\/\//, "").split(/[/?#]/)[0];
     const site = (process.env.ALEA_SITE_URL || "").replace(/\/+$/, "");
-    if (!site) return;
-    await fetch(`${site}/api/img/${cid}`, { signal: AbortSignal.timeout(20_000) }).catch(() => {});
+    if (!cid || !site) return;
+    await fetch(`${site}/api/img/${cid}`, { signal: AbortSignal.timeout(15_000) }).catch(() => {});
 }
 
 async function pinJson(doc: unknown, name: string): Promise<string> {
@@ -757,10 +764,14 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
     if (!code) throw new Error(`${generator} has no source`);
     verifySource(code, storage.art.code_hash ?? "", generator);
 
-    const mint = await buyEvent(generator, tokenId);
+    const [mint, rawLibs, paramsSchema, nameTrait, facts] = await Promise.all([
+        buyEvent(generator, tokenId),
+        metadataKey(generator, "aleatory:libraries"),
+        paramsSchemaOf(generator),
+        nameTraitOf(generator),
+        generatorFacts(generator),
+    ]);
     if (!mint) throw new Error(`${generator} #${tokenId} has no mint event`);
-
-    const facts = await generatorFacts(generator);
 
     return {
         generator,
@@ -770,9 +781,9 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
         code,
         codeUri: storage.art.code_uri ?? "",
         codeEncoding: storage.art.code_encoding ?? "identity",
-        libraries: parseLibraries(await metadataKey(generator, "aleatory:libraries")),
-        paramsSchema: await paramsSchemaOf(generator),
-        nameTrait: await nameTraitOf(generator),
+        libraries: parseLibraries(rawLibs),
+        paramsSchema,
+        nameTrait,
         creators: creatorsOf(storage),
         generatorName: facts.name,
         description: facts.description,
@@ -782,7 +793,18 @@ export async function pieceAt(generator: string, tokenId: string): Promise<Pendi
     };
 }
 
-export async function handle(piece: PendingPiece): Promise<string> {
+export interface PreparedPiece {
+    imageUri: string;
+    metadataUri: string;
+}
+
+/**
+ * Draw one piece, pin its image and its TZIP-21 document.
+ *
+ * Separated from `publish` so the next piece can render and pin while the
+ * previous one waits for a block confirmation on the agent's single counter.
+ */
+export async function prepare(piece: PendingPiece): Promise<PreparedPiece> {
     // Resolved once, fed to both the render and the document it is recorded
     // in — resolving twice is how the two end up disagreeing about what a
     // piece actually saw. A direct contract call can write params the schema
@@ -828,12 +850,25 @@ export async function handle(piece: PendingPiece): Promise<string> {
     const withProvider = { ...doc, aleaProvider: PROVIDER_ADDRESS };
 
     const metadataUri = await pinJson(withProvider, `${piece.generator}-${piece.tokenId}.json`);
+    return { imageUri, metadataUri };
+}
 
-    // Awaited before the write lands, not overlapped with it: an indexer that
-    // resolves the metadata URI before a gateway can serve the content either
-    // one points at gets nothing, and may never ask again. Costs latency per
-    // piece; a token that looks permanently blank costs more.
-    await Promise.all([warmGateway(imageUri), warmGateway(metadataUri)]);
+/**
+ * Write the pinned document to the token and warm the gateway and site image
+ * proxy in parallel while the block confirms.
+ */
+export async function commit(piece: PendingPiece, prepared: PreparedPiece): Promise<string> {
+    const warmed = Promise.all([
+        warmGateway(prepared.imageUri),
+        warmGateway(prepared.metadataUri),
+        warmSite(prepared.imageUri),
+    ]);
+    const hash = await publish(piece, prepared.metadataUri);
+    await warmed;
+    return hash;
+}
 
-    return publish(piece, metadataUri);
+export async function handle(piece: PendingPiece): Promise<string> {
+    const prepared = await prepare(piece);
+    return commit(piece, prepared);
 }
