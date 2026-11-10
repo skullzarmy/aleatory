@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     robots: { index: false, follow: false },
     title: "Publish",
 };
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 /**
  * The providers are public chain state, so they are fetched here and cached for
