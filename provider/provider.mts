@@ -124,7 +124,7 @@ const BLOCKED_GENERATORS = new Set(
 );
 
 /** How many pieces one pass will take on before looking again. */
-const BATCH = 10;
+export const BATCH = 10;
 
 /** Generators larger than this are refused rather than rendered. */
 const MAX_GENERATOR_BYTES = 5 * 1024 * 1024;
@@ -210,6 +210,7 @@ interface GeneratorStorage {
         confirmed: string[];
     };
     render: { provider: string };
+    next_token_id?: string;
 }
 
 /**
@@ -377,6 +378,20 @@ export async function tokenIdsIn(generator: string): Promise<string[]> {
     return out;
 }
 
+interface TokenMetadataKeyRow {
+    key: string;
+    value?: { token_info?: Record<string, string> };
+}
+
+function safeHexToUtf8(hex: string): string {
+    if (!hex) return "";
+    try {
+        return hexToUtf8(hex);
+    } catch {
+        return "";
+    }
+}
+
 export async function pendingIn(generator: string): Promise<PendingPiece[]> {
     const storage = await tzkt<GeneratorStorage>(`/v1/contracts/${generator}/storage`);
     const pendingUri = hexToUtf8(storage.art.pending_metadata);
@@ -391,88 +406,106 @@ export async function pendingIn(generator: string): Promise<PendingPiece[]> {
     let code = "";
     if (storage.art.code) {
         code = await decodeCode(storage.art.code, storage.art.code_encoding ?? "identity");
-    } else if (codeUri.startsWith("ipfs://") && CID.test(codeUri.slice(7).split(/[/?#]/)[0])) {
-        // Only for a generator too large to carry on chain. A pointer is
-        // written by whoever deployed the generator, so it is IPFS only and a
-        // CID shape only.
-        code = await fetchGenerator(codeUri);
+        verifySource(code, storage.art.code_hash ?? "", generator);
     }
-    if (!code) return [];
-    verifySource(code, storage.art.code_hash ?? "", generator);
 
-    // Read from the generator's own metadata: a provider does not need to know
-    // what a "p5 sketch" is, only how to resolve what it was told. Not caught
-    // — a real failure here means this generator is skipped this pass, not
-    // that it silently declares no libraries a p5 piece then draws blank.
-    const [rawLibs, paramsSchema, nameTrait, facts] = await Promise.all([
-        metadataKey(generator, "aleatory:libraries"),
-        paramsSchemaOf(generator),
-        nameTraitOf(generator),
-        generatorFacts(generator),
-    ]);
-    const libraries = parseLibraries(rawLibs);
-    const royalties = royaltiesOf(storage);
+    if (storage.next_token_id === "0") return [];
 
     const waiting: PendingPiece[] = [];
+    let meta: {
+        libraries: DeclaredLibrary[];
+        paramsSchema: ParamSpec[];
+        nameTrait: string | undefined;
+        facts: { name: string; description: string; tags: string[] };
+        royalties: Record<string, number>;
+        creators: string[];
+    } | null = null;
+
     let offset = 0;
-
-    // Paginated, or a generator past one page has pieces that never reveal.
+    // Read token_metadata in pages of 200 to avoid per-token TzKT calls.
     for (;;) {
-        const tokens = await tzkt<{ tokenId: string }[]>("/v1/tokens", {
-            contract: generator,
-            limit: 200,
-            offset,
-            "sort.asc": "tokenId",
-            select: "tokenId",
-        });
-        if (tokens.length === 0) break;
+        const rows =
+            (await tzkt<TokenMetadataKeyRow[] | null>(
+                `/v1/contracts/${generator}/bigmaps/token_metadata/keys`,
+                { active: "true", limit: 200, offset, "sort.asc": "id" },
+            )) ?? [];
+        if (rows.length === 0) break;
 
-        for (const t of tokens) {
-            const tokenId = typeof t === "string" ? t : t.tokenId;
-            if ((await tokenMetadataUri(generator, tokenId)) !== pendingUri) continue;
+        const matchingIds = rows
+            .filter((r) => safeHexToUtf8(r.value?.token_info?.[""] ?? "") === pendingUri)
+            .map((r) => r.key)
+            .sort((a, b) => Number(a) - Number(b));
 
-            const buy = await buyEvent(generator, tokenId);
-            if (!buy) continue;
+        if (matchingIds.length > 0 && !meta) {
+            if (
+                !code &&
+                codeUri.startsWith("ipfs://") &&
+                CID.test(codeUri.slice(7).split(/[/?#]/)[0])
+            ) {
+                // Only for a generator too large to carry on chain. A pointer is
+                // written by whoever deployed the generator, so it is IPFS only and a
+                // CID shape only.
+                code = await fetchGenerator(codeUri);
+                if (code) verifySource(code, storage.art.code_hash ?? "", generator);
+            }
+            if (!code) return [];
 
-            waiting.push({
-                generator,
-                tokenId,
-                seed: buy.hash,
-                params: buy.params,
-                code,
-                codeUri,
-                codeEncoding: storage.art.code_encoding ?? "identity",
-                libraries,
+            // Read from the generator's own metadata: a provider does not need to know
+            // what a "p5 sketch" is, only how to resolve what it was told. Not caught
+            // — a real failure here means this generator is skipped this pass, not
+            // that it silently declares no libraries a p5 piece then draws blank.
+            const [rawLibs, paramsSchema, nameTrait, facts] = await Promise.all([
+                metadataKey(generator, "aleatory:libraries"),
+                paramsSchemaOf(generator),
+                nameTraitOf(generator),
+                generatorFacts(generator),
+            ]);
+            meta = {
+                libraries: parseLibraries(rawLibs),
                 paramsSchema,
                 nameTrait,
+                facts,
+                royalties: royaltiesOf(storage),
                 creators: creatorsOf(storage),
-                generatorName: facts.name,
-                description: facts.description,
-                tags: facts.tags,
-                royalties,
-                codeHash: storage.art.code_hash ?? "",
-            });
+            };
+        }
+
+        if (meta) {
+            for (let i = 0; i < matchingIds.length && waiting.length < BATCH; ) {
+                const need = BATCH - waiting.length;
+                const slice = matchingIds.slice(i, i + need);
+                i += slice.length;
+                const buys = await Promise.all(slice.map((id) => buyEvent(generator, id)));
+                for (let j = 0; j < slice.length; j++) {
+                    const buy = buys[j];
+                    if (!buy) continue;
+                    waiting.push({
+                        generator,
+                        tokenId: slice[j],
+                        seed: buy.hash,
+                        params: buy.params,
+                        code,
+                        codeUri,
+                        codeEncoding: storage.art.code_encoding ?? "identity",
+                        libraries: meta.libraries,
+                        paramsSchema: meta.paramsSchema,
+                        nameTrait: meta.nameTrait,
+                        creators: meta.creators,
+                        generatorName: meta.facts.name,
+                        description: meta.facts.description,
+                        tags: meta.facts.tags,
+                        royalties: meta.royalties,
+                        codeHash: storage.art.code_hash ?? "",
+                    });
+                }
+            }
             if (waiting.length >= BATCH) return waiting;
         }
 
-        offset += tokens.length;
-        if (tokens.length < 200) break;
+        offset += rows.length;
+        if (rows.length < 200) break;
     }
     return waiting;
-}
-
-async function tokenMetadataUri(contract: string, tokenId: string): Promise<string> {
-    const rows = await tzkt<{ value: { token_info: Record<string, string> } }[]>(
-        `/v1/contracts/${contract}/bigmaps/token_metadata/keys`,
-        { key: tokenId, limit: 1 },
-    ).catch(() => []);
-    const raw = rows[0]?.value?.token_info?.[""] ?? "";
-    if (!raw) return "";
-    try {
-        return hexToUtf8(raw);
-    } catch {
-        return "";
-    }
 }
 
 /** The buy that minted a piece: its hash is the seed, its payload the params. */
