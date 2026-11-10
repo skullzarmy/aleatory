@@ -16,7 +16,7 @@ import { royaltyPreview, type RoyaltySplit } from "@provider/metadata";
 import { parseTez, shortAddress } from "@/lib/utils";
 import { tzktApi, tzktLink, objktManageLink, objktTokenLinkTemplate } from "@/lib/config";
 import { CopyField } from "@/components/CopyField";
-import type { Provider } from "@/lib/providers";
+import { fetchProviders, type Provider } from "@/lib/providers";
 import { saveDraft, type Draft } from "@/lib/draft";
 import { getKind } from "@/lib/runtimes";
 import { detectParams } from "@/lib/detect";
@@ -70,6 +70,7 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
     const [artists, setArtists] = useState<string[]>(draft?.artists ?? []);
     const [payeeRows, setPayeeRows] = useState<SplitRow[]>(draft?.collab ?? []);
     const [royaltyRows, setRoyaltyRows] = useState<SplitRow[]>(draft?.royaltyRecipients ?? []);
+    const [providerList, setProviderList] = useState<Provider[]>(providers);
     const [providerAddress, setProviderAddress] = useState(providers[0]?.address ?? "");
     const [trustResolver, setTrustResolver] = useState(true);
     // Opt-in, off by default. The feature key whose value becomes part of
@@ -189,7 +190,26 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const provider = providers.find((p) => p.address === providerAddress);
+    useEffect(() => {
+        if (providers.length > 0) {
+            setProviderList(providers);
+            setProviderAddress((cur) => cur || providers[0]?.address || "");
+            return;
+        }
+        let cancelled = false;
+        void fetchProviders()
+            .then((list) => {
+                if (cancelled || list.length === 0) return;
+                setProviderList(list);
+                setProviderAddress((cur) => cur || list[0]?.address || "");
+            })
+            .catch(() => {});
+        return () => {
+            cancelled = true;
+        };
+    }, [providers]);
+
+    const provider = providerList.find((p) => p.address === providerAddress);
     /**
      * Where a shared royalty goes: the marketplace's treasury, never the
      * marketplace contract, which cannot receive a plain transfer. A sale pays
@@ -985,8 +1005,8 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
                     onChange={(e) => setProviderAddress(e.target.value)}
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                 >
-                    {providers.length === 0 && <option value="">No providers registered</option>}
-                    {providers.map((p) => (
+                    {providerList.length === 0 && <option value="">No providers registered</option>}
+                    {providerList.map((p) => (
                         <option key={p.address} value={p.address}>
                             {p.name || shortAddress(p.address)}
                             {p.isOurs ? " (ours)" : ""}

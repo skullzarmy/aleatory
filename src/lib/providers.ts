@@ -8,6 +8,7 @@
  * public, so anyone can recompute it.
  */
 import { tzktApi } from "./config";
+import { cacheWrap } from "./cache";
 import { indexerFetch } from "./tzkt";
 import { isBlockedProvider } from "./blocklist";
 import { addresses } from "./router";
@@ -57,29 +58,47 @@ interface RegistryRow {
     active: boolean;
 }
 
-/**
- * Every registered provider, minus anything this site declines to show. Hiding
- * one is a display decision and changes nothing on chain.
- */
-export async function fetchProviders(): Promise<Provider[]> {
+let lastKnownProviders: Provider[] | null = null;
+
+/** Clear the in-process stale fallback (for tests). */
+export function resetProvidersCacheForTesting() {
+    lastKnownProviders = null;
+}
+
+async function chunkMap<T, R>(
+    items: readonly T[],
+    size: number,
+    fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+    const out: R[] = [];
+    for (let i = 0; i < items.length; i += size) {
+        const batch = await Promise.all(items.slice(i, i + size).map(fn));
+        out.push(...batch);
+    }
+    return out;
+}
+
+async function fetchProvidersLive(): Promise<Provider[]> {
     const registry = (await addresses()).registry;
     if (!registry) return [];
 
+    // Do not swallow failures here: turning a TzKT outage into [] would let
+    // callers and edge caches store "No providers registered" as truth.
     const rows = await tzkt<RegistryRow[]>(`/v1/contracts/${registry}/bigmaps/providers/keys`, {
         active: "true",
         limit: 100,
-    }).catch(() => []);
+    });
 
     const providers = await Promise.all(
         rows.map(async (r) => {
             const address = r.key;
-            const [storage, stats, meta] = await Promise.all([
+            const [storage, meta] = await Promise.all([
                 tzkt<{ render_gas: string; agent: string; metadata: number }>(
                     `/v1/contracts/${address}/storage`,
                 ).catch(() => null),
-                fetchProviderStats(address),
                 fetchProviderMetadata(address),
             ]);
+            const stats = await fetchProviderStats(address, storage?.agent);
             return {
                 address,
                 name: meta?.name,
@@ -96,6 +115,26 @@ export async function fetchProviders(): Promise<Provider[]> {
     );
 
     return providers.filter((p) => !isBlockedProvider(p.address)).sort(compareProviders);
+}
+
+/**
+ * Every registered provider, minus anything this site declines to show. Hiding
+ * one is a display decision and changes nothing on chain.
+ */
+export async function fetchProviders(): Promise<Provider[]> {
+    try {
+        const list = await cacheWrap("providers", fetchProvidersLive, {
+            freshMs: 60_000,
+            l1Ms: 30_000,
+            redisTtlSec: 86_400,
+            staleOk: (data) => data.length > 0,
+        });
+        if (list.length > 0) lastKnownProviders = list;
+        return list;
+    } catch (e) {
+        if (lastKnownProviders) return lastKnownProviders;
+        throw e;
+    }
 }
 
 /** A provider contract as its operator sees it: the controls, and the money. */
@@ -253,6 +292,7 @@ async function publishes(agent: string, since: string): Promise<Publish[]> {
         entrypoint: "set_token_metadata",
         "timestamp.ge": since,
         status: "applied",
+        "sort.desc": "id",
         limit: 1000,
         select: "level,timestamp,target,parameter",
     }).catch(() => []);
@@ -280,6 +320,37 @@ async function mintLevel(generator: string, tokenId: string): Promise<number | n
     return typeof row === "number" ? row : (row?.level ?? null);
 }
 
+/**
+ * Look up mint blocks for a sample of publishes in one batched query so
+ * TzKT does not rate-limit 50 parallel per-token event lookups with 429s.
+ * Falls back per token only if the 1,000-row window misses an older mint.
+ */
+async function mintLevels(sample: Publish[]): Promise<(number | null)[]> {
+    if (sample.length === 0) return [];
+    const contracts = [...new Set(sample.map((p) => p.generator))];
+    const rows = await tzkt<
+        { contract?: { address?: string }; level: number; payload?: { token_id?: string } }[]
+    >("/v1/contracts/events", {
+        "contract.in": contracts.join(","),
+        tag: "mint",
+        "sort.desc": "id",
+        limit: 1000,
+        select: "contract,level,payload",
+    }).catch(() => []);
+
+    const levels = new Map<string, number>();
+    for (const r of rows) {
+        const addr = r.contract?.address;
+        const id = r.payload?.token_id;
+        if (addr && id !== undefined) levels.set(`${addr}:${String(id)}`, r.level);
+    }
+
+    return chunkMap(sample, 5, async (p) => {
+        const hit = levels.get(`${p.generator}:${p.tokenId}`);
+        return hit !== undefined ? hit : mintLevel(p.generator, p.tokenId);
+    });
+}
+
 function median(xs: number[]): number | null {
     if (xs.length === 0) return null;
     const sorted = [...xs].sort((a, b) => a - b);
@@ -296,17 +367,15 @@ async function generatorsNaming(provider: string): Promise<string[]> {
     }).catch(() => []);
 
     const candidates = [...new Set(events.map((e) => e.contract?.address).filter(Boolean))];
-    const naming: string[] = [];
-
-    for (const address of candidates.slice(0, OUTSTANDING_SCAN)) {
+    const storages = await chunkMap(candidates.slice(0, OUTSTANDING_SCAN), 10, async (address) => {
         const storage = await tzkt<{ render?: { provider?: string } }>(
             `/v1/contracts/${address}/storage`,
         ).catch(() => null);
         // Storage points work at a provider. An event payload is written by the
         // contract that emits it.
-        if (storage?.render?.provider === provider) naming.push(address);
-    }
-    return naming;
+        return storage?.render?.provider === provider ? address : null;
+    });
+    return storages.filter((a): a is string => a !== null);
 }
 
 /**
@@ -316,14 +385,13 @@ async function generatorsNaming(provider: string): Promise<string[]> {
 async function outstandingFor(provider: string): Promise<number> {
     const generators = await generatorsNaming(provider);
     const cutoff = Date.now() - OUTSTANDING_AFTER_MINUTES * 60 * 1000;
-    let waiting = 0;
 
-    for (const generator of generators) {
+    const counts = await chunkMap(generators, 8, async (generator) => {
         const storage = await tzkt<{ art?: { pending_metadata?: string } }>(
             `/v1/contracts/${generator}/storage`,
         ).catch(() => null);
         const pending = storage?.art?.pending_metadata;
-        if (!pending) continue;
+        if (!pending) return 0;
 
         const rows = await tzkt<
             { value: { token_info: Record<string, string> }; firstTime: string }[]
@@ -332,43 +400,53 @@ async function outstandingFor(provider: string): Promise<number> {
             limit: 200,
         }).catch(() => []);
 
+        let waiting = 0;
         for (const row of rows) {
             if (row.value?.token_info?.[""] !== pending) continue;
             if (Date.parse(row.firstTime) < cutoff) waiting++;
         }
-    }
-    return waiting;
+        return waiting;
+    });
+    return counts.reduce((sum, n) => sum + n, 0);
 }
 
 /**
  * What a provider has done, from chain events alone, so none of it can be
  * asserted by a provider about itself.
  */
-export async function fetchProviderStats(address: string): Promise<ProviderStats> {
+export async function fetchProviderStats(
+    address: string,
+    knownAgent?: string,
+): Promise<ProviderStats> {
     const since = new Date(Date.now() - RANKING_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-    const storage = await tzkt<{ agent: string }>(`/v1/contracts/${address}/storage`).catch(
-        () => null,
-    );
-    if (!storage?.agent) {
+    const agent =
+        knownAgent ??
+        (await tzkt<{ agent: string }>(`/v1/contracts/${address}/storage`).catch(() => null))
+            ?.agent;
+    if (!agent) {
         return { delivered: 0, medianBlocksToPublish: null, outstanding: 0 };
     }
 
-    const done = await publishes(storage.agent, since);
+    const done = await publishes(agent, since);
 
     // Pair each publish with the buy that asked for it. The gap in blocks is
     // how long a collector waited.
     const sample = done.slice(0, PAIRING_SAMPLE);
+    const [mintedLevels, outstanding] = await Promise.all([
+        mintLevels(sample),
+        outstandingFor(address).catch(() => 0),
+    ]);
     const gaps: number[] = [];
-    for (const p of sample) {
-        const minted = await mintLevel(p.generator, p.tokenId);
-        if (minted !== null && p.level >= minted) gaps.push(p.level - minted);
+    for (let i = 0; i < sample.length; i++) {
+        const minted = mintedLevels[i];
+        if (minted !== null && sample[i].level >= minted) gaps.push(sample[i].level - minted);
     }
 
     return {
         delivered: done.length,
         medianBlocksToPublish: median(gaps),
-        outstanding: await outstandingFor(address).catch(() => 0),
+        outstanding,
         firstSeen: done.at(-1)?.timestamp,
     };
 }
