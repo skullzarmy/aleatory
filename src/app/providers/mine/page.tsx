@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { DAppClient } from "@tezos-x/octez.connect-sdk";
+import type { DAppClient } from "@ecadlabs/beacon-dapp";
 import { useWallet } from "@/context/WalletContext";
 import { fetchOwnedProvider, fetchProvidersOperatedBy, type OwnedProvider } from "@/lib/providers";
 import { useLive } from "@/components/LiveRefresh";

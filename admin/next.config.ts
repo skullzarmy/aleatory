@@ -22,7 +22,6 @@ function csp(): string {
             "wss://*.octez.io",
             "https://*.walletbeacon.io",
             "wss://*.walletbeacon.io",
-            "https://cdn.jsdelivr.net/gh/trilitech/octez.connect-wallet-list@latest/dist/",
             ...(isDev ? ["ws://localhost:*", "http://localhost:*"] : []),
         ].join(" "),
         // WalletConnect's origin-verification iframe, which wallets load to

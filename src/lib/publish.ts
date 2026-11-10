@@ -17,7 +17,7 @@
  * succeeded: pinning is free to retry, so it all happens before a wallet is
  * asked to sign.
  */
-import type { DAppClient } from "@tezos-x/octez.connect-sdk";
+import type { DAppClient } from "@ecadlabs/beacon-dapp";
 import {
     appendCode,
     deployGenerator,

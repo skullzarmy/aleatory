@@ -9,18 +9,18 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import type { DAppClient } from "@tezos-x/octez.connect-sdk";
+import type { DAppClient } from "@ecadlabs/beacon-dapp";
 import { BRAND, NETWORK } from "@/lib/config";
 
 /**
- * Wallet connection, on Tezos X Connect. The SDK is around two megabytes, so it
+ * Wallet connection, on Beacon. The SDK is around two megabytes, so it
  * loads on first use and a visitor browsing the feed never downloads it.
  */
-type SDKModule = typeof import("@tezos-x/octez.connect-sdk");
+type SDKModule = typeof import("@ecadlabs/beacon-dapp");
 
 let sdkPromise: Promise<SDKModule> | null = null;
 function loadSDK(): Promise<SDKModule> {
-    if (!sdkPromise) sdkPromise = import("@tezos-x/octez.connect-sdk");
+    if (!sdkPromise) sdkPromise = import("@ecadlabs/beacon-dapp");
     return sdkPromise;
 }
 
@@ -75,6 +75,9 @@ let clientPromise: Promise<DAppClient> | null = null;
  * level, because the subscription belongs to the client and outlives a render.
  */
 let onActiveAccount: ((address: string | null) => void) | null = null;
+let onSessionError: ((message: string | null) => void) | null = null;
+let pinnedAddress: string | null = null;
+let allowAccountChange = false;
 
 async function getClient(): Promise<DAppClient> {
     if (!clientPromise) {
@@ -125,8 +128,18 @@ async function buildClient(): Promise<DAppClient> {
 
     // The wallet can change the active account without being asked, and nothing
     // here polls, so without this the page shows the old account until reload.
+    // Unsolicited switches to a different address mid-session are rejected so a
+    // session cannot be silently redirected away from the paired account.
     await c.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
         const next = account && matchesNetwork(account) ? account.address : null;
+        if (next && !allowAccountChange && pinnedAddress !== null && next !== pinnedAddress) {
+            pinnedAddress = null;
+            onActiveAccount?.(null);
+            onSessionError?.("Wallet account changed unexpectedly. Reconnect to continue.");
+            void resetClient(c);
+            return;
+        }
+        pinnedAddress = next;
         onActiveAccount?.(next);
     });
 
@@ -155,6 +168,7 @@ function clearStoredSession(): void {
  * responded" instead of opening the extension.
  */
 async function resetClient(c: DAppClient): Promise<void> {
+    pinnedAddress = null;
     try {
         await c.clearActiveAccount();
     } catch {
@@ -243,8 +257,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     // somewhere to land.
     useEffect(() => {
         onActiveAccount = setAddress;
+        onSessionError = setError;
         return () => {
             onActiveAccount = null;
+            onSessionError = null;
         };
     }, []);
 
@@ -254,17 +270,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const syncFromStorage = () => {
             const account = readStoredAccount();
             if (!account) {
+                pinnedAddress = null;
                 setAddress(null);
                 setRestoring(false);
                 return;
             }
             if (!matchesNetwork(account)) {
                 clearStoredSession();
+                pinnedAddress = null;
                 setAddress(null);
                 setRestoring(false);
                 return;
             }
-            setAddress(account.address ?? null);
+            pinnedAddress = account.address ?? null;
+            setAddress(pinnedAddress);
             setRestoring(false);
         };
 
@@ -286,6 +305,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             const c = await getClient();
             const existing = await c.getActiveAccount();
             if (existing && matchesNetwork(existing)) {
+                pinnedAddress = existing.address;
                 setAddress(existing.address);
                 return;
             }
@@ -295,12 +315,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 await resetClient(c);
                 active = await getClient();
             }
-            const sdk = await loadSDK();
-            await active.requestPermissions({
-                scopes: [sdk.PermissionScope.OPERATION_REQUEST],
-            });
-            const account = await active.getActiveAccount();
-            setAddress(account?.address ?? null);
+            allowAccountChange = true;
+            try {
+                const sdk = await loadSDK();
+                await active.requestPermissions({
+                    scopes: [sdk.PermissionScope.OPERATION_REQUEST],
+                });
+                const account = await active.getActiveAccount();
+                const next = account && matchesNetwork(account) ? account.address : null;
+                pinnedAddress = next;
+                setAddress(next);
+            } finally {
+                allowAccountChange = false;
+            }
         } catch (e) {
             setError(e instanceof Error ? e.message : "Could not connect");
         } finally {
@@ -319,6 +346,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         } catch {
             clearStoredSession();
         }
+        pinnedAddress = null;
         setAddress(null);
     }, []);
 

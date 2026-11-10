@@ -1,5 +1,5 @@
 /** Every write this app makes, and so every signature it can ask for. */
-import type { DAppClient, TezosOperationType } from "@tezos-x/octez.connect-sdk";
+import type { DAppClient, TezosOperationType } from "@ecadlabs/beacon-dapp";
 import { rpcUrl, tzktApi } from "./config";
 import { addresses, allFactories, currentFactory } from "./router";
 import { indexerFetch } from "./tzkt";
@@ -1097,6 +1097,12 @@ export async function deployGenerator(
 
     const account = await client.getActiveAccount();
     if (!account) throw new Error("No wallet is connected.");
+    if (
+        !(params.collabShares[account.address] > 0) ||
+        !params.collabCreditable.includes(account.address)
+    ) {
+        throw new Error("Connected wallet does not match the deployment artist split.");
+    }
 
     // The generator travels inside this operation and lands in the originated
     // contract's storage, so the storage limit scales with both the code and
