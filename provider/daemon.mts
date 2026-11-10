@@ -15,12 +15,27 @@ import dotenv from "dotenv";
 import { createServer } from "node:http";
 dotenv.config();
 
-const { generatorsServed, factoriesIgnored, pendingIn, prepare, commit, UnrenderableCodeError } =
-    await import("./provider.mts");
+const {
+    BATCH,
+    generatorsServed,
+    factoriesIgnored,
+    pendingIn,
+    prepare,
+    commit,
+    UnrenderableCodeError,
+} = await import("./provider.mts");
 const { renderConfigFromEnv } = await import("./render.mts");
 const { heartbeat } = await import("./heartbeat.ts");
-const { keyFor, isStuck, recordFailure, recordSuccess, markPermanent, stuckList, STUCK_AFTER } =
-    await import("./stuck.mts");
+const {
+    keyFor,
+    isStuck,
+    recordFailure,
+    recordSuccess,
+    markPermanent,
+    pruneResolved,
+    stuckList,
+    STUCK_AFTER,
+} = await import("./stuck.mts");
 
 /** How often to look when there is nothing to do. */
 const IDLE_MS = Number(process.env.ALEA_POLL_MS || 15_000);
@@ -33,6 +48,8 @@ const BACKOFF_MIN_MS = 5_000;
 const BACKOFF_MAX_MS = 5 * 60_000;
 /** How many pieces may render and pin concurrently while the chain write confirms one at a time. */
 const PREPARE_CONCURRENCY = 2;
+/** How many generators to query on TzKT at once during a scan pass. */
+const SCAN_CONCURRENCY = 8;
 
 function log(msg: string) {
     console.log(`${new Date().toISOString()}  ${msg}`);
@@ -179,109 +196,125 @@ while (!stopping) {
         let scanned = 0;
         let scanFailed = 0;
         let stuck = 0;
-        for (const generator of served) {
-            if (stopping) break;
-
-            // Scan failures aren't per-piece, so track them under a "scan" pseudo-id.
-            const scanKey = keyFor(generator, "scan");
-            if (isStuck(scanKey)) {
-                stuck++;
-                continue;
+        for (let c = 0; c < served.length && !stopping; c += SCAN_CONCURRENCY) {
+            const chunk = served.slice(c, c + SCAN_CONCURRENCY);
+            const active: { generator: string; scanKey: string }[] = [];
+            for (const generator of chunk) {
+                // Scan failures aren't per-piece, so track them under a "scan" pseudo-id.
+                const scanKey = keyFor(generator, "scan");
+                if (isStuck(scanKey)) {
+                    stuck++;
+                    continue;
+                }
+                active.push({ generator, scanKey });
             }
 
-            scanned++;
-            let waiting: Awaited<ReturnType<typeof pendingIn>>;
-            try {
-                waiting = await pendingIn(generator);
+            scanned += active.length;
+            const results = await Promise.allSettled(
+                active.map(({ generator }) => pendingIn(generator)),
+            );
+
+            for (let g = 0; g < active.length && !stopping; g++) {
+                const { generator, scanKey } = active[g];
+                const settled = results[g];
+                if (settled.status === "rejected") {
+                    scanFailed++;
+                    const e: unknown = settled.reason;
+                    const message = e instanceof Error ? e.message : String(e);
+                    if (e instanceof UnrenderableCodeError) {
+                        // Immutable storage: retrying reads the same bytes and fails the
+                        // same way forever. Say so once and stop, rather than the
+                        // hourly-forever churn a transient failure gets.
+                        markPermanent(scanKey, message);
+                        log(`scan ${generator}: unrenderable, will not retry: ${message}`);
+                    } else {
+                        const { attempts, justStuck } = recordFailure(scanKey, message);
+                        log(`scan ${generator}: ${message} (${attempts}/${STUCK_AFTER})`);
+                        if (justStuck) {
+                            log(
+                                `  ${generator} has failed to scan ${STUCK_AFTER} times in a row. ` +
+                                    "Skipping for an hour; provider:retry fixes it sooner.",
+                            );
+                        }
+                    }
+                    continue;
+                }
+
+                const waiting = settled.value;
                 recordSuccess(scanKey);
-            } catch (e) {
-                scanFailed++;
-                const message = e instanceof Error ? e.message : String(e);
-                if (e instanceof UnrenderableCodeError) {
-                    // Immutable storage: retrying reads the same bytes and fails the
-                    // same way forever. Say so once and stop, rather than the
-                    // hourly-forever churn a transient failure gets.
-                    markPermanent(scanKey, message);
-                    log(`scan ${generator}: unrenderable, will not retry: ${message}`);
-                } else {
-                    const { attempts, justStuck } = recordFailure(scanKey, message);
-                    log(`scan ${generator}: ${message} (${attempts}/${STUCK_AFTER})`);
-                    if (justStuck) {
-                        log(
-                            `  ${generator} has failed to scan ${STUCK_AFTER} times in a row. ` +
-                                "Skipping for an hour; provider:retry fixes it sooner.",
-                        );
+                pruneResolved(
+                    generator,
+                    waiting.map((p) => p.tokenId),
+                    { partial: waiting.length >= BATCH },
+                );
+
+                const queue = waiting.filter((piece) => {
+                    const key = keyFor(piece.generator, piece.tokenId);
+                    if (isStuck(key)) {
+                        // Already failed STUCK_AFTER times. Retrying it every pass
+                        // forever was the bug; skip it for an hour, or until
+                        // provider:retry runs by hand and clears the mark sooner.
+                        stuck++;
+                        return false;
+                    }
+                    return true;
+                });
+
+                // Prepare up to PREPARE_CONCURRENCY pieces ahead while the previous
+                // one waits on its block confirmation. Publishing stays one at a
+                // time on the agent's single counter.
+                const inFlight = new Map<number, Promise<Awaited<ReturnType<typeof prepare>>>>();
+                let nextToPrepare = 0;
+
+                function fillPipeline() {
+                    while (
+                        !stopping &&
+                        inFlight.size < PREPARE_CONCURRENCY &&
+                        nextToPrepare < queue.length
+                    ) {
+                        const idx = nextToPrepare++;
+                        const piece = queue[idx];
+                        log(`rendering ${piece.generator} #${piece.tokenId}`);
+                        // Before the work, not only after it: a capture that takes
+                        // twenty seconds is progress and should sound like it.
+                        beat({ status: "up", msg: `rendering #${piece.tokenId}` });
+                        const p = prepare(piece);
+                        // Suppress unhandledRejection while waiting for the commit
+                        // loop to reach this index; the await below handles it.
+                        p.catch(() => {});
+                        inFlight.set(idx, p);
                     }
                 }
-                continue;
-            }
 
-            const queue = waiting.filter((piece) => {
-                const key = keyFor(piece.generator, piece.tokenId);
-                if (isStuck(key)) {
-                    // Already failed STUCK_AFTER times. Retrying it every pass
-                    // forever was the bug; skip it for an hour, or until
-                    // provider:retry runs by hand and clears the mark sooner.
-                    stuck++;
-                    return false;
-                }
-                return true;
-            });
-
-            // Prepare up to PREPARE_CONCURRENCY pieces ahead while the previous
-            // one waits on its block confirmation. Publishing stays one at a
-            // time on the agent's single counter.
-            const inFlight = new Map<number, Promise<Awaited<ReturnType<typeof prepare>>>>();
-            let nextToPrepare = 0;
-
-            function fillPipeline() {
-                while (
-                    !stopping &&
-                    inFlight.size < PREPARE_CONCURRENCY &&
-                    nextToPrepare < queue.length
-                ) {
-                    const idx = nextToPrepare++;
-                    const piece = queue[idx];
-                    log(`rendering ${piece.generator} #${piece.tokenId}`);
-                    // Before the work, not only after it: a capture that takes
-                    // twenty seconds is progress and should sound like it.
-                    beat({ status: "up", msg: `rendering #${piece.tokenId}` });
-                    const p = prepare(piece);
-                    // Suppress unhandledRejection while waiting for the commit
-                    // loop to reach this index; the await below handles it.
-                    p.catch(() => {});
-                    inFlight.set(idx, p);
-                }
-            }
-
-            fillPipeline();
-            for (let i = 0; i < queue.length; i++) {
-                const task = inFlight.get(i);
-                if (!task) break;
-                inFlight.delete(i);
-                const piece = queue[i];
-                const key = keyFor(piece.generator, piece.tokenId);
-                try {
-                    const prepared = await task;
-                    fillPipeline();
-                    const hash = await commit(piece, prepared);
-                    published++;
-                    recordSuccess(key);
-                    log(`  published ${hash}`);
-                    beat({ status: "up", msg: `published #${piece.tokenId}` });
-                } catch (e) {
-                    fillPipeline();
-                    // One bad piece must not stop the queue. It stays pending
-                    // and the next pass tries again, up to the cap.
-                    failed++;
-                    const message = e instanceof Error ? e.message : String(e);
-                    const { attempts, justStuck } = recordFailure(key, message);
-                    log(`  FAILED (${attempts}/${STUCK_AFTER}): ${message}`);
-                    if (justStuck) {
-                        log(
-                            `  ${piece.generator} #${piece.tokenId} has failed ${STUCK_AFTER} times ` +
-                                "in a row. Skipping for an hour; provider:retry fixes it sooner.",
-                        );
+                fillPipeline();
+                for (let i = 0; i < queue.length; i++) {
+                    const task = inFlight.get(i);
+                    if (!task) break;
+                    inFlight.delete(i);
+                    const piece = queue[i];
+                    const key = keyFor(piece.generator, piece.tokenId);
+                    try {
+                        const prepared = await task;
+                        fillPipeline();
+                        const hash = await commit(piece, prepared);
+                        published++;
+                        recordSuccess(key);
+                        log(`  published ${hash}`);
+                        beat({ status: "up", msg: `published #${piece.tokenId}` });
+                    } catch (e) {
+                        fillPipeline();
+                        // One bad piece must not stop the queue. It stays pending
+                        // and the next pass tries again, up to the cap.
+                        failed++;
+                        const message = e instanceof Error ? e.message : String(e);
+                        const { attempts, justStuck } = recordFailure(key, message);
+                        log(`  FAILED (${attempts}/${STUCK_AFTER}): ${message}`);
+                        if (justStuck) {
+                            log(
+                                `  ${piece.generator} #${piece.tokenId} has failed ${STUCK_AFTER} times ` +
+                                    "in a row. Skipping for an hour; provider:retry fixes it sooner.",
+                            );
+                        }
                     }
                 }
             }

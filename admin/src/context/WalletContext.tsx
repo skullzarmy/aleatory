@@ -9,7 +9,7 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import type { DAppClient } from "@tezos-x/octez.connect-sdk";
+import type { DAppClient } from "@ecadlabs/beacon-dapp";
 import { BRAND, NETWORK, RPC_URL } from "@/lib/config";
 
 /**
@@ -17,11 +17,11 @@ import { BRAND, NETWORK, RPC_URL } from "@/lib/config";
  * sign administrative calls. The SDK still loads lazily, because most visits
  * are to look at numbers.
  */
-type SDKModule = typeof import("@tezos-x/octez.connect-sdk");
+type SDKModule = typeof import("@ecadlabs/beacon-dapp");
 
 let sdkPromise: Promise<SDKModule> | null = null;
 function loadSDK(): Promise<SDKModule> {
-    if (!sdkPromise) sdkPromise = import("@tezos-x/octez.connect-sdk");
+    if (!sdkPromise) sdkPromise = import("@ecadlabs/beacon-dapp");
     return sdkPromise;
 }
 
@@ -62,6 +62,9 @@ const FEATURED_WALLETS =
  */
 let clientPromise: Promise<DAppClient> | null = null;
 let onActiveAccount: ((address: string | null) => void) | null = null;
+let onSessionError: ((message: string | null) => void) | null = null;
+let pinnedAddress: string | null = null;
+let allowAccountChange = false;
 
 /**
  * Is this session on the network this console is pointed at? The contract
@@ -123,10 +126,32 @@ async function buildClient(): Promise<DAppClient> {
         featuredWallets: FEATURED_WALLETS,
     });
     await c.subscribeToEvent(sdk.BeaconEvent.ACTIVE_ACCOUNT_SET, (account) => {
-        onActiveAccount?.(account && matchesNetwork(account) ? account.address : null);
+        const next = account && matchesNetwork(account) ? account.address : null;
+        if (next && !allowAccountChange && pinnedAddress !== null && next !== pinnedAddress) {
+            pinnedAddress = null;
+            onActiveAccount?.(null);
+            onSessionError?.("Wallet account changed unexpectedly. Reconnect to continue.");
+            void resetClient(c);
+            return;
+        }
+        pinnedAddress = next;
+        onActiveAccount?.(next);
     });
     await warmStorage(c);
     return c;
+}
+
+function clearStoredSession(): void {
+    try {
+        const drop: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith("beacon:") || k.startsWith("wc@2:"))) drop.push(k);
+        }
+        for (const k of drop) localStorage.removeItem(k);
+    } catch {
+        /* storage blocked */
+    }
 }
 
 /**
@@ -136,6 +161,7 @@ async function buildClient(): Promise<DAppClient> {
  * "no server responded" instead of opening the wallet.
  */
 async function resetClient(c: DAppClient): Promise<void> {
+    pinnedAddress = null;
     try {
         await c.clearActiveAccount();
     } catch {
@@ -146,6 +172,7 @@ async function resetClient(c: DAppClient): Promise<void> {
     } catch {
         /* older SDKs have no destroy */
     }
+    clearStoredSession();
     clientPromise = null;
 }
 
@@ -167,8 +194,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         onActiveAccount = setAddress;
+        onSessionError = setError;
         return () => {
             onActiveAccount = null;
+            onSessionError = null;
         };
     }, []);
 
@@ -197,7 +226,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     if (!cancelled) setAddress(null);
                     return;
                 }
-                if (!cancelled) setAddress(account?.address ?? null);
+                pinnedAddress = account?.address ?? null;
+                if (!cancelled) setAddress(pinnedAddress);
             } catch {
                 /* a broken session behaves as no session */
             }
@@ -215,6 +245,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             const c = await getClient();
             const existing = await c.getActiveAccount();
             if (existing && matchesNetwork(existing)) {
+                pinnedAddress = existing.address;
                 setAddress(existing.address);
                 return;
             }
@@ -224,19 +255,26 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 await resetClient(c);
                 active = await getClient();
             }
-            const sdk = await loadSDK();
+            allowAccountChange = true;
             try {
-                await active.requestPermissions({
-                    scopes: [sdk.PermissionScope.OPERATION_REQUEST],
-                });
-            } catch (e) {
-                // Some of what this rejects with is bookkeeping the SDK does
-                // alongside the request, so ask whether an account arrived.
-                const account = await active.getActiveAccount().catch(() => null);
-                if (!account) throw e;
+                const sdk = await loadSDK();
+                try {
+                    await active.requestPermissions({
+                        scopes: [sdk.PermissionScope.OPERATION_REQUEST],
+                    });
+                } catch (e) {
+                    // Some of what this rejects with is bookkeeping the SDK does
+                    // alongside the request, so ask whether an account arrived.
+                    const account = await active.getActiveAccount().catch(() => null);
+                    if (!account) throw e;
+                }
+                const account = await active.getActiveAccount();
+                const next = account && matchesNetwork(account) ? account.address : null;
+                pinnedAddress = next;
+                setAddress(next);
+            } finally {
+                allowAccountChange = false;
             }
-            const account = await active.getActiveAccount();
-            setAddress(account?.address ?? null);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Could not connect");
         } finally {
@@ -246,11 +284,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const disconnect = useCallback(async () => {
         try {
-            const c = await getClient();
-            await c.clearActiveAccount();
+            if (clientPromise) {
+                const c = await clientPromise;
+                await resetClient(c);
+            } else {
+                clearStoredSession();
+            }
         } catch {
-            /* already gone */
+            clearStoredSession();
         }
+        pinnedAddress = null;
         setAddress(null);
     }, []);
 

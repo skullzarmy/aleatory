@@ -44,6 +44,15 @@ export function Action({
         setError(null);
         try {
             const client = await getClient();
+            const active = await client.getActiveAccount();
+            if (!active) {
+                throw new Error("No wallet is connected.");
+            }
+            if (!permissionless && (active.address !== address || active.address !== holder)) {
+                throw new Error(
+                    "Connected wallet does not match the required key. Reconnect to continue.",
+                );
+            }
             const { hash } = await signNow(client, op);
             setHash(hash);
             setConfirming(false);

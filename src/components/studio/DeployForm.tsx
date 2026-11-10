@@ -599,8 +599,15 @@ export function DeployForm({ providers, draft }: { providers: Provider[]; draft?
         setError(null);
         setStage("compressing");
         try {
+            const client = await getClient();
+            const active = await client.getActiveAccount();
+            if (!address || active?.address !== address) {
+                throw new Error(
+                    "Connected wallet changed or disconnected. Reconnect before publishing.",
+                );
+            }
             const result = await publishGenerator(
-                await getClient(),
+                client,
                 {
                     draft: { ...draft, pendingUpload },
                     name: name.trim(),

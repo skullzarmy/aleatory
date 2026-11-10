@@ -230,6 +230,18 @@ function autoCapturedFrom(contentHtml: string): boolean {
     return m[1] === "1";
 }
 
+/** Extract a short, account-free reason from Browser Run's `errors` array. */
+export function formatBrowserErrors(errors: unknown): string {
+    if (!Array.isArray(errors) || errors.length === 0) return "";
+    const first = errors[0] as { code?: unknown; message?: unknown; detail?: unknown };
+    const detail = typeof first?.detail === "string" ? first.detail.trim() : "";
+    const message = typeof first?.message === "string" ? first.message.trim() : "";
+    const text = detail || message;
+    if (!text) return "";
+    const prefix = typeof first?.code === "number" ? `[${first.code}] ` : "";
+    return `${prefix}${text}`.slice(0, 200);
+}
+
 /** Render one piece. Returns the PNG bytes and whatever traits it reported. */
 export async function render(input: RenderInput, config: RenderConfig): Promise<RenderResult> {
     const res = await fetch(`${API}/${config.accountId}/browser-rendering/snapshot`, {
@@ -251,14 +263,23 @@ export async function render(input: RenderInput, config: RenderConfig): Promise<
             gotoOptions: { waitUntil: "domcontentloaded", timeout: CAPTURE_TIMEOUT_MS },
             screenshotOptions: { type: "png", omitBackground: false },
         }),
-        signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS + 15_000),
+        // Browser Run's own request ceiling is ~100s; staying above it lets
+        // Cloudflare's 422 / selector error return before the client aborts.
+        signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS + 90_000),
     });
 
     if (!res.ok) {
+        const body = await res.text();
         // The upstream body can carry account detail, so it goes to the log
-        // and the caller gets the status.
-        console.error("browser-run", res.status, (await res.text()).slice(0, 500));
-        throw new Error(`render failed (${res.status})`);
+        // and the caller gets the status plus any structured error message.
+        console.error("browser-run", res.status, body.slice(0, 500));
+        let detail = "";
+        try {
+            detail = formatBrowserErrors((JSON.parse(body) as { errors?: unknown }).errors);
+        } catch {}
+        throw new Error(
+            detail ? `render failed (${res.status}): ${detail}` : `render failed (${res.status})`,
+        );
     }
 
     const type = res.headers.get("content-type") ?? "";
@@ -271,7 +292,10 @@ export async function render(input: RenderInput, config: RenderConfig): Promise<
         const b64 = json.result?.screenshot;
         if (!json.success || !b64) {
             console.error("browser-run", JSON.stringify(json.errors).slice(0, 500));
-            throw new Error("render returned no image");
+            const detail = formatBrowserErrors(json.errors);
+            throw new Error(
+                detail ? `render returned no image: ${detail}` : "render returned no image",
+            );
         }
         const content = json.result?.content ?? "";
         return {

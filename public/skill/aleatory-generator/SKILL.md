@@ -54,6 +54,11 @@ differently for different people, and the failure only shows after minting:
 - `Date`, `performance.now()`, or anything time-derived deciding what is drawn
   or what parameters and traits are declared. Static captures freeze the clock,
   and interactive viewers run with a live clock.
+- Animation loops (`requestAnimationFrame`, Three.js `setAnimationLoop`) that
+  keep re-rendering every tick when `performance.now()` does not advance. Static
+  capture runs in headless software WebGL with `performance.now()` fixed at `0`:
+  render once when dirty, skip redundant draws when time has not changed, and
+  use `renderer.compileAsync` for heavy shaders before calling `ready()`.
 - `window.innerWidth`, `devicePixelRatio`, or any measurement of the viewer's
   screen deciding composition. Draw to a fixed coordinate space and scale it.
 - A library's own PRNG. Seed it from `alea.rand()`. In p5 that is
