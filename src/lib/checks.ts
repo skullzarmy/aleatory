@@ -39,7 +39,7 @@ export const INITIAL_CHECKS: Check[] = [
     {
         id: "performance",
         label: "How long it takes to draw",
-        detail: "Times a real run on this screen. A denser display draws more pixels for the same size on screen, which can make a piece that felt instant elsewhere noticeably slower here.",
+        detail: "Times a real run on this screen. A denser display draws more pixels for the same size on screen, and headless renderers run WebGL in software without a GPU, so heavy scenes can run noticeably slower there.",
         status: "idle",
     },
 ];
@@ -302,7 +302,7 @@ export async function executeChecks({
         note: !first.ready
             ? "Never finished, so there is nothing to time."
             : first.ms > SLOW_MS
-              ? `${seconds}s to draw at ${dpr}x pixel density. Slow enough that visitors on dense screens may notice.`
+              ? `${seconds}s to draw at ${dpr}x pixel density. Slow enough that visitors on dense screens or headless software WebGL renderers may hit the capture ceiling.`
               : `${seconds}s to draw at ${dpr}x pixel density.`,
     });
 
