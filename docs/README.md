@@ -17,6 +17,7 @@ The repository map, and what Aleatory is for, are in the
 |---|---|
 | [libraries.md](libraries.md) | How a generator asks for p5 or three.js instead of carrying a copy: the tag, what can be declared, what happens at each stage, and why the record is a hash rather than a URL. |
 | [params.md](params.md) | Mint-time parameters. Up to five, named and ranged by the artist, resolved by a rule specified precisely enough that another platform can build a mint UI from it alone. |
+| [exports.md](exports.md) | Exporting artifacts: print-resolution images, vector files, audio recordings and 3D assets, in-artwork or through the viewer. |
 
 Downloadable starting points, and the local loop, are in
 [`public/templates/`](../public/templates/).
