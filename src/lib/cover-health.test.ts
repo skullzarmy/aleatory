@@ -51,13 +51,13 @@ async function runTests() {
             });
         };
         const url = `/api/img/${VALID_CID}`;
-        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch });
+        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 5_000 });
         assert.equal(res.get(url), true);
         const callsAfterFirst = calls;
         assert.ok(callsAfterFirst >= 1);
 
         // Warm L1 cache makes zero network calls
-        const res2 = await resolveCoverHealth([url], { fetchFn: fakeFetch });
+        const res2 = await resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 5_000 });
         assert.equal(res2.get(url), true);
         assert.equal(calls, callsAfterFirst);
         console.log("  ok   races gateways in parallel and caches in memory");
@@ -72,7 +72,7 @@ async function runTests() {
                 headers: { "content-type": "image/svg+xml" },
             });
         const url = `/api/img/${VALID_CID_2}`;
-        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch });
+        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 5_000 });
         assert.equal(res.get(url), false);
         console.log("  ok   rejects non-raster content types");
     }
@@ -95,7 +95,7 @@ async function runTests() {
             });
         };
         const url = "https://example.com/cover.webp";
-        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch });
+        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 5_000 });
         assert.equal(res.get(url), true);
         assert.deepEqual(methods, ["HEAD", "GET"]);
         console.log("  ok   falls back from HEAD 405 to ranged GET");
@@ -113,7 +113,7 @@ async function runTests() {
                 },
             });
         const url = "https://example.com/huge.png";
-        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch });
+        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 5_000 });
         assert.equal(res.get(url), false);
         console.log("  ok   rejects oversized images");
     }
@@ -132,8 +132,8 @@ async function runTests() {
         };
         const url = "https://example.com/shared.jpg";
         const [r1, r2] = await Promise.all([
-            resolveCoverHealth([url], { fetchFn: fakeFetch }),
-            resolveCoverHealth([url], { fetchFn: fakeFetch }),
+            resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 5_000 }),
+            resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 5_000 }),
         ]);
         assert.equal(r1.get(url), true);
         assert.equal(r2.get(url), true);
@@ -141,7 +141,7 @@ async function runTests() {
         console.log("  ok   coalesces concurrent probes for the same URL");
     }
 
-    // 7. Returns within maxWaitMs while slow probes finish in background
+    // 7. Default maxWaitMs (0) returns immediately while slow probes finish in background
     {
         resetCoverHealthForTesting();
         const fakeFetch: typeof fetch = async () => {
@@ -152,13 +152,13 @@ async function runTests() {
             });
         };
         const url = "https://example.com/slow.png";
-        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 15 });
+        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch });
         assert.equal(res.get(url), undefined);
 
-        await new Promise((r) => setTimeout(r, 100));
-        const res2 = await resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 15 });
+        await new Promise((r) => setTimeout(r, 120));
+        const res2 = await resolveCoverHealth([url], { fetchFn: fakeFetch });
         assert.equal(res2.get(url), true);
-        console.log("  ok   returns within maxWaitMs and completes probe in background");
+        console.log("  ok   returns immediately by default and completes probe in background");
     }
 
     console.log("\nAll cover health checks passed.\n");
