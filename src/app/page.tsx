@@ -32,15 +32,17 @@ export const metadata: Metadata = {
  */
 export const dynamic = "force-dynamic";
 
-type Query = { sort?: string; soldOut?: string };
+type Query = { sort?: string; soldOut?: string; covers?: string };
 
 export default async function HomePage(props: { searchParams?: Promise<Query> }) {
     let rawSort: string | undefined;
     let hideSoldOut = false;
+    let requireCover = true;
     try {
         const query = await props.searchParams;
         rawSort = query?.sort;
         hideSoldOut = query?.soldOut === "hide";
+        requireCover = query?.covers !== "all";
     } catch {
         // Query read failed
     }
@@ -75,6 +77,7 @@ export default async function HomePage(props: { searchParams?: Promise<Query> })
                     initial={generators}
                     initialSort={sortKey}
                     initialHideSoldOut={hideSoldOut}
+                    initialRequireCover={requireCover}
                 />
             </div>
         </LastGood>

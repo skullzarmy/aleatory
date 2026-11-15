@@ -75,7 +75,7 @@ export function resetRedisClientForTesting() {
  * **Bump this whenever a cached type changes.** It costs one cold fetch per
  * key and is the only thing standing between a type change and an outage.
  */
-const SCHEMA = 4;
+const SCHEMA = 5;
 
 export function invalidateCache(key: string): void {
     const fullKey = `aleatory:v${SCHEMA}:${NETWORK}:${key}`;

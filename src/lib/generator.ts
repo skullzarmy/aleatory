@@ -26,6 +26,7 @@ import type { ParamsSchema } from "./params";
 import { decodeCode } from "./piece";
 import { fetchProvider } from "./providers";
 import { cacheWrap } from "./cache";
+import { resolveCoverHealth } from "./cover-health";
 import { normalizeCollab, type Collab } from "./collab";
 import { type GeneratorSortKey } from "./generator-sort";
 
@@ -103,6 +104,8 @@ export interface Generator {
     paramsSchema: ParamsSchema | null;
     /** The cover the artist chose at deploy. */
     coverUrl?: string;
+    /** Whether `coverUrl` resolved to a loadable raster image when probed. */
+    coverOk?: boolean;
 }
 
 /** A provider's price, now. The same number `get_render_gas` returns. */
@@ -335,6 +338,8 @@ export interface GeneratorSummary {
      * generator has none.
      */
     coverUrl?: string;
+    /** Whether `coverUrl` resolved to a loadable raster image when probed. */
+    coverOk?: boolean;
     minted: number;
     /** The cap. Zero is an open edition. */
     editionSize: number;
@@ -360,6 +365,7 @@ export interface GeneratorPage {
 const OVERFETCH = 10;
 
 const knownCovers = new Map<string, string>();
+const knownMetas = new Map<string, GeneratorMeta>();
 
 /**
  * One page of the catalog, and where the next one starts.
@@ -566,6 +572,11 @@ export async function fetchGeneratorPage(
                 };
             });
 
+            const coverHealth = await resolveCoverHealth(rawGenerators.map((g) => g.coverUrl));
+            for (const g of rawGenerators) {
+                g.coverOk = g.coverUrl ? coverHealth.get(g.coverUrl) : false;
+            }
+
             const generators = hideSoldOut
                 ? rawGenerators.filter((c) => !(c.editionSize > 0 && c.minted >= c.editionSize))
                 : rawGenerators;
@@ -639,35 +650,45 @@ export async function fetchAllGenerators(opts?: {
                 fetchPrices(addresses).catch(() => new Map<string, string>()),
             ]);
 
-            return rows.map((c) => {
-                const meta = metas.get(c.address) ?? {};
-                return {
-                    address: c.address,
-                    artists: artists.get(c.address),
-                    // `alias` is TzKT's, set for contracts it happens to know.
-                    name: meta.name || c.alias,
-                    description: meta.description,
-                    // The artist's own cover first, pinned at deploy, so a generator has a
-                    // face before its first piece finishes rendering.
-                    coverUrl: (() => {
-                        const own = meta.displayUri ?? meta.thumbnailUri;
-                        const cover = own
-                            ? ipfsImageUrl(own)
-                            : (covers.get(c.address) ?? knownCovers.get(c.address));
-                        if (cover) knownCovers.set(c.address, cover);
-                        return cover;
-                    })(),
-                    minted: c.tokensCount ?? 0,
-                    editionSize: editions.get(c.address) ?? 0,
-                    firstActivity: c.firstActivityTime,
-                    // Unknown reads as not-paused: a missing badge is a cosmetic miss, a
-                    // false "paused" on every row this failed for would be worse.
-                    paused: paused.get(c.address) ?? false,
-                    // Unknown reads as sealed, the same fail-open bias as paused above.
-                    sealed: sealed.get(c.address) ?? true,
-                    priceMutez: prices.get(c.address),
-                };
+            const rowsWithCovers = rows.map((c) => {
+                const fetchedMeta = metas.get(c.address);
+                if (fetchedMeta !== undefined) {
+                    knownMetas.set(c.address, fetchedMeta);
+                }
+                const meta = fetchedMeta ?? knownMetas.get(c.address);
+                if (meta === undefined) {
+                    throw new Error(`Incomplete generator metadata for ${c.address}`);
+                }
+                const own = meta.displayUri ?? meta.thumbnailUri;
+                const cover = own
+                    ? ipfsImageUrl(own)
+                    : (covers.get(c.address) ?? knownCovers.get(c.address));
+                if (cover) knownCovers.set(c.address, cover);
+                return { c, meta, cover };
             });
+
+            const coverHealth = await resolveCoverHealth(rowsWithCovers.map((r) => r.cover));
+
+            return rowsWithCovers.map(({ c, meta, cover }) => ({
+                address: c.address,
+                artists: artists.get(c.address),
+                // `alias` is TzKT's, set for contracts it happens to know.
+                name: meta.name || c.alias,
+                description: meta.description,
+                // The artist's own cover first, pinned at deploy, so a generator has a
+                // face before its first piece finishes rendering.
+                coverUrl: cover,
+                coverOk: cover ? coverHealth.get(cover) : false,
+                minted: c.tokensCount ?? 0,
+                editionSize: editions.get(c.address) ?? 0,
+                firstActivity: c.firstActivityTime,
+                // Unknown reads as not-paused: a missing badge is a cosmetic miss, a
+                // false "paused" on every row this failed for would be worse.
+                paused: paused.get(c.address) ?? false,
+                // Unknown reads as sealed, the same fail-open bias as paused above.
+                sealed: sealed.get(c.address) ?? true,
+                priceMutez: prices.get(c.address),
+            }));
         },
         {
             freshMs: 30_000,

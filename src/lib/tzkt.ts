@@ -729,6 +729,30 @@ export interface GeneratorMeta {
  * with no name. Bounded here so every caller gets the same ceiling rather
  * than each deciding for itself.
  */
+async function readGeneratorMetaStrict(address: string): Promise<GeneratorMeta> {
+    const res = await indexerFetch(
+        `${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/content`,
+        { next: { revalidate: 300 } },
+    );
+    if (res.status === 204 || res.status === 404) return {};
+    if (!res.ok) throw new Error(`TzKT meta ${res.status} for ${address}`);
+    const row = (await res.json()) as { value?: string } | null;
+    const raw = row?.value;
+    if (!raw) return {};
+    try {
+        const doc = JSON.parse(bytesToString(raw)) as Record<string, unknown>;
+        return {
+            name: doc.name as string | undefined,
+            description: doc.description as string | undefined,
+            displayUri: doc.displayUri as string | undefined,
+            thumbnailUri: doc.thumbnailUri as string | undefined,
+            tags: cleanTags(doc.tags as string[] | undefined),
+        };
+    } catch {
+        return {};
+    }
+}
+
 export async function fetchGeneratorMetas(
     addresses: string[],
 ): Promise<Map<string, GeneratorMeta>> {
@@ -738,7 +762,12 @@ export async function fetchGeneratorMetas(
         for (;;) {
             const address = queue.shift();
             if (address === undefined) return;
-            out.set(address, await fetchGeneratorMeta(address).catch((): GeneratorMeta => ({})));
+            try {
+                out.set(address, await readGeneratorMetaStrict(address));
+            } catch {
+                // Leave failed addresses absent so callers can fall back or
+                // avoid caching an incomplete catalog over a good one.
+            }
         }
     }
     await Promise.all(Array.from({ length: Math.min(META_CONCURRENCY, queue.length) }, worker));
