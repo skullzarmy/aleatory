@@ -1,4 +1,4 @@
-import type { DAppClient } from "@ecadlabs/beacon-dapp";
+import type { DAppClient } from "@tezos-x/octez.connect-sdk";
 import { rpcUrl } from "./config";
 import { feeFor } from "./fees";
 

@@ -9,18 +9,18 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import type { DAppClient } from "@ecadlabs/beacon-dapp";
+import type { DAppClient } from "@tezos-x/octez.connect-sdk";
 import { BRAND, NETWORK } from "@/lib/config";
 
 /**
- * Wallet connection, on Beacon. The SDK is around two megabytes, so it
+ * Wallet connection, on Tezos X Connect. The SDK is around two megabytes, so it
  * loads on first use and a visitor browsing the feed never downloads it.
  */
-type SDKModule = typeof import("@ecadlabs/beacon-dapp");
+type SDKModule = typeof import("@tezos-x/octez.connect-sdk");
 
 let sdkPromise: Promise<SDKModule> | null = null;
 function loadSDK(): Promise<SDKModule> {
-    if (!sdkPromise) sdkPromise = import("@ecadlabs/beacon-dapp");
+    if (!sdkPromise) sdkPromise = import("@tezos-x/octez.connect-sdk");
     return sdkPromise;
 }
 

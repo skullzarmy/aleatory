@@ -1,5 +1,5 @@
 /** Every write this app makes, and so every signature it can ask for. */
-import type { DAppClient, TezosOperationType } from "@ecadlabs/beacon-dapp";
+import type { DAppClient, TezosOperationType } from "@tezos-x/octez.connect-sdk";
 import { rpcUrl, tzktApi } from "./config";
 import { addresses, allFactories, currentFactory } from "./router";
 import { indexerFetch } from "./tzkt";
