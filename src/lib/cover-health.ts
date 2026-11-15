@@ -7,8 +7,9 @@ const ALLOWED_IMAGE_TYPE = /^image\/(png|jpeg|gif|webp|avif)$/;
 const DATA_IMAGE_URI = /^data:image\/(png|jpeg|gif|webp|avif);base64,[A-Za-z0-9+/=]+$/;
 const MAX_BYTES = 16 * 1024 * 1024;
 
-const PROBE_TIMEOUT_MS = 3_000;
-const PROBE_CONCURRENCY = 8;
+const PROBE_TIMEOUT_MS = 2_000;
+const PROBE_CONCURRENCY = 12;
+const DEFAULT_MAX_WAIT_MS = 1_500;
 
 const OK_L1_MS = 60 * 60 * 1_000;
 const FAIL_L1_MS = 10 * 60 * 1_000;
@@ -97,12 +98,18 @@ async function probeCoverUrl(url: string, fetchFn: typeof fetch): Promise<boolea
     if (url.startsWith("/api/img/")) {
         const cid = url.slice("/api/img/".length);
         if (!CID.test(cid)) return false;
-        for (const gateway of IPFS_GATEWAYS) {
-            if (await probeHttpImage(`${gateway}/${cid}`, fetchFn)) {
-                return true;
-            }
+        try {
+            await Promise.any(
+                IPFS_GATEWAYS.map(async (gateway) => {
+                    const ok = await probeHttpImage(`${gateway}/${cid}`, fetchFn);
+                    if (!ok) throw new Error("not ok");
+                    return true;
+                }),
+            );
+            return true;
+        } catch {
+            return false;
         }
-        return false;
     }
 
     if (url.startsWith("data:")) {
@@ -130,9 +137,10 @@ async function probeCoverUrl(url: string, fetchFn: typeof fetch): Promise<boolea
  */
 export async function resolveCoverHealth(
     coverUrls: (string | undefined)[],
-    opts?: { fetchFn?: typeof fetch },
+    opts?: { fetchFn?: typeof fetch; maxWaitMs?: number },
 ): Promise<Map<string, boolean>> {
     const fetchFn = opts?.fetchFn ?? fetch;
+    const maxWaitMs = opts?.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
     const result = new Map<string, boolean>();
     const unique = [...new Set(coverUrls.filter((u): u is string => Boolean(u)))];
     if (unique.length === 0) return result;
@@ -195,22 +203,33 @@ export async function resolveCoverHealth(
         }
     }
 
-    await Promise.all(
-        Array.from({ length: Math.min(PROBE_CONCURRENCY, needProbe.length) }, () => worker()),
-    );
+    const probeWork = (async () => {
+        await Promise.all(
+            Array.from({ length: Math.min(PROBE_CONCURRENCY, needProbe.length) }, () => worker()),
+        );
 
-    if (redis && toPersist.length > 0) {
-        try {
-            const pipe = redis.pipeline();
-            for (const { url, ok } of toPersist) {
-                pipe.set(redisKeyFor(url), ok, {
-                    ex: ok ? OK_REDIS_SEC : FAIL_REDIS_SEC,
-                });
+        if (redis && toPersist.length > 0) {
+            try {
+                const pipe = redis.pipeline();
+                for (const { url, ok } of toPersist) {
+                    pipe.set(redisKeyFor(url), ok, {
+                        ex: ok ? OK_REDIS_SEC : FAIL_REDIS_SEC,
+                    });
+                }
+                await pipe.exec();
+            } catch {
+                // Best-effort persistence; memory cache already holds the results.
             }
-            await pipe.exec();
-        } catch {
-            // Best-effort persistence; memory cache already holds the results.
         }
+    })();
+
+    if (maxWaitMs > 0 && Number.isFinite(maxWaitMs)) {
+        await Promise.race([
+            probeWork,
+            new Promise<void>((resolve) => setTimeout(resolve, maxWaitMs)),
+        ]);
+    } else {
+        await probeWork;
     }
 
     return result;

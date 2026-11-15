@@ -36,13 +36,13 @@ async function runTests() {
         console.log("  ok   invalid and data URLs resolve without network calls");
     }
 
-    // 2. Falls through gateways until one returns a valid raster image
+    // 2. Races gateways in parallel and caches in memory
     {
         resetCoverHealthForTesting();
         let calls = 0;
-        const fakeFetch: typeof fetch = async () => {
+        const fakeFetch: typeof fetch = async (input) => {
             calls++;
-            if (calls === 1) {
+            if (String(input).includes("fileship")) {
                 return new Response("not found", { status: 404 });
             }
             return new Response(null, {
@@ -53,13 +53,14 @@ async function runTests() {
         const url = `/api/img/${VALID_CID}`;
         const res = await resolveCoverHealth([url], { fetchFn: fakeFetch });
         assert.equal(res.get(url), true);
-        assert.equal(calls, 2);
+        const callsAfterFirst = calls;
+        assert.ok(callsAfterFirst >= 1);
 
         // Warm L1 cache makes zero network calls
         const res2 = await resolveCoverHealth([url], { fetchFn: fakeFetch });
         assert.equal(res2.get(url), true);
-        assert.equal(calls, 2);
-        console.log("  ok   falls back across gateways and caches in memory");
+        assert.equal(calls, callsAfterFirst);
+        console.log("  ok   races gateways in parallel and caches in memory");
     }
 
     // 3. Rejects non-image content-type (e.g. HTML error page or SVG)
@@ -138,6 +139,26 @@ async function runTests() {
         assert.equal(r2.get(url), true);
         assert.equal(calls, 1);
         console.log("  ok   coalesces concurrent probes for the same URL");
+    }
+
+    // 7. Returns within maxWaitMs while slow probes finish in background
+    {
+        resetCoverHealthForTesting();
+        const fakeFetch: typeof fetch = async () => {
+            await new Promise((r) => setTimeout(r, 80));
+            return new Response(null, {
+                status: 200,
+                headers: { "content-type": "image/png", "content-length": "1024" },
+            });
+        };
+        const url = "https://example.com/slow.png";
+        const res = await resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 15 });
+        assert.equal(res.get(url), undefined);
+
+        await new Promise((r) => setTimeout(r, 100));
+        const res2 = await resolveCoverHealth([url], { fetchFn: fakeFetch, maxWaitMs: 15 });
+        assert.equal(res2.get(url), true);
+        console.log("  ok   returns within maxWaitMs and completes probe in background");
     }
 
     console.log("\nAll cover health checks passed.\n");

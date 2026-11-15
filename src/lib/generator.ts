@@ -574,7 +574,7 @@ export async function fetchGeneratorPage(
 
             const coverHealth = await resolveCoverHealth(rawGenerators.map((g) => g.coverUrl));
             for (const g of rawGenerators) {
-                g.coverOk = g.coverUrl ? (coverHealth.get(g.coverUrl) ?? false) : false;
+                g.coverOk = g.coverUrl ? coverHealth.get(g.coverUrl) : false;
             }
 
             const generators = hideSoldOut
@@ -678,7 +678,7 @@ export async function fetchAllGenerators(opts?: {
                 // The artist's own cover first, pinned at deploy, so a generator has a
                 // face before its first piece finishes rendering.
                 coverUrl: cover,
-                coverOk: cover ? (coverHealth.get(cover) ?? false) : false,
+                coverOk: cover ? coverHealth.get(cover) : false,
                 minted: c.tokensCount ?? 0,
                 editionSize: editions.get(c.address) ?? 0,
                 firstActivity: c.firstActivityTime,
