@@ -774,7 +774,7 @@ export async function fetchGeneratorMetas(
     return out;
 }
 
-const META_CONCURRENCY = 8;
+const META_CONCURRENCY = 24;
 
 export async function fetchGeneratorMeta(address: string): Promise<GeneratorMeta> {
     const doc = await fetchRawContent(address);
