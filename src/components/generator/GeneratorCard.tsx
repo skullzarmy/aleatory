@@ -9,9 +9,11 @@ import type { GeneratorSummary } from "@/lib/generator";
 export const GeneratorCard = memo(function GeneratorCard({
     generator: c,
     priority = false,
+    onCoverError,
 }: {
     generator: GeneratorSummary;
     priority?: boolean;
+    onCoverError?: (address: string) => void;
 }) {
     const soldOut = c.editionSize > 0 && c.minted >= c.editionSize;
 
@@ -44,6 +46,7 @@ export const GeneratorCard = memo(function GeneratorCard({
                         alt=""
                         loading={priority ? "eager" : "lazy"}
                         fetchPriority={priority ? "high" : "auto"}
+                        onError={() => onCoverError?.(c.address)}
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                     />
                 ) : (
@@ -84,14 +87,16 @@ export const GeneratorCard = memo(function GeneratorCard({
 // Grid layout matches FeedGrid, so the two tabs line up.
 export const GeneratorGrid = memo(function GeneratorGrid({
     generators,
+    onCoverError,
 }: {
     generators: GeneratorSummary[];
+    onCoverError?: (address: string) => void;
 }) {
     return (
         <AutoList className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {generators.map((c, i) => (
                 <li key={c.address}>
-                    <GeneratorCard generator={c} priority={i < 4} />
+                    <GeneratorCard generator={c} priority={i < 4} onCoverError={onCoverError} />
                 </li>
             ))}
         </AutoList>

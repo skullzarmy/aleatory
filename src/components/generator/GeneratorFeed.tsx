@@ -17,13 +17,17 @@ export function GeneratorFeed({
     initial,
     initialSort = "created-desc",
     initialHideSoldOut = false,
+    initialRequireCover = true,
 }: {
     initial: GeneratorSummary[];
     initialSort?: GeneratorSortKey;
     initialHideSoldOut?: boolean;
+    initialRequireCover?: boolean;
 }) {
     const [selectedSort, setSelectedSort] = useState<GeneratorSortKey>(initialSort);
     const [hideSoldOut, setHideSoldOut] = useState<boolean>(initialHideSoldOut);
+    const [requireCover, setRequireCover] = useState<boolean>(initialRequireCover);
+    const [brokenCovers, setBrokenCovers] = useState<Set<string>>(() => new Set());
     const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
     const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +39,11 @@ export function GeneratorFeed({
         setHideSoldOut(initialHideSoldOut);
     }, [initialHideSoldOut]);
 
-    const syncUrl = useCallback((sort: GeneratorSortKey, hide: boolean) => {
+    useEffect(() => {
+        setRequireCover(initialRequireCover);
+    }, [initialRequireCover]);
+
+    const syncUrl = useCallback((sort: GeneratorSortKey, hide: boolean, cover: boolean) => {
         if (typeof window === "undefined") return;
         const url = new URL(window.location.href);
         if (sort === "created-desc") {
@@ -48,6 +56,11 @@ export function GeneratorFeed({
         } else {
             url.searchParams.delete("soldOut");
         }
+        if (cover) {
+            url.searchParams.delete("covers");
+        } else {
+            url.searchParams.set("covers", "all");
+        }
         window.history.replaceState(null, "", url.pathname + url.search);
     }, []);
 
@@ -56,24 +69,49 @@ export function GeneratorFeed({
             if (newSort === selectedSort) return;
             setSelectedSort(newSort);
             setVisibleCount(PAGE_SIZE);
-            syncUrl(newSort, hideSoldOut);
+            syncUrl(newSort, hideSoldOut, requireCover);
         },
-        [selectedSort, hideSoldOut, syncUrl],
+        [selectedSort, hideSoldOut, requireCover, syncUrl],
     );
 
     const handleToggleSoldOut = useCallback(() => {
         const next = !hideSoldOut;
         setHideSoldOut(next);
         setVisibleCount(PAGE_SIZE);
-        syncUrl(selectedSort, next);
-    }, [hideSoldOut, selectedSort, syncUrl]);
+        syncUrl(selectedSort, next, requireCover);
+    }, [hideSoldOut, selectedSort, requireCover, syncUrl]);
+
+    const handleToggleRequireCover = useCallback(() => {
+        const next = !requireCover;
+        setRequireCover(next);
+        setVisibleCount(PAGE_SIZE);
+        syncUrl(selectedSort, hideSoldOut, next);
+    }, [requireCover, selectedSort, hideSoldOut, syncUrl]);
+
+    const handleCoverError = useCallback((address: string) => {
+        setBrokenCovers((prev) => {
+            if (prev.has(address)) return prev;
+            const next = new Set(prev);
+            next.add(address);
+            return next;
+        });
+    }, []);
 
     const filteredGenerators = useMemo(() => {
-        const list = hideSoldOut
-            ? initial.filter((c) => !(c.editionSize > 0 && c.minted >= c.editionSize))
-            : initial;
+        const list = initial.filter((c) => {
+            if (
+                requireCover &&
+                (!c.coverUrl || c.coverOk === false || brokenCovers.has(c.address))
+            ) {
+                return false;
+            }
+            if (hideSoldOut && c.editionSize > 0 && c.minted >= c.editionSize) {
+                return false;
+            }
+            return true;
+        });
         return sortGenerators(list, selectedSort);
-    }, [initial, hideSoldOut, selectedSort]);
+    }, [initial, requireCover, hideSoldOut, brokenCovers, selectedSort]);
 
     const visibleGenerators = useMemo(
         () => filteredGenerators.slice(0, visibleCount),
@@ -111,6 +149,8 @@ export function GeneratorFeed({
                     onSortChange={handleSortChange}
                     hideSoldOut={hideSoldOut}
                     onToggleSoldOut={handleToggleSoldOut}
+                    requireCover={requireCover}
+                    onToggleRequireCover={handleToggleRequireCover}
                 />
             </div>
 
@@ -119,12 +159,15 @@ export function GeneratorFeed({
                     <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center">
                         <h2 className="text-base font-medium">No generators match your filter</h2>
                         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                            Try showing sold out generators or choosing a different sort.
+                            Try adjusting your filters or choosing a different sort.
                         </p>
                     </div>
                 ) : (
                     <>
-                        <GeneratorGrid generators={visibleGenerators} />
+                        <GeneratorGrid
+                            generators={visibleGenerators}
+                            onCoverError={handleCoverError}
+                        />
 
                         {hasMore && (
                             <div

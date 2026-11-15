@@ -17,6 +17,8 @@ import {
     Loader2,
     Eye,
     EyeOff,
+    Image as ImageIcon,
+    ImageOff,
 } from "lucide-react";
 import type { GeneratorSortKey } from "@/lib/generator-sort";
 import {
@@ -117,6 +119,8 @@ interface GeneratorSortFilterProps {
     onSortChange: (sort: GeneratorSortKey) => void;
     hideSoldOut: boolean;
     onToggleSoldOut: () => void;
+    requireCover: boolean;
+    onToggleRequireCover: () => void;
     isPending?: boolean;
 }
 
@@ -125,18 +129,52 @@ export const GeneratorSortFilter = memo(function GeneratorSortFilter({
     onSortChange,
     hideSoldOut,
     onToggleSoldOut,
+    requireCover,
+    onToggleRequireCover,
     isPending = false,
 }: GeneratorSortFilterProps) {
     const activeOption = SORT_OPTIONS_BY_KEY.get(currentSort) || SORT_OPTIONS[0];
     const ActiveIcon = activeOption.icon;
 
     return (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
             <span className="sr-only" aria-live="polite">
                 {isPending
                     ? "Loading generators..."
-                    : `Sorted by ${activeOption.label}, sold out generators ${hideSoldOut ? "hidden" : "visible"}`}
+                    : `Sorted by ${activeOption.label}, sold out generators ${hideSoldOut ? "hidden" : "visible"}, ${requireCover ? "only generators with a working cover shown" : "all generators shown"}`}
             </span>
+
+            {/* Has cover toggle button */}
+            <button
+                type="button"
+                onClick={onToggleRequireCover}
+                aria-pressed={requireCover}
+                aria-label={
+                    requireCover
+                        ? "Show generators without a working cover"
+                        : "Only show generators with a working cover"
+                }
+                className={cn(
+                    "inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium transition-all select-none active:scale-[0.98] cursor-pointer",
+                    "hover:border-foreground/30 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    requireCover ? "text-foreground" : "text-muted-foreground",
+                )}
+            >
+                {requireCover ? (
+                    <ImageIcon
+                        strokeWidth={2.25}
+                        className="size-4 shrink-0 text-foreground"
+                        aria-hidden="true"
+                    />
+                ) : (
+                    <ImageOff
+                        strokeWidth={2.25}
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                    />
+                )}
+                <span>Has cover</span>
+            </button>
 
             {/* Sold out toggle button */}
             <button
