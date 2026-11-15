@@ -2,9 +2,8 @@
 import { CONTRACTS, tzktApi } from "./config";
 import { isBlockedGenerator } from "./blocklist";
 import { addresses } from "./router";
-import { fetchHeldAmong, indexerFetch } from "./tzkt";
+import { fetchCreators, fetchGeneratorMetas, fetchHeldAmong, indexerFetch } from "./tzkt";
 import { cacheWrap } from "./cache";
-import { fetchAllGenerators } from "./generator";
 import { piecesFor, type FeedPiece } from "./feed";
 import { shortAddress } from "./utils";
 
@@ -237,22 +236,24 @@ export async function fetchLiveMarket(): Promise<LiveMarketStore> {
     return cacheWrap<LiveMarketStore>(
         "market:live",
         async () => {
-            const [mPlace, allListings, allGens] = await Promise.all([
+            const [mPlace, allListings] = await Promise.all([
                 addresses().then((a) => a.marketplaces[0] ?? ""),
                 fetchAllActiveListings(),
-                fetchAllGenerators().catch(() => []),
             ]);
 
             const unblocked = allListings.filter((l) => !isBlockedGenerator(l.generator));
+            const listedGenerators = [...new Set(unblocked.map((l) => l.generator))];
 
-            const namesMap = new Map(
-                allGens.flatMap((c) => (c.name ? [[c.address, c.name] as const] : [])),
-            );
-            const artistsMap = new Map(
-                allGens.flatMap((c) =>
-                    c.artists?.length ? [[c.address, c.artists] as const] : [],
-                ),
-            );
+            const [metas, artistsMap, rawPiecesMap] = await Promise.all([
+                fetchGeneratorMetas(listedGenerators),
+                fetchCreators(listedGenerators).catch(() => new Map<string, string[]>()),
+                piecesFor(unblocked),
+            ]);
+
+            const namesMap = new Map<string, string>();
+            for (const [address, meta] of metas) {
+                if (meta.name) namesMap.set(address, meta.name);
+            }
 
             // Group listings by generator to calculate active counts
             const counts = new Map<string, number>();
@@ -268,9 +269,11 @@ export async function fetchLiveMarket(): Promise<LiveMarketStore> {
                     return { address, name, count };
                 });
 
-            // Resolve pieces for all active listings
-            const piecesMap = await piecesFor(unblocked, namesMap).catch(
-                () => new Map<string, FeedPiece>(),
+            const pieces: [string, FeedPiece][] = Array.from(rawPiecesMap.entries()).map(
+                ([k, p]) => {
+                    const generatorName = namesMap.get(p.contract) ?? p.generatorName;
+                    return [k, generatorName ? { ...p, generatorName } : p];
+                },
             );
 
             return {
@@ -279,13 +282,19 @@ export async function fetchLiveMarket(): Promise<LiveMarketStore> {
                     ...l,
                     priceMutez: l.priceMutez.toString(),
                 })),
-                pieces: Array.from(piecesMap.entries()),
+                pieces,
                 generators: activeGenerators,
                 artists: Array.from(artistsMap.entries()),
                 names: Array.from(namesMap.entries()),
             };
         },
-        { freshMs: 20_000, l1Ms: 10_000, redisTtlSec: 3600 },
+        {
+            freshMs: 20_000,
+            l1Ms: 10_000,
+            redisTtlSec: 3600,
+            staleOk: (data) =>
+                data.listings.length === 0 || (data.pieces.length > 0 && data.names.length > 0),
+        },
     );
 }
 

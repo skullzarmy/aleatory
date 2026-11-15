@@ -357,12 +357,21 @@ export async function piecesFor(
     if (pairs.length === 0) return new Map();
 
     const wanted = new Set(pairs.map((p) => `${p.generator}:${p.tokenId}`));
-    const generators = [...new Set(pairs.map((p) => p.generator))];
-    const tokenIds = [...new Set(pairs.map((p) => p.tokenId))];
+    const BATCH_SIZE = 20;
+    const batches: { generator: string; tokenId: string }[][] = [];
+    for (let i = 0; i < pairs.length; i += BATCH_SIZE) {
+        batches.push(pairs.slice(i, i + BATCH_SIZE));
+    }
 
-    const tokens = (await fetchTokensIn(generators, tokenIds).catch(() => [])).filter((t) =>
-        wanted.has(key(t)),
+    const batchResults = await Promise.all(
+        batches.map((batch) => {
+            const generators = [...new Set(batch.map((p) => p.generator))];
+            const tokenIds = [...new Set(batch.map((p) => p.tokenId))];
+            return fetchTokensIn(generators, tokenIds);
+        }),
     );
+
+    const tokens = batchResults.flat().filter((t) => wanted.has(key(t)));
 
     const pieces = await piecesOf(tokens, names);
     return new Map(pieces.map((p) => [p.key, p]));

@@ -9,7 +9,7 @@ const MAX_BYTES = 16 * 1024 * 1024;
 
 const PROBE_TIMEOUT_MS = 2_000;
 const PROBE_CONCURRENCY = 12;
-const DEFAULT_MAX_WAIT_MS = 1_500;
+const DEFAULT_MAX_WAIT_MS = 0;
 
 const OK_L1_MS = 60 * 60 * 1_000;
 const FAIL_L1_MS = 10 * 60 * 1_000;
@@ -92,24 +92,12 @@ async function probeHttpImage(targetUrl: string, fetchFn: typeof fetch): Promise
     }
 }
 
-async function probeCoverUrl(url: string, fetchFn: typeof fetch): Promise<boolean> {
+function classifyStaticCoverUrl(url: string): boolean | null {
     if (!url) return false;
 
     if (url.startsWith("/api/img/")) {
         const cid = url.slice("/api/img/".length);
-        if (!CID.test(cid)) return false;
-        try {
-            await Promise.any(
-                IPFS_GATEWAYS.map(async (gateway) => {
-                    const ok = await probeHttpImage(`${gateway}/${cid}`, fetchFn);
-                    if (!ok) throw new Error("not ok");
-                    return true;
-                }),
-            );
-            return true;
-        } catch {
-            return false;
-        }
+        return CID.test(cid) ? null : false;
     }
 
     if (url.startsWith("data:")) {
@@ -123,6 +111,29 @@ async function probeCoverUrl(url: string, fetchFn: typeof fetch): Promise<boolea
         }
     } catch {
         return false;
+    }
+
+    return null;
+}
+
+async function probeCoverUrl(url: string, fetchFn: typeof fetch): Promise<boolean> {
+    const staticResult = classifyStaticCoverUrl(url);
+    if (staticResult !== null) return staticResult;
+
+    if (url.startsWith("/api/img/")) {
+        const cid = url.slice("/api/img/".length);
+        try {
+            await Promise.any(
+                IPFS_GATEWAYS.map(async (gateway) => {
+                    const ok = await probeHttpImage(`${gateway}/${cid}`, fetchFn);
+                    if (!ok) throw new Error("not ok");
+                    return true;
+                }),
+            );
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     return probeHttpImage(url, fetchFn);
@@ -149,6 +160,11 @@ export async function resolveCoverHealth(
     const needRedis: string[] = [];
 
     for (const url of unique) {
+        const staticOk = classifyStaticCoverUrl(url);
+        if (staticOk !== null) {
+            result.set(url, staticOk);
+            continue;
+        }
         const cached = memoryCache.get(url);
         if (cached && cached.expiresAt > now) {
             result.set(url, cached.ok);
@@ -223,7 +239,9 @@ export async function resolveCoverHealth(
         }
     })();
 
-    if (maxWaitMs > 0 && Number.isFinite(maxWaitMs)) {
+    if (maxWaitMs === 0) {
+        void probeWork;
+    } else if (maxWaitMs > 0 && Number.isFinite(maxWaitMs)) {
         await Promise.race([
             probeWork,
             new Promise<void>((resolve) => setTimeout(resolve, maxWaitMs)),
