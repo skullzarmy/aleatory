@@ -111,6 +111,13 @@ function csp(): string {
             "wss://relay.walletconnect.org",
             "https://relay.walletconnect.com",
             "https://relay.walletconnect.org",
+            // The wallet list: which wallets the connect dialog offers, and
+            // the deep links behind them. The SDK ships a bundled copy and
+            // fetches this to pick up wallets added since our pinned release,
+            // falling back to the bundle on any failure. Restricted to that
+            // one repository path rather than the CDN, so this does not also
+            // open jsDelivr's entire npm mirror to the page.
+            "https://cdn.jsdelivr.net/gh/trilitech/octez.connect-wallet-list@latest/dist/",
             // Where the beacon reports to, which is a different host from the
             // one it loads from.
             "https://cloudflareinsights.com",

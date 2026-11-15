@@ -9,7 +9,7 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import type { DAppClient } from "@ecadlabs/beacon-dapp";
+import type { DAppClient } from "@tezos-x/octez.connect-sdk";
 import { BRAND, NETWORK, RPC_URL } from "@/lib/config";
 
 /**
@@ -17,11 +17,11 @@ import { BRAND, NETWORK, RPC_URL } from "@/lib/config";
  * sign administrative calls. The SDK still loads lazily, because most visits
  * are to look at numbers.
  */
-type SDKModule = typeof import("@ecadlabs/beacon-dapp");
+type SDKModule = typeof import("@tezos-x/octez.connect-sdk");
 
 let sdkPromise: Promise<SDKModule> | null = null;
 function loadSDK(): Promise<SDKModule> {
-    if (!sdkPromise) sdkPromise = import("@ecadlabs/beacon-dapp");
+    if (!sdkPromise) sdkPromise = import("@tezos-x/octez.connect-sdk");
     return sdkPromise;
 }
 
