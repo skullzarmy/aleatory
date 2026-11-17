@@ -928,6 +928,7 @@ interface OperationResult {
     status: string;
     consumed_milligas?: string;
     paid_storage_size_diff?: string;
+    errors?: { id: string }[];
 }
 
 /** Sibling of `operation_result` under `metadata`, not nested inside it: the
@@ -998,8 +999,15 @@ async function simulateDeployStorage(
     const metadata = (result.contents[0] as unknown as { metadata?: OperationMetadata }).metadata;
     const op = metadata?.operation_result;
     if (!op || op.status !== "applied") {
+        const errors = [
+            op?.errors,
+            ...(metadata?.internal_operation_results ?? []).map((r) => r.result?.errors),
+        ]
+            .flatMap((e) => e ?? [])
+            .map((e) => e.id);
         throw new Error(
-            `Could not price this deploy: the chain's own simulation reported ${op?.status ?? "no result"}.`,
+            `Could not price this deploy: the chain's own simulation reported ${op?.status ?? "no result"}` +
+                (errors.length ? ` (${errors.join(", ")}).` : "."),
         );
     }
     const outer = Number(op.paid_storage_size_diff ?? 0);
