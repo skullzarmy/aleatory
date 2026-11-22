@@ -7,6 +7,7 @@ import { WalletProvider } from "@/context/WalletContext";
 import { OffersProvider } from "@/context/OffersContext";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { MaintenanceBanner } from "@/components/layout/MaintenanceBanner";
 import { BRAND } from "@/lib/config";
 
 const anybody = Anybody({ subsets: ["latin"], display: "swap" });
@@ -61,6 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         {/* Nested inside WalletProvider: offers are a view of one address and idle until there is one. */}
                         <OffersProvider>
                             <div className="flex min-h-screen flex-col bg-background">
+                                <MaintenanceBanner />
                                 <Header />
                                 {/* WCAG 2.4.1 Bypass Blocks. Visible only when focused. */}
                                 <a

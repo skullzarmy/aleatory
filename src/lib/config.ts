@@ -21,6 +21,10 @@ export type Network = "shadownet" | "mainnet";
 
 export const NETWORK: Network = (process.env.NEXT_PUBLIC_TEZOS_NETWORK as Network) || "shadownet";
 
+const rawMaintenance = process.env.NEXT_PUBLIC_MAINTENANCE_WINDOW?.trim().toLowerCase();
+export const MAINTENANCE_WINDOW =
+    Boolean(rawMaintenance) && !["0", "false", "no", "off"].includes(rawMaintenance ?? "");
+
 export const TZKT_API: Record<Network, string> = {
     shadownet: "https://api.shadownet.tzkt.io",
     mainnet: "https://api.tzkt.io",
