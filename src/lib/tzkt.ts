@@ -12,6 +12,15 @@ export interface TzktContract {
     tokensCount?: number;
 }
 
+export interface TzktContractWithStorage extends TzktContract {
+    storage?: {
+        sale?: { paused?: unknown; price?: unknown; edition_size?: unknown };
+        art?: { code_sealed?: unknown };
+        collab?: { confirmed?: unknown };
+        administrator?: unknown;
+    };
+}
+
 export interface TzktToken {
     id: number;
     contract: { address: string; alias?: string };
@@ -78,11 +87,14 @@ const TRANSIENT = new Set([408, 425, 429, 500, 502, 503, 504]);
  */
 export async function indexerFetch(url: string, init: RequestInit = {}): Promise<Response> {
     let last: unknown;
+    let retryAfterMs: number | null = null;
 
     for (let attempt = 1; attempt <= INDEXER_ATTEMPTS; attempt++) {
         if (attempt > 1) {
             const base = 200 * 2 ** (attempt - 2);
-            await new Promise((r) => setTimeout(r, base + Math.random() * base));
+            const delay = retryAfterMs ?? base + Math.random() * base;
+            retryAfterMs = null;
+            await new Promise((r) => setTimeout(r, delay));
         }
         try {
             const res = await fetch(url, {
@@ -90,6 +102,15 @@ export async function indexerFetch(url: string, init: RequestInit = {}): Promise
                 signal: AbortSignal.timeout(INDEXER_TIMEOUT_MS),
             });
             if (!TRANSIENT.has(res.status)) return res;
+            if (res.status === 429) {
+                const ra = res.headers.get("retry-after");
+                if (ra) {
+                    const sec = Number(ra);
+                    if (Number.isFinite(sec) && sec > 0) {
+                        retryAfterMs = Math.min(sec * 1000, 5_000);
+                    }
+                }
+            }
             last = new Error(`TzKT ${res.status}`);
         } catch (e) {
             last = e;
@@ -158,6 +179,23 @@ export async function fetchGenerators(factory: string): Promise<TzktContract[]> 
         "sort.desc": "firstActivityTime",
         limit: 200,
         select: "address,alias,firstActivityTime,lastActivityTime,tokensCount",
+    });
+}
+
+/**
+ * Every generator a factory has originated, including storage, in one request
+ * per factory. Used by `fetchAllGenerators` so a cold catalog build does not
+ * fan out hundreds of per-contract storage reads into TzKT rate limits.
+ */
+export async function fetchGeneratorsWithStorage(
+    factory: string,
+): Promise<TzktContractWithStorage[]> {
+    if (!factory) return [];
+    return get<TzktContractWithStorage[]>("/v1/contracts", {
+        creator: factory,
+        "sort.desc": "firstActivityTime",
+        limit: 200,
+        includeStorage: "true",
     });
 }
 
@@ -292,6 +330,8 @@ export async function fetchPausedStates(generators: string[]): Promise<Map<strin
  */
 const sealedCache = new Map<string, { sealed: boolean; at: number }>();
 const SEALED_TTL_MS = 60_000;
+// Sealing is one-way in the contract, so a sealed generator never unseals.
+const SEALED_TRUE_TTL_MS = 24 * 60 * 60_000;
 
 export async function fetchSealedStates(generators: string[]): Promise<Map<string, boolean>> {
     const sealed = new Map<string, boolean>();
@@ -299,7 +339,8 @@ export async function fetchSealedStates(generators: string[]): Promise<Map<strin
     const queue: string[] = [];
     for (const address of generators) {
         const cached = sealedCache.get(address);
-        if (cached && now - cached.at < SEALED_TTL_MS) {
+        const ttl = cached?.sealed ? SEALED_TRUE_TTL_MS : SEALED_TTL_MS;
+        if (cached && now - cached.at < ttl) {
             sealed.set(address, cached.sealed);
         } else {
             queue.push(address);
@@ -366,6 +407,56 @@ export async function fetchPrices(generators: string[]): Promise<Map<string, str
 }
 
 /**
+ * Both `sale.paused` and `sale.price` in one request per generator, populating
+ * both caches so callers that need both do not double their indexer traffic.
+ */
+export async function fetchSaleStates(
+    generators: string[],
+): Promise<Map<string, { paused: boolean; price?: string }>> {
+    const out = new Map<string, { paused: boolean; price?: string }>();
+    const now = Date.now();
+    const queue: string[] = [];
+    for (const address of generators) {
+        const pCached = pausedCache.get(address);
+        const prCached = priceCache.get(address);
+        if (
+            pCached &&
+            now - pCached.at < PAUSED_TTL_MS &&
+            prCached &&
+            now - prCached.at < PRICE_TTL_MS
+        ) {
+            out.set(address, { paused: pCached.paused, price: prCached.price });
+        } else {
+            queue.push(address);
+        }
+    }
+    if (queue.length === 0) return out;
+
+    async function worker() {
+        for (;;) {
+            const address = queue.shift();
+            if (address === undefined) return;
+            const s = await narrow<{ paused?: boolean; price?: string | number }>(
+                `/v1/contracts/${address}/storage?path=sale`,
+                30,
+            );
+            if (s && typeof s.paused === "boolean") {
+                const ts = Date.now();
+                pausedCache.set(address, { paused: s.paused, at: ts });
+                let price: string | undefined;
+                if (s.price !== null && s.price !== undefined) {
+                    price = String(s.price);
+                    priceCache.set(address, { price, at: ts });
+                }
+                out.set(address, { paused: s.paused, price });
+            }
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(PAUSED_CONCURRENCY, queue.length) }, worker));
+    return out;
+}
+
+/**
  * Who each generator credits: the collaborators who confirmed, or the one
  * administrator for a generator deployed before collaborations existed.
  *
@@ -390,14 +481,36 @@ export async function fetchPrices(generators: string[]): Promise<Map<string, str
  * A 204 is an answer: the path is not in that contract's storage. It is not
  * retried and it is not an error.
  */
-async function narrow<T>(path: string, revalidate: number): Promise<T | null> {
-    try {
-        const res = await indexerFetch(`${tzktApi()}${path}`, { next: { revalidate } });
-        if (!res.ok || res.status === 204) return null;
-        return (await res.json()) as T;
-    } catch {
-        return null;
+// Shared concurrency gate across all per-generator TzKT callers so parallel
+// fanouts do not burst TzKT into 429s.
+const NARROW_CONCURRENCY = 4;
+let narrowActive = 0;
+const narrowWaiters: (() => void)[] = [];
+
+async function withNarrowSlot<T>(fn: () => Promise<T>): Promise<T> {
+    if (narrowActive >= NARROW_CONCURRENCY) {
+        await new Promise<void>((resolve) => narrowWaiters.push(resolve));
     }
+    narrowActive++;
+    try {
+        return await fn();
+    } finally {
+        narrowActive--;
+        const next = narrowWaiters.shift();
+        if (next) next();
+    }
+}
+
+async function narrow<T>(path: string, revalidate: number): Promise<T | null> {
+    return withNarrowSlot(async () => {
+        try {
+            const res = await indexerFetch(`${tzktApi()}${path}`, { next: { revalidate } });
+            if (!res.ok || res.status === 204) return null;
+            return (await res.json()) as T;
+        } catch {
+            return null;
+        }
+    });
 }
 
 /**
@@ -415,6 +528,18 @@ function orderCreators(confirmed: string[], admin: unknown): string[] {
     const rest = [...confirmed].sort();
     if (typeof admin !== "string" || !rest.includes(admin)) return rest;
     return [admin, ...rest.filter((a) => a !== admin)];
+}
+
+export function creatorsFromStorage(
+    collab: { confirmed?: unknown } | null | undefined,
+    admin: unknown,
+): string[] | undefined {
+    const confirmed = Array.isArray(collab?.confirmed)
+        ? collab.confirmed.filter((a): a is string => typeof a === "string")
+        : [];
+    if (confirmed.length > 0) return orderCreators(confirmed, admin);
+    if (typeof admin === "string") return [admin];
+    return undefined;
 }
 
 const ARTIST_CONCURRENCY = 8;
@@ -439,14 +564,8 @@ export async function fetchCreators(generators: string[]): Promise<Map<string, s
                 read(address, "collab") as Promise<{ confirmed?: unknown } | null>,
                 read(address, "administrator") as Promise<unknown>,
             ]);
-            const confirmed = Array.isArray(collab?.confirmed)
-                ? collab.confirmed.filter((a): a is string => typeof a === "string")
-                : [];
-            if (confirmed.length > 0) {
-                creators.set(address, orderCreators(confirmed, admin));
-                continue;
-            }
-            if (typeof admin === "string") creators.set(address, [admin]);
+            const ordered = creatorsFromStorage(collab, admin);
+            if (ordered) creators.set(address, ordered);
         }
     }
     await Promise.all(Array.from({ length: Math.min(ARTIST_CONCURRENCY, queue.length) }, worker));
@@ -730,9 +849,10 @@ export interface GeneratorMeta {
  * than each deciding for itself.
  */
 async function readGeneratorMetaStrict(address: string): Promise<GeneratorMeta> {
-    const res = await indexerFetch(
-        `${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/content`,
-        { next: { revalidate: 300 } },
+    const res = await withNarrowSlot(() =>
+        indexerFetch(`${tzktApi()}/v1/contracts/${address}/bigmaps/metadata/keys/content`, {
+            next: { revalidate: 300 },
+        }),
     );
     if (res.status === 204 || res.status === 404) return {};
     if (!res.ok) throw new Error(`TzKT meta ${res.status} for ${address}`);

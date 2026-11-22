@@ -3,7 +3,9 @@
  */
 import { fetchStorage, fetchStorageLive, fetchRecentTokens, type TzktToken } from "./tzkt";
 import {
+    creatorsFromStorage,
     fetchGenerators,
+    fetchGeneratorsWithStorage,
     fetchGeneratorMeta,
     fetchEditionSizes,
     fetchPausedStates,
@@ -366,6 +368,8 @@ const OVERFETCH = 10;
 
 const knownCovers = new Map<string, string>();
 const knownMetas = new Map<string, GeneratorMeta>();
+const knownPaused = new Map<string, boolean>();
+const knownSealed = new Map<string, boolean>();
 
 /**
  * One page of the catalog, and where the next one starts.
@@ -524,11 +528,13 @@ export async function fetchGeneratorPage(
                         : Promise.resolve(new Map<string, number>()),
                 ]);
 
+                for (const [addr, p] of paused) knownPaused.set(addr, p);
+                for (const [addr, s] of sealed) knownSealed.set(addr, s);
+
                 for (const c of chunk) {
-                    // Unknown reads as live, the same fail-open bias the badges
-                    // take: a generator missing from the grid is worse than one
-                    // shown that should not have been.
-                    if (!(paused.get(c.address) ?? false) && (sealed.get(c.address) ?? true)) {
+                    const isPaused = paused.get(c.address) ?? knownPaused.get(c.address);
+                    const isSealed = sealed.get(c.address) ?? knownSealed.get(c.address);
+                    if (isPaused === false && isSealed === true) {
                         if (hideSoldOut) {
                             const size =
                                 chunkEditions.get(c.address) ?? editionsMap?.get(c.address) ?? 0;
@@ -622,7 +628,9 @@ export async function fetchAllGenerators(opts?: {
             if (factories.length === 0) return [];
             // One factory failing costs its generators. All of them failing is an outage
             // and throws, so it does not read as a catalog with nothing in it.
-            const settled = await Promise.allSettled(factories.map((f) => fetchGenerators(f)));
+            const settled = await Promise.allSettled(
+                factories.map((f) => fetchGeneratorsWithStorage(f)),
+            );
             if (settled.every((r) => r.status === "rejected")) throw settled[0].reason;
             const lists = settled.map((r) => (r.status === "fulfilled" ? r.value : []));
             const seen = new Set<string>();
@@ -636,18 +644,9 @@ export async function fetchAllGenerators(opts?: {
                     (b.firstActivityTime ?? "").localeCompare(a.firstActivityTime ?? ""),
                 );
             const addresses = rows.map((c) => c.address);
-            const [metas, covers, editions, paused, sealed, artists, prices] = await Promise.all([
+            const [metas, covers] = await Promise.all([
                 fetchGeneratorMetas(addresses),
                 coversFor(addresses).catch(() => new Map<string, string>()),
-                fetchEditionSizes(factories, addresses).catch(() => new Map<string, number>()),
-                opts?.paused
-                    ? fetchPausedStates(addresses).catch(() => new Map<string, boolean>())
-                    : Promise.resolve(new Map<string, boolean>()),
-                opts?.sealed
-                    ? fetchSealedStates(addresses).catch(() => new Map<string, boolean>())
-                    : Promise.resolve(new Map<string, boolean>()),
-                fetchCreators(addresses).catch(() => new Map<string, string[]>()),
-                fetchPrices(addresses).catch(() => new Map<string, string>()),
             ]);
 
             const rowsWithCovers = rows.map((c) => {
@@ -659,36 +658,57 @@ export async function fetchAllGenerators(opts?: {
                 if (meta === undefined) {
                     throw new Error(`Incomplete generator metadata for ${c.address}`);
                 }
+                const sale = c.storage?.sale;
+                const rawPaused = typeof sale?.paused === "boolean" ? sale.paused : undefined;
+                if (rawPaused !== undefined) knownPaused.set(c.address, rawPaused);
+                const isPaused = opts?.paused ? (rawPaused ?? knownPaused.get(c.address)) : false;
+                if (isPaused === undefined) {
+                    throw new Error(`Incomplete generator paused state for ${c.address}`);
+                }
+                const rawSealed =
+                    typeof c.storage?.art?.code_sealed === "boolean"
+                        ? c.storage.art.code_sealed
+                        : undefined;
+                if (rawSealed !== undefined) knownSealed.set(c.address, rawSealed);
+                const isSealed = opts?.sealed ? (rawSealed ?? knownSealed.get(c.address)) : true;
+                if (isSealed === undefined) {
+                    throw new Error(`Incomplete generator sealed state for ${c.address}`);
+                }
+                const editionSize = Number(sale?.edition_size ?? 0);
+                const priceMutez =
+                    sale?.price !== null && sale?.price !== undefined
+                        ? String(sale.price)
+                        : undefined;
+                const artists = creatorsFromStorage(c.storage?.collab, c.storage?.administrator);
                 const own = meta.displayUri ?? meta.thumbnailUri;
                 const cover = own
                     ? ipfsImageUrl(own)
                     : (covers.get(c.address) ?? knownCovers.get(c.address));
                 if (cover) knownCovers.set(c.address, cover);
-                return { c, meta, cover };
+                return { c, meta, cover, isPaused, isSealed, editionSize, priceMutez, artists };
             });
 
             const coverHealth = await resolveCoverHealth(rowsWithCovers.map((r) => r.cover));
 
-            return rowsWithCovers.map(({ c, meta, cover }) => ({
-                address: c.address,
-                artists: artists.get(c.address),
-                // `alias` is TzKT's, set for contracts it happens to know.
-                name: meta.name || c.alias,
-                description: meta.description,
-                // The artist's own cover first, pinned at deploy, so a generator has a
-                // face before its first piece finishes rendering.
-                coverUrl: cover,
-                coverOk: cover ? coverHealth.get(cover) : false,
-                minted: c.tokensCount ?? 0,
-                editionSize: editions.get(c.address) ?? 0,
-                firstActivity: c.firstActivityTime,
-                // Unknown reads as not-paused: a missing badge is a cosmetic miss, a
-                // false "paused" on every row this failed for would be worse.
-                paused: paused.get(c.address) ?? false,
-                // Unknown reads as sealed, the same fail-open bias as paused above.
-                sealed: sealed.get(c.address) ?? true,
-                priceMutez: prices.get(c.address),
-            }));
+            return rowsWithCovers.map(
+                ({ c, meta, cover, isPaused, isSealed, editionSize, priceMutez, artists }) => ({
+                    address: c.address,
+                    artists,
+                    // `alias` is TzKT's, set for contracts it happens to know.
+                    name: meta.name || c.alias,
+                    description: meta.description,
+                    // The artist's own cover first, pinned at deploy, so a generator has a
+                    // face before its first piece finishes rendering.
+                    coverUrl: cover,
+                    coverOk: cover ? coverHealth.get(cover) : false,
+                    minted: c.tokensCount ?? 0,
+                    editionSize,
+                    firstActivity: c.firstActivityTime,
+                    paused: isPaused,
+                    sealed: isSealed,
+                    priceMutez,
+                }),
+            );
         },
         {
             freshMs: 30_000,
